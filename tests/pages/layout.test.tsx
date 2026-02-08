@@ -24,6 +24,7 @@ describe('Root Layout', () => {
     expect(screen.getByText('Tasks')).toBeInTheDocument()
     expect(screen.getByText('Comms Log')).toBeInTheDocument()
     expect(screen.getByText('Agents')).toBeInTheDocument()
+    expect(screen.getByText('Metrics')).toBeInTheDocument()
   })
 
   it('navigation links have correct hrefs', () => {
@@ -33,6 +34,7 @@ describe('Root Layout', () => {
     expect(screen.getByText('Tasks').closest('a')).toHaveAttribute('href', '/tasks')
     expect(screen.getByText('Comms Log').closest('a')).toHaveAttribute('href', '/comms')
     expect(screen.getByText('Agents').closest('a')).toHaveAttribute('href', '/agents')
+    expect(screen.getByText('Metrics').closest('a')).toHaveAttribute('href', '/metrics')
   })
 
   it('renders children in main area', () => {
