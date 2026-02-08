@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import "./globals.css"
 import Link from "next/link"
-import { Home, Zap, LayoutGrid, MessageCircle, Users } from "lucide-react"
+import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3 } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "Team Dashboard — Interstellar Squad",
@@ -38,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <NavLink href="/mission-control" icon={Zap} label="Mission Control" />
               <NavLink href="/tasks" icon={LayoutGrid} label="Tasks" />
               <NavLink href="/comms" icon={MessageCircle} label="Comms Log" />
+              <NavLink href="/metrics" icon={BarChart3} label="Metrics" />
               <NavLink href="/agents" icon={Users} label="Agents" />
             </nav>
             <div className="mt-auto px-2">
