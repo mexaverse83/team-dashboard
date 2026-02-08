@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { agentConfigs } from "@/lib/agents"
 import { Users, CheckSquare, MessageCircle, Activity } from "lucide-react"
+import { supabase } from "@/lib/supabase"
 
 function MetricCard({ title, value, description, icon: Icon }: {
   title: string; value: string; description: string; icon: React.ElementType
@@ -20,7 +21,26 @@ function MetricCard({ title, value, description, icon: Icon }: {
   )
 }
 
-export default function DashboardPage() {
+async function getStats() {
+  const [agentsRes, ticketsRes, messagesRes] = await Promise.all([
+    supabase.from('agents').select('*'),
+    supabase.from('tickets').select('*'),
+    supabase.from('messages').select('*'),
+  ])
+  return {
+    agents: agentsRes.data || [],
+    tickets: ticketsRes.data || [],
+    messages: messagesRes.data || [],
+  }
+}
+
+export const revalidate = 30
+
+export default async function DashboardPage() {
+  const { agents, tickets, messages } = await getStats()
+  const onlineCount = agents.filter(a => a.status !== 'offline').length
+  const openTickets = tickets.filter(t => t.status !== 'done').length
+
   return (
     <div className="space-y-8">
       <div>
@@ -28,78 +48,77 @@ export default function DashboardPage() {
         <p className="text-[hsl(var(--muted-foreground))]">Interstellar Squad — Mission Overview</p>
       </div>
 
-      {/* Quick Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <MetricCard title="Agents" value="5" description="All online" icon={Users} />
-        <MetricCard title="Open Tasks" value="0" description="Across all agents" icon={CheckSquare} />
-        <MetricCard title="Messages Today" value="0" description="Inter-agent comms" icon={MessageCircle} />
-        <MetricCard title="Uptime" value="99.9%" description="Last 24 hours" icon={Activity} />
+        <MetricCard title="Agents" value={String(agents.length)} description={`${onlineCount} online`} icon={Users} />
+        <MetricCard title="Open Tasks" value={String(openTickets)} description="Across all agents" icon={CheckSquare} />
+        <MetricCard title="Messages" value={String(messages.length)} description="Inter-agent comms" icon={MessageCircle} />
+        <MetricCard title="Completed" value={String(tickets.filter(t => t.status === 'done').length)} description="Tasks done" icon={Activity} />
       </div>
 
-      {/* Agent Status Grid */}
       <div>
         <h2 className="text-xl font-semibold mb-4">Agent Status</h2>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {agentConfigs.map((agent) => (
-            <Card key={agent.id}>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br ${agent.gradient}`}>
-                      <agent.icon className="h-5 w-5 text-white" />
+          {agents.map((agent) => {
+            const config = agentConfigs.find(a => a.id === agent.id)
+            if (!config) return null
+            const statusColor = agent.status === 'online' ? 'bg-green-500' : agent.status === 'busy' ? 'bg-yellow-500' : 'bg-gray-500'
+            return (
+              <Card key={agent.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br ${config.gradient}`}>
+                        <config.icon className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base">{agent.name}</CardTitle>
+                        <CardDescription className="text-xs">{agent.role}</CardDescription>
+                      </div>
                     </div>
-                    <div>
-                      <CardTitle className="text-base">{agent.name}</CardTitle>
-                      <CardDescription className="text-xs">{agent.role}</CardDescription>
-                    </div>
+                    <Badge className={config.badgeColor} variant="outline">{config.badge}</Badge>
                   </div>
-                  <Badge className={agent.badgeColor} variant="outline">{agent.badge}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-green-500" />
-                  <span className="text-sm text-[hsl(var(--muted-foreground))]">Online — Ready</span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {agent.skills.slice(0, 3).map((skill) => (
-                    <Badge key={skill} variant="secondary" className="text-xs">{skill}</Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2">
+                    <div className={`h-2 w-2 rounded-full ${statusColor}`} />
+                    <span className="text-sm text-[hsl(var(--muted-foreground))]">
+                      {agent.status.charAt(0).toUpperCase() + agent.status.slice(1)}
+                      {agent.current_task ? ` — ${agent.current_task}` : ''}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {config.skills.slice(0, 3).map((skill) => (
+                      <Badge key={skill} variant="secondary" className="text-xs">{skill}</Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       </div>
 
-      {/* Recent Activity */}
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Latest events across the squad</CardDescription>
+          <CardTitle>Recent Messages</CardTitle>
+          <CardDescription>Latest inter-agent communications</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <ActivityItem agent="COOPER" action="Created team-dashboard repo" time="Just now" />
-            <ActivityItem agent="MANN" action="Wrote 76 tests for crewai-agents-deployment" time="5 min ago" />
-            <ActivityItem agent="TARS" action="Assigned dashboard project to Cooper" time="10 min ago" />
-            <ActivityItem agent="MURPH" action="Completed tech stack analysis" time="15 min ago" />
-            <ActivityItem agent="BRAND" action="Joined the squad" time="30 min ago" />
+            {messages.slice(-5).reverse().map((msg) => (
+              <div key={msg.id} className="flex items-center justify-between p-3 rounded-lg border bg-[hsl(var(--card))] hover:bg-[hsl(var(--accent))]/50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline" className="font-mono text-xs">{msg.sender.toUpperCase()}</Badge>
+                  <span className="text-sm">{msg.content}</span>
+                </div>
+                <span className="text-xs text-[hsl(var(--muted-foreground))]">
+                  → {msg.recipient === 'all' ? '📢 All' : msg.recipient.toUpperCase()}
+                </span>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
-    </div>
-  )
-}
-
-function ActivityItem({ agent, action, time }: { agent: string; action: string; time: string }) {
-  return (
-    <div className="flex items-center justify-between p-3 rounded-lg border bg-[hsl(var(--card))] hover:bg-[hsl(var(--accent))]/50 transition-colors">
-      <div className="flex items-center gap-3">
-        <Badge variant="outline" className="font-mono text-xs">{agent}</Badge>
-        <span className="text-sm">{action}</span>
-      </div>
-      <span className="text-xs text-[hsl(var(--muted-foreground))]">{time}</span>
     </div>
   )
 }
