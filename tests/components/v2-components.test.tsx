@@ -139,7 +139,7 @@ describe('TrendBadge', () => {
 describe('AgentAvatar', () => {
   it('renders image with alt text', () => {
     render(<AgentAvatar src="/test.png" name="TARS" />)
-    const img = screen.getByAlt('TARS')
+    const img = screen.getByAltText('TARS')
     expect(img).toBeInTheDocument()
     expect(img).toHaveAttribute('src', '/test.png')
   })

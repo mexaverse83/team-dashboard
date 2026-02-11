@@ -30,7 +30,7 @@ export function Sidebar() {
         {!collapsed && (
           <div>
             <h2 className="font-semibold text-sm">Interstellar Squad</h2>
-            <p className="text-[10px] text-[hsl(var(--text-secondary))]">Mission Control</p>
+            <p className="text-[10px] text-[hsl(var(--text-secondary))]">Dashboard v2</p>
           </div>
         )}
       </div>
@@ -64,11 +64,12 @@ export function Sidebar() {
 
         <button
           onClick={() => setCollapsed(!collapsed)}
+          aria-label="Toggle sidebar"
           className={`flex items-center gap-2 w-full rounded-md text-xs text-[hsl(var(--text-tertiary))] hover:text-[hsl(var(--text-secondary))] transition-colors ${
             collapsed ? 'justify-center p-2' : 'px-3 py-2'
           }`}
         >
-          {collapsed ? <ChevronsRight className="h-3.5 w-3.5" /> : <><ChevronsLeft className="h-3.5 w-3.5" /><span>Collapse</span></>}
+          {collapsed ? <ChevronsRight className="h-3.5 w-3.5" aria-hidden /> : <><ChevronsLeft className="h-3.5 w-3.5" aria-hidden /><span>Collapse</span></>}
         </button>
 
         {!collapsed && (
