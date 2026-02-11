@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge"
 import { agentConfigs } from "@/lib/agents"
 import { Users, CheckSquare, MessageCircle, Activity, Clock, Trophy } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { PageTransition } from "@/components/page-transition"
+import { SkeletonKPI, SkeletonGrid } from "@/components/ui/skeleton-card"
 import { AnimatedNumber } from "@/components/ui/animated-number"
 import { SparklineChart } from "@/components/ui/sparkline-chart"
 import { TrendBadge } from "@/components/ui/trend-badge"
@@ -32,6 +34,7 @@ export default function DashboardPage() {
   const [agents, setAgents] = useState<any[]>([])
   const [tickets, setTickets] = useState<any[]>([])
   const [messages, setMessages] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     Promise.all([
@@ -42,6 +45,7 @@ export default function DashboardPage() {
       setAgents(a.data || [])
       setTickets(t.data || [])
       setMessages(m.data || [])
+      setLoading(false)
     })
 
     // Real-time subscriptions
@@ -82,7 +86,21 @@ export default function DashboardPage() {
     { title: 'Completed', value: doneTickets.length, icon: Activity, sparkline: genSparkline(doneTickets.length, 4), delta: 15, color: 'hsl(var(--success))' },
   ]
 
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <div className="h-8 w-48 rounded bg-[hsl(var(--muted))] animate-pulse" />
+          <div className="h-4 w-64 rounded bg-[hsl(var(--muted))] animate-pulse mt-2" />
+        </div>
+        <SkeletonKPI />
+        <SkeletonGrid count={3} lines={4} />
+      </div>
+    )
+  }
+
   return (
+    <PageTransition>
     <div className="space-y-8">
       {/* Header */}
       <div>
@@ -268,5 +286,6 @@ export default function DashboardPage() {
         </Card>
       </div>
     </div>
+    </PageTransition>
   )
 }

@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { supabase, type Ticket, type Priority, type TicketStatus } from "@/lib/supabase"
+import { PageTransition } from "@/components/page-transition"
+import { EmptyState } from "@/components/ui/empty-state"
 
 const statusColumns: { id: TicketStatus; title: string; color: string }[] = [
   { id: 'backlog', title: 'Backlog', color: 'bg-slate-500' },
@@ -24,10 +26,11 @@ const priorityConfig: Record<Priority, { label: string; color: string }> = {
 
 export default function TasksPage() {
   const [tickets, setTickets] = useState<Ticket[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     supabase.from('tickets').select('*').order('updated_at', { ascending: false })
-      .then(({ data }) => { if (data) setTickets(data) })
+      .then(({ data }) => { if (data) setTickets(data); setLoading(false) })
 
     const sub = supabase.channel('tickets-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
@@ -40,6 +43,7 @@ export default function TasksPage() {
   }, [])
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -88,5 +92,6 @@ export default function TasksPage() {
         })}
       </div>
     </div>
+    </PageTransition>
   )
 }

@@ -12,6 +12,8 @@ import { StatusIndicator } from "@/components/ui/status-indicator"
 import { AnimatedNumber } from "@/components/ui/animated-number"
 import { SparklineChart } from "@/components/ui/sparkline-chart"
 import { motion, AnimatePresence } from "framer-motion"
+import { PageTransition } from "@/components/page-transition"
+import { SkeletonGrid } from "@/components/ui/skeleton-card"
 
 const AGENT_COLORS: Record<string, string> = {
   tars: 'hsl(35, 92%, 50%)',
@@ -37,6 +39,7 @@ export default function MissionControlPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const feedRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -48,6 +51,7 @@ export default function MissionControlPage() {
       if (a.data) setAgents(a.data)
       if (m.data) setMessages(m.data)
       if (t.data) setTickets(t.data)
+      setLoading(false)
     })
 
     const sub = supabase.channel('mc-realtime')
@@ -97,7 +101,18 @@ export default function MissionControlPage() {
   const selectedAgentData = selectedAgent ? agents.find(a => a.id === selectedAgent) : null
   const selectedConfig = selectedAgent ? agentConfigs.find(a => a.id === selectedAgent) : null
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div><div className="h-8 w-56 rounded bg-[hsl(var(--muted))] animate-pulse" /></div>
+        <div className="h-10 rounded-lg bg-[hsl(var(--muted))] animate-pulse" />
+        <SkeletonGrid count={6} lines={5} />
+      </div>
+    )
+  }
+
   return (
+    <PageTransition>
     <div className="space-y-6">
       {/* Header */}
       <div>
@@ -436,5 +451,6 @@ export default function MissionControlPage() {
         </div>
       </div>
     </div>
+    </PageTransition>
   )
 }

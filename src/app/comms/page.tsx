@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { supabase, type Message } from "@/lib/supabase"
+import { PageTransition } from "@/components/page-transition"
+import { EmptyState } from "@/components/ui/empty-state"
 
 const typeColors: Record<string, string> = {
   chat: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
@@ -15,10 +17,11 @@ const typeColors: Record<string, string> = {
 export default function CommsPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [filter, setFilter] = useState('all')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(50)
-      .then(({ data }) => { if (data) setMessages(data) })
+      .then(({ data }) => { if (data) setMessages(data); setLoading(false) })
 
     const sub = supabase.channel('comms-realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
@@ -32,6 +35,7 @@ export default function CommsPage() {
   const filtered = filter === 'all' ? messages : messages.filter(m => m.message_type === filter)
 
   return (
+    <PageTransition>
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Comms Log</h1>
@@ -65,7 +69,11 @@ export default function CommsPage() {
             </CardContent>
           </Card>
         ))}
+        {filtered.length === 0 && !loading && (
+          <EmptyState icon="radio" title="No messages" description="Communications will appear here in real-time" />
+        )}
       </div>
     </div>
+    </PageTransition>
   )
 }

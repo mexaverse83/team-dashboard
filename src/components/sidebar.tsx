@@ -17,6 +17,21 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(true)
 
   return (
+    <>
+    {/* Mobile bottom nav */}
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 backdrop-blur-sm h-14 px-2">
+      {navItems.slice(0, 5).map(item => (
+        <Link
+          key={item.href}
+          href={item.href}
+          className="flex flex-col items-center gap-0.5 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))] transition-colors py-1 px-2"
+        >
+          <item.icon className="h-5 w-5" />
+          <span className="text-[10px]">{item.label.split(' ')[0]}</span>
+        </Link>
+      ))}
+    </nav>
+
     <aside
       className={`hidden md:flex flex-col border-r border-[hsl(var(--border))] min-h-screen shrink-0 sticky top-0 h-screen transition-all duration-200 ease-in-out ${
         collapsed ? 'w-[52px] p-2' : 'w-60 p-4'
@@ -77,5 +92,6 @@ export function Sidebar() {
         )}
       </div>
     </aside>
+    </>
   )
 }

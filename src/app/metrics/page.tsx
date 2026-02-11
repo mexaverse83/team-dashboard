@@ -12,6 +12,8 @@ import { RadialProgress } from "@/components/ui/radial-progress"
 import { TrendBadge } from "@/components/ui/trend-badge"
 import { StatusIndicator } from "@/components/ui/status-indicator"
 import { motion, AnimatePresence } from "framer-motion"
+import { PageTransition } from "@/components/page-transition"
+import { SkeletonKPI, SkeletonGrid } from "@/components/ui/skeleton-card"
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   RadarChart, PolarGrid, PolarAngleAxis, Radar,
@@ -62,6 +64,7 @@ export default function MetricsPage() {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [metrics, setMetrics] = useState<MetricRow[]>([])
   const [compareAgents, setCompareAgents] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     Promise.all([
@@ -72,6 +75,7 @@ export default function MetricsPage() {
       if (a.data) setAgents(a.data)
       if (t.data) setTickets(t.data)
       if (m.data) setMetrics(m.data as MetricRow[])
+      setLoading(false)
     })
 
     const sub = supabase.channel('metrics-realtime')
@@ -147,7 +151,18 @@ export default function MetricsPage() {
 
   const activeCompare = compareAgents.length > 0 ? compareAgents : agentConfigs.map(c => c.id)
 
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div><div className="h-8 w-40 rounded bg-[hsl(var(--muted))] animate-pulse" /></div>
+        <SkeletonKPI />
+        <SkeletonGrid count={6} lines={3} />
+      </div>
+    )
+  }
+
   return (
+    <PageTransition>
     <div className="space-y-6">
       {/* Header */}
       <div>
@@ -386,5 +401,6 @@ export default function MetricsPage() {
         </div>
       </div>
     </div>
+    </PageTransition>
   )
 }
