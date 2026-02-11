@@ -6,6 +6,7 @@ export interface AgentConfig {
   role: string
   icon: LucideIcon
   gradient: string
+  avatar: string
   badge: string
   badgeColor: string
   skills: string[]
@@ -19,6 +20,7 @@ export const agentConfigs: AgentConfig[] = [
     role: 'Squad Lead & Coordinator',
     icon: Shield,
     gradient: 'from-amber-500 to-orange-600',
+    avatar: '/avatars/tars.svg',
     badge: 'LEAD',
     badgeColor: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
     skills: ['coordination', 'task management', 'scheduling', 'escalation'],
@@ -30,6 +32,7 @@ export const agentConfigs: AgentConfig[] = [
     role: 'Full-Stack Developer & Git Specialist',
     icon: Code,
     gradient: 'from-blue-500 to-cyan-600',
+    avatar: '/avatars/cooper.svg',
     badge: 'DEV',
     badgeColor: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     skills: ['Node.js', 'TypeScript', 'React', 'Git', 'CI/CD'],
@@ -41,6 +44,7 @@ export const agentConfigs: AgentConfig[] = [
     role: 'Research & Analysis',
     icon: Telescope,
     gradient: 'from-violet-500 to-purple-600',
+    avatar: '/avatars/murph.svg',
     badge: 'RES',
     badgeColor: 'bg-violet-500/20 text-violet-400 border-violet-500/30',
     skills: ['research', 'analysis', 'documentation', 'tech evaluation'],
@@ -52,6 +56,7 @@ export const agentConfigs: AgentConfig[] = [
     role: 'Email Classification Specialist',
     icon: Mail,
     gradient: 'from-green-500 to-emerald-600',
+    avatar: '/avatars/brand.svg',
     badge: 'CLS',
     badgeColor: 'bg-green-500/20 text-green-400 border-green-500/30',
     skills: ['email processing', 'classification', 'Gmail', 'automation'],
@@ -63,6 +68,7 @@ export const agentConfigs: AgentConfig[] = [
     role: 'SDET / QA Engineer',
     icon: FlaskConical,
     gradient: 'from-rose-500 to-pink-600',
+    avatar: '/avatars/mann.svg',
     badge: 'QA',
     badgeColor: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
     skills: ['testing', 'pytest', 'test automation', 'CI/CD', 'security'],
@@ -74,6 +80,7 @@ export const agentConfigs: AgentConfig[] = [
     role: 'Visual Architect & Document Designer',
     icon: Palette,
     gradient: 'from-teal-500 to-cyan-600',
+    avatar: '/avatars/tom.svg',
     badge: 'DES',
     badgeColor: 'bg-teal-500/20 text-teal-400 border-teal-500/30',
     skills: ['UI design', 'Tailwind CSS', 'typography', 'color systems', 'document styling'],

@@ -26,9 +26,7 @@ export default async function AgentsPage() {
             <Card key={agent.id} className="hover:shadow-lg hover:shadow-blue-500/5 hover:-translate-y-0.5 transition-all duration-200">
               <CardHeader>
                 <div className="flex items-center gap-4">
-                  <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${config.gradient} shadow-lg`}>
-                    <span className="text-2xl font-bold text-white">{config.name[0]}</span>
-                  </div>
+                  <img src={config.avatar} alt={config.name} className="h-14 w-14 rounded-2xl shadow-lg" />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <CardTitle>{agent.name}</CardTitle>
