@@ -11,7 +11,7 @@ const config = {
 }
 
 export function StatusIndicator({ status, label = false, size = 'sm' }: StatusIndicatorProps) {
-  const c = config[status]
+  const c = config[status] ?? config.offline
   const dotSize = size === 'sm' ? 'h-2 w-2' : 'h-2.5 w-2.5'
 
   return (
