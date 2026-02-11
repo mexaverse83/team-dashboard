@@ -273,12 +273,49 @@ The current dashboard is a *status board*. V2 is a **mission control center** �
 
 ---
 
+## AI-Native UI Patterns (The Differentiator)
+
+Per MURPH's research — this is what makes our dashboard *ours*:
+
+1. **Contextual Agent Status** — Not just "Online". Show "Researching AT&T prospects", "Writing test suite", "Processing 47 emails". The `current_task` field drives this.
+
+2. **Agent Activity Pulses** — Animated rings around avatars that change based on state:
+   - Idle: gentle breathing glow (2s cycle)
+   - Thinking: pulsing ring (0.8s cycle, brighter)
+   - Acting: rotating arc (like a loading spinner, but in agent color)
+   - Complete: brief flash + settle to idle
+
+3. **Streaming Task Progress** — Multi-step task visualization:
+   ```
+   ● Fetching contacts  ● Analyzing fit  ○ Scoring  ○ Report
+   ━━━━━━━━━━━━━━━━━━━━━━━━░░░░░░░░░░░░░░
+   ```
+
+4. **Live Number Transitions** — Never hard-swap a number. Always animate between values using Framer Motion's `animate` prop.
+
+5. **Activity Heatmap** — Calendar-style heatmap (via Nivo) showing agent activity density over time. Phase 4 Metrics page.
+
+6. **Data Update Flash** — When a card's data changes via real-time subscription, subtle background flash (100ms) signals "this just updated."
+
+---
+
+## Design North Star
+
+**"Linear meets Datadog, designed for AI."**
+- Linear's restraint and polish
+- Datadog's information density and real-time capability
+- AI-native patterns that no monitoring tool has yet
+
+---
+
 ## Tech Recommendations for Cooper
 
 | Need | Recommendation | Why |
 |------|---------------|-----|
-| Charts | **Recharts** | Best React integration, great animation, dark theme native, tree-shakeable |
-| Animations | **Framer Motion** | Industry standard, layout animations, exit animations, gesture support |
+| Charts | **Recharts** (with themed wrapper components) | Already installed, radar chart support, flexible. Wrap in components that consume CSS variables for consistent dark theme |
+| Complex Viz | **Nivo** (Phase 4 only) | Calendar heatmaps, chord diagrams if needed |
+| Animations | **Framer Motion** | `layoutId` for kanban, `AnimatePresence` for feeds, spring physics. Already installed |
+| Simple animations | **CSS** | Pulses, hovers, color transitions. No need for JS |
 | Icons | Keep **Lucide** | Already in use, consistent, good coverage |
 | Real-time | Keep **Supabase Realtime** | Already wired, just add more subscriptions |
 | Fonts | **Inter** | Already added ✅ |

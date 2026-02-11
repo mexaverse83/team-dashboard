@@ -7,12 +7,12 @@ import { agentConfigs, getAgentConfig } from '@/lib/agents'
 
 describe('agentConfigs', () => {
   it('should have exactly 5 agents', () => {
-    expect(agentConfigs).toHaveLength(5)
+    expect(agentConfigs).toHaveLength(6)
   })
 
   it('should contain all team members', () => {
     const ids = agentConfigs.map(a => a.id)
-    expect(ids).toEqual(['tars', 'cooper', 'murph', 'brand', 'mann'])
+    expect(ids).toEqual(['tars', 'cooper', 'murph', 'brand', 'mann', 'tom'])
   })
 
   it('each agent should have required fields', () => {

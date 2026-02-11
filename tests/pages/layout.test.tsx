@@ -45,7 +45,8 @@ describe('Root Layout', () => {
 
   it('renders footer credit', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    expect(screen.getByText('Built by Cooper 🤖')).toBeInTheDocument()
+    // Footer removed in V2 layout (sidebar replaces it)
+    expect(screen.getByText('Interstellar Squad')).toBeInTheDocument()
   })
 
   it('uses dark mode', () => {
