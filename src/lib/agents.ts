@@ -1,4 +1,4 @@
-import { Shield, Code, Telescope, Mail, FlaskConical, type LucideIcon } from 'lucide-react'
+import { Shield, Code, Telescope, Mail, FlaskConical, Palette, type LucideIcon } from 'lucide-react'
 
 export interface AgentConfig {
   id: string
@@ -67,6 +67,17 @@ export const agentConfigs: AgentConfig[] = [
     badgeColor: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
     skills: ['testing', 'pytest', 'test automation', 'CI/CD', 'security'],
     description: 'QA engineer. Writes test suites, audits code quality, and ensures everything works before shipping.',
+  },
+  {
+    id: 'tom',
+    name: 'TOM',
+    role: 'Visual Architect & Document Designer',
+    icon: Palette,
+    gradient: 'from-teal-500 to-cyan-600',
+    badge: 'DES',
+    badgeColor: 'bg-teal-500/20 text-teal-400 border-teal-500/30',
+    skills: ['UI design', 'Tailwind CSS', 'typography', 'color systems', 'document styling'],
+    description: 'Visual architect. Designs interfaces, documents, and data presentations with modern minimalist aesthetics.',
   },
 ]
 

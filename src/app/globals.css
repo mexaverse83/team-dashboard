@@ -1,26 +1,38 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-  --background: 0 0% 3.9%;
+  /* Brand — Electric Blue (Nexaminds identity) */
+  --brand: 217 91% 60%;
+  --brand-muted: 217 91% 15%;
+  --brand-foreground: 0 0% 100%;
+
+  /* Warmed-up dark palette */
+  --background: 220 14% 4%;
   --foreground: 0 0% 98%;
-  --card: 0 0% 5.9%;
+  --card: 220 14% 7%;
   --card-foreground: 0 0% 98%;
-  --popover: 0 0% 5.9%;
+  --popover: 220 14% 7%;
   --popover-foreground: 0 0% 98%;
   --primary: 0 0% 98%;
   --primary-foreground: 0 0% 9%;
-  --secondary: 0 0% 14.9%;
+  --secondary: 220 14% 14%;
   --secondary-foreground: 0 0% 98%;
-  --muted: 0 0% 14.9%;
+  --muted: 220 14% 12%;
   --muted-foreground: 0 0% 63.9%;
-  --accent: 0 0% 14.9%;
+  --accent: 220 14% 14%;
   --accent-foreground: 0 0% 98%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 0 0% 98%;
-  --border: 0 0% 14.9%;
-  --input: 0 0% 14.9%;
-  --ring: 0 0% 83.1%;
+  --border: 220 14% 14%;
+  --input: 220 14% 14%;
+  --ring: 217 91% 60%;
   --radius: 0.5rem;
+
+  /* Semantic status colors */
+  --status-online: 142 71% 45%;
+  --status-busy: 38 92% 50%;
+  --status-offline: 0 0% 40%;
 }
 
 * {
@@ -30,7 +42,7 @@
 body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -66,5 +78,28 @@ a, button {
 
 /* Card hover effect */
 [class*="rounded-lg"][class*="border"] {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+/* Micro-interactions */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--muted) / 0.5) 50%, hsl(var(--muted)) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Status dot pulse */
+.status-online {
+  animation: pulse 2s infinite;
+}
+
+/* Card entrance animation */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }

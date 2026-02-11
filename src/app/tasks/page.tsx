@@ -61,7 +61,9 @@ export default function TasksPage() {
               </div>
               <div className="space-y-2 min-h-[200px]">
                 {columnTickets.map((ticket) => (
-                  <Card key={ticket.id} className="cursor-pointer hover:border-blue-500/50 transition-colors">
+                  <Card key={ticket.id} className={`cursor-pointer hover:border-blue-500/50 transition-all duration-200 border-l-2 ${
+                    ticket.priority === 'critical' ? 'border-l-red-500' : ticket.priority === 'high' ? 'border-l-orange-500' : ticket.priority === 'medium' ? 'border-l-yellow-500' : 'border-l-slate-500'
+                  }`}>
                     <CardContent className="p-3 space-y-2">
                       <p className="text-sm font-medium">{ticket.title}</p>
                       <div className="flex items-center justify-between">

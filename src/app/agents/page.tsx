@@ -23,11 +23,11 @@ export default async function AgentsPage() {
           const statusLabel = agent.status.charAt(0).toUpperCase() + agent.status.slice(1)
 
           return (
-            <Card key={agent.id}>
+            <Card key={agent.id} className="hover:shadow-lg hover:shadow-blue-500/5 hover:-translate-y-0.5 transition-all duration-200">
               <CardHeader>
                 <div className="flex items-center gap-4">
-                  <div className={`flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br ${config.gradient}`}>
-                    <config.icon className="h-7 w-7 text-white" />
+                  <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${config.gradient} shadow-lg`}>
+                    <span className="text-2xl font-bold text-white">{config.name[0]}</span>
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
