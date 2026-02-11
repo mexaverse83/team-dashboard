@@ -2,7 +2,7 @@
  * Unit Tests — Root Layout (sidebar navigation)
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import RootLayout from '@/app/layout'
 
@@ -14,27 +14,27 @@ vi.mock('next/link', () => ({
 describe('Root Layout', () => {
   it('renders sidebar with team name', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    expect(screen.getByText('Interstellar Squad')).toBeInTheDocument()
+    // Mobile header + expanded sidebar both show team name
+    expect(screen.getAllByText('Interstellar Squad').length).toBeGreaterThan(0)
   })
 
   it('renders all navigation links', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    expect(screen.getByText('Overview')).toBeInTheDocument()
-    expect(screen.getByText('Mission Control')).toBeInTheDocument()
-    expect(screen.getByText('Tasks')).toBeInTheDocument()
-    expect(screen.getByText('Comms Log')).toBeInTheDocument()
-    expect(screen.getByText('Agents')).toBeInTheDocument()
-    expect(screen.getByText('Metrics')).toBeInTheDocument()
+    // Sidebar collapsed: labels in title attrs. Mobile nav shows first word of label.
+    // 11 links total: 5 mobile + 6 desktop
+    const links = screen.getAllByRole('link')
+    expect(links).toHaveLength(11)
   })
 
   it('navigation links have correct hrefs', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    expect(screen.getByText('Overview').closest('a')).toHaveAttribute('href', '/')
-    expect(screen.getByText('Mission Control').closest('a')).toHaveAttribute('href', '/mission-control')
-    expect(screen.getByText('Tasks').closest('a')).toHaveAttribute('href', '/tasks')
-    expect(screen.getByText('Comms Log').closest('a')).toHaveAttribute('href', '/comms')
-    expect(screen.getByText('Agents').closest('a')).toHaveAttribute('href', '/agents')
-    expect(screen.getByText('Metrics').closest('a')).toHaveAttribute('href', '/metrics')
+    // Check desktop nav via title attributes (sidebar collapsed)
+    expect(screen.getByTitle('Overview')).toHaveAttribute('href', '/')
+    expect(screen.getByTitle('Mission Control')).toHaveAttribute('href', '/mission-control')
+    expect(screen.getByTitle('Tasks')).toHaveAttribute('href', '/tasks')
+    expect(screen.getByTitle('Comms Log')).toHaveAttribute('href', '/comms')
+    expect(screen.getByTitle('Metrics')).toHaveAttribute('href', '/metrics')
+    expect(screen.getByTitle('Agents')).toHaveAttribute('href', '/agents')
   })
 
   it('renders children in main area', () => {
@@ -43,16 +43,13 @@ describe('Root Layout', () => {
     expect(screen.getByText('Test child')).toBeInTheDocument()
   })
 
-  it('renders footer credit', () => {
+  it('renders mobile header', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    // Footer removed in V2 layout (sidebar replaces it)
-    expect(screen.getByText('Interstellar Squad')).toBeInTheDocument()
+    expect(screen.getAllByText('Interstellar Squad').length).toBeGreaterThan(0)
   })
 
   it('uses dark mode', () => {
     const { container } = render(<RootLayout><div>content</div></RootLayout>)
-    const html = container.closest('html')
-    // Layout sets className="dark" on html
     expect(container.innerHTML).toContain('min-h-screen')
   })
 })

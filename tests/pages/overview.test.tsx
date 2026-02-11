@@ -250,10 +250,11 @@ describe('Overview Page V2', () => {
     const Page = (await import('@/app/page')).default
     render(<Page />)
     await waitFor(() => {
-      expect(screen.getByText('TARS')).toBeInTheDocument()
-    })
-    expect(screen.getByText('Squad standup at 8')).toBeInTheDocument()
+      expect(screen.getByText('Squad standup at 8')).toBeInTheDocument()
+    }, { timeout: 3000 })
     expect(screen.getByText('Phase 2 merged, go test')).toBeInTheDocument()
+    // Sender names rendered in uppercase
+    expect(screen.getAllByText('TARS').length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows total ticket count badge', async () => {

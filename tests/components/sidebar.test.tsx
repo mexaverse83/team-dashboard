@@ -11,15 +11,20 @@ describe('Sidebar', () => {
 
   it('renders all 6 nav links', () => {
     render(<Sidebar />)
+    // Desktop aside has 6 links, mobile bottom nav has 5 = 11 total
     const links = screen.getAllByRole('link')
-    expect(links).toHaveLength(6)
+    expect(links).toHaveLength(11)
   })
 
   it('has correct nav hrefs', () => {
     render(<Sidebar />)
     const links = screen.getAllByRole('link')
     const hrefs = links.map(l => l.getAttribute('href'))
-    expect(hrefs).toEqual(['/', '/mission-control', '/tasks', '/comms', '/metrics', '/agents'])
+    // Mobile bottom nav (first 5) + desktop aside (all 6)
+    expect(hrefs).toEqual([
+      '/', '/mission-control', '/tasks', '/comms', '/metrics',
+      '/', '/mission-control', '/tasks', '/comms', '/metrics', '/agents',
+    ])
   })
 
   it('shows nav labels with title attribute when collapsed', () => {
@@ -43,7 +48,8 @@ describe('Sidebar', () => {
   it('shows nav label text when expanded', () => {
     render(<Sidebar />)
     fireEvent.click(screen.getByRole('button'))
-    expect(screen.getByText('Overview')).toBeInTheDocument()
+    // Mobile nav also shows "Overview" etc, so use getAllByText
+    expect(screen.getAllByText('Overview').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Mission Control').length).toBeGreaterThan(0)
     expect(screen.getByText('Collapse')).toBeInTheDocument()
   })

@@ -8,14 +8,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
 
-// Mock framer-motion
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, onClick, className, ...props }: any) => <div onClick={onClick} className={className}>{children}</div>,
-  },
-  AnimatePresence: ({ children }: any) => <>{children}</>,
-}))
-
 // Mock recharts
 vi.mock('recharts', () => ({
   PieChart: ({ children }: any) => <div data-testid="pie-chart">{children}</div>,
@@ -108,7 +100,9 @@ describe('Metrics Page V2', () => {
   it('renders page header', async () => {
     const Page = (await import('@/app/metrics/page')).default
     render(<Page />)
-    expect(screen.getByText('Metrics')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Metrics')).toBeInTheDocument()
+    })
     expect(screen.getByText('Team performance and agent analytics')).toBeInTheDocument()
   })
 
@@ -239,20 +233,19 @@ describe('Metrics Page V2', () => {
 
   it('limits comparison to max 3 agents', async () => {
     const Page = (await import('@/app/metrics/page')).default
-    render(<Page />)
+    const { container } = render(<Page />)
     await waitFor(() => {
-      expect(screen.getByText('TARS')).toBeInTheDocument()
+      expect(screen.getAllByText('TARS').length).toBeGreaterThanOrEqual(1)
     })
-    // Click 4 agents
-    for (const name of ['TARS', 'COOPER', 'MANN', 'MURPH']) {
-      const card = screen.getAllByText(name).find(el => el.closest('[class*="cursor-pointer"]'))?.closest('[class*="cursor-pointer"]')
-      if (card) fireEvent.click(card)
-    }
-    await waitFor(() => {
-      // Should only have 3 comparing badges (max)
-      const badges = screen.getAllByText('comparing')
-      expect(badges.length).toBeLessThanOrEqual(3)
-    })
+    // Agent cards are cursor-pointer divs rendered by motion.div mock
+    const cursorDivs = container.querySelectorAll('.cursor-pointer')
+    // Should have 6 agent cards
+    expect(cursorDivs.length).toBeGreaterThanOrEqual(6)
+    // Click first 4
+    for (let i = 0; i < 4; i++) fireEvent.click(cursorDivs[i])
+    // Max 3 allowed — 4th click ignored
+    const badges = screen.getAllByText('comparing')
+    expect(badges.length).toBe(3)
   })
 
   // ── Charts ──

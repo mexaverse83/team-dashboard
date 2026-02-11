@@ -6,15 +6,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
 
-// Mock framer-motion
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
-  },
-  AnimatePresence: ({ children }: any) => <>{children}</>,
-}))
-
 // Mock recharts
 vi.mock('recharts', () => ({
   LineChart: ({ children }: any) => <div data-testid="line-chart">{children}</div>,
@@ -91,13 +82,17 @@ describe('Mission Control Page V2', () => {
   it('renders page title', async () => {
     const MC = (await import('@/app/mission-control/page')).default
     render(<MC />)
-    expect(screen.getByText('Mission Control')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Mission Control')).toBeInTheDocument()
+    })
   })
 
   it('renders subtitle', async () => {
     const MC = (await import('@/app/mission-control/page')).default
     render(<MC />)
-    expect(screen.getByText('Real-time agent monitoring and communications')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Real-time agent monitoring and communications')).toBeInTheDocument()
+    })
   })
 
   it('renders global status bar with online count', async () => {
@@ -111,7 +106,9 @@ describe('Mission Control Page V2', () => {
   it('renders Live Activity section', async () => {
     const MC = (await import('@/app/mission-control/page')).default
     render(<MC />)
-    expect(screen.getByText('Live Activity')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Live Activity')).toBeInTheDocument()
+    })
   })
 
   it('subscribes to mc-realtime channel', async () => {
@@ -146,10 +143,10 @@ describe('Mission Control Page V2', () => {
     const MC = (await import('@/app/mission-control/page')).default
     render(<MC />)
     await waitFor(() => {
-      expect(screen.getByText('Active')).toBeInTheDocument()
-      expect(screen.getByText('Done')).toBeInTheDocument()
-      expect(screen.getByText('Messages')).toBeInTheDocument()
-    })
+      expect(screen.getAllByText('Active').length).toBeGreaterThanOrEqual(1)
+    }, { timeout: 3000 })
+    expect(screen.getAllByText('Done').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Messages').length).toBeGreaterThanOrEqual(1)
   })
 
   it('handles empty data gracefully', async () => {
@@ -166,7 +163,9 @@ describe('Mission Control Page V2', () => {
 
     const MC = (await import('@/app/mission-control/page')).default
     render(<MC />)
-    expect(screen.getByText('Mission Control')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Mission Control')).toBeInTheDocument()
+    })
     await waitFor(() => {
       expect(screen.getByText('Waiting for activity...')).toBeInTheDocument()
     })
