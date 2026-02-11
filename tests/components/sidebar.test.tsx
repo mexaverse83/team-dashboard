@@ -52,8 +52,7 @@ describe('Sidebar', () => {
     render(<Sidebar />)
     fireEvent.click(screen.getByRole('button'))
     expect(screen.getByText('Interstellar Squad')).toBeInTheDocument()
-    // "Mission Control" appears as both nav label and subtitle
-    expect(screen.getAllByText('Mission Control')).toHaveLength(2)
+    expect(screen.getByText('Mission Control')).toBeInTheDocument()
   })
 
   it('shows version when expanded', () => {

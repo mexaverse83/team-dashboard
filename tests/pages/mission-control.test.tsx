@@ -1,14 +1,19 @@
 /**
- * Unit Tests — Mission Control Page (client component with dual real-time subs)
+ * Unit Tests — Mission Control Page V2 (client component with real-time)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
 
 const mockAgents = [
   { id: 'tars', name: 'TARS', role: 'Squad Lead', status: 'online', current_task: 'Coordinating', last_seen: '2026-02-08T17:00:00Z' },
   { id: 'cooper', name: 'COOPER', role: 'Developer', status: 'busy', current_task: 'Building dashboard', last_seen: '2026-02-08T17:30:00Z' },
+]
+
+const mockTickets = [
+  { id: '1', title: 'Task 1', status: 'in-progress', priority: 'high', assignee: 'cooper' },
+  { id: '2', title: 'Task 2', status: 'done', priority: 'medium', assignee: 'tars' },
 ]
 
 const mockMessages = [
@@ -24,9 +29,9 @@ describe('Mission Control Page', () => {
           limit: vi.fn().mockReturnValue({
             then: vi.fn((cb: any) => { cb({ data: table === 'messages' ? mockMessages : null }); return { catch: vi.fn() } }),
           }),
-          then: vi.fn((cb: any) => { cb({ data: table === 'agents' ? mockAgents : null }); return { catch: vi.fn() } }),
+          then: vi.fn((cb: any) => { cb({ data: table === 'agents' ? mockAgents : table === 'tickets' ? mockTickets : null }); return { catch: vi.fn() } }),
         }),
-        then: vi.fn((cb: any) => { cb({ data: table === 'agents' ? mockAgents : mockMessages }); return { catch: vi.fn() } }),
+        then: vi.fn((cb: any) => { cb({ data: table === 'agents' ? mockAgents : table === 'tickets' ? mockTickets : mockMessages }); return { catch: vi.fn() } }),
       }),
     } as any))
 
@@ -46,26 +51,25 @@ describe('Mission Control Page', () => {
   it('renders subtitle', async () => {
     const MissionControl = (await import('@/app/mission-control/page')).default
     render(<MissionControl />)
-    expect(screen.getByText('Real-time agent status and communications')).toBeInTheDocument()
+    expect(screen.getByText('Real-time agent monitoring and communications')).toBeInTheDocument()
   })
 
-  it('renders Live Comms Feed', async () => {
+  it('renders Live Activity section', async () => {
     const MissionControl = (await import('@/app/mission-control/page')).default
     render(<MissionControl />)
-    expect(screen.getByText('Live Comms Feed')).toBeInTheDocument()
+    expect(screen.getByText('Live Activity')).toBeInTheDocument()
   })
 
-  it('shows default state when no agent selected', async () => {
+  it('shows waiting state when no activity', async () => {
     const MissionControl = (await import('@/app/mission-control/page')).default
     render(<MissionControl />)
-    expect(screen.getByText('Select an agent to view details')).toBeInTheDocument()
+    expect(screen.getByText('Waiting for activity...')).toBeInTheDocument()
   })
 
-  it('subscribes to both agents and messages real-time channels', async () => {
+  it('subscribes to mc-realtime channel', async () => {
     const MissionControl = (await import('@/app/mission-control/page')).default
     render(<MissionControl />)
-    expect(supabase.channel).toHaveBeenCalledWith('agents-realtime')
-    expect(supabase.channel).toHaveBeenCalledWith('messages-realtime')
+    expect(supabase.channel).toHaveBeenCalledWith('mc-realtime')
   })
 
   it('displays messages in feed', async () => {
