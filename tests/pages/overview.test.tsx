@@ -46,6 +46,15 @@ vi.mock('lucide-react', () => {
     Settings: icon('settings'),
     ChevronLeft: icon('chevronleft'),
     ChevronRight: icon('chevronright'),
+    Minus: icon('minus'),
+    Plus: icon('plus'),
+    ChevronsLeft: icon('chevronsleft'),
+    ChevronsRight: icon('chevronsright'),
+    Home: icon('home'),
+    LayoutGrid: icon('layoutgrid'),
+    BarChart3: icon('barchart3'),
+    TrendingUp: icon('trendingup'),
+    TrendingDown: icon('trendingdown'),
   }
 })
 
@@ -83,22 +92,16 @@ function setupMocks(agents = mockAgents, tickets = mockTickets, messages = mockM
   vi.mocked(supabase.removeChannel).mockReturnValue(undefined as any)
 
   vi.mocked(supabase.from).mockImplementation((table: string) => {
-    const resolveData = (data: any) => ({
-      select: vi.fn().mockReturnValue({
-        order: vi.fn().mockReturnValue({
-          limit: vi.fn().mockReturnValue(Promise.resolve({ data, error: null })),
-          then: vi.fn((cb: any) => cb({ data, error: null })),
-        }),
-        then: vi.fn((cb: any) => cb({ data, error: null })),
-        data,
-        error: null,
-      }),
+    const getData = () => table === 'agents' ? agents : table === 'tickets' ? tickets : table === 'messages' ? messages : []
+    const result = Promise.resolve({ data: getData(), error: null })
+    // Make the promise also have .order().limit() chain for messages query
+    const selectResult = Object.assign(result, {
+      order: vi.fn().mockReturnValue(Object.assign(
+        Promise.resolve({ data: getData(), error: null }),
+        { limit: vi.fn().mockReturnValue(Promise.resolve({ data: getData(), error: null })) }
+      )),
     })
-
-    if (table === 'agents') return resolveData(agents) as any
-    if (table === 'tickets') return resolveData(tickets) as any
-    if (table === 'messages') return resolveData(messages) as any
-    return resolveData([]) as any
+    return { select: vi.fn().mockReturnValue(selectResult) } as any
   })
 
   return mockChannel

@@ -115,6 +115,11 @@ a, button { transition: all 0.15s ease; }
   animation: shimmer 1.5s infinite;
 }
 
+/* Slow spin for busy agents */
+.animate-spin-slow {
+  animation: spin 4s linear infinite;
+}
+
 /* Status pulse */
 .status-online { animation: pulse 2s infinite; }
 
