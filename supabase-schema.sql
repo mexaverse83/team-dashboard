@@ -131,11 +131,32 @@ ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agent_metrics ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow all" ON agents FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all" ON tickets FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all" ON comments FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all" ON messages FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow all" ON agent_metrics FOR ALL USING (true) WITH CHECK (true);
+-- Read: anyone (dashboard is public-read)
+-- Write: service_role only (agents use service key)
+CREATE POLICY "Read agents" ON agents FOR SELECT USING (true);
+CREATE POLICY "Service write agents" ON agents FOR INSERT WITH CHECK ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+CREATE POLICY "Service update agents" ON agents FOR UPDATE USING ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+CREATE POLICY "Service delete agents" ON agents FOR DELETE USING ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+
+CREATE POLICY "Read tickets" ON tickets FOR SELECT USING (true);
+CREATE POLICY "Service write tickets" ON tickets FOR INSERT WITH CHECK ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+CREATE POLICY "Service update tickets" ON tickets FOR UPDATE USING ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+CREATE POLICY "Service delete tickets" ON tickets FOR DELETE USING ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+
+CREATE POLICY "Read comments" ON comments FOR SELECT USING (true);
+CREATE POLICY "Service write comments" ON comments FOR INSERT WITH CHECK ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+CREATE POLICY "Service update comments" ON comments FOR UPDATE USING ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+CREATE POLICY "Service delete comments" ON comments FOR DELETE USING ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+
+CREATE POLICY "Read messages" ON messages FOR SELECT USING (true);
+CREATE POLICY "Service write messages" ON messages FOR INSERT WITH CHECK ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+CREATE POLICY "Service update messages" ON messages FOR UPDATE USING ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+CREATE POLICY "Service delete messages" ON messages FOR DELETE USING ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+
+CREATE POLICY "Read agent_metrics" ON agent_metrics FOR SELECT USING (true);
+CREATE POLICY "Service write agent_metrics" ON agent_metrics FOR INSERT WITH CHECK ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+CREATE POLICY "Service update agent_metrics" ON agent_metrics FOR UPDATE USING ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
+CREATE POLICY "Service delete agent_metrics" ON agent_metrics FOR DELETE USING ((current_setting('request.jwt.claims', true)::json->>'role') = 'service_role');
 
 -- =============================================
 -- 8. AUTO-UPDATE TIMESTAMPS
