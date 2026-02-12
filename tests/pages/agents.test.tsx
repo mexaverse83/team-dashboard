@@ -1,12 +1,19 @@
 /**
- * Unit Tests — Agents Page (now async server component with Supabase fetch)
+ * Unit Tests — Agents Page (async server component with supabase-server)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { supabase } from '@/lib/supabase'
 
-// We need to mock the async server component
+// Mock supabase-server (used by the server component)
+vi.mock('@/lib/supabase-server', () => ({
+  supabaseServer: {
+    from: vi.fn(),
+  },
+}))
+
+import { supabaseServer } from '@/lib/supabase-server'
+
 const mockAgents = [
   { id: 'tars', name: 'TARS', role: 'Squad Lead & Coordinator', status: 'online', current_task: 'Coordinating', last_seen: '2026-02-08T17:00:00Z' },
   { id: 'cooper', name: 'COOPER', role: 'Full-Stack Developer', status: 'busy', current_task: 'Building dashboard', last_seen: '2026-02-08T17:30:00Z' },
@@ -15,9 +22,9 @@ const mockAgents = [
   { id: 'mann', name: 'MANN', role: 'SDET / QA Engineer', status: 'online', current_task: 'Writing tests', last_seen: '2026-02-08T17:45:00Z' },
 ]
 
-describe('Agents Page (updated - Supabase fetch)', () => {
+describe('Agents Page (server component)', () => {
   beforeEach(() => {
-    vi.mocked(supabase.from).mockReturnValue({
+    vi.mocked(supabaseServer.from).mockReturnValue({
       select: vi.fn().mockResolvedValue({ data: mockAgents, error: null }),
     } as any)
   })
@@ -44,11 +51,10 @@ describe('Agents Page (updated - Supabase fetch)', () => {
     const AgentsPage = (await import('@/app/agents/page')).default
     const result = await AgentsPage()
     render(result)
-    // Should show mixed statuses from mock data, not all "Online"
     const onlineElements = screen.getAllByText('Online')
-    expect(onlineElements.length).toBe(3) // tars, murph, mann
-    expect(screen.getByText('Busy')).toBeInTheDocument() // cooper
-    expect(screen.getByText('Offline')).toBeInTheDocument() // brand
+    expect(onlineElements.length).toBe(3)
+    expect(screen.getByText('Busy')).toBeInTheDocument()
+    expect(screen.getByText('Offline')).toBeInTheDocument()
   })
 
   it('renders current tasks when present', async () => {
@@ -70,18 +76,22 @@ describe('Agents Page (updated - Supabase fetch)', () => {
   })
 
   it('handles empty Supabase response gracefully', async () => {
-    vi.mocked(supabase.from).mockReturnValue({
+    vi.mocked(supabaseServer.from).mockReturnValue({
       select: vi.fn().mockResolvedValue({ data: null, error: { message: 'Failed' } }),
     } as any)
     const AgentsPage = (await import('@/app/agents/page')).default
     const result = await AgentsPage()
     render(result)
-    // Should still render the page structure without crashing
     expect(screen.getByText('Agents')).toBeInTheDocument()
   })
 
   it('has revalidate set to 30 seconds', async () => {
     const mod = await import('@/app/agents/page')
     expect(mod.revalidate).toBe(30)
+  })
+
+  it('exports metadata with correct title', async () => {
+    const mod = await import('@/app/agents/page')
+    expect((mod.metadata as any).title).toContain('Agents')
   })
 })
