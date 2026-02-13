@@ -92,7 +92,7 @@ export const agentConfigs: AgentConfig[] = [
     role: 'HashiCorp Stack Specialist',
     icon: Server,
     gradient: 'from-indigo-500 to-indigo-600',
-    avatar: '/avatars/hashimoto.svg',
+    avatar: '/avatars/hashimoto.png',
     badge: 'INFRA',
     badgeColor: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
     skills: ['Terraform', 'Vault', 'Consul', 'Nomad', 'Packer'],
