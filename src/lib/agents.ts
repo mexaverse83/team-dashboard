@@ -1,4 +1,4 @@
-import { Shield, Code, Telescope, Mail, FlaskConical, Palette, type LucideIcon } from 'lucide-react'
+import { Shield, Code, Telescope, Mail, FlaskConical, Palette, Container, type LucideIcon } from 'lucide-react'
 
 export interface AgentConfig {
   id: string
@@ -85,6 +85,18 @@ export const agentConfigs: AgentConfig[] = [
     badgeColor: 'bg-teal-500/20 text-teal-400 border-teal-500/30',
     skills: ['UI design', 'Tailwind CSS', 'typography', 'color systems', 'document styling'],
     description: 'Visual architect. Designs interfaces, documents, and data presentations with modern minimalist aesthetics.',
+  },
+  {
+    id: 'hashimoto',
+    name: 'Hashimoto',
+    role: 'HashiCorp Stack Specialist',
+    icon: Container,
+    gradient: 'from-amber-500 to-orange-600',
+    avatar: '/avatars/hashimoto.png',
+    badge: 'IaC',
+    badgeColor: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+    skills: ['Terraform', 'Vault', 'Consul', 'Nomad', 'Packer', 'Boundary'],
+    description: 'HashiCorp stack specialist. Handles IaC architecture, secrets management, service mesh, and infrastructure automation.',
   },
 ]
 

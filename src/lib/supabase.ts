@@ -63,3 +63,17 @@ export interface AgentMetric {
   period: string
   created_at: string
 }
+
+export interface AgentCost {
+  id: string
+  agent_name: string
+  timestamp: string
+  model: string
+  tokens_in: number
+  tokens_out: number
+  cache_read: number
+  cache_write: number
+  cost_usd: number
+  session_id: string | null
+  created_at: string
+}

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, ChevronsLeft, ChevronsRight } from 'lucide-react'
 
 const navItems = [
   { href: '/', icon: Home, label: 'Overview' },
@@ -10,6 +10,7 @@ const navItems = [
   { href: '/tasks', icon: LayoutGrid, label: 'Tasks' },
   { href: '/comms', icon: MessageCircle, label: 'Comms Log' },
   { href: '/metrics', icon: BarChart3, label: 'Metrics' },
+  { href: '/costs', icon: DollarSign, label: 'Costs' },
   { href: '/agents', icon: Users, label: 'Agents' },
 ]
 
