@@ -40,7 +40,7 @@ vi.mock('lucide-react', () => {
     Mail: icon('mail'),
     FlaskConical: icon('flaskconical'),
     LayoutDashboard: icon('layoutdashboard'),
-    Radio: icon('radio'),
+    Radio: icon('radio'), Server: icon('server'), DollarSign: icon('dollarsign'), Inbox: icon('inbox'),
     Zap: icon('zap'),
     SquareCheckBig: icon('squarecheckbig'),
     Settings: icon('settings'),

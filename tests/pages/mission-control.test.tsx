@@ -18,7 +18,7 @@ vi.mock('recharts', () => ({
 vi.mock('lucide-react', () => {
   const i = (n: string) => (props: any) => <svg data-testid={`icon-${n}`} {...props} />
   return {
-    Radio: i('radio'), CheckSquare: i('checksquare'), Zap: i('zap'),
+    Radio: i('radio'), Server: i('server'), DollarSign: i('dollarsign'), Inbox: i('inbox'), CheckSquare: i('checksquare'), Zap: i('zap'),
     Clock: i('clock'), User: i('user'), Shield: i('shield'), Code: i('code'),
     Telescope: i('telescope'), Mail: i('mail'), FlaskConical: i('flaskconical'),
     Palette: i('palette'), Users: i('users'), MessageCircle: i('messagecircle'),

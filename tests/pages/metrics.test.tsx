@@ -39,7 +39,7 @@ vi.mock('lucide-react', () => {
     Minus: i('minus'), Plus: i('plus'), ChevronsLeft: i('chevronsleft'),
     ChevronsRight: i('chevronsright'), Home: i('home'), LayoutGrid: i('layoutgrid'),
     BarChart3: i('barchart3'), TrendingUp: i('trendingup'), TrendingDown: i('trendingdown'),
-    Radio: i('radio'), Zap: i('zap'), SquareCheckBig: i('squarecheckbig'),
+    Radio: i('radio'), Server: i('server'), DollarSign: i('dollarsign'), Inbox: i('inbox'), Zap: i('zap'), SquareCheckBig: i('squarecheckbig'),
     Settings: i('settings'), LayoutDashboard: i('layoutdashboard'),
     ChevronLeft: i('chevronleft'), ChevronRight: i('chevronright'),
   }

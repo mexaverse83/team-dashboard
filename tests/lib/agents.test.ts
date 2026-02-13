@@ -6,13 +6,13 @@ import { describe, it, expect } from 'vitest'
 import { agentConfigs, getAgentConfig } from '@/lib/agents'
 
 describe('agentConfigs', () => {
-  it('should have exactly 5 agents', () => {
-    expect(agentConfigs).toHaveLength(6)
+  it('should have exactly 7 agents', () => {
+    expect(agentConfigs).toHaveLength(7)
   })
 
   it('should contain all team members', () => {
     const ids = agentConfigs.map(a => a.id)
-    expect(ids).toEqual(['tars', 'cooper', 'murph', 'brand', 'mann', 'tom'])
+    expect(ids).toEqual(['tars', 'cooper', 'murph', 'brand', 'mann', 'tom', 'hashimoto'])
   })
 
   it('each agent should have required fields', () => {
@@ -56,7 +56,7 @@ describe('getAgentConfig', () => {
   })
 
   it('should return config for all known agents', () => {
-    for (const id of ['tars', 'cooper', 'murph', 'brand', 'mann']) {
+    for (const id of ['tars', 'cooper', 'murph', 'brand', 'mann', 'tom', 'hashimoto']) {
       expect(getAgentConfig(id)).toBeDefined()
     }
   })

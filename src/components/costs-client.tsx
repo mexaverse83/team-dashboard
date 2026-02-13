@@ -11,6 +11,7 @@ import { SparklineChart } from "@/components/ui/sparkline-chart"
 import { PageTransition } from "@/components/page-transition"
 import { SkeletonKPI, SkeletonGrid } from "@/components/ui/skeleton-card"
 import { cn } from "@/lib/utils"
+import { SEED_COSTS } from "@/lib/seed-costs"
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -66,8 +67,13 @@ export default function CostsClient() {
       .from('agent_costs')
       .select('*')
       .order('timestamp', { ascending: true })
-      .then(({ data }) => {
-        if (data) setCosts(data)
+      .then(({ data, error }) => {
+        // Fall back to seed data if table doesn't exist or is empty
+        if (error || !data || data.length === 0) {
+          setCosts(SEED_COSTS)
+        } else {
+          setCosts(data)
+        }
         setLoading(false)
       })
 

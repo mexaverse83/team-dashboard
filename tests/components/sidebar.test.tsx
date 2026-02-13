@@ -11,19 +11,19 @@ describe('Sidebar', () => {
 
   it('renders all 6 nav links', () => {
     render(<Sidebar />)
-    // Desktop aside has 6 links, mobile bottom nav has 5 = 11 total
+    // Desktop aside has 7 links, mobile bottom nav has 5 = 12 total
     const links = screen.getAllByRole('link')
-    expect(links).toHaveLength(11)
+    expect(links).toHaveLength(12)
   })
 
   it('has correct nav hrefs', () => {
     render(<Sidebar />)
     const links = screen.getAllByRole('link')
     const hrefs = links.map(l => l.getAttribute('href'))
-    // Mobile bottom nav (first 5) + desktop aside (all 6)
+    // Mobile bottom nav (first 5) + desktop aside (all 7)
     expect(hrefs).toEqual([
       '/', '/mission-control', '/tasks', '/comms', '/metrics',
-      '/', '/mission-control', '/tasks', '/comms', '/metrics', '/agents',
+      '/', '/mission-control', '/tasks', '/comms', '/metrics', '/costs', '/agents',
     ])
   })
 

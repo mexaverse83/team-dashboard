@@ -23,7 +23,7 @@ describe('Root Layout', () => {
     // Sidebar collapsed: labels in title attrs. Mobile nav shows first word of label.
     // 11 links total: 5 mobile + 6 desktop
     const links = screen.getAllByRole('link')
-    expect(links).toHaveLength(11)
+    expect(links).toHaveLength(12)
   })
 
   it('navigation links have correct hrefs', () => {
