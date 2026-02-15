@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, ChevronsLeft, ChevronsRight, Menu, X } from 'lucide-react'
 
 const navItems = [
   { href: '/', icon: Home, label: 'Overview' },
@@ -24,17 +25,67 @@ const financeItems = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(true)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const pathname = usePathname()
+
+  const isActive = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href)
 
   return (
     <>
-    {/* Mobile bottom nav */}
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 backdrop-blur-sm h-14 px-2">
-      {navItems.slice(0, 5).map(item => (
-        <Link
-          key={item.href}
-          href={item.href}
-          className="flex flex-col items-center gap-0.5 text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))] transition-colors py-1 px-2"
-        >
+    {/* Mobile: top bar with hamburger */}
+    <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 backdrop-blur-sm h-12 px-4">
+      <div className="flex items-center gap-2">
+        <div className="h-7 w-7 rounded-md bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+          <span className="text-xs">🚀</span>
+        </div>
+        <span className="text-sm font-semibold">Squad Dashboard</span>
+      </div>
+      <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-md hover:bg-[hsl(var(--accent))]">
+        {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+      </button>
+    </div>
+
+    {/* Mobile: slide-out nav overlay */}
+    {mobileOpen && (
+      <div className="md:hidden fixed inset-0 z-40" onClick={() => setMobileOpen(false)}>
+        <div className="absolute inset-0 bg-black/50" />
+        <nav className="absolute top-12 right-0 bottom-0 w-64 bg-[hsl(var(--background))] border-l border-[hsl(var(--border))] overflow-y-auto p-4 space-y-1"
+          onClick={e => e.stopPropagation()}>
+          <span className="px-2 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">Dashboard</span>
+          {navItems.map(item => (
+            <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                isActive(item.href) ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--accent))]'
+              }`}>
+              <item.icon className="h-4 w-4 shrink-0" />
+              <span>{item.label}</span>
+            </Link>
+          ))}
+          <div className="pt-3 mt-3 border-t border-[hsl(var(--border))]">
+            <span className="px-2 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">Finance</span>
+            <div className="mt-2 space-y-1">
+              {financeItems.map(item => (
+                <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                    isActive(item.href) && pathname === item.href ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--accent))]'
+                  }`}>
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </nav>
+      </div>
+    )}
+
+    {/* Mobile: bottom quick-access bar */}
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 backdrop-blur-sm h-14 px-1">
+      {[navItems[0], { href: '/finance', icon: Wallet, label: 'Finance' }, { href: '/finance/transactions', icon: ArrowLeftRight, label: 'Add' }, navItems[4], navItems[6]].map(item => (
+        <Link key={item.href} href={item.href}
+          className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-md transition-colors ${
+            isActive(item.href) && (item.href !== '/' || pathname === '/') ? 'text-blue-400' : 'text-[hsl(var(--text-secondary))]'
+          }`}>
           <item.icon className="h-5 w-5" />
           <span className="text-[10px]">{item.label.split(' ')[0]}</span>
         </Link>
