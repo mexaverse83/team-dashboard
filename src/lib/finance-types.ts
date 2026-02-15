@@ -115,6 +115,26 @@ export interface FinanceAuditReport {
   created_at: string
 }
 
+export interface FinanceInstallment {
+  id: string
+  name: string
+  merchant: string | null
+  total_amount: number
+  installment_count: number
+  installment_amount: number
+  start_date: string
+  end_date: string
+  payments_made: number
+  credit_card: string | null
+  category_id: string | null
+  is_active: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+  // Joined
+  category?: FinanceCategory
+}
+
 export interface FinanceGoal {
   id: string
   name: string

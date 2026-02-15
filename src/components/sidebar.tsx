@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, ChevronsLeft, ChevronsRight, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target } from 'lucide-react'
+import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, ChevronsLeft, ChevronsRight, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard } from 'lucide-react'
 
 const navItems = [
   { href: '/', icon: Home, label: 'Overview' },
@@ -24,6 +24,7 @@ const financeTrack = [
 
 const financePlan = [
   { href: '/finance/budget-builder', icon: Calculator, label: 'Budget Builder' },
+  { href: '/finance/installments', icon: CreditCard, label: 'MSI Tracker' },
   { href: '/finance/debt', icon: Landmark, label: 'Debt Planner' },
   { href: '/finance/emergency-fund', icon: ShieldCheck, label: 'Emergency Fund' },
   { href: '/finance/goals', icon: Target, label: 'Goals' },

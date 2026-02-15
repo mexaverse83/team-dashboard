@@ -45,6 +45,7 @@ export default function BudgetBuilderClient() {
   const [budgets, setBudgets] = useState<FinanceBudget[]>([])
   const [incomeSources, setIncomeSources] = useState<FinanceIncomeSource[]>([])
   const [goals, setGoals] = useState<{ id: string; target_amount: number; current_amount: number; target_date: string | null; monthly_contribution?: number; is_active?: boolean; is_completed?: boolean }[]>([])
+  const [msiCommitment, setMsiCommitment] = useState(0)
   const [loading, setLoading] = useState(true)
 
   // Income modal
@@ -58,18 +59,20 @@ export default function BudgetBuilderClient() {
   const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   const fetchData = useCallback(async () => {
-    const [catRes, txRes, budRes, incRes, goalsRes] = await Promise.all([
+    const [catRes, txRes, budRes, incRes, goalsRes, instRes] = await Promise.all([
       supabase.from('finance_categories').select('*').order('sort_order'),
       supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }),
       supabase.from('finance_budgets').select('*'),
       supabase.from('finance_income_sources').select('*').order('created_at'),
       supabase.from('finance_goals').select('*'),
+      supabase.from('finance_installments').select('*').eq('is_active', true),
     ])
     setCategories((catRes.data?.length ? catRes.data : DEFAULT_CATEGORIES))
     setTransactions(txRes.data || [])
     setBudgets(budRes.data || [])
     setIncomeSources(incRes.data || [])
     setGoals(goalsRes.data || [])
+    setMsiCommitment((instRes.data || []).reduce((s: number, i: { installment_amount: number }) => s + i.installment_amount, 0))
     setLoading(false)
   }, [])
 
@@ -120,8 +123,8 @@ export default function BudgetBuilderClient() {
     }).filter((r): r is NonNullable<typeof r> => r !== null)
   }, [budgets, monthTxs, categories, monthStr, totalIncome])
 
-  // 50/30/20 totals
-  const needsTotal = budgetRows.filter(r => r.budgetType === 'needs').reduce((s, r) => s + r.actual, 0)
+  // 50/30/20 totals (MSI installments count as committed "needs" spending)
+  const needsTotal = budgetRows.filter(r => r.budgetType === 'needs').reduce((s, r) => s + r.actual, 0) + msiCommitment
   const wantsTotal = budgetRows.filter(r => r.budgetType === 'wants').reduce((s, r) => s + r.actual, 0)
   // Savings = savings-category spending + goal contributions
   const savingsCategoryTotal = budgetRows.filter(r => r.budgetType === 'savings').reduce((s, r) => s + r.actual, 0)
