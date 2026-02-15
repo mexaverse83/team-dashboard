@@ -121,6 +121,8 @@ export default function SubscriptionsClient() {
     }
     if (editingId) {
       await supabase.from('finance_recurring').update(record).eq('id', editingId)
+      // Cascade: update all linked transactions to match the new category
+      await supabase.from('finance_transactions').update({ category_id: form.category_id }).eq('recurring_id', editingId)
     } else {
       const { data } = await supabase.from('finance_recurring').insert(record).select('id').single()
       // Also log as expense transaction if checkbox is checked
