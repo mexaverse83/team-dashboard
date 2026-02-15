@@ -74,15 +74,19 @@ export function allocatedAmount(tx: FinanceTransaction, targetMonth: string): nu
     return tx.transaction_date.startsWith(targetMonth) ? tx.amount_mxn : 0
   }
 
-  const start = new Date(tx.coverage_start)
-  const end = new Date(tx.coverage_end)
-  const target = new Date(targetMonth + '-01')
+  // Parse as integer parts to avoid timezone-shift bugs (YYYY-MM-DD parsed as UTC → shifts day in negative offsets)
+  const [sy, sm] = tx.coverage_start.split('-').map(Number)
+  const [ey, em] = tx.coverage_end.split('-').map(Number)
+  const [ty, tm] = targetMonth.split('-').map(Number)
 
   // Count months in coverage window
-  const coveredMonths = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth() + 1)
+  const coveredMonths = Math.max(1, (ey - sy) * 12 + (em - sm) + 1)
 
   // Check if target month falls within coverage window
-  if (target >= start && target <= end) {
+  const targetVal = ty * 12 + tm
+  const startVal = sy * 12 + sm
+  const endVal = ey * 12 + em
+  if (targetVal >= startVal && targetVal <= endVal) {
     return tx.amount_mxn / coveredMonths
   }
   return 0

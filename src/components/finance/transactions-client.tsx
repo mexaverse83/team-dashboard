@@ -591,9 +591,10 @@ export default function TransactionsClient() {
                   </div>
                 </div>
                 {form.coverage_start && form.coverage_end && form.amount && (() => {
-                  const start = new Date(form.coverage_start)
-                  const end = new Date(form.coverage_end)
-                  const covMonths = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth() + 1)
+                  // Parse as local date parts to avoid timezone shift (YYYY-MM-DD → UTC midnight → previous day in negative UTC offsets)
+                  const [sy, sm] = form.coverage_start.split('-').map(Number)
+                  const [ey, em] = form.coverage_end.split('-').map(Number)
+                  const covMonths = Math.max(1, (ey - sy) * 12 + (em - sm) + 1)
                   const perMonth = parseFloat(form.amount) / covMonths
                   return <p className="text-xs text-blue-400/70">→ ${perMonth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo across {covMonths} months</p>
                 })()}
