@@ -50,3 +50,77 @@ export interface FinanceRecurring {
   // Joined
   category?: FinanceCategory
 }
+
+// V2 Types
+
+export interface FinanceIncomeSource {
+  id: string
+  name: string
+  type: 'salary' | 'freelance' | 'passive' | 'side_hustle' | 'investment' | 'other'
+  amount: number
+  currency: string
+  frequency: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
+  is_active: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface FinanceDebt {
+  id: string
+  name: string
+  creditor: string | null
+  balance: number
+  interest_rate: number
+  minimum_payment: number
+  type: 'credit_card' | 'personal_loan' | 'auto_loan' | 'mortgage' | 'student_loan' | 'medical' | 'other'
+  start_date: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface FinanceDebtPayment {
+  id: string
+  debt_id: string
+  payment_date: string
+  amount: number
+  principal_portion: number
+  interest_portion: number
+  remaining_balance: number
+  created_at: string
+}
+
+export interface FinanceEmergencyFund {
+  id: string
+  target_months: number
+  target_amount: number
+  current_amount: number
+  risk_score: number | null
+  account_allocation_json: Record<string, unknown>[]
+  created_at: string
+  updated_at: string
+}
+
+export interface FinanceAuditReport {
+  id: string
+  period_start: string
+  period_end: string
+  report_json: Record<string, unknown>
+  created_at: string
+}
+
+export interface FinanceGoal {
+  id: string
+  name: string
+  target_amount: number
+  current_amount: number
+  target_date: string | null
+  is_completed: boolean
+  priority: number
+  monthly_contribution: number
+  investment_vehicle: string | null
+  milestones_json: Record<string, unknown>[]
+  created_at: string
+  updated_at: string
+}

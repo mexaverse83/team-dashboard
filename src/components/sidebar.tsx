@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, ChevronsLeft, ChevronsRight, Menu, X } from 'lucide-react'
+import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, ChevronsLeft, ChevronsRight, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target } from 'lucide-react'
 
 const navItems = [
   { href: '/', icon: Home, label: 'Overview' },
@@ -15,13 +15,26 @@ const navItems = [
   { href: '/agents', icon: Users, label: 'Agents' },
 ]
 
-const financeItems = [
+const financeTrack = [
   { href: '/finance', icon: Wallet, label: 'Overview' },
   { href: '/finance/transactions', icon: ArrowLeftRight, label: 'Transactions' },
   { href: '/finance/budgets', icon: PiggyBank, label: 'Budgets' },
   { href: '/finance/subscriptions', icon: RefreshCw, label: 'Subscriptions' },
+]
+
+const financePlan = [
+  { href: '/finance/budget-builder', icon: Calculator, label: 'Budget Builder' },
+  { href: '/finance/debt', icon: Landmark, label: 'Debt Planner' },
+  { href: '/finance/emergency-fund', icon: ShieldCheck, label: 'Emergency Fund' },
+  { href: '/finance/goals', icon: Target, label: 'Goals' },
+]
+
+const financeAnalyze = [
+  { href: '/finance/audit', icon: Search, label: 'Audit' },
   { href: '/finance/reports', icon: FileBarChart, label: 'Reports' },
 ]
+
+const financeItems = [...financeTrack, ...financePlan, ...financeAnalyze]
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(true)
@@ -61,20 +74,26 @@ export function Sidebar() {
               <span>{item.label}</span>
             </Link>
           ))}
-          <div className="pt-3 mt-3 border-t border-[hsl(var(--border))]">
-            <span className="px-2 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">Finance</span>
-            <div className="mt-2 space-y-1">
-              {financeItems.map(item => (
-                <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                    isActive(item.href) && pathname === item.href ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--accent))]'
-                  }`}>
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  <span>{item.label}</span>
-                </Link>
-              ))}
+          {[
+            { label: 'Track', items: financeTrack },
+            { label: 'Plan', items: financePlan },
+            { label: 'Analyze', items: financeAnalyze },
+          ].map(group => (
+            <div key={group.label} className="pt-3 mt-3 border-t border-[hsl(var(--border))]">
+              <span className="px-2 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">{group.label}</span>
+              <div className="mt-2 space-y-1">
+                {group.items.map(item => (
+                  <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                      pathname === item.href ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--accent))]'
+                    }`}>
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          ))}
         </nav>
       </div>
     )}
@@ -132,24 +151,32 @@ export function Sidebar() {
 
       {/* Finance Section */}
       <div className="mt-6 pt-4 border-t border-[hsl(var(--border))]">
-        {!collapsed && (
-          <span className="px-3 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">Finance</span>
-        )}
-        <div className={`${collapsed ? '' : 'mt-2'} flex flex-col gap-1`}>
-          {financeItems.map(item => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-2 rounded-md text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors ${
-                collapsed ? 'justify-center p-2' : 'px-3 py-2'
-              }`}
-              title={item.label}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          ))}
-        </div>
+        {[
+          { label: 'Track', items: financeTrack },
+          { label: 'Plan', items: financePlan },
+          { label: 'Analyze', items: financeAnalyze },
+        ].map(group => (
+          <div key={group.label} className="mb-2">
+            {!collapsed && (
+              <span className="px-3 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">{group.label}</span>
+            )}
+            <div className={`${collapsed ? '' : 'mt-1'} flex flex-col gap-0.5`}>
+              {group.items.map(item => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-2 rounded-md text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors ${
+                    collapsed ? 'justify-center p-2' : 'px-3 py-1.5'
+                  }`}
+                  title={item.label}
+                >
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  {!collapsed && <span className="text-xs">{item.label}</span>}
+                </Link>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Footer */}
