@@ -116,7 +116,7 @@ export default function ReportsClient() {
     <PageTransition>
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Reports</h1>
         <p className="text-[hsl(var(--text-secondary))]">Financial trends and analytics</p>
       </div>
 
@@ -124,26 +124,26 @@ export default function ReportsClient() {
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Income</span>
-          <p className="text-3xl font-bold text-emerald-400 mt-1">${totalIncome.toLocaleString()}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-emerald-400 mt-1">${totalIncome.toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Expenses</span>
-          <p className="text-3xl font-bold text-rose-400 mt-1">${totalExpenses.toLocaleString()}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-rose-400 mt-1">${totalExpenses.toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Net</span>
-          <p className={cn("text-3xl font-bold mt-1", net >= 0 ? "text-emerald-400" : "text-rose-400")}>${Math.abs(net).toLocaleString()}</p>
+          <p className={cn("text-2xl sm:text-3xl font-bold mt-1", net >= 0 ? "text-emerald-400" : "text-rose-400")}>${Math.abs(net).toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Savings Rate</span>
-          <p className="text-3xl font-bold mt-1">{savingsRate}%</p>
+          <p className="text-2xl sm:text-3xl font-bold mt-1">{savingsRate}%</p>
         </GlassCard>
       </div>
 
       {/* Income vs Expenses */}
       <GlassCard>
         <h3 className="text-base font-semibold mb-4">Income vs Expenses</h3>
-        <div className="h-72">
+        <div className="h-52 sm:h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
@@ -171,7 +171,7 @@ export default function ReportsClient() {
       <div className="grid gap-4 lg:grid-cols-2">
         <GlassCard>
           <h3 className="text-base font-semibold mb-4">Category Trends</h3>
-          <div className="h-72">
+          <div className="h-52 sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={categoryTrends}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />

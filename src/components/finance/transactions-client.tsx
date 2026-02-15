@@ -162,9 +162,9 @@ export default function TransactionsClient() {
   return (
     <PageTransition>
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Transactions</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Transactions</h1>
           <p className="text-[hsl(var(--text-secondary))]">All income and expenses</p>
         </div>
         <button onClick={openAdd}
@@ -174,7 +174,7 @@ export default function TransactionsClient() {
       </div>
 
       {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-[hsl(var(--bg-elevated))]/50 border border-[hsl(var(--border))]">
+      <div className="flex flex-col gap-3 p-3 rounded-xl bg-[hsl(var(--bg-elevated))]/50 border border-[hsl(var(--border))]">
         <select value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setPage(1) }}
           className="px-3 py-1.5 rounded-lg bg-[hsl(var(--bg-elevated))] text-xs border-none outline-none">
           <option value="">All Categories</option>
@@ -204,7 +204,8 @@ export default function TransactionsClient() {
           <EmptyState icon="inbox" title="No transactions" description="No transactions match your filters" />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[hsl(var(--border))]">
@@ -233,7 +234,7 @@ export default function TransactionsClient() {
                         </span>
                       </td>
                       <td className="py-2 px-2 w-8">
-                        <button onClick={() => openEdit(tx)} className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-[hsl(var(--bg-elevated))] transition-all" title="Edit">
+                        <button onClick={() => openEdit(tx)} className="p-1.5 rounded-md sm:opacity-0 sm:group-hover:opacity-100 hover:bg-[hsl(var(--bg-elevated))] transition-all" title="Edit">
                           <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" />
                         </button>
                       </td>
@@ -244,7 +245,7 @@ export default function TransactionsClient() {
                             <button onClick={() => setDeleteConfirm(null)} className="px-2 py-1 rounded text-xs bg-[hsl(var(--bg-elevated))]">No</button>
                           </div>
                         ) : (
-                          <button onClick={() => setDeleteConfirm(tx.id)} className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-rose-500/10 transition-all" title="Delete">
+                          <button onClick={() => setDeleteConfirm(tx.id)} className="p-1.5 rounded-md sm:opacity-0 sm:group-hover:opacity-100 hover:bg-rose-500/10 transition-all" title="Delete">
                             <Trash2 className="h-3.5 w-3.5 text-rose-400" />
                           </button>
                         )}
@@ -253,6 +254,35 @@ export default function TransactionsClient() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile card list */}
+            <div className="sm:hidden space-y-2">
+              {paginated.map(tx => (
+                <div key={tx.id} className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]"
+                  onClick={() => openEdit(tx)}>
+                  <div className="h-9 w-9 rounded-lg flex items-center justify-center text-sm shrink-0"
+                    style={{ background: `${tx.category?.color || '#6B7280'}20` }}>
+                    {tx.category?.icon || '📦'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium truncate">{tx.merchant || '—'}</p>
+                      <span className={cn("text-sm font-semibold shrink-0 ml-2",
+                        tx.type === 'income' ? "text-emerald-400" : "text-rose-400")}>
+                        {tx.type === 'income' ? '+' : '-'}${tx.amount_mxn.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs text-[hsl(var(--text-tertiary))]">{tx.transaction_date.slice(5)}</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded-full"
+                        style={{ background: `${tx.category?.color}20`, color: tx.category?.color }}>
+                        {tx.category?.name}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
             <div className="flex items-center justify-between pt-4 border-t border-[hsl(var(--border))]">
               <span className="text-xs text-[hsl(var(--text-tertiary))]">{filtered.length} transactions</span>
@@ -308,7 +338,7 @@ export default function TransactionsClient() {
           {/* Category Grid */}
           <div>
             <label className={labelCls}>Category *</label>
-            <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto">
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 sm:max-h-40 overflow-y-auto">
               {filteredCats.map(cat => (
                 <button key={cat.id} type="button" onClick={() => updateForm({ category_id: cat.id })}
                   className={cn("flex flex-col items-center gap-1 p-2 rounded-lg border text-xs transition-all",

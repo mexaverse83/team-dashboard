@@ -107,9 +107,9 @@ export default function BudgetsClient() {
   return (
     <PageTransition>
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Budgets</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Budgets</h1>
           <p className="text-[hsl(var(--text-secondary))]">Monthly spending limits by category</p>
         </div>
         <div className="flex items-center gap-3">
@@ -129,11 +129,11 @@ export default function BudgetsClient() {
       <div className="grid gap-4 grid-cols-2">
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Budgeted</span>
-          <p className="text-3xl font-bold mt-1">${totalBudgeted.toLocaleString()}</p>
+          <p className="text-2xl sm:text-3xl font-bold mt-1">${totalBudgeted.toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Spent</span>
-          <p className="text-3xl font-bold mt-1">${totalSpent.toLocaleString()} <span className="text-lg text-[hsl(var(--text-tertiary))]">({overallPct}%)</span></p>
+          <p className="text-2xl sm:text-3xl font-bold mt-1">${totalSpent.toLocaleString()} <span className="text-lg text-[hsl(var(--text-tertiary))]">({overallPct}%)</span></p>
         </GlassCard>
       </div>
 
@@ -155,7 +155,7 @@ export default function BudgetsClient() {
                     <h4 className="text-sm font-semibold">{b.category?.name}</h4>
                     <p className="text-xs text-[hsl(var(--text-tertiary))]">${b.spent.toLocaleString()} of ${b.amount.toLocaleString()}</p>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button onClick={() => openEdit(b)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
                       <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" />
                     </button>

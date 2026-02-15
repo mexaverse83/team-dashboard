@@ -153,9 +153,9 @@ export default function FinanceOverviewClient() {
     <PageTransition>
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Finance</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Finance</h1>
           <p className="text-[hsl(var(--text-secondary))]">Personal spending and income overview</p>
         </div>
         <div className="flex items-center gap-2">
@@ -176,7 +176,7 @@ export default function FinanceOverviewClient() {
             <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Spent</span>
             <TrendingDown className="h-4 w-4 text-rose-400" />
           </div>
-          <p className="text-3xl font-bold text-rose-400">${totalSpent.toLocaleString()}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-rose-400">${totalSpent.toLocaleString()}</p>
           <TrendBadge value={spentDelta * -1} suffix="% vs last month" />
           <div className="mt-3 h-8"><SparklineChart data={dailySpendHistory} color="hsl(350, 80%, 55%)" /></div>
         </GlassCard>
@@ -186,7 +186,7 @@ export default function FinanceOverviewClient() {
             <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Income</span>
             <TrendingUp className="h-4 w-4 text-emerald-400" />
           </div>
-          <p className="text-3xl font-bold text-emerald-400">${totalIncome.toLocaleString()}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-emerald-400">${totalIncome.toLocaleString()}</p>
           <TrendBadge value={incomeDelta} suffix="% vs last month" />
           <div className="mt-3 h-8"><SparklineChart data={dailyIncomeHistory} color="hsl(160, 60%, 45%)" /></div>
         </GlassCard>
@@ -196,7 +196,7 @@ export default function FinanceOverviewClient() {
             <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Net Savings</span>
             <Wallet className="h-4 w-4 text-[hsl(var(--text-tertiary))]" />
           </div>
-          <p className={cn("text-3xl font-bold", netSavings >= 0 ? "text-emerald-400" : "text-rose-400")}>
+          <p className={cn("text-2xl sm:text-3xl font-bold", netSavings >= 0 ? "text-emerald-400" : "text-rose-400")}>
             ${Math.abs(netSavings).toLocaleString()}
           </p>
           <TrendBadge value={savingsDelta} suffix="% vs last month" />
@@ -207,7 +207,7 @@ export default function FinanceOverviewClient() {
             <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Savings Rate</span>
             <Percent className="h-4 w-4 text-[hsl(var(--text-tertiary))]" />
           </div>
-          <p className="text-3xl font-bold">{savingsRate}%</p>
+          <p className="text-2xl sm:text-3xl font-bold">{savingsRate}%</p>
           <div className="mt-2 h-2 rounded-full bg-[hsl(var(--bg-elevated))]">
             <motion.div
               className="h-2 rounded-full"
@@ -225,7 +225,7 @@ export default function FinanceOverviewClient() {
         {/* Category Donut */}
         <GlassCard>
           <h3 className="text-base font-semibold mb-4">Spending by Category</h3>
-          <div className="h-60">
+          <div className="h-44 sm:h-60">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={categoryData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="amount" animationDuration={800} strokeWidth={0}>
@@ -235,7 +235,7 @@ export default function FinanceOverviewClient() {
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="grid grid-cols-2 gap-1.5 mt-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-3">
             {categoryData.slice(0, 8).map(cat => (
               <div key={cat.id} className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full shrink-0" style={{ background: cat.color }} />
@@ -249,7 +249,7 @@ export default function FinanceOverviewClient() {
         {/* Daily Spending Trend */}
         <GlassCard>
           <h3 className="text-base font-semibold mb-4">Daily Spending</h3>
-          <div className="h-60">
+          <div className="h-44 sm:h-60">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={dailyData}>
                 <defs>

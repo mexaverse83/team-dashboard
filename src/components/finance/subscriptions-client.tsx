@@ -141,9 +141,9 @@ export default function SubscriptionsClient() {
   return (
     <PageTransition>
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Subscriptions</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Subscriptions</h1>
           <p className="text-[hsl(var(--text-secondary))]">Recurring charges and subscription tracking</p>
         </div>
         <button onClick={openAdd}
@@ -153,18 +153,18 @@ export default function SubscriptionsClient() {
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-4 grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Monthly Burn</span>
-          <p className="text-3xl font-bold text-rose-400 mt-1">${Math.round(monthlyBurn).toLocaleString()}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-rose-400 mt-1">${Math.round(monthlyBurn).toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Annual Projection</span>
-          <p className="text-3xl font-bold text-amber-400 mt-1">${Math.round(annualBurn).toLocaleString()}</p>
+          <p className="text-2xl sm:text-3xl font-bold text-amber-400 mt-1">${Math.round(annualBurn).toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Active</span>
-          <AnimatedNumber value={active.length} className="text-3xl font-bold mt-1" />
+          <AnimatedNumber value={active.length} className="text-2xl sm:text-3xl font-bold mt-1" />
         </GlassCard>
       </div>
 
@@ -173,7 +173,9 @@ export default function SubscriptionsClient() {
         {recurring.length === 0 ? (
           <EmptyState icon="radio" title="No subscriptions" description="Track recurring charges to see your monthly burn" />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-[hsl(var(--border))]">
@@ -202,7 +204,7 @@ export default function SubscriptionsClient() {
                       </button>
                     </td>
                     <td className="py-2 px-2">
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button onClick={() => openEdit(sub)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
                           <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" />
                         </button>
@@ -223,6 +225,34 @@ export default function SubscriptionsClient() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile card list */}
+          <div className="sm:hidden space-y-2">
+            {recurring.map(sub => (
+              <div key={sub.id} className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]"
+                onClick={() => openEdit(sub)}>
+                <span className="text-lg shrink-0">{sub.category?.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium truncate">{sub.name}</p>
+                    <span className="text-sm font-semibold shrink-0 ml-2">${sub.amount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs capitalize text-[hsl(var(--text-tertiary))]">{sub.frequency}</span>
+                    <span className={cn("h-1.5 w-1.5 rounded-full", sub.is_active ? "bg-emerald-500" : "bg-gray-500")} />
+                    {sub.next_due_date && (
+                      <span className="text-xs text-[hsl(var(--text-tertiary))]">Due {sub.next_due_date.slice(5)}</span>
+                    )}
+                  </div>
+                </div>
+                <button onClick={(e) => { e.stopPropagation(); toggleActive(sub) }}
+                  className="p-1.5 rounded-md bg-[hsl(var(--bg-elevated))] shrink-0">
+                  <Power className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </GlassCard>
 
