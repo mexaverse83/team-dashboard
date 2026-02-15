@@ -79,7 +79,7 @@ export default function DebtClient() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
 
   // KPIs
   const totalDebt = debts.reduce((s, d) => s + d.balance, 0)

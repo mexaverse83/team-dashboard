@@ -55,7 +55,7 @@ export default function GoalsClient() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
 
   // KPIs
   const activeGoals = goals.filter(g => !g.is_completed)

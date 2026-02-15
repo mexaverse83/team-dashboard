@@ -44,7 +44,7 @@ export default function BudgetsClient() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
 
   const monthStr = currentMonth.toISOString().slice(0, 7)
   const monthLabel = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })

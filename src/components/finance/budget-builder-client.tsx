@@ -73,7 +73,7 @@ export default function BudgetBuilderClient() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
 
   // Monthly income total
   const totalIncome = useMemo(() =>

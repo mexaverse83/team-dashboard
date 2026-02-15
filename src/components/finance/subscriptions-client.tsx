@@ -64,7 +64,7 @@ export default function SubscriptionsClient() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
 
   const active = recurring.filter(r => r.is_active)
   const monthlyBurn = useMemo(() => active.reduce((s, r) => s + monthlyEquivalent(r.amount, r.frequency), 0), [active])
