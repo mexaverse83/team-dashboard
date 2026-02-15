@@ -38,6 +38,7 @@
     "framer-motion": "^12.34.0",
     "lucide-react": "^0.563.0",
     "next": "^16.1.6",
+    "pdfjs-dist": "^4.9.155",
     "postcss": "^8.5.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

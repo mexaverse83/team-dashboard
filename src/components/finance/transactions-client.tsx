@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 
 import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
 import { enrichTransactions, DEFAULT_CATEGORIES, suggestCoveragePeriod, CYCLE_LABELS } from '@/lib/finance-utils'
+import { parseBBVAPdf, detectBankFormat, type ParsedTransaction } from '@/lib/pdf-parser'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 const labelCls = "text-xs text-[hsl(var(--text-secondary))] mb-1 block"
@@ -57,6 +58,9 @@ export default function TransactionsClient() {
   const [columnMap, setColumnMap] = useState<Record<string, string>>({})
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ success: number; errors: number } | null>(null)
+  const [pdfRows, setPdfRows] = useState<ParsedTransaction[]>([])
+  const [importMode, setImportMode] = useState<'csv' | 'pdf' | null>(null)
+  const [pdfParsing, setPdfParsing] = useState(false)
 
   const perPage = 25
 
@@ -171,9 +175,38 @@ export default function TransactionsClient() {
   const updateForm = (patch: Partial<TxForm>) => setForm(f => ({ ...f, ...patch }))
 
   // ── CSV Import ──────────────────────────────────
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+
+    // PDF handling
+    if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
+      setPdfParsing(true)
+      try {
+        const bank = await detectBankFormat(file)
+        if (bank === 'bbva') {
+          const rows = await parseBBVAPdf(file)
+          setPdfRows(rows)
+          setImportMode('pdf')
+        } else {
+          // Unknown bank — still try BBVA parser as fallback
+          const rows = await parseBBVAPdf(file)
+          if (rows.length > 0) {
+            setPdfRows(rows)
+            setImportMode('pdf')
+          } else {
+            alert('No se pudieron extraer transacciones de este PDF. Intenta con CSV.')
+          }
+        }
+      } catch {
+        alert('Error al leer el PDF. Intenta con CSV.')
+      }
+      setPdfParsing(false)
+      return
+    }
+
+    // CSV handling
+    setImportMode('csv')
     const reader = new FileReader()
     reader.onload = (evt) => {
       const text = evt.target?.result as string
@@ -245,6 +278,37 @@ export default function TransactionsClient() {
     if (success > 0) fetchData()
   }
 
+  // ── PDF Import ──────────────────────────────────
+  const handlePdfImport = async () => {
+    if (pdfRows.length === 0) return
+    setImporting(true)
+    let success = 0, errors = 0
+
+    const batch = pdfRows.map(row => ({
+      type: row.type,
+      amount: row.amount,
+      currency: 'MXN',
+      amount_mxn: row.amount,
+      category_id: categories.find(c => c.name === 'Other' || c.name === 'Other Income')?.id || categories[0]?.id,
+      merchant: row.merchant,
+      description: row.description,
+      transaction_date: row.date,
+      tags: [],
+      is_recurring: false,
+    }))
+
+    for (let i = 0; i < batch.length; i += 50) {
+      const chunk = batch.slice(i, i + 50)
+      const { error } = await supabase.from('finance_transactions').insert(chunk)
+      if (error) errors += chunk.length
+      else success += chunk.length
+    }
+
+    setImporting(false)
+    setImportResult({ success, errors })
+    if (success > 0) fetchData()
+  }
+
   // ── CSV Export ──────────────────────────────────
   const exportCsv = () => {
     const header = 'Date,Type,Amount,Currency,Amount MXN,Category,Merchant,Description'
@@ -272,7 +336,7 @@ export default function TransactionsClient() {
           <p className="text-[hsl(var(--text-secondary))]">All income and expenses</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => { setImportOpen(true); setImportResult(null); setCsvRows([]); setCsvHeaders([]) }}
+          <button onClick={() => { setImportOpen(true); setImportResult(null); setCsvRows([]); setCsvHeaders([]); setPdfRows([]); setImportMode(null) }}
             className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))] text-sm font-medium transition-colors">
             <Upload className="h-4 w-4" /> Import CSV
           </button>
@@ -546,17 +610,23 @@ export default function TransactionsClient() {
         </form>
       </Modal>
       {/* CSV Import Modal */}
-      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import Transactions from CSV">
-        {!csvHeaders.length ? (
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import Transactions">
+        {pdfParsing ? (
+          <div className="flex flex-col items-center gap-3 py-8">
+            <div className="h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-[hsl(var(--text-secondary))]">Leyendo PDF de BBVA...</p>
+          </div>
+        ) : !csvHeaders.length && !pdfRows.length ? (
           <div className="space-y-4">
             <p className="text-sm text-[hsl(var(--text-secondary))]">
-              Upload a CSV file from your bank. Supports BBVA, Banorte, and most Mexican bank exports.
-              We&apos;ll auto-detect columns for date, amount, description, and merchant.
+              Upload a <strong>PDF statement</strong> or <strong>CSV file</strong> from your bank.
+              BBVA PDF statements are auto-detected. CSV supports any bank with column mapping.
             </p>
             <label className="flex flex-col items-center gap-3 p-8 border-2 border-dashed border-[hsl(var(--border))] rounded-xl cursor-pointer hover:border-blue-500 transition-colors">
               <Upload className="h-8 w-8 text-[hsl(var(--text-secondary))]" />
-              <span className="text-sm font-medium">Choose CSV file</span>
-              <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+              <span className="text-sm font-medium">Choose PDF or CSV file</span>
+              <span className="text-xs text-[hsl(var(--text-secondary))]">BBVA, Banorte, and more</span>
+              <input type="file" accept=".csv,.pdf" className="hidden" onChange={handleFileUpload} />
             </label>
           </div>
         ) : importResult ? (
@@ -569,6 +639,57 @@ export default function TransactionsClient() {
               className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium">
               Done
             </button>
+          </div>
+        ) : importMode === 'pdf' ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+              <span className="text-blue-400 text-sm font-medium">🏦 BBVA detected</span>
+              <span className="text-xs text-[hsl(var(--text-secondary))]">— {pdfRows.length} transactions found</span>
+            </div>
+            {/* Preview */}
+            <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
+              <table className="w-full text-xs">
+                <thead><tr className="bg-[hsl(var(--bg-elevated))]">
+                  <th className="px-2 py-1 text-left">Date</th>
+                  <th className="px-2 py-1 text-left">Description</th>
+                  <th className="px-2 py-1 text-right">Amount</th>
+                  <th className="px-2 py-1 text-center">Type</th>
+                </tr></thead>
+                <tbody>
+                  {pdfRows.slice(0, 8).map((row, i) => (
+                    <tr key={i} className="border-t border-[hsl(var(--border))]">
+                      <td className="px-2 py-1">{row.date}</td>
+                      <td className="px-2 py-1 max-w-[200px] truncate">{row.description}</td>
+                      <td className={cn("px-2 py-1 text-right font-mono", row.type === 'expense' ? 'text-rose-400' : 'text-emerald-400')}>
+                        ${row.amount.toLocaleString('en', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-2 py-1 text-center">
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", row.type === 'expense' ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400')}>
+                          {row.type === 'expense' ? 'Cargo' : 'Abono'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {pdfRows.length > 8 && (
+                    <tr className="border-t border-[hsl(var(--border))]">
+                      <td colSpan={4} className="px-2 py-1 text-center text-[hsl(var(--text-secondary))] text-xs">
+                        ...and {pdfRows.length - 8} more
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => { setPdfRows([]); setImportMode(null) }}
+                className="flex-1 py-2 rounded-lg border border-[hsl(var(--border))] text-sm hover:bg-[hsl(var(--bg-elevated))]">
+                Back
+              </button>
+              <button onClick={handlePdfImport} disabled={importing}
+                className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium disabled:opacity-50">
+                {importing ? 'Importing...' : `Import ${pdfRows.length} transactions`}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
