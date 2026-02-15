@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Power } from 'lucide-react'
+import { Plus, Pencil, Trash2, Power, CreditCard } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
 import { GlassCard } from '@/components/ui/glass-card'
@@ -101,28 +101,65 @@ export default function SubscriptionsClient() {
     setModalOpen(true)
   }
 
+  const [logAlso, setLogAlso] = useState(true) // default: also log as expense
+  const [loggedId, setLoggedId] = useState<string | null>(null)
+
   const handleSave = async () => {
     if (!form.name || !form.amount || !form.category_id) return
     setSaving(true)
+    const amt = parseFloat(form.amount)
     const record = {
       name: form.name,
-      amount: parseFloat(form.amount),
+      amount: amt,
       currency: form.currency,
       category_id: form.category_id,
       frequency: form.frequency,
       next_due_date: form.next_due_date || null,
-      merchant: form.merchant || null,
+      merchant: form.merchant || form.name,
       notes: form.notes || null,
       is_active: true,
     }
     if (editingId) {
       await supabase.from('finance_recurring').update(record).eq('id', editingId)
     } else {
-      await supabase.from('finance_recurring').insert(record)
+      const { data } = await supabase.from('finance_recurring').insert(record).select('id').single()
+      // Also log as expense transaction if checkbox is checked
+      if (logAlso && data) {
+        await supabase.from('finance_transactions').insert({
+          type: 'expense',
+          amount: amt,
+          currency: form.currency,
+          amount_mxn: amt, // TODO: USD conversion
+          category_id: form.category_id,
+          merchant: form.merchant || form.name,
+          description: `${form.name} (${form.frequency})`,
+          transaction_date: new Date().toISOString().slice(0, 10),
+          is_recurring: true,
+          recurring_id: data.id,
+        })
+      }
     }
     setSaving(false)
     setModalOpen(false)
     fetchData()
+  }
+
+  // Log a payment for an existing subscription (creates a transaction)
+  const logPayment = async (sub: FinanceRecurring) => {
+    await supabase.from('finance_transactions').insert({
+      type: 'expense',
+      amount: sub.amount,
+      currency: sub.currency,
+      amount_mxn: sub.amount, // TODO: USD conversion
+      category_id: sub.category_id,
+      merchant: sub.merchant || sub.name,
+      description: `${sub.name} (${sub.frequency})`,
+      transaction_date: new Date().toISOString().slice(0, 10),
+      is_recurring: true,
+      recurring_id: sub.id,
+    })
+    setLoggedId(sub.id)
+    setTimeout(() => setLoggedId(null), 2000)
   }
 
   const toggleActive = async (sub: FinanceRecurring) => {
@@ -205,6 +242,13 @@ export default function SubscriptionsClient() {
                     </td>
                     <td className="py-2 px-2">
                       <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        {loggedId === sub.id ? (
+                          <span className="text-[10px] text-emerald-400 font-medium px-1">✓ Logged</span>
+                        ) : (
+                          <button onClick={() => logPayment(sub)} className="p-1 rounded hover:bg-emerald-500/10" title="Log payment as expense">
+                            <CreditCard className="h-3.5 w-3.5 text-emerald-400" />
+                          </button>
+                        )}
                         <button onClick={() => openEdit(sub)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
                           <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" />
                         </button>
@@ -245,6 +289,14 @@ export default function SubscriptionsClient() {
                     )}
                   </div>
                 </div>
+                {loggedId === sub.id ? (
+                  <span className="text-[10px] text-emerald-400 font-medium shrink-0">✓</span>
+                ) : (
+                  <button onClick={(e) => { e.stopPropagation(); logPayment(sub) }}
+                    className="p-1.5 rounded-md bg-emerald-500/10 shrink-0" title="Log payment">
+                    <CreditCard className="h-3.5 w-3.5 text-emerald-400" />
+                  </button>
+                )}
                 <button onClick={(e) => { e.stopPropagation(); toggleActive(sub) }}
                   className="p-1.5 rounded-md bg-[hsl(var(--bg-elevated))] shrink-0">
                   <Power className="h-3.5 w-3.5" />
@@ -329,6 +381,12 @@ export default function SubscriptionsClient() {
             <textarea rows={2} placeholder="Optional notes..." value={form.notes}
               onChange={e => updateForm({ notes: e.target.value })} className={inputCls} />
           </div>
+          {!editingId && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={logAlso} onChange={e => setLogAlso(e.target.checked)} className="rounded" />
+              Also log today&apos;s payment as an expense
+            </label>
+          )}
           <button type="submit" disabled={saving || !form.name || !form.amount || !form.category_id}
             className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
             {saving ? 'Saving...' : editingId ? 'Update Subscription' : 'Add Subscription'}
