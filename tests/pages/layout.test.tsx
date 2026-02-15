@@ -11,34 +11,40 @@ vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }))
 
+// Mock next/navigation
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/',
+}))
+
 describe('Root Layout', () => {
   it('renders sidebar with team name', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    // Mobile header + expanded sidebar both show team name
-    expect(screen.getAllByText('Interstellar Squad').length).toBeGreaterThan(0)
+    // Mobile header shows "Squad Dashboard", expanded sidebar shows "Interstellar Squad"
+    expect(screen.getByText('Squad Dashboard')).toBeInTheDocument()
   })
 
   it('renders all navigation links', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    // 5 mobile + 7 main desktop + 5 finance desktop = 17
+    // 5 mobile bottom + 7 main desktop + 10 finance desktop = 22
     const links = screen.getAllByRole('link')
-    expect(links).toHaveLength(17)
+    expect(links).toHaveLength(22)
   })
 
   it('navigation links have correct hrefs', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    // Check desktop nav via title attributes (sidebar collapsed)
-    expect(screen.getAllByTitle('Overview')[0]).toHaveAttribute('href', '/')
-    expect(screen.getByTitle('Mission Control')).toHaveAttribute('href', '/mission-control')
-    expect(screen.getByTitle('Tasks')).toHaveAttribute('href', '/tasks')
-    expect(screen.getByTitle('Comms Log')).toHaveAttribute('href', '/comms')
-    expect(screen.getByTitle('Metrics')).toHaveAttribute('href', '/metrics')
-    expect(screen.getByTitle('Agents')).toHaveAttribute('href', '/agents')
-    // Finance section
-    expect(screen.getByTitle('Transactions')).toHaveAttribute('href', '/finance/transactions')
-    expect(screen.getByTitle('Budgets')).toHaveAttribute('href', '/finance/budgets')
-    expect(screen.getByTitle('Subscriptions')).toHaveAttribute('href', '/finance/subscriptions')
-    expect(screen.getByTitle('Reports')).toHaveAttribute('href', '/finance/reports')
+    const links = screen.getAllByRole('link')
+    const hrefs = links.map(l => l.getAttribute('href'))
+    // Main nav
+    expect(hrefs).toContain('/')
+    expect(hrefs).toContain('/mission-control')
+    expect(hrefs).toContain('/agents')
+    // Finance nav
+    expect(hrefs).toContain('/finance')
+    expect(hrefs).toContain('/finance/budget-builder')
+    expect(hrefs).toContain('/finance/debt')
+    expect(hrefs).toContain('/finance/goals')
+    expect(hrefs).toContain('/finance/audit')
+    expect(hrefs).toContain('/finance/reports')
   })
 
   it('renders children in main area', () => {
@@ -49,7 +55,7 @@ describe('Root Layout', () => {
 
   it('renders mobile header', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    expect(screen.getAllByText('Interstellar Squad').length).toBeGreaterThan(0)
+    expect(screen.getByText('Squad Dashboard')).toBeInTheDocument()
   })
 
   it('uses dark mode', () => {

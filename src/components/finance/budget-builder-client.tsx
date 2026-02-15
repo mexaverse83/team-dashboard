@@ -44,6 +44,7 @@ export default function BudgetBuilderClient() {
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
   const [budgets, setBudgets] = useState<FinanceBudget[]>([])
   const [incomeSources, setIncomeSources] = useState<FinanceIncomeSource[]>([])
+  const [goals, setGoals] = useState<{ id: string; monthly_contribution: number; is_active: boolean }[]>([])
   const [loading, setLoading] = useState(true)
 
   // Income modal
@@ -57,16 +58,18 @@ export default function BudgetBuilderClient() {
   const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   const fetchData = useCallback(async () => {
-    const [catRes, txRes, budRes, incRes] = await Promise.all([
+    const [catRes, txRes, budRes, incRes, goalsRes] = await Promise.all([
       supabase.from('finance_categories').select('*').order('sort_order'),
       supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }),
       supabase.from('finance_budgets').select('*'),
       supabase.from('finance_income_sources').select('*').order('created_at'),
+      supabase.from('finance_goals').select('*').eq('is_active', true),
     ])
     setCategories((catRes.data?.length ? catRes.data : DEFAULT_CATEGORIES))
     setTransactions(txRes.data || [])
     setBudgets(budRes.data || [])
     setIncomeSources(incRes.data || [])
+    setGoals(goalsRes.data || [])
     setLoading(false)
   }, [])
 
@@ -116,7 +119,10 @@ export default function BudgetBuilderClient() {
   // 50/30/20 totals
   const needsTotal = budgetRows.filter(r => r.budgetType === 'needs').reduce((s, r) => s + r.actual, 0)
   const wantsTotal = budgetRows.filter(r => r.budgetType === 'wants').reduce((s, r) => s + r.actual, 0)
-  const savingsTotal = budgetRows.filter(r => r.budgetType === 'savings').reduce((s, r) => s + r.actual, 0)
+  // Savings = savings-category spending + goal contributions
+  const savingsCategoryTotal = budgetRows.filter(r => r.budgetType === 'savings').reduce((s, r) => s + r.actual, 0)
+  const goalContributions = goals.filter(g => g.is_active).reduce((s, g) => s + (g.monthly_contribution || 0), 0)
+  const savingsTotal = savingsCategoryTotal + goalContributions
   const totalSpent = needsTotal + wantsTotal + savingsTotal
   const needsPct = totalIncome > 0 ? Math.round((needsTotal / totalIncome) * 100) : 0
   const wantsPct = totalIncome > 0 ? Math.round((wantsTotal / totalIncome) * 100) : 0
