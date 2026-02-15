@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Search, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Upload, Download } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
@@ -49,6 +49,14 @@ export default function TransactionsClient() {
   const [form, setForm] = useState<TxForm>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
+  // CSV Import
+  const [importOpen, setImportOpen] = useState(false)
+  const [csvRows, setCsvRows] = useState<Record<string, string>[]>([])
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([])
+  const [columnMap, setColumnMap] = useState<Record<string, string>>({})
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState<{ success: number; errors: number } | null>(null)
 
   const perPage = 25
 
@@ -162,6 +170,95 @@ export default function TransactionsClient() {
 
   const updateForm = (patch: Partial<TxForm>) => setForm(f => ({ ...f, ...patch }))
 
+  // ── CSV Import ──────────────────────────────────
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string
+      if (!text) return
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+      if (lines.length < 2) return
+      // Parse headers
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
+      setCsvHeaders(headers)
+      // Parse rows
+      const rows = lines.slice(1).map(line => {
+        const vals = line.match(/(".*?"|[^,]+)/g)?.map(v => v.trim().replace(/^"|"$/g, '')) || []
+        const row: Record<string, string> = {}
+        headers.forEach((h, i) => { row[h] = vals[i] || '' })
+        return row
+      })
+      setCsvRows(rows)
+      // Auto-map common column names
+      const autoMap: Record<string, string> = {}
+      const lower = headers.map(h => h.toLowerCase())
+      if (lower.some(h => h.includes('date') || h.includes('fecha'))) autoMap.date = headers[lower.findIndex(h => h.includes('date') || h.includes('fecha'))]
+      if (lower.some(h => h.includes('amount') || h.includes('monto') || h.includes('cargo') || h.includes('importe'))) autoMap.amount = headers[lower.findIndex(h => h.includes('amount') || h.includes('monto') || h.includes('cargo') || h.includes('importe'))]
+      if (lower.some(h => h.includes('description') || h.includes('descripcion') || h.includes('concepto'))) autoMap.description = headers[lower.findIndex(h => h.includes('description') || h.includes('descripcion') || h.includes('concepto'))]
+      if (lower.some(h => h.includes('merchant') || h.includes('comercio'))) autoMap.merchant = headers[lower.findIndex(h => h.includes('merchant') || h.includes('comercio'))]
+      setColumnMap(autoMap)
+    }
+    reader.readAsText(file)
+  }
+
+  const handleImport = async () => {
+    if (!columnMap.date || !columnMap.amount || csvRows.length === 0) return
+    setImporting(true)
+    let success = 0, errors = 0
+    const batch = csvRows.map(row => {
+      const rawAmt = parseFloat(row[columnMap.amount]?.replace(/[$,]/g, '') || '0')
+      const amt = Math.abs(rawAmt)
+      const isExpense = rawAmt < 0 || row[columnMap.amount]?.includes('-')
+      const dateStr = row[columnMap.date] || ''
+      // Try to parse date (YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY)
+      let txDate = dateStr
+      if (dateStr.includes('/')) {
+        const parts = dateStr.split('/')
+        if (parts[2]?.length === 4) txDate = `${parts[2]}-${parts[1]?.padStart(2, '0')}-${parts[0]?.padStart(2, '0')}`
+      }
+      return {
+        type: isExpense ? 'expense' : 'income',
+        amount: amt,
+        currency: 'MXN',
+        amount_mxn: amt,
+        category_id: categories.find(c => c.name === 'Other' || c.name === 'Other Income')?.id || categories[0]?.id,
+        merchant: columnMap.merchant ? (row[columnMap.merchant] || null) : null,
+        description: columnMap.description ? (row[columnMap.description] || null) : null,
+        transaction_date: txDate,
+        tags: [],
+        is_recurring: false,
+      }
+    }).filter(r => r.amount > 0 && r.transaction_date)
+
+    // Insert in batches of 50
+    for (let i = 0; i < batch.length; i += 50) {
+      const chunk = batch.slice(i, i + 50)
+      const { error } = await supabase.from('finance_transactions').insert(chunk)
+      if (error) errors += chunk.length
+      else success += chunk.length
+    }
+
+    setImporting(false)
+    setImportResult({ success, errors })
+    if (success > 0) fetchData()
+  }
+
+  // ── CSV Export ──────────────────────────────────
+  const exportCsv = () => {
+    const header = 'Date,Type,Amount,Currency,Amount MXN,Category,Merchant,Description'
+    const rows = transactions.map(t =>
+      `${t.transaction_date},${t.type},${t.amount},${t.currency},${t.amount_mxn},"${t.category?.name || ''}","${t.merchant || ''}","${t.description || ''}"`
+    )
+    const csv = [header, ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `transactions-${today()}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const filteredCats = categories.filter(c => c.type === form.type || c.type === 'both')
 
   if (loading) return <div className="h-8 w-48 rounded bg-[hsl(var(--muted))] animate-pulse" />
@@ -174,10 +271,20 @@ export default function TransactionsClient() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Transactions</h1>
           <p className="text-[hsl(var(--text-secondary))]">All income and expenses</p>
         </div>
-        <button onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
-          <Plus className="h-4 w-4" /> Add Transaction
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => { setImportOpen(true); setImportResult(null); setCsvRows([]); setCsvHeaders([]) }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))] text-sm font-medium transition-colors">
+            <Upload className="h-4 w-4" /> Import CSV
+          </button>
+          <button onClick={exportCsv}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))] text-sm transition-colors">
+            <Download className="h-4 w-4" />
+          </button>
+          <button onClick={openAdd}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
+            <Plus className="h-4 w-4" /> Add
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -437,6 +544,83 @@ export default function TransactionsClient() {
             {saving ? 'Saving...' : editingId ? 'Update Transaction' : form.type === 'expense' ? 'Log Expense' : 'Log Income'}
           </button>
         </form>
+      </Modal>
+      {/* CSV Import Modal */}
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import Transactions from CSV">
+        {!csvHeaders.length ? (
+          <div className="space-y-4">
+            <p className="text-sm text-[hsl(var(--text-secondary))]">
+              Upload a CSV file from your bank. Supports BBVA, Banorte, and most Mexican bank exports.
+              We&apos;ll auto-detect columns for date, amount, description, and merchant.
+            </p>
+            <label className="flex flex-col items-center gap-3 p-8 border-2 border-dashed border-[hsl(var(--border))] rounded-xl cursor-pointer hover:border-blue-500 transition-colors">
+              <Upload className="h-8 w-8 text-[hsl(var(--text-secondary))]" />
+              <span className="text-sm font-medium">Choose CSV file</span>
+              <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+            </label>
+          </div>
+        ) : importResult ? (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+              <p className="text-sm font-medium text-emerald-400">✅ {importResult.success} transactions imported</p>
+              {importResult.errors > 0 && <p className="text-sm text-rose-400 mt-1">⚠️ {importResult.errors} failed</p>}
+            </div>
+            <button onClick={() => setImportOpen(false)}
+              className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium">
+              Done
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-[hsl(var(--text-secondary))]">
+              Found <strong>{csvRows.length}</strong> rows. Map your columns:
+            </p>
+            {(['date', 'amount', 'description', 'merchant'] as const).map(field => (
+              <div key={field} className="flex items-center gap-3">
+                <span className="text-sm font-medium w-24 capitalize">{field}{field === 'date' || field === 'amount' ? ' *' : ''}</span>
+                <select value={columnMap[field] || ''} onChange={e => setColumnMap(m => ({ ...m, [field]: e.target.value }))}
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-[hsl(var(--bg-elevated))] text-sm border border-[hsl(var(--border))]">
+                  <option value="">— skip —</option>
+                  {csvHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+            ))}
+            {/* Preview */}
+            {csvRows.length > 0 && columnMap.date && columnMap.amount && (
+              <div className="mt-3">
+                <p className="text-xs text-[hsl(var(--text-secondary))] mb-2">Preview (first 5 rows):</p>
+                <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
+                  <table className="w-full text-xs">
+                    <thead><tr className="bg-[hsl(var(--bg-elevated))]">
+                      <th className="px-2 py-1 text-left">Date</th>
+                      <th className="px-2 py-1 text-right">Amount</th>
+                      <th className="px-2 py-1 text-left">Description</th>
+                    </tr></thead>
+                    <tbody>
+                      {csvRows.slice(0, 5).map((row, i) => (
+                        <tr key={i} className="border-t border-[hsl(var(--border))]">
+                          <td className="px-2 py-1">{row[columnMap.date]}</td>
+                          <td className="px-2 py-1 text-right">{row[columnMap.amount]}</td>
+                          <td className="px-2 py-1">{columnMap.description ? row[columnMap.description] : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => { setCsvHeaders([]); setCsvRows([]) }}
+                className="flex-1 py-2 rounded-lg border border-[hsl(var(--border))] text-sm hover:bg-[hsl(var(--bg-elevated))]">
+                Back
+              </button>
+              <button onClick={handleImport} disabled={importing || !columnMap.date || !columnMap.amount}
+                className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium disabled:opacity-50">
+                {importing ? 'Importing...' : `Import ${csvRows.length} rows`}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
     </PageTransition>
