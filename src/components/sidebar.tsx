@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, ChevronsLeft, ChevronsRight } from 'lucide-react'
 
 const navItems = [
   { href: '/', icon: Home, label: 'Overview' },
@@ -12,6 +12,14 @@ const navItems = [
   { href: '/metrics', icon: BarChart3, label: 'Metrics' },
   { href: '/costs', icon: DollarSign, label: 'Costs' },
   { href: '/agents', icon: Users, label: 'Agents' },
+]
+
+const financeItems = [
+  { href: '/finance', icon: Wallet, label: 'Overview' },
+  { href: '/finance/transactions', icon: ArrowLeftRight, label: 'Transactions' },
+  { href: '/finance/budgets', icon: PiggyBank, label: 'Budgets' },
+  { href: '/finance/subscriptions', icon: RefreshCw, label: 'Subscriptions' },
+  { href: '/finance/reports', icon: FileBarChart, label: 'Reports' },
 ]
 
 export function Sidebar() {
@@ -70,6 +78,28 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
+
+      {/* Finance Section */}
+      <div className="mt-6 pt-4 border-t border-[hsl(var(--border))]">
+        {!collapsed && (
+          <span className="px-3 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">Finance</span>
+        )}
+        <div className={`${collapsed ? '' : 'mt-2'} flex flex-col gap-1`}>
+          {financeItems.map(item => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-2 rounded-md text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors ${
+                collapsed ? 'justify-center p-2' : 'px-3 py-2'
+              }`}
+              title={item.label}
+            >
+              <item.icon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span>{item.label}</span>}
+            </Link>
+          ))}
+        </div>
+      </div>
 
       {/* Footer */}
       <div className="mt-auto space-y-3">
