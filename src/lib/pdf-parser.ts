@@ -22,21 +22,7 @@ export interface ParsedTransaction {
  * Parse a BBVA statement PDF (File or ArrayBuffer) → transactions
  */
 export async function parseBBVAPdf(file: File): Promise<ParsedTransaction[]> {
-  const pdfjsLib = await import('pdfjs-dist')
-  // Use the bundled worker
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
-
-  const arrayBuffer = await file.arrayBuffer()
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-  
-  let fullText = ''
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i)
-    const content = await page.getTextContent()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const strings = content.items.map((item: any) => item.str || '')
-    fullText += strings.join(' ') + '\n'
-  }
+  const fullText = await extractPdfText(file)
 
   return extractTransactions(fullText)
 }
@@ -95,20 +81,32 @@ function extractTransactions(text: string): ParsedTransaction[] {
   return results
 }
 
+/** Extract text from all pages of a PDF */
+async function extractPdfText(file: File): Promise<string> {
+  // Dynamic import — works in browser with bundler
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pdfjsLib = await import('pdfjs-dist') as any
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
+
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
+
+  let fullText = ''
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const strings = content.items.map((item: any) => item.str || '')
+    fullText += strings.join(' ') + '\n'
+  }
+  return fullText
+}
+
 /**
  * Detect if a PDF is likely a BBVA statement
  */
 export async function detectBankFormat(file: File): Promise<'bbva' | 'unknown'> {
-  const pdfjsLib = await import('pdfjs-dist')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
-
-  const arrayBuffer = await file.arrayBuffer()
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-  const page = await pdf.getPage(1)
-  const content = await page.getTextContent()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const text = content.items.map((item: any) => item.str || '').join(' ')
-
+  const text = await extractPdfText(file)
   if (/BBVA\s*MEXICO|bbva\.mx|L[ií]nea BBVA/i.test(text)) return 'bbva'
   return 'unknown'
 }
