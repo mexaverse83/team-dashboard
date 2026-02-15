@@ -12,3 +12,7 @@ CHECK (billing_cycle IN ('monthly', 'bimonthly', 'quarterly', 'semi-annual', 'an
 -- Set known non-monthly categories
 UPDATE finance_categories SET billing_cycle = 'bimonthly' WHERE name ILIKE '%electric%' OR name ILIKE '%luz%';
 UPDATE finance_categories SET billing_cycle = 'bimonthly' WHERE name ILIKE '%water%' OR name ILIKE '%agua%';
+
+-- Add coverage period columns to transactions (for arrears billing allocation)
+ALTER TABLE finance_transactions ADD COLUMN IF NOT EXISTS coverage_start date;
+ALTER TABLE finance_transactions ADD COLUMN IF NOT EXISTS coverage_end date;

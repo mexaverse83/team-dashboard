@@ -62,6 +62,62 @@ export function cycleBudgetComparison(
   return { spent, budget, pct, isOverBudget: pct > 110, monthlyAvg } // 10% grace
 }
 
+/**
+ * Get the allocated amount for a transaction in a specific month.
+ * If the transaction has coverage_start/end, split evenly across covered months.
+ * Otherwise, allocate fully to the transaction_date month.
+ */
+export function allocatedAmount(tx: FinanceTransaction, targetMonth: string): number {
+  // targetMonth format: "YYYY-MM"
+  if (!tx.coverage_start || !tx.coverage_end) {
+    // Standard: full amount in transaction month
+    return tx.transaction_date.startsWith(targetMonth) ? tx.amount_mxn : 0
+  }
+
+  const start = new Date(tx.coverage_start)
+  const end = new Date(tx.coverage_end)
+  const target = new Date(targetMonth + '-01')
+
+  // Count months in coverage window
+  const coveredMonths = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth() + 1)
+
+  // Check if target month falls within coverage window
+  if (target >= start && target <= end) {
+    return tx.amount_mxn / coveredMonths
+  }
+  return 0
+}
+
+/**
+ * Get allocated monthly spend for a category, respecting coverage periods.
+ * Use this instead of simple month filtering for accurate reports.
+ */
+export function allocatedMonthlySpend(
+  transactions: FinanceTransaction[],
+  categoryId: string,
+  targetMonth: string
+): number {
+  return transactions
+    .filter(t => t.category_id === categoryId && t.type === 'expense')
+    .reduce((sum, tx) => sum + allocatedAmount(tx, targetMonth), 0)
+}
+
+/**
+ * Auto-suggest coverage period based on billing cycle.
+ * For arrears billing: coverage ends the month before payment, spans cycle length.
+ */
+export function suggestCoveragePeriod(paymentDate: string, cycle: BillingCycle): { start: string; end: string } {
+  const payment = new Date(paymentDate)
+  const months = CYCLE_MONTHS[cycle]
+  // Coverage ends last day of previous month (arrears)
+  const coverageEnd = new Date(payment.getFullYear(), payment.getMonth(), 0)
+  const coverageStart = new Date(coverageEnd.getFullYear(), coverageEnd.getMonth() - months + 1, 1)
+  return {
+    start: coverageStart.toISOString().slice(0, 10),
+    end: coverageEnd.toISOString().slice(0, 10),
+  }
+}
+
 // Default categories — always available even before SQL schema is run
 export const DEFAULT_CATEGORIES: FinanceCategory[] = [
   { id: 'cat-rent', name: 'Rent/Mortgage', icon: '🏠', color: '#8B5CF6', type: 'expense', is_default: true, sort_order: 1 },

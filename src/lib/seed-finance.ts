@@ -23,7 +23,7 @@ export const SEED_CATEGORIES: FinanceCategory[] = [
 ]
 
 function tx(id: string, type: 'expense' | 'income', amount: number, catId: string, merchant: string, date: string, desc: string): FinanceTransaction {
-  return { id, type, amount, currency: 'MXN', amount_mxn: amount, category_id: catId, merchant, description: desc, transaction_date: date, is_recurring: false, recurring_id: null, tags: [], created_at: date, updated_at: date }
+  return { id, type, amount, currency: 'MXN', amount_mxn: amount, category_id: catId, merchant, description: desc, transaction_date: date, is_recurring: false, recurring_id: null, tags: [], coverage_start: null, coverage_end: null, created_at: date, updated_at: date }
 }
 
 export const SEED_TRANSACTIONS: FinanceTransaction[] = [

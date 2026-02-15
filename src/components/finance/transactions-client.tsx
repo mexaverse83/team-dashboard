@@ -10,7 +10,7 @@ import { Modal } from '@/components/ui/modal'
 import { cn } from '@/lib/utils'
 
 import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
-import { enrichTransactions, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
+import { enrichTransactions, DEFAULT_CATEGORIES, suggestCoveragePeriod, CYCLE_LABELS } from '@/lib/finance-utils'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 const labelCls = "text-xs text-[hsl(var(--text-secondary))] mb-1 block"
@@ -28,9 +28,11 @@ interface TxForm {
   transaction_date: string
   tags: string
   is_recurring: boolean
+  coverage_start: string
+  coverage_end: string
 }
 
-const emptyForm: TxForm = { type: 'expense', amount: '', currency: 'MXN', amount_mxn: '', category_id: '', merchant: '', description: '', transaction_date: today(), tags: '', is_recurring: false }
+const emptyForm: TxForm = { type: 'expense', amount: '', currency: 'MXN', amount_mxn: '', category_id: '', merchant: '', description: '', transaction_date: today(), tags: '', is_recurring: false, coverage_start: '', coverage_end: '' }
 
 export default function TransactionsClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
@@ -109,6 +111,8 @@ export default function TransactionsClient() {
       transaction_date: tx.transaction_date,
       tags: tx.tags?.join(', ') || '',
       is_recurring: tx.is_recurring,
+      coverage_start: tx.coverage_start || '',
+      coverage_end: tx.coverage_end || '',
     })
     setModalOpen(true)
   }
@@ -122,7 +126,7 @@ export default function TransactionsClient() {
     const amtMxn = form.currency === 'USD' && form.amount_mxn ? parseFloat(form.amount_mxn) : amt
     const tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
 
-    const record = {
+    const record: Record<string, unknown> = {
       type: form.type,
       amount: amt,
       currency: form.currency,
@@ -134,6 +138,9 @@ export default function TransactionsClient() {
       tags,
       is_recurring: form.is_recurring,
     }
+    // Coverage period for arrears billing
+    if (form.coverage_start) record.coverage_start = form.coverage_start
+    if (form.coverage_end) record.coverage_end = form.coverage_end
 
     if (editingId) {
       await supabase.from('finance_transactions').update(record).eq('id', editingId)
@@ -383,6 +390,45 @@ export default function TransactionsClient() {
               </label>
             </div>
           </details>
+
+          {/* Coverage period for non-monthly billing cycles */}
+          {(() => {
+            const selectedCat = categories.find(c => c.id === form.category_id)
+            const cycle = selectedCat?.billing_cycle
+            if (!cycle || cycle === 'monthly') return null
+            return (
+              <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-blue-400">📅 Period Covered ({CYCLE_LABELS[cycle]})</span>
+                  <button type="button" onClick={() => {
+                    if (form.transaction_date) {
+                      const suggestion = suggestCoveragePeriod(form.transaction_date, cycle)
+                      updateForm({ coverage_start: suggestion.start, coverage_end: suggestion.end })
+                    }
+                  }} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">
+                    Auto-suggest →
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Coverage Start</label>
+                    <input type="date" value={form.coverage_start} onChange={e => updateForm({ coverage_start: e.target.value })} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Coverage End</label>
+                    <input type="date" value={form.coverage_end} onChange={e => updateForm({ coverage_end: e.target.value })} className={inputCls} />
+                  </div>
+                </div>
+                {form.coverage_start && form.coverage_end && form.amount && (() => {
+                  const start = new Date(form.coverage_start)
+                  const end = new Date(form.coverage_end)
+                  const covMonths = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth() + 1)
+                  const perMonth = parseFloat(form.amount) / covMonths
+                  return <p className="text-xs text-blue-400/70">→ ${perMonth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo across {covMonths} months</p>
+                })()}
+              </div>
+            )
+          })()}
 
           <button type="submit" disabled={saving || !form.amount || !form.category_id}
             className={cn("w-full py-2.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50",

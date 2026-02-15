@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 
 import type { FinanceCategory, FinanceTransaction, FinanceBudget } from '@/lib/finance-types'
-import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES, cycleBudgetComparison, CYCLE_LABELS } from '@/lib/finance-utils'
+import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES, cycleBudgetComparison, CYCLE_LABELS, allocatedMonthlySpend } from '@/lib/finance-utils'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 
@@ -62,7 +62,8 @@ export default function BudgetsClient() {
     const cat = categories.find(c => c.id === b.category_id)
     const cycle = cat?.billing_cycle || 'monthly'
     if (cycle === 'monthly') {
-      const spent = monthTxs.filter(t => t.category_id === b.category_id).reduce((s, t) => s + t.amount_mxn, 0)
+      // Use allocated amounts (respects coverage periods for arrears billing)
+      const spent = allocatedMonthlySpend(transactions, b.category_id, monthStr)
       const pct = b.amount > 0 ? (spent / b.amount) * 100 : 0
       return { ...b, spent, pct, cycle, monthlyAvg: spent }
     }

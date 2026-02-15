@@ -24,6 +24,8 @@ export interface FinanceTransaction {
   is_recurring: boolean
   recurring_id: string | null
   tags: string[]
+  coverage_start: string | null
+  coverage_end: string | null
   created_at: string
   updated_at: string
   // Joined
