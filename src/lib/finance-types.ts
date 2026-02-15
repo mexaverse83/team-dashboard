@@ -1,3 +1,5 @@
+export type BillingCycle = 'monthly' | 'bimonthly' | 'quarterly' | 'semi-annual' | 'annual'
+
 export interface FinanceCategory {
   id: string
   name: string
@@ -6,6 +8,7 @@ export interface FinanceCategory {
   type: 'expense' | 'income' | 'both'
   is_default: boolean
   sort_order: number
+  billing_cycle?: BillingCycle
 }
 
 export interface FinanceTransaction {

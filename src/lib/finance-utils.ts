@@ -1,4 +1,66 @@
-import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceRecurring } from './finance-types'
+import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceRecurring, BillingCycle } from './finance-types'
+
+// Billing cycle → months
+export const CYCLE_MONTHS: Record<BillingCycle, number> = {
+  monthly: 1, bimonthly: 2, quarterly: 3, 'semi-annual': 6, annual: 12,
+}
+
+export const CYCLE_LABELS: Record<BillingCycle, string> = {
+  monthly: 'Monthly', bimonthly: 'Bimonthly', quarterly: 'Quarterly', 'semi-annual': 'Semi-annual', annual: 'Annual',
+}
+
+/**
+ * Calculate rolling average monthly spend for a category based on its billing cycle.
+ * Looks back over the cycle window and averages to a monthly figure.
+ */
+export function rollingMonthlyAverage(
+  transactions: FinanceTransaction[],
+  categoryId: string,
+  cycle: BillingCycle = 'monthly',
+  asOfDate: Date = new Date()
+): number {
+  const months = CYCLE_MONTHS[cycle]
+  const lookbackMs = months * 30 * 24 * 60 * 60 * 1000
+  const cutoff = new Date(asOfDate.getTime() - lookbackMs)
+
+  const cycleTxs = transactions.filter(t =>
+    t.category_id === categoryId &&
+    t.type === 'expense' &&
+    new Date(t.transaction_date) >= cutoff
+  )
+
+  const total = cycleTxs.reduce((s, t) => s + t.amount_mxn, 0)
+  return total / months
+}
+
+/**
+ * Smart budget comparison: compare spend over the full billing cycle window vs budget × cycle months.
+ * Returns { spent, budget, pct, isOverBudget } adjusted for the billing cycle.
+ */
+export function cycleBudgetComparison(
+  transactions: FinanceTransaction[],
+  categoryId: string,
+  monthlyBudget: number,
+  cycle: BillingCycle = 'monthly',
+  asOfDate: Date = new Date()
+): { spent: number; budget: number; pct: number; isOverBudget: boolean; monthlyAvg: number } {
+  const months = CYCLE_MONTHS[cycle]
+  const lookbackMs = months * 30 * 24 * 60 * 60 * 1000
+  const cutoff = new Date(asOfDate.getTime() - lookbackMs)
+
+  const cycleTxs = transactions.filter(t =>
+    t.category_id === categoryId &&
+    t.type === 'expense' &&
+    new Date(t.transaction_date) >= cutoff
+  )
+
+  const spent = cycleTxs.reduce((s, t) => s + t.amount_mxn, 0)
+  const budget = monthlyBudget * months
+  const pct = budget > 0 ? (spent / budget) * 100 : 0
+  const monthlyAvg = spent / months
+
+  return { spent, budget, pct, isOverBudget: pct > 110, monthlyAvg } // 10% grace
+}
 
 // Default categories — always available even before SQL schema is run
 export const DEFAULT_CATEGORIES: FinanceCategory[] = [

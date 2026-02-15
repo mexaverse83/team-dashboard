@@ -9,7 +9,7 @@ import { PageTransition } from '@/components/page-transition'
 import { Modal } from '@/components/ui/modal'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
-import { DEFAULT_CATEGORIES } from '@/lib/finance-utils'
+import { DEFAULT_CATEGORIES, rollingMonthlyAverage } from '@/lib/finance-utils'
 import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceIncomeSource } from '@/lib/finance-types'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
@@ -99,7 +99,11 @@ export default function BudgetBuilderClient() {
       const cat = catMap[catId]
       if (!cat) return null
       const budget = monthBudgets.find(b => b.category_id === catId)
-      const actual = monthTxs.filter(t => t.category_id === catId).reduce((s, t) => s + t.amount_mxn, 0)
+      const cycle = cat.billing_cycle || 'monthly'
+      // For non-monthly cycles, use rolling average instead of single month
+      const actual = cycle === 'monthly'
+        ? monthTxs.filter(t => t.category_id === catId).reduce((s, t) => s + t.amount_mxn, 0)
+        : rollingMonthlyAverage(transactions, catId, cycle)
       const budgetAmt = budget?.amount || 0
       const budgetType = (budget as unknown as Record<string, unknown>)?.budget_type as string || defaultBudgetType(cat.name)
       return {

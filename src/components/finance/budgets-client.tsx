@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 
 import type { FinanceCategory, FinanceTransaction, FinanceBudget } from '@/lib/finance-types'
-import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
+import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES, cycleBudgetComparison, CYCLE_LABELS } from '@/lib/finance-utils'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 
@@ -59,9 +59,16 @@ export default function BudgetsClient() {
   const overallPct = totalBudgeted > 0 ? Math.round((totalSpent / totalBudgeted) * 100) : 0
 
   const budgetCards = monthBudgets.map(b => {
-    const spent = monthTxs.filter(t => t.category_id === b.category_id).reduce((s, t) => s + t.amount_mxn, 0)
-    const pct = b.amount > 0 ? (spent / b.amount) * 100 : 0
-    return { ...b, spent, pct }
+    const cat = categories.find(c => c.id === b.category_id)
+    const cycle = cat?.billing_cycle || 'monthly'
+    if (cycle === 'monthly') {
+      const spent = monthTxs.filter(t => t.category_id === b.category_id).reduce((s, t) => s + t.amount_mxn, 0)
+      const pct = b.amount > 0 ? (spent / b.amount) * 100 : 0
+      return { ...b, spent, pct, cycle, monthlyAvg: spent }
+    }
+    // Non-monthly: compare over full billing cycle window
+    const comparison = cycleBudgetComparison(transactions, b.category_id, b.amount, cycle, currentMonth)
+    return { ...b, spent: comparison.monthlyAvg, pct: comparison.pct, cycle, monthlyAvg: comparison.monthlyAvg }
   }).sort((a, b) => b.pct - a.pct)
 
   // Categories that don't have a budget yet this month
@@ -152,8 +159,17 @@ export default function BudgetsClient() {
                     {b.category?.icon}
                   </div>
                   <div className="flex-1">
-                    <h4 className="text-sm font-semibold">{b.category?.name}</h4>
-                    <p className="text-xs text-[hsl(var(--text-tertiary))]">${b.spent.toLocaleString()} of ${b.amount.toLocaleString()}</p>
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="text-sm font-semibold">{b.category?.name}</h4>
+                      {b.cycle && b.cycle !== 'monthly' && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-medium">{CYCLE_LABELS[b.cycle as keyof typeof CYCLE_LABELS]}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[hsl(var(--text-tertiary))]">
+                      {b.cycle && b.cycle !== 'monthly'
+                        ? `~$${Math.round(b.monthlyAvg).toLocaleString()}/mo avg of $${b.amount.toLocaleString()} budget`
+                        : `$${b.spent.toLocaleString()} of $${b.amount.toLocaleString()}`}
+                    </p>
                   </div>
                   <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button onClick={() => openEdit(b)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
