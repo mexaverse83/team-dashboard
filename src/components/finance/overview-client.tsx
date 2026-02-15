@@ -12,8 +12,9 @@ import { PageTransition } from '@/components/page-transition'
 import { SkeletonKPI, SkeletonGrid } from '@/components/ui/skeleton-card'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
-import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, enrichTransactions, enrichBudgets } from '@/lib/seed-finance'
+
 import type { FinanceCategory, FinanceTransaction, FinanceBudget } from '@/lib/finance-types'
+import { enrichTransactions, enrichBudgets } from '@/lib/finance-utils'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -44,9 +45,9 @@ export default function FinanceOverviewClient() {
       supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }),
       supabase.from('finance_budgets').select('*'),
     ]).then(([catRes, txRes, budRes]) => {
-      const cats = catRes.data && catRes.data.length > 0 ? catRes.data : SEED_CATEGORIES
-      const txs = txRes.data && txRes.data.length > 0 ? txRes.data : SEED_TRANSACTIONS
-      const buds = budRes.data && budRes.data.length > 0 ? budRes.data : SEED_BUDGETS
+      const cats = catRes.data || []
+      const txs = txRes.data || []
+      const buds = budRes.data || []
       setCategories(cats)
       setTransactions(enrichTransactions(txs, cats))
       setBudgets(enrichBudgets(buds, cats))

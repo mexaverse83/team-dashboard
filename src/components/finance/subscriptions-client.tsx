@@ -10,8 +10,9 @@ import { PageTransition } from '@/components/page-transition'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Modal } from '@/components/ui/modal'
 import { cn } from '@/lib/utils'
-import { SEED_CATEGORIES, SEED_RECURRING, enrichRecurring } from '@/lib/seed-finance'
+
 import type { FinanceCategory, FinanceRecurring } from '@/lib/finance-types'
+import { enrichRecurring } from '@/lib/finance-utils'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 
@@ -56,8 +57,8 @@ export default function SubscriptionsClient() {
       supabase.from('finance_categories').select('*').order('sort_order'),
       supabase.from('finance_recurring').select('*').order('next_due_date'),
     ])
-    const cats = catRes.data?.length ? catRes.data : SEED_CATEGORIES
-    const recs = recRes.data?.length ? recRes.data : SEED_RECURRING
+    const cats = catRes.data || []
+    const recs = recRes.data || []
     setCategories(cats)
     setRecurring(enrichRecurring(recs, cats))
     setLoading(false)

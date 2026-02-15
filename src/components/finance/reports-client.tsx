@@ -7,8 +7,9 @@ import { AnimatedNumber } from '@/components/ui/animated-number'
 import { TrendBadge } from '@/components/ui/trend-badge'
 import { PageTransition } from '@/components/page-transition'
 import { cn } from '@/lib/utils'
-import { SEED_CATEGORIES, SEED_TRANSACTIONS, enrichTransactions } from '@/lib/seed-finance'
+
 import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
+import { enrichTransactions } from '@/lib/finance-utils'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   AreaChart, Area,
@@ -33,8 +34,8 @@ export default function ReportsClient() {
       supabase.from('finance_categories').select('*').order('sort_order'),
       supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: true }),
     ]).then(([catRes, txRes]) => {
-      const cats = catRes.data?.length ? catRes.data : SEED_CATEGORIES
-      const txs = txRes.data?.length ? txRes.data : SEED_TRANSACTIONS
+      const cats = catRes.data || []
+      const txs = txRes.data || []
       setCategories(cats)
       setTransactions(enrichTransactions(txs, cats))
       setLoading(false)

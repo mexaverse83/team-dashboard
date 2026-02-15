@@ -8,8 +8,9 @@ import { PageTransition } from '@/components/page-transition'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Modal } from '@/components/ui/modal'
 import { cn } from '@/lib/utils'
-import { SEED_CATEGORIES, SEED_TRANSACTIONS, enrichTransactions } from '@/lib/seed-finance'
+
 import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
+import { enrichTransactions } from '@/lib/finance-utils'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 const labelCls = "text-xs text-[hsl(var(--text-secondary))] mb-1 block"
@@ -39,7 +40,6 @@ export default function TransactionsClient() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
-  const [usingSeed, setUsingSeed] = useState(false)
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
@@ -57,9 +57,8 @@ export default function TransactionsClient() {
     ])
     const hasCats = catRes.data && catRes.data.length > 0
     const hasTxs = txRes.data && txRes.data.length > 0
-    const cats = hasCats ? catRes.data! : SEED_CATEGORIES
-    const txs = hasTxs ? txRes.data! : SEED_TRANSACTIONS
-    setUsingSeed(!hasTxs)
+    const cats = catRes.data || []
+    const txs = txRes.data || []
     setCategories(cats)
     setTransactions(enrichTransactions(txs, cats))
     setLoading(false)
@@ -173,12 +172,6 @@ export default function TransactionsClient() {
           <Plus className="h-4 w-4" /> Add Transaction
         </button>
       </div>
-
-      {usingSeed && (
-        <div className="px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
-          ⚠️ Using seed data — run the SQL schema in Supabase to enable CRUD
-        </div>
-      )}
 
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-3 p-3 rounded-xl bg-[hsl(var(--bg-elevated))]/50 border border-[hsl(var(--border))]">
