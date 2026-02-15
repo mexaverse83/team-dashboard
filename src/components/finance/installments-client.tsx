@@ -433,17 +433,27 @@ export function InstallmentsClient() {
             </div>
             <div>
               <label className="text-xs font-medium text-[hsl(var(--text-secondary))]">MSI Months *</label>
-              <div className="flex gap-1 flex-wrap mt-1">
+              <div className="flex gap-1 flex-wrap mt-1 items-center">
                 {MSI_PRESETS.map(n => (
                   <button key={n} onClick={() => setForm(f => ({ ...f, installment_count: String(n) }))}
                     className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                      form.installment_count === String(n)
+                      form.installment_count === String(n) && MSI_PRESETS.includes(parseInt(form.installment_count))
                         ? "bg-blue-600 text-white"
                         : "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))]/80"
                     )}>
                     {n}
                   </button>
                 ))}
+                <span className="text-xs text-[hsl(var(--text-tertiary))]">or</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="48"
+                  placeholder="Custom"
+                  className={cn(inputCls, "w-20 text-center")}
+                  value={MSI_PRESETS.includes(parseInt(form.installment_count)) ? '' : form.installment_count}
+                  onChange={e => setForm(f => ({ ...f, installment_count: e.target.value }))}
+                />
               </div>
             </div>
           </div>
