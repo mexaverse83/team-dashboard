@@ -33,6 +33,7 @@ export default function AuditClient() {
   const [prevTransactions, setPrevTransactions] = useState<FinanceTransaction[]>([])
   const [recurring, setRecurring] = useState<FinanceRecurring[]>([])
   const [budgets, setBudgets] = useState<FinanceBudget[]>([])
+  const [categories, setCategories] = useState<{ id: string; name: string; icon: string; color: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [flaggedSubs, setFlaggedSubs] = useState<Set<string>>(new Set())
 
@@ -47,16 +48,18 @@ export default function AuditClient() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const [txRes, prevTxRes, recRes, budRes] = await Promise.all([
+    const [txRes, prevTxRes, recRes, budRes, catRes] = await Promise.all([
       supabase.from('finance_transactions').select('*').gte('transaction_date', monthStart).lt('transaction_date', monthEnd).eq('type', 'expense'),
       supabase.from('finance_transactions').select('*').gte('transaction_date', prevMonthStart).lt('transaction_date', monthStart).eq('type', 'expense'),
       supabase.from('finance_recurring').select('*').eq('is_active', true),
       supabase.from('finance_budgets').select('*').eq('month', monthStart.slice(0, 7)),
+      supabase.from('finance_categories').select('*').order('sort_order'),
     ])
     setTransactions(txRes.data || [])
     setPrevTransactions(prevTxRes.data || [])
     setRecurring(recRes.data || [])
     setBudgets(budRes.data || [])
+    setCategories(catRes.data?.length ? catRes.data : DEFAULT_CATEGORIES as typeof categories)
     setLoading(false)
   }, [monthStart, monthEnd, prevMonthStart])
 
@@ -106,7 +109,7 @@ export default function AuditClient() {
     })
 
     return Array.from(catMap.entries()).map(([cid, data]) => {
-      const cat = DEFAULT_CATEGORIES.find(c => c.id === cid)
+      const cat = categories.find(c => c.id === cid)
       const budget = budgets.find(b => b.category_id === cid)
       const budgetAmt = budget?.amount || data.spent * 1.2
       const budgetPct = data.spent / budgetAmt
@@ -119,7 +122,7 @@ export default function AuditClient() {
 
       return { id: cid, name: cat?.name || cid, icon: cat?.icon || '📦', spent: data.spent, budget: budgetAmt, grade: gradeFromScore(totalScore), trend: Math.round(trend), txCount: data.txCount, budgetScore, trendScore, freqScore }
     }).sort((a, b) => b.spent - a.spent)
-  }, [transactions, prevTransactions, budgets])
+  }, [transactions, prevTransactions, budgets, categories])
 
   const overallScore = categoryScores.length > 0 ? Math.round(categoryScores.reduce((s, c) => s + (c.budgetScore * 8 + c.trendScore * 6 + c.freqScore * 6), 0) / categoryScores.length) : 0
   const overallGrade = gradeFromScore(overallScore)
@@ -148,12 +151,12 @@ export default function AuditClient() {
       merchants.set(m, (merchants.get(m) || 0) + t.amount_mxn)
     })
     return Array.from(catMerchants.entries()).map(([cid, merchants]) => {
-      const cat = DEFAULT_CATEGORIES.find(c => c.id === cid)
+      const cat = categories.find(c => c.id === cid)
       const total = Array.from(merchants.values()).reduce((s, v) => s + v, 0)
       const sorted = Array.from(merchants.entries()).map(([name, amount]) => ({ name, amount, pct: Math.round((amount / total) * 100) })).sort((a, b) => b.amount - a.amount)
       return { name: cat?.name || cid, icon: cat?.icon || '📦', total, merchants: sorted }
     }).filter(c => c.merchants.length > 1).sort((a, b) => b.total - a.total).slice(0, 6)
-  }, [transactions])
+  }, [transactions, categories])
 
   // ── Heatmap ───────────────────────────────────────
   const heatmapData = useMemo(() => {
@@ -333,7 +336,7 @@ export default function AuditClient() {
           {top10Largest.length === 0 ? <p className="text-sm text-[hsl(var(--text-tertiary))] text-center py-4">No expenses this month</p> : (
             <div className="space-y-2">
               {top10Largest.map((tx, i) => {
-                const cat = DEFAULT_CATEGORIES.find(c => c.id === tx.category_id)
+                const cat = categories.find(c => c.id === tx.category_id)
                 return (
                   <div key={tx.id} className="flex items-center gap-3">
                     <span className={cn("text-sm font-bold w-6 text-center tabular-nums", i < 3 ? "text-rose-400" : "text-[hsl(var(--text-tertiary))]")}>{i + 1}</span>
