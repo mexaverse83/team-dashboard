@@ -98,6 +98,18 @@ export const agentConfigs: AgentConfig[] = [
     skills: ['Terraform', 'Vault', 'Consul', 'Nomad', 'Packer'],
     description: 'HashiCorp stack specialist. Infrastructure as code, secrets management, service mesh, and orchestration.',
   },
+  {
+    id: 'wolff',
+    name: 'WOLFF',
+    role: 'Personal Finance Assistant',
+    icon: Server,
+    gradient: 'from-amber-500 to-orange-600',
+    avatar: '/avatars/wolff.png',
+    badge: 'FINANCE',
+    badgeColor: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+    skills: ['Budgeting', 'Debt Strategy', 'Savings Goals', 'Expense Analysis', 'MX Finance'],
+    description: 'Personal finance domain expert. Budget planning, debt elimination, savings goals, and expense auditing.',
+  },
 ]
 
 export function getAgentConfig(id: string): AgentConfig | undefined {
