@@ -124,6 +124,23 @@ export function InstallmentsClient() {
     setModalOpen(true)
   }
 
+  // Create a transaction entry for an MSI payment
+  const createMsiTransaction = async (inst: { name: string; merchant: string | null; installment_amount: number; category_id: string | null; id: string; credit_card: string | null }, paymentDate: string, paymentNum: number, totalPayments: number) => {
+    await supabase.from('finance_transactions').insert({
+      type: 'expense',
+      amount: inst.installment_amount,
+      currency: 'MXN',
+      amount_mxn: inst.installment_amount,
+      category_id: inst.category_id || null,
+      merchant: inst.merchant || inst.name,
+      description: `MSI ${paymentNum}/${totalPayments} — ${inst.name}${inst.credit_card ? ` (${inst.credit_card})` : ''}`,
+      transaction_date: paymentDate,
+      is_recurring: true,
+      recurring_id: inst.id,
+      tags: ['msi'],
+    })
+  }
+
   const handleSave = async () => {
     setSaving(true)
     const total = parseFloat(form.total_amount) || 0
@@ -142,7 +159,23 @@ export function InstallmentsClient() {
     if (editId) {
       await supabase.from('finance_installments').update(payload).eq('id', editId)
     } else {
-      await supabase.from('finance_installments').insert(payload)
+      // Insert installment
+      const { data: newInst } = await supabase.from('finance_installments').insert(payload).select().single()
+      // Auto-create transaction entries for past + current month payments
+      if (newInst) {
+        const now = new Date()
+        for (let i = 0; i < count; i++) {
+          const payDate = addMonths(form.start_date, i)
+          if (new Date(payDate) <= now) {
+            await createMsiTransaction(
+              { ...newInst, installment_amount: installmentAmt },
+              payDate, i + 1, count
+            )
+            // Update payments_made count
+            await supabase.from('finance_installments').update({ payments_made: i + 1 }).eq('id', newInst.id)
+          }
+        }
+      }
     }
     setSaving(false)
     setModalOpen(false)
@@ -150,6 +183,8 @@ export function InstallmentsClient() {
   }
 
   const handleDelete = async (id: string) => {
+    // Delete linked transactions too
+    await supabase.from('finance_transactions').delete().eq('recurring_id', id)
     await supabase.from('finance_installments').delete().eq('id', id)
     setDeleteConfirm(null)
     fetchData()
@@ -158,6 +193,9 @@ export function InstallmentsClient() {
   const handleMarkPayment = async (inst: FinanceInstallment) => {
     const newPayments = Math.min(inst.payments_made + 1, inst.installment_count)
     const isComplete = newPayments >= inst.installment_count
+    // Create transaction for this payment
+    const paymentDate = addMonths(inst.start_date, inst.payments_made)
+    await createMsiTransaction(inst, paymentDate, newPayments, inst.installment_count)
     await supabase.from('finance_installments').update({
       payments_made: newPayments,
       is_active: !isComplete,
