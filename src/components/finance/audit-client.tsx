@@ -52,7 +52,7 @@ export default function AuditClient() {
       supabase.from('finance_transactions').select('*').gte('transaction_date', monthStart).lt('transaction_date', monthEnd).eq('type', 'expense'),
       supabase.from('finance_transactions').select('*').gte('transaction_date', prevMonthStart).lt('transaction_date', monthStart).eq('type', 'expense'),
       supabase.from('finance_recurring').select('*').eq('is_active', true),
-      supabase.from('finance_budgets').select('*').eq('month', monthStart.slice(0, 7)),
+      supabase.from('finance_budgets').select('*').eq('month', monthStart),
       supabase.from('finance_categories').select('*').order('sort_order'),
     ])
     setTransactions(txRes.data || [])
@@ -111,8 +111,8 @@ export default function AuditClient() {
     return Array.from(catMap.entries()).map(([cid, data]) => {
       const cat = categories.find(c => c.id === cid)
       const budget = budgets.find(b => b.category_id === cid)
-      const budgetAmt = budget?.amount || data.spent * 1.2
-      const budgetPct = data.spent / budgetAmt
+      const budgetAmt = budget?.amount || 0
+      const budgetPct = budgetAmt > 0 ? data.spent / budgetAmt : 1.5 // No budget = assume overspending
       const trend = data.prevSpent > 0 ? ((data.spent - data.prevSpent) / data.prevSpent) * 100 : 0
 
       const budgetScore = budgetPct <= 0.8 ? 5 : budgetPct <= 1.0 ? 4 : budgetPct <= 1.2 ? 2 : 1
