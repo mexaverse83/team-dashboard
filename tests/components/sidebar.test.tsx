@@ -9,32 +9,39 @@ describe('Sidebar', () => {
     expect(aside).toHaveClass('w-[52px]')
   })
 
-  it('renders all 6 nav links', () => {
+  it('renders all nav links (main + finance)', () => {
     render(<Sidebar />)
-    // Desktop aside has 7 links, mobile bottom nav has 5 = 12 total
+    // Desktop aside has 7 main + 5 finance = 12, mobile bottom nav has 5 = 17 total
     const links = screen.getAllByRole('link')
-    expect(links).toHaveLength(12)
+    expect(links).toHaveLength(17)
   })
 
   it('has correct nav hrefs', () => {
     render(<Sidebar />)
     const links = screen.getAllByRole('link')
     const hrefs = links.map(l => l.getAttribute('href'))
-    // Mobile bottom nav (first 5) + desktop aside (all 7)
+    // Mobile bottom nav (first 5) + desktop aside (7 main + 5 finance)
     expect(hrefs).toEqual([
       '/', '/mission-control', '/tasks', '/comms', '/metrics',
       '/', '/mission-control', '/tasks', '/comms', '/metrics', '/costs', '/agents',
+      '/finance', '/finance/transactions', '/finance/budgets', '/finance/subscriptions', '/finance/reports',
     ])
   })
 
   it('shows nav labels with title attribute when collapsed', () => {
     render(<Sidebar />)
-    expect(screen.getByTitle('Overview')).toBeInTheDocument()
+    // Main nav
+    expect(screen.getAllByTitle('Overview').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByTitle('Mission Control')).toBeInTheDocument()
     expect(screen.getByTitle('Tasks')).toBeInTheDocument()
     expect(screen.getByTitle('Comms Log')).toBeInTheDocument()
     expect(screen.getByTitle('Metrics')).toBeInTheDocument()
     expect(screen.getByTitle('Agents')).toBeInTheDocument()
+    // Finance nav
+    expect(screen.getByTitle('Transactions')).toBeInTheDocument()
+    expect(screen.getByTitle('Budgets')).toBeInTheDocument()
+    expect(screen.getByTitle('Subscriptions')).toBeInTheDocument()
+    expect(screen.getByTitle('Reports')).toBeInTheDocument()
   })
 
   it('expands on toggle click', () => {

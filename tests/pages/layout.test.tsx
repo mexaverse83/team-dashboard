@@ -20,21 +20,25 @@ describe('Root Layout', () => {
 
   it('renders all navigation links', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    // Sidebar collapsed: labels in title attrs. Mobile nav shows first word of label.
-    // 11 links total: 5 mobile + 6 desktop
+    // 5 mobile + 7 main desktop + 5 finance desktop = 17
     const links = screen.getAllByRole('link')
-    expect(links).toHaveLength(12)
+    expect(links).toHaveLength(17)
   })
 
   it('navigation links have correct hrefs', () => {
     render(<RootLayout><div>content</div></RootLayout>)
     // Check desktop nav via title attributes (sidebar collapsed)
-    expect(screen.getByTitle('Overview')).toHaveAttribute('href', '/')
+    expect(screen.getAllByTitle('Overview')[0]).toHaveAttribute('href', '/')
     expect(screen.getByTitle('Mission Control')).toHaveAttribute('href', '/mission-control')
     expect(screen.getByTitle('Tasks')).toHaveAttribute('href', '/tasks')
     expect(screen.getByTitle('Comms Log')).toHaveAttribute('href', '/comms')
     expect(screen.getByTitle('Metrics')).toHaveAttribute('href', '/metrics')
     expect(screen.getByTitle('Agents')).toHaveAttribute('href', '/agents')
+    // Finance section
+    expect(screen.getByTitle('Transactions')).toHaveAttribute('href', '/finance/transactions')
+    expect(screen.getByTitle('Budgets')).toHaveAttribute('href', '/finance/budgets')
+    expect(screen.getByTitle('Subscriptions')).toHaveAttribute('href', '/finance/subscriptions')
+    expect(screen.getByTitle('Reports')).toHaveAttribute('href', '/finance/reports')
   })
 
   it('renders children in main area', () => {

@@ -95,6 +95,11 @@ describe('Server Component Architecture', () => {
       'src/app/mission-control/page.tsx',
       'src/app/tasks/page.tsx',
       'src/app/agents/page.tsx',
+      'src/app/finance/page.tsx',
+      'src/app/finance/transactions/page.tsx',
+      'src/app/finance/budgets/page.tsx',
+      'src/app/finance/subscriptions/page.tsx',
+      'src/app/finance/reports/page.tsx',
     ]
     for (const page of pages) {
       const content = fs.readFileSync(page, 'utf-8')
@@ -110,6 +115,11 @@ describe('Server Component Architecture', () => {
       'src/components/metrics-client.tsx',
       'src/components/mission-control-client.tsx',
       'src/components/tasks-client.tsx',
+      'src/components/finance/overview-client.tsx',
+      'src/components/finance/transactions-client.tsx',
+      'src/components/finance/budgets-client.tsx',
+      'src/components/finance/subscriptions-client.tsx',
+      'src/components/finance/reports-client.tsx',
     ]
     for (const client of clients) {
       const content = fs.readFileSync(client, 'utf-8')
@@ -126,6 +136,11 @@ describe('Server Component Architecture', () => {
       'src/app/mission-control/page.tsx',
       'src/app/tasks/page.tsx',
       'src/app/agents/page.tsx',
+      'src/app/finance/page.tsx',
+      'src/app/finance/transactions/page.tsx',
+      'src/app/finance/budgets/page.tsx',
+      'src/app/finance/subscriptions/page.tsx',
+      'src/app/finance/reports/page.tsx',
     ]
     for (const page of pages) {
       const content = fs.readFileSync(page, 'utf-8')
