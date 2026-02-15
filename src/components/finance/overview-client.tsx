@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 
 import type { FinanceCategory, FinanceTransaction, FinanceBudget } from '@/lib/finance-types'
-import { enrichTransactions, enrichBudgets } from '@/lib/finance-utils'
+import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -45,7 +45,7 @@ export default function FinanceOverviewClient() {
       supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }),
       supabase.from('finance_budgets').select('*'),
     ]).then(([catRes, txRes, budRes]) => {
-      const cats = catRes.data || []
+      const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
       const txs = txRes.data || []
       const buds = budRes.data || []
       setCategories(cats)

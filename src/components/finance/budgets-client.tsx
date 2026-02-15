@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 
 import type { FinanceCategory, FinanceTransaction, FinanceBudget } from '@/lib/finance-types'
-import { enrichTransactions, enrichBudgets } from '@/lib/finance-utils'
+import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 
@@ -35,7 +35,7 @@ export default function BudgetsClient() {
       supabase.from('finance_transactions').select('*'),
       supabase.from('finance_budgets').select('*'),
     ])
-    const cats = catRes.data || []
+    const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
     const txs = txRes.data || []
     const buds = budRes.data || []
     setCategories(cats)
