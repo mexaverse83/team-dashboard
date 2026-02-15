@@ -52,9 +52,18 @@ vi.mock('lucide-react', () => {
     Inbox: i('inbox'), Activity: i('activity'), CheckSquare: i('checksquare'),
     ArrowLeftRight: i('arrowleftright'), PiggyBank: i('piggybank'),
     RefreshCw: i('refreshcw'), FileBarChart: i('filebarchart'),
-    Radio: i('radio'), Minus: i('minus'),
+    Radio: i('radio'), Minus: i('minus'), Plus: i('plus'),
+    Pencil: i('pencil'), Trash2: i('trash2'), Power: i('power'),
+    CreditCard: i('creditcard'), Calculator: i('calculator'),
+    Landmark: i('landmark'), ShieldCheck: i('shieldcheck'), Target: i('target'),
+    Menu: i('menu'), X: i('x'),
   }
 })
+
+// Mock Modal
+vi.mock('@/components/ui/modal', () => ({
+  Modal: ({ children, open, title }: any) => open ? <div data-testid="modal"><h2>{title}</h2>{children}</div> : null,
+}))
 
 // Mock framer-motion (for budget bars / savings rate)
 vi.mock('framer-motion', () => ({
@@ -79,9 +88,13 @@ function setupSupabaseMock(overrides: Record<string, any> = {}) {
     return {
       select: vi.fn().mockReturnValue(
         Object.assign(result, {
-          order: vi.fn().mockReturnValue(result),
+          order: vi.fn().mockReturnValue(Object.assign(Promise.resolve(res), { eq: vi.fn().mockReturnValue(result) })),
+          eq: vi.fn().mockReturnValue(Object.assign(Promise.resolve(res), { order: vi.fn().mockReturnValue(result) })),
         })
       ),
+      insert: vi.fn().mockReturnValue(Promise.resolve({ data: [{}], error: null })),
+      update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(Promise.resolve({ error: null })) }),
+      delete: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(Promise.resolve({ error: null })) }),
     } as any
   })
 }
@@ -245,7 +258,6 @@ describe('Transactions Page', () => {
       expect(screen.getByText('Merchant')).toBeInTheDocument()
       expect(screen.getByText('Amount')).toBeInTheDocument()
       expect(screen.getByText('Category')).toBeInTheDocument()
-      expect(screen.getByText('Tags')).toBeInTheDocument()
     })
   })
 

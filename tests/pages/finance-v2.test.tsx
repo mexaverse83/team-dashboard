@@ -48,7 +48,7 @@ vi.mock('@/components/ui/modal', () => ({
 
 // Mock lucide-react (exhaustive)
 vi.mock('lucide-react', () => {
-  const i = (n: string) => (props: any) => <svg data-testid={`icon-${n}`} {...props} />
+  const i = (n: string) => ({ className, ...rest }: any) => <span data-testid={`icon-${n}`} className={className} />
   return {
     TrendingDown: i('trendingdown'), TrendingUp: i('trendingup'), Wallet: i('wallet'),
     Percent: i('percent'), ChevronLeft: i('chevronleft'), ChevronRight: i('chevronright'),
@@ -103,10 +103,21 @@ function setupSupabaseMock(overrides: Record<string, any> = {}) {
     const res = merged[table] || { data: [], error: null }
     const result = Promise.resolve(res)
     return {
-      select: vi.fn().mockReturnValue(Object.assign(result, {
-        order: vi.fn().mockReturnValue(Object.assign(Promise.resolve(res), { eq: vi.fn().mockReturnValue(result) })),
-        eq: vi.fn().mockReturnValue(Object.assign(Promise.resolve(res), { order: vi.fn().mockReturnValue(result), eq: vi.fn().mockReturnValue(result) })),
-      })),
+      select: vi.fn().mockImplementation(() => {
+        // Chainable mock — every method returns itself
+        const chain: any = Object.assign(Promise.resolve(res), {})
+        const addMethods = (obj: any) => {
+          for (const m of ['order', 'eq', 'gte', 'lt', 'lte', 'limit', 'single']) {
+            obj[m] = vi.fn().mockImplementation(() => {
+              const next = Object.assign(Promise.resolve(res), {})
+              addMethods(next)
+              return next
+            })
+          }
+          return obj
+        }
+        return addMethods(chain)
+      }),
       insert: vi.fn().mockReturnValue(Promise.resolve({ data: [{}], error: null })),
       update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(Promise.resolve({ error: null })) }),
       delete: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(Promise.resolve({ error: null })) }),

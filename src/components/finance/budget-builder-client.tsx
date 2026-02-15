@@ -44,7 +44,7 @@ export default function BudgetBuilderClient() {
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
   const [budgets, setBudgets] = useState<FinanceBudget[]>([])
   const [incomeSources, setIncomeSources] = useState<FinanceIncomeSource[]>([])
-  const [goals, setGoals] = useState<{ id: string; monthly_contribution: number; is_active: boolean }[]>([])
+  const [goals, setGoals] = useState<{ id: string; target_amount: number; current_amount: number; target_date: string | null; monthly_contribution?: number; is_active?: boolean; is_completed?: boolean }[]>([])
   const [loading, setLoading] = useState(true)
 
   // Income modal
@@ -63,7 +63,7 @@ export default function BudgetBuilderClient() {
       supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }),
       supabase.from('finance_budgets').select('*'),
       supabase.from('finance_income_sources').select('*').order('created_at'),
-      supabase.from('finance_goals').select('*').eq('is_active', true),
+      supabase.from('finance_goals').select('*'),
     ])
     setCategories((catRes.data?.length ? catRes.data : DEFAULT_CATEGORIES))
     setTransactions(txRes.data || [])
@@ -121,7 +121,18 @@ export default function BudgetBuilderClient() {
   const wantsTotal = budgetRows.filter(r => r.budgetType === 'wants').reduce((s, r) => s + r.actual, 0)
   // Savings = savings-category spending + goal contributions
   const savingsCategoryTotal = budgetRows.filter(r => r.budgetType === 'savings').reduce((s, r) => s + r.actual, 0)
-  const goalContributions = goals.filter(g => g.is_active).reduce((s, g) => s + (g.monthly_contribution || 0), 0)
+  const goalContributions = goals
+    .filter(g => !g.is_completed)
+    .reduce((s, g) => {
+      // Use stored monthly_contribution if available (V2 schema), otherwise compute from target/current/date
+      if (g.monthly_contribution && g.monthly_contribution > 0) return s + g.monthly_contribution
+      const remaining = g.target_amount - g.current_amount
+      if (remaining <= 0) return s
+      const targetDate = g.target_date ? new Date(g.target_date) : null
+      if (!targetDate) return s
+      const monthsLeft = Math.max(1, (targetDate.getFullYear() - new Date().getFullYear()) * 12 + targetDate.getMonth() - new Date().getMonth())
+      return s + Math.ceil(remaining / monthsLeft)
+    }, 0)
   const savingsTotal = savingsCategoryTotal + goalContributions
   const totalSpent = needsTotal + wantsTotal + savingsTotal
   const needsPct = totalIncome > 0 ? Math.round((needsTotal / totalIncome) * 100) : 0
