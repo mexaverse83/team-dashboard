@@ -170,9 +170,11 @@ export default function TransactionsClient() {
     if (form.coverage_end) record.coverage_end = form.coverage_end
 
     if (editingId) {
-      await supabase.from('finance_transactions').update(record).eq('id', editingId)
+      const { error } = await supabase.from('finance_transactions').update(record).eq('id', editingId)
+      if (error) { console.error('Update error:', error); alert(`Save failed: ${error.message}`); setSaving(false); return }
     } else {
-      await supabase.from('finance_transactions').insert(record)
+      const { error } = await supabase.from('finance_transactions').insert(record)
+      if (error) { console.error('Insert error:', error); alert(`Save failed: ${error.message}`); setSaving(false); return }
     }
 
     setModalOpen(false)
@@ -284,7 +286,7 @@ export default function TransactionsClient() {
     for (let i = 0; i < batch.length; i += 50) {
       const chunk = batch.slice(i, i + 50)
       const { error } = await supabase.from('finance_transactions').insert(chunk)
-      if (error) errors += chunk.length
+      if (error) { console.error('CSV import error:', error); errors += chunk.length }
       else success += chunk.length
     }
 
