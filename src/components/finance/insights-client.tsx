@@ -113,9 +113,7 @@ export default function InsightsClient() {
     try {
       const [insightsRes, summaryRes] = await Promise.all([
         fetch(`/api/finance/insights${refresh ? '?refresh=true' : ''}`),
-        fetch('/api/finance/summary', {
-          headers: { 'x-api-key': process.env.NEXT_PUBLIC_FINANCE_API_KEY || '' },
-        }),
+        fetch('/api/finance/summary?months=3'),
       ])
 
       if (!insightsRes.ok) {
