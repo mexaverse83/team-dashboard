@@ -98,7 +98,9 @@ Return ONLY valid JSON array, no markdown, no explanation.`
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
+        ...(ANTHROPIC_API_KEY.startsWith('sk-ant-oat')
+          ? { 'Authorization': `Bearer ${ANTHROPIC_API_KEY}` }
+          : { 'x-api-key': ANTHROPIC_API_KEY }),
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
