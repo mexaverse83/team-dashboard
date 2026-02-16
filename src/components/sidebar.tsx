@@ -39,7 +39,7 @@ const financeAnalyze = [
 const financeItems = [...financeTrack, ...financePlan, ...financeAnalyze]
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(true)
+  const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = usePathname()
 
