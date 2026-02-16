@@ -6,7 +6,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 )
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
 
 interface Insight {
   type: 'alert' | 'recommendation' | 'win' | 'forecast' | 'pattern' | 'saving'
@@ -57,8 +58,8 @@ export async function GET(req: NextRequest) {
 
   const data = await summaryRes.json()
 
-  if (!ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
+  if (!GEMINI_API_KEY) {
+    return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
   }
 
   // Build prompt
@@ -94,31 +95,26 @@ Rules:
 Return ONLY valid JSON array, no markdown, no explanation.`
 
   try {
-    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(ANTHROPIC_API_KEY.startsWith('sk-ant-oat')
-          ? { 'Authorization': `Bearer ${ANTHROPIC_API_KEY}` }
-          : { 'x-api-key': ANTHROPIC_API_KEY }),
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        // model: 'claude-3-5-sonnet-20241022',  // fallback if above doesn't work
-        max_tokens: 4096,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
+        }),
+      }
+    )
 
-    if (!claudeRes.ok) {
-      const err = await claudeRes.text()
-      console.error('Claude API error:', err)
+    if (!geminiRes.ok) {
+      const err = await geminiRes.text()
+      console.error('Gemini API error:', err)
       return NextResponse.json({ error: `AI analysis failed: ${err.slice(0, 200)}` }, { status: 500 })
     }
 
-    const claudeData = await claudeRes.json()
-    const text = claudeData.content?.[0]?.text || '[]'
+    const geminiData = await geminiRes.json()
+    const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
 
     let insights: Insight[]
     try {
