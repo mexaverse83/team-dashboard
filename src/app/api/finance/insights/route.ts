@@ -133,6 +133,15 @@ Rules:
 - Compare daily spending pace vs budget pace for categories over 80%
 - If a category is way over budget, suggest specific cuts or explain if it's a billing anomaly
 
+CRITICAL — Bimonthly/non-monthly billing categories:
+- Categories marked [bimonthly billing] or [quarterly billing] etc are KNOWN recurring charges
+- Do NOT make them TODAY'S PRIORITY unless >200% of their cycle-adjusted budget
+- Do NOT generate ACTIVE ALERTS for them unless >150% of cycle-adjusted budget
+- When mentioning them, always note "This is a bimonthly charge — no action needed unless the amount is unusual"
+- DEPRIORITIZE them vs monthly categories that the user can actually control (dining, groceries, transport, entertainment)
+- Focus TODAY'S PRIORITY and top alerts on controllable monthly spending, not fixed billing events
+- A bimonthly charge at 130-140% of cycle budget is normal variance, not an emergency
+
 Return ONLY valid JSON array, no markdown, no explanation.`
 
   try {

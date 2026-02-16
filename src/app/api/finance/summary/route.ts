@@ -205,7 +205,7 @@ export async function GET(req: NextRequest) {
       monthly_budget: monthlyBudget,
       pct_used: pctUsed,
       over_under: Math.round(spent - effectiveBudget),
-      status: pctUsed < 80 ? 'ok' : pctUsed <= 100 ? 'warning' : 'over',
+      status: pctUsed < 80 ? 'ok' : pctUsed <= (isNonMonthly ? 150 : 100) ? 'warning' : 'over',
       daily_pace: Math.round(dailyPace),
       budget_daily_pace: Math.round(budgetDailyPace),
       pace_vs_budget_pct: paceVsBudget,
