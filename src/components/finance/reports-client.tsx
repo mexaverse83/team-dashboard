@@ -12,8 +12,9 @@ import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
 import { enrichTransactions, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  AreaChart, Area,
+  AreaChart, Area, BarChart, Bar,
 } from 'recharts'
+import { OwnerBar } from '@/components/finance/owner-dot'
 
 const tooltipStyle = {
   contentStyle: {
@@ -54,6 +55,31 @@ export default function ReportsClient() {
     return Object.entries(map)
       .map(([month, data]) => ({ month, ...data, net: data.income - data.expenses }))
       .sort((a, b) => a.month.localeCompare(b.month))
+  }, [transactions])
+
+  // By-owner monthly spending
+  const ownerMonthly = useMemo(() => {
+    const map: Record<string, { bernardo: number; laura: number }> = {}
+    transactions.filter(t => t.type === 'expense').forEach(t => {
+      const m = t.transaction_date.slice(0, 7)
+      if (!map[m]) map[m] = { bernardo: 0, laura: 0 }
+      if (t.owner === 'Bernardo') map[m].bernardo += t.amount_mxn
+      else if (t.owner === 'Laura') map[m].laura += t.amount_mxn
+    })
+    return Object.entries(map).map(([month, d]) => ({ month, ...d })).sort((a, b) => a.month.localeCompare(b.month)).slice(-6)
+  }, [transactions])
+
+  // By-owner category breakdown
+  const ownerByCategory = useMemo(() => {
+    const map: Record<string, { name: string; bernardo: number; laura: number; icon: string }> = {}
+    transactions.filter(t => t.type === 'expense').forEach(t => {
+      const catName = t.category?.name || 'Other'
+      const catIcon = t.category?.icon || '📦'
+      if (!map[catName]) map[catName] = { name: catName, bernardo: 0, laura: 0, icon: catIcon }
+      if (t.owner === 'Bernardo') map[catName].bernardo += t.amount_mxn
+      else if (t.owner === 'Laura') map[catName].laura += t.amount_mxn
+    })
+    return Object.values(map).sort((a, b) => (b.bernardo + b.laura) - (a.bernardo + a.laura)).slice(0, 8)
   }, [transactions])
 
   // Category trends (stacked area)
@@ -203,6 +229,44 @@ export default function ReportsClient() {
                 <span className="text-xs text-[hsl(var(--text-tertiary))]">{m.count} txns</span>
               </div>
             ))}
+          </div>
+        </GlassCard>
+      </div>
+      {/* By Owner Section */}
+      <h3 className="text-lg font-semibold mt-2">By Owner</h3>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <GlassCard>
+          <h3 className="text-base font-semibold mb-4">Monthly Spending Comparison</h3>
+          <div className="h-44 sm:h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={ownerMonthly}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 18%)" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(222, 10%, 50%)' }} />
+                <YAxis tick={{ fontSize: 11, fill: 'hsl(222, 10%, 50%)' }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+                <Tooltip {...tooltipStyle} formatter={(v: number | undefined) => [`$${(v ?? 0).toLocaleString()}`, '']} />
+                <Legend />
+                <Bar dataKey="bernardo" name="Bernardo" fill="#3B82F6" radius={[4,4,0,0]} />
+                <Bar dataKey="laura" name="Laura" fill="#EC4899" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </GlassCard>
+
+        <GlassCard>
+          <h3 className="text-base font-semibold mb-4">Category Breakdown by Person</h3>
+          <div className="space-y-3">
+            {ownerByCategory.map(cat => {
+              const total = cat.bernardo + cat.laura
+              return (
+                <div key={cat.name} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>{cat.icon} {cat.name}</span>
+                    <span className="font-medium tabular-nums">${total.toLocaleString()}</span>
+                  </div>
+                  <OwnerBar bernardo={cat.bernardo} laura={cat.laura} />
+                </div>
+              )
+            })}
           </div>
         </GlassCard>
       </div>
