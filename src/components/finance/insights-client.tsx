@@ -31,6 +31,8 @@ interface BudgetVsActual {
   projected_month_total: number
   billing_cycle?: string
   is_non_monthly?: boolean
+  cycle_months?: number
+  monthly_budget?: number
 }
 
 interface MsiItem {
@@ -288,7 +290,10 @@ export default function InsightsClient() {
                         <span className="truncate">{row.category}</span>
                       </div>
                       <div className="col-span-2 text-right tabular-nums">${formatMXN(row.spent)}</div>
-                      <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-secondary))]">${formatMXN(row.budget)}</div>
+                      <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-secondary))]">
+                        ${formatMXN(row.budget)}
+                        {row.is_non_monthly && <span className="text-xs text-blue-400 ml-0.5">({row.cycle_months}mo)</span>}
+                      </div>
                       <div className="col-span-1 text-center"><StatusBadge status={row.status} pct={row.pct_used} /></div>
                       <div className="col-span-2 text-right tabular-nums">
                         {row.is_non_monthly

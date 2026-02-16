@@ -163,40 +163,12 @@ export async function GET(req: NextRequest) {
     monthly: 1, bimonthly: 2, quarterly: 3, 'semi-annual': 6, annual: 12,
   }
 
-  // Allocate transaction amount to current month, respecting coverage dates
-  function allocateToMonth(t: Record<string, unknown>, targetMonth: string): number {
-    const amt = (t.amount_mxn as number) || (t.amount as number) || 0
-    const coverStart = t.coverage_start as string | null
-    const coverEnd = t.coverage_end as string | null
-
-    if (!coverStart || !coverEnd) {
-      // No coverage dates — only count if transaction is in target month
-      return ((t.transaction_date as string) || '').startsWith(targetMonth) ? amt : 0
-    }
-
-    // Split evenly across covered months
-    const [sy, sm] = coverStart.split('-').map(Number)
-    const [ey, em] = coverEnd.split('-').map(Number)
-    const [ty, tm] = targetMonth.split('-').map(Number)
-    const coveredMonths = Math.max(1, (ey - sy) * 12 + (em - sm) + 1)
-    const targetVal = ty * 12 + tm
-    const startVal = sy * 12 + sm
-    const endVal = ey * 12 + em
-
-    if (targetVal >= startVal && targetVal <= endVal) {
-      return amt / coveredMonths
-    }
-    return 0
-  }
-
-  // Current month spending by category using allocation logic
+  // Current month spending by category — raw amounts in payment month (no amortization)
+  const currentMonthTxs = txs.filter(t => (t.transaction_date || '').startsWith(currentMonthStr))
   const currentMonthCatSpend: Record<string, number> = {}
-  txs.forEach(t => {
-    const allocated = allocateToMonth(t, currentMonthStr)
-    if (allocated > 0) {
-      const k = (t.category_id as string) || 'uncategorized'
-      currentMonthCatSpend[k] = (currentMonthCatSpend[k] || 0) + allocated
-    }
+  currentMonthTxs.forEach(t => {
+    const k = t.category_id || 'uncategorized'
+    currentMonthCatSpend[k] = (currentMonthCatSpend[k] || 0) + (t.amount_mxn || t.amount || 0)
   })
 
   const budgetVsActual = (budgets || []).map(b => {
@@ -206,24 +178,20 @@ export async function GET(req: NextRequest) {
     const isNonMonthly = cycleMonths > 1
 
     const spent = currentMonthCatSpend[b.category_id] || 0
-    const budget = b.amount || 0
-    const pctUsed = budget > 0 ? Math.round(spent / budget * 100) : 0
+    const monthlyBudget = b.amount || 0
+    // For non-monthly: scale budget up by cycle (bimonthly = 2× budget)
+    const effectiveBudget = isNonMonthly ? monthlyBudget * cycleMonths : monthlyBudget
+    const pctUsed = effectiveBudget > 0 ? Math.round(spent / effectiveBudget * 100) : 0
 
-    // Pace calculation: skip for non-monthly categories (bimonthly bills aren't linear spending)
+    // Pace calculation: skip for non-monthly (bimonthly bills aren't linear spending)
     let dailyPace = 0
     let budgetDailyPace = 0
     let paceVsBudget = 0
     let projectedTotal = 0
 
-    if (isNonMonthly) {
-      // For non-monthly: just compare allocated monthly amount vs monthly budget
-      dailyPace = 0
-      budgetDailyPace = 0
-      paceVsBudget = 0
-      projectedTotal = Math.round(spent) // Already amortized, don't project linearly
-    } else {
+    if (!isNonMonthly) {
       dailyPace = dayOfMonth > 0 ? spent / dayOfMonth : 0
-      budgetDailyPace = daysInMonth > 0 ? budget / daysInMonth : 0
+      budgetDailyPace = daysInMonth > 0 ? effectiveBudget / daysInMonth : 0
       paceVsBudget = budgetDailyPace > 0 ? Math.round((dailyPace / budgetDailyPace - 1) * 100) : 0
       projectedTotal = Math.round(dailyPace * daysInMonth)
     }
@@ -233,22 +201,21 @@ export async function GET(req: NextRequest) {
       icon: cat?.icon || '📦',
       billing_cycle: billingCycle,
       spent: Math.round(spent),
-      budget,
+      budget: effectiveBudget,
+      monthly_budget: monthlyBudget,
       pct_used: pctUsed,
-      over_under: Math.round(spent - budget),
+      over_under: Math.round(spent - effectiveBudget),
       status: pctUsed < 80 ? 'ok' : pctUsed <= 100 ? 'warning' : 'over',
       daily_pace: Math.round(dailyPace),
       budget_daily_pace: Math.round(budgetDailyPace),
       pace_vs_budget_pct: paceVsBudget,
       projected_month_total: projectedTotal,
       is_non_monthly: isNonMonthly,
+      cycle_months: cycleMonths,
     }
   }).sort((a, b) => b.pct_used - a.pct_used)
 
-  // Total current month spend using allocation
-  let totalCurrentMonthSpend = 0
-  txs.forEach(t => { totalCurrentMonthSpend += allocateToMonth(t, currentMonthStr) })
-  totalCurrentMonthSpend = Math.round(totalCurrentMonthSpend)
+  const totalCurrentMonthSpend = currentMonthTxs.reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
 
   // Goal funding gap
   const totalGoalMonthlyNeeded = activeGoals.reduce((s, g) => s + g.monthly_needed, 0)
