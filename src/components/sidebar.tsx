@@ -36,10 +36,7 @@ const financeAnalyze = [
   { href: '/finance/reports', icon: FileBarChart, label: 'Reports' },
 ]
 
-const financeItems = [...financeTrack, ...financePlan, ...financeAnalyze]
-
 export function Sidebar() {
-  const collapsed = false
   const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = usePathname()
 
@@ -113,22 +110,17 @@ export function Sidebar() {
       ))}
     </nav>
 
-    <aside
-      className={`hidden md:flex flex-col border-r border-[hsl(var(--border))] min-h-screen shrink-0 sticky top-0 h-screen transition-all duration-200 ease-in-out ${
-        collapsed ? 'w-[52px] p-2' : 'w-60 p-4'
-      }`}
-    >
+    {/* Desktop: always-visible sidebar */}
+    <aside className="hidden md:flex flex-col border-r border-[hsl(var(--border))] min-h-screen shrink-0 sticky top-0 h-screen w-60 p-4 overflow-y-auto">
       {/* Logo */}
-      <div className={`flex items-center gap-3 mb-6 ${collapsed ? 'justify-center' : 'px-2'}`}>
+      <div className="flex items-center gap-3 mb-6 px-2">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 shrink-0">
           <span className="text-base">🚀</span>
         </div>
-        {!collapsed && (
-          <div>
-            <h2 className="font-semibold text-sm">Interstellar Squad</h2>
-            <p className="text-[10px] text-[hsl(var(--text-secondary))]">Dashboard v2</p>
-          </div>
-        )}
+        <div>
+          <h2 className="font-semibold text-sm">Interstellar Squad</h2>
+          <p className="text-[10px] text-[hsl(var(--text-secondary))]">Dashboard v2</p>
+        </div>
       </div>
 
       {/* Separator */}
@@ -140,13 +132,12 @@ export function Sidebar() {
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center gap-2 rounded-md text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors ${
-              collapsed ? 'justify-center p-2' : 'px-3 py-2'
+            className={`flex items-center gap-2 rounded-md text-sm hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors px-3 py-2 ${
+              isActive(item.href) ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium' : 'text-[hsl(var(--text-secondary))]'
             }`}
-            title={item.label}
           >
             <item.icon className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>{item.label}</span>}
+            <span>{item.label}</span>
           </Link>
         ))}
       </nav>
@@ -159,21 +150,18 @@ export function Sidebar() {
           { label: 'Analyze', items: financeAnalyze },
         ].map(group => (
           <div key={group.label} className="mb-2">
-            {!collapsed && (
-              <span className="px-3 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">{group.label}</span>
-            )}
-            <div className={`${collapsed ? '' : 'mt-1'} flex flex-col gap-0.5`}>
+            <span className="px-3 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">{group.label}</span>
+            <div className="mt-1 flex flex-col gap-0.5">
               {group.items.map(item => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2 rounded-md text-sm text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors ${
-                    collapsed ? 'justify-center p-2' : 'px-3 py-1.5'
+                  className={`flex items-center gap-2 rounded-md text-sm hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors px-3 py-1.5 ${
+                    pathname === item.href ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium' : 'text-[hsl(var(--text-secondary))]'
                   }`}
-                  title={item.label}
                 >
                   <item.icon className="h-4 w-4 shrink-0" />
-                  {!collapsed && <span className="text-xs">{item.label}</span>}
+                  <span className="text-xs">{item.label}</span>
                 </Link>
               ))}
             </div>
@@ -183,12 +171,11 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="mt-auto space-y-3">
-        <FinanceAuthBadge collapsed={collapsed} />
-        <div className={`flex items-center gap-2 text-xs text-[hsl(var(--text-secondary))] ${collapsed ? 'justify-center' : 'px-2'}`}>
+        <FinanceAuthBadge collapsed={false} />
+        <div className="flex items-center gap-2 text-xs text-[hsl(var(--text-secondary))] px-2">
           <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          {!collapsed && <span>Connected</span>}
+          <span>Connected</span>
         </div>
-
         <p className="text-[10px] text-[hsl(var(--text-tertiary))] text-center">v2.0 · Nexaminds</p>
       </div>
     </aside>
