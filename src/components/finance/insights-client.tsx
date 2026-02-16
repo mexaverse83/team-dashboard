@@ -92,7 +92,7 @@ function PaceBadge({ pct }: { pct: number }) {
   if (pct > 20) return <span className="text-xs font-medium text-red-500">🔴 {pct}% over pace</span>
   if (pct > 0) return <span className="text-xs font-medium text-yellow-500">⚠️ {pct}% over pace</span>
   if (pct < -10) return <span className="text-xs font-medium text-emerald-500">✅ {Math.abs(pct)}% under pace</span>
-  return <span className="text-xs font-medium text-[hsl(var(--text-tertiary))]">📊 On pace</span>
+  return <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">📊 On pace</span>
 }
 
 export default function InsightsClient() {
@@ -171,7 +171,7 @@ export default function InsightsClient() {
               <span className="text-2xl">🐺</span>
               <h1 className="text-2xl font-bold tracking-tight">Daily Brief</h1>
             </div>
-            <p className="text-sm text-[hsl(var(--text-tertiary))] mt-1">
+            <p className="text-sm text-[hsl(var(--text-secondary))] mt-1">
               {generatedAt ? formatTime(generatedAt) : 'No insights yet'} 
               {cached && !stale && ' · Cached'}
               {stale && ' · Stale (>24h old)'}
@@ -241,7 +241,7 @@ export default function InsightsClient() {
                     <span className="text-xs font-semibold uppercase tracking-wider text-amber-400">Today&apos;s Priority</span>
                   </div>
                   <p className="text-lg font-semibold leading-relaxed">{insights[0].title}</p>
-                  <p className="text-sm text-[hsl(var(--text-primary))] mt-2 leading-relaxed opacity-80">{insights[0].detail}</p>
+                  <p className="text-sm text-[hsl(var(--text-secondary))] mt-2 leading-relaxed">{insights[0].detail}</p>
                 </div>
               </div>
             )}
@@ -252,7 +252,7 @@ export default function InsightsClient() {
             {bva.length > 0 && (
               <section>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">
                     Budget vs Actual
                     {summary?.current_month && (
                       <span className="ml-2 text-xs font-normal normal-case">
@@ -263,7 +263,7 @@ export default function InsightsClient() {
                 </div>
                 <div className="rounded-lg border border-[hsl(var(--border))] overflow-hidden">
                   {/* Header */}
-                  <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[hsl(var(--bg-elevated))] text-xs font-medium text-[hsl(var(--text-tertiary))] border-b border-[hsl(var(--border))]">
+                  <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[hsl(var(--bg-elevated))] text-xs font-medium text-[hsl(var(--text-secondary))] border-b border-[hsl(var(--border))]">
                     <div className="col-span-3">Category</div>
                     <div className="col-span-2 text-right tabular-nums">Spent</div>
                     <div className="col-span-2 text-right tabular-nums">Budget</div>
@@ -286,7 +286,7 @@ export default function InsightsClient() {
                         <span className="truncate">{row.category}</span>
                       </div>
                       <div className="col-span-2 text-right tabular-nums">${formatMXN(row.spent)}</div>
-                      <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-tertiary))]">${formatMXN(row.budget)}</div>
+                      <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-secondary))]">${formatMXN(row.budget)}</div>
                       <div className="col-span-1 text-center"><StatusBadge status={row.status} pct={row.pct_used} /></div>
                       <div className="col-span-2 text-right tabular-nums">
                         <span className={cn(
@@ -303,7 +303,7 @@ export default function InsightsClient() {
                     <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-[hsl(var(--bg-elevated))] font-semibold">
                       <div className="col-span-3">Total</div>
                       <div className="col-span-2 text-right tabular-nums">${formatMXN(summary.current_month.total_spent)}</div>
-                      <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-tertiary))]">
+                      <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-secondary))]">
                         ${formatMXN(bva.reduce((s, b) => s + b.budget, 0))}
                       </div>
                       <div className="col-span-5" />
@@ -316,7 +316,7 @@ export default function InsightsClient() {
             {/* Alerts */}
             {alerts.length > 0 && (
               <section>
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-3">Active Alerts</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">Active Alerts</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {alerts.map((a, i) => (
                     <div key={i} className={cn('rounded-lg border p-4', a.priority === 'high' ? 'border-red-500/30 bg-red-500/5' : 'border-yellow-500/30 bg-yellow-500/5')}>
@@ -333,7 +333,7 @@ export default function InsightsClient() {
             {/* Recommendations */}
             {recommendations.length > 0 && (
               <section>
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-3">Recommendations</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">Recommendations</h2>
                 <div className="space-y-3">
                   {recommendations.map((rec, i) => (
                     <div key={i} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))]/50 p-4">
@@ -363,7 +363,7 @@ export default function InsightsClient() {
             {/* Wins */}
             {wins.length > 0 && (
               <section>
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-3">Wins</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">Wins</h2>
                 <div className="space-y-2">
                   {wins.map((w, i) => (
                     <div key={i} className="flex items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
@@ -381,7 +381,7 @@ export default function InsightsClient() {
             {/* Forecasts */}
             {forecasts.length > 0 && (
               <section>
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-3">Forecasts</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">Forecasts</h2>
                 <div className="space-y-2">
                   {forecasts.map((f, i) => (
                     <div key={i} className="flex items-start gap-3 rounded-lg border border-[hsl(var(--border))] p-4">
@@ -399,7 +399,7 @@ export default function InsightsClient() {
             {/* Patterns */}
             {patterns.length > 0 && (
               <section>
-                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-3">Patterns</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">Patterns</h2>
                 <div className="space-y-2">
                   {patterns.map((p, i) => (
                     <div key={i} className="flex items-start gap-3 rounded-lg border border-[hsl(var(--border))] p-4">
@@ -420,13 +420,13 @@ export default function InsightsClient() {
             {(msiTimeline.length > 0 || goalFunding) && (
               <section>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] flex items-center gap-2">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] flex items-center gap-2">
                     <Sparkles className="h-4 w-4" />
                     Wolff&apos;s Commentary
                   </h2>
                   <button
                     onClick={() => setShowRawData(!showRawData)}
-                    className="text-xs text-[hsl(var(--text-tertiary))] hover:text-[hsl(var(--text-secondary))] transition-colors"
+                    className="text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
                   >
                     {showRawData ? 'Hide data' : 'Show data'}
                   </button>
@@ -437,7 +437,7 @@ export default function InsightsClient() {
                     {/* MSI Payoff Timeline */}
                     {msiTimeline.length > 0 && (
                       <div className="rounded-lg border border-[hsl(var(--border))] p-4">
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-3">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">
                           MSI Payoff Timeline
                         </h3>
                         <div className="space-y-2.5">
@@ -473,7 +473,7 @@ export default function InsightsClient() {
                           ? 'border-emerald-500/20 bg-emerald-500/5'
                           : 'border-yellow-500/20 bg-yellow-500/5'
                       )}>
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-3">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">
                           Goal Funding Analysis
                         </h3>
                         <div className="space-y-2 text-sm">
@@ -505,7 +505,7 @@ export default function InsightsClient() {
                     {/* Cash Flow Summary */}
                     {summary?.cash_flow && (
                       <div className="rounded-lg border border-[hsl(var(--border))] p-4">
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-3">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">
                           Monthly Cash Flow
                         </h3>
                         <div className="space-y-2 text-sm">
