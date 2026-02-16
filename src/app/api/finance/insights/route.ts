@@ -62,11 +62,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
   }
 
-  // Build prompt
-  const prompt = `You are WOLFF, a personal finance analyst for a Mexican professional. Analyze this financial data and generate actionable insights.
+  // Build prompt with rich budget vs actual context
+  const bva = data.current_month?.budget_vs_actual || []
+  const bvaSection = bva.length > 0 ? `
+BUDGET VS ACTUAL (Current Month - Day ${data.current_month?.day_of_month}/${data.current_month?.days_in_month}, ${data.current_month?.month_progress_pct}% through month):
+${bva.map((b: Record<string, unknown>) =>
+  `- ${b.category}: Spent $${Number(b.spent).toLocaleString()} / Budget $${Number(b.budget).toLocaleString()} (${b.pct_used}% used) | Daily pace: $${Number(b.daily_pace).toLocaleString()}/day vs budget $${Number(b.budget_daily_pace).toLocaleString()}/day (${Number(b.pace_vs_budget_pct) > 0 ? '+' : ''}${b.pace_vs_budget_pct}%) | Projected: $${Number(b.projected_month_total).toLocaleString()} | Status: ${b.status === 'ok' ? '✅' : b.status === 'warning' ? '⚠️' : '🔴'}`
+).join('\n')}` : ''
 
-FINANCIAL DATA:
+  const msiSection = (data.msi_timeline || []).length > 0 ? `
+MSI PAYOFF TIMELINE:
+${(data.msi_timeline as Record<string, unknown>[]).map((m) =>
+  `- ${m.name} (${m.merchant}): $${Number(m.monthly_payment).toLocaleString()}/mo × ${m.payments_remaining} remaining → ends ${m.end_date} → frees $${Number(m.monthly_payment).toLocaleString()}/mo`
+).join('\n')}` : ''
+
+  const goalSection = data.goal_funding ? `
+GOAL FUNDING GAP:
+- Goals need: $${Number(data.goal_funding.total_monthly_needed).toLocaleString()}/mo
+- Discretionary available: $${Number(data.goal_funding.discretionary_available).toLocaleString()}/mo
+- Gap: ${data.goal_funding.fully_funded ? 'FULLY FUNDED ✅' : `$${Number(data.goal_funding.gap).toLocaleString()}/mo SHORT`}` : ''
+
+  const prompt = `You are WOLFF, a sharp personal finance analyst for a Mexican professional. Analyze this financial data and generate actionable insights.
+
+FULL FINANCIAL DATA:
 ${JSON.stringify(data, null, 2)}
+${bvaSection}
+${msiSection}
+${goalSection}
 
 CONTEXT:
 - Currency is MXN (Mexican Pesos)
@@ -74,23 +96,30 @@ CONTEXT:
 - Owner has savings goals and emergency fund targets
 - Be specific with numbers, dates, and actionable steps
 - Reference actual category names, merchants, and amounts from the data
+- Flag anomalies (e.g. electricity at 271% could be bimonthly billing — explain it)
+- For each category significantly over pace, explain WHY based on transaction patterns
+- Calculate month-to-date pace: are they on track to stay under budget based on days remaining?
 
 Generate a JSON array of insights. Each insight must have:
 - type: "alert" | "recommendation" | "win" | "forecast" | "pattern" | "saving"
 - icon: emoji that fits the insight
 - title: short headline (max 80 chars)
-- detail: 1-2 sentence explanation with specific numbers
+- detail: 2-3 sentence explanation with specific numbers and daily pace analysis
 - priority: "high" | "medium" | "low"
 - category: optional finance category name
+- savings_amount: optional number — estimated MXN savings if recommendation is followed
+- effort: optional "easy" | "medium" | "hard" — how hard is this to implement
 
 Rules:
-- Generate 8-15 insights
-- At least 1 of each type (alert, recommendation, win, forecast)
+- Generate 10-18 insights
+- At least 2 alerts, 3 recommendations, 1 win, 2 forecasts
 - Prioritize actionable advice over observations
 - Celebrate wins — motivation matters
-- Flag anomalies and upcoming cash flow changes
-- Reference MSI payoff dates and freed-up cash
-- Compare current month vs average
+- Flag anomalies and explain likely causes
+- Reference MSI payoff dates and freed-up cash amounts
+- Analyze goal funding gap — can goals be met with current discretionary income?
+- Compare daily spending pace vs budget pace for categories over 80%
+- If a category is way over budget, suggest specific cuts or explain if it's a billing anomaly
 
 Return ONLY valid JSON array, no markdown, no explanation.`
 

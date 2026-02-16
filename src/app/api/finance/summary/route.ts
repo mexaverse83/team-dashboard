@@ -150,6 +150,60 @@ export async function GET(req: NextRequest) {
   const fixedCommitments = debtItems.reduce((s, d) => s + d.minimum, 0) + instMonthly + subsMonthly +
     (budgetCategories.filter(b => b.budget_type === 'needs').reduce((s, b) => s + b.budget, 0))
 
+  // Current month budget vs actual with pace
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const dayOfMonth = now.getDate()
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const monthProgress = dayOfMonth / daysInMonth
+
+  const currentMonthTxs = txs.filter(t => (t.transaction_date || '').startsWith(currentMonthStr))
+  const currentMonthCatSpend: Record<string, number> = {}
+  currentMonthTxs.forEach(t => {
+    const k = t.category_id || 'uncategorized'
+    currentMonthCatSpend[k] = (currentMonthCatSpend[k] || 0) + (t.amount_mxn || t.amount || 0)
+  })
+
+  const budgetVsActual = (budgets || []).map(b => {
+    const cat = catMap.get(b.category_id)
+    const spent = currentMonthCatSpend[b.category_id] || 0
+    const budget = b.amount || 0
+    const pctUsed = budget > 0 ? Math.round(spent / budget * 100) : 0
+    const dailyPace = dayOfMonth > 0 ? spent / dayOfMonth : 0
+    const budgetDailyPace = daysInMonth > 0 ? budget / daysInMonth : 0
+    const paceVsBudget = budgetDailyPace > 0 ? Math.round((dailyPace / budgetDailyPace - 1) * 100) : 0
+    const projectedTotal = Math.round(dailyPace * daysInMonth)
+    return {
+      category: cat?.name || 'Unknown',
+      icon: cat?.icon || '📦',
+      spent: Math.round(spent),
+      budget,
+      pct_used: pctUsed,
+      over_under: Math.round(spent - budget),
+      status: pctUsed < 80 ? 'ok' : pctUsed <= 100 ? 'warning' : 'over',
+      daily_pace: Math.round(dailyPace),
+      budget_daily_pace: Math.round(budgetDailyPace),
+      pace_vs_budget_pct: paceVsBudget,
+      projected_month_total: projectedTotal,
+    }
+  }).sort((a, b) => b.pct_used - a.pct_used)
+
+  const totalCurrentMonthSpend = currentMonthTxs.reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
+
+  // Goal funding gap
+  const totalGoalMonthlyNeeded = activeGoals.reduce((s, g) => s + g.monthly_needed, 0)
+  const discretionary = totalMonthlyIncome - fixedCommitments
+  const goalFundingGap = totalGoalMonthlyNeeded - discretionary
+
+  // MSI payoff timeline
+  const msiTimeline = inst.map(i => ({
+    name: i.name,
+    merchant: i.merchant,
+    monthly_payment: i.monthly_payment,
+    payments_remaining: i.payments_remaining,
+    end_date: i.end_date,
+    total_remaining: i.total_remaining,
+  })).sort((a, b) => (a.end_date || '').localeCompare(b.end_date || ''))
+
   return NextResponse.json({
     period: { start: startStr, end: endStr },
     income: { sources: incSources, total_monthly: totalMonthlyIncome },
@@ -172,8 +226,23 @@ export async function GET(req: NextRequest) {
     cash_flow: {
       monthly_income: totalMonthlyIncome,
       fixed_commitments: fixedCommitments,
-      discretionary_available: totalMonthlyIncome - fixedCommitments,
+      discretionary_available: discretionary,
     },
+    current_month: {
+      month: currentMonthStr,
+      day_of_month: dayOfMonth,
+      days_in_month: daysInMonth,
+      month_progress_pct: Math.round(monthProgress * 100),
+      total_spent: Math.round(totalCurrentMonthSpend),
+      budget_vs_actual: budgetVsActual,
+    },
+    goal_funding: {
+      total_monthly_needed: totalGoalMonthlyNeeded,
+      discretionary_available: discretionary,
+      gap: goalFundingGap > 0 ? goalFundingGap : 0,
+      fully_funded: goalFundingGap <= 0,
+    },
+    msi_timeline: msiTimeline,
   })
 }
 // 1771253121

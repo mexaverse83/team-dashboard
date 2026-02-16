@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { RefreshCw, Target, Lightbulb, Trophy, TrendingUp, ArrowDown } from 'lucide-react'
+import { RefreshCw, Target, Lightbulb, Trophy, TrendingUp, Sparkles } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
 import { cn } from '@/lib/utils'
-import Link from 'next/link'
 
 interface Insight {
   type: 'alert' | 'recommendation' | 'win' | 'forecast' | 'pattern' | 'saving'
@@ -14,44 +13,122 @@ interface Insight {
   detail: string
   priority: 'high' | 'medium' | 'low'
   category?: string
+  savings_amount?: number
+  effort?: 'easy' | 'medium' | 'hard'
 }
 
-const effortColors: Record<string, string> = {
-  easy: 'bg-emerald-500/10 text-emerald-500',
-  medium: 'bg-yellow-500/10 text-yellow-500',
-  hard: 'bg-red-500/10 text-red-500',
+interface BudgetVsActual {
+  category: string
+  icon: string
+  spent: number
+  budget: number
+  pct_used: number
+  over_under: number
+  status: 'ok' | 'warning' | 'over'
+  daily_pace: number
+  budget_daily_pace: number
+  pace_vs_budget_pct: number
+  projected_month_total: number
+}
+
+interface MsiItem {
+  name: string
+  merchant: string
+  monthly_payment: number
+  payments_remaining: number
+  end_date: string
+  total_remaining: number
+}
+
+interface GoalFunding {
+  total_monthly_needed: number
+  discretionary_available: number
+  gap: number
+  fully_funded: boolean
+}
+
+interface SummaryData {
+  current_month?: {
+    month: string
+    day_of_month: number
+    days_in_month: number
+    month_progress_pct: number
+    total_spent: number
+    budget_vs_actual: BudgetVsActual[]
+  }
+  msi_timeline?: MsiItem[]
+  goal_funding?: GoalFunding
+  cash_flow?: {
+    monthly_income: number
+    fixed_commitments: number
+    discretionary_available: number
+  }
+}
+
+function formatMXN(n: number) {
+  return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
 function EffortBadge({ effort }: { effort: string }) {
+  const colors: Record<string, string> = {
+    easy: 'bg-emerald-500/10 text-emerald-500',
+    medium: 'bg-yellow-500/10 text-yellow-500',
+    hard: 'bg-red-500/10 text-red-500',
+  }
   return (
-    <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', effortColors[effort] || effortColors.medium)}>
+    <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', colors[effort] || colors.medium)}>
       {effort === 'easy' ? '🟢 Easy' : effort === 'medium' ? '🟡 Medium' : '🔴 Hard'}
     </span>
   )
 }
 
+function StatusBadge({ status, pct }: { status: string; pct: number }) {
+  if (status === 'over') return <span className="text-xs font-semibold text-red-500">🔴 {pct}%</span>
+  if (status === 'warning') return <span className="text-xs font-semibold text-yellow-500">⚠️ {pct}%</span>
+  return <span className="text-xs font-semibold text-emerald-500">✅ {pct}%</span>
+}
+
+function PaceBadge({ pct }: { pct: number }) {
+  if (pct > 20) return <span className="text-xs font-medium text-red-500">🔴 {pct}% over pace</span>
+  if (pct > 0) return <span className="text-xs font-medium text-yellow-500">⚠️ {pct}% over pace</span>
+  if (pct < -10) return <span className="text-xs font-medium text-emerald-500">✅ {Math.abs(pct)}% under pace</span>
+  return <span className="text-xs font-medium text-[hsl(var(--text-tertiary))]">📊 On pace</span>
+}
+
 export default function InsightsClient() {
   const [insights, setInsights] = useState<Insight[]>([])
+  const [summary, setSummary] = useState<SummaryData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [generatedAt, setGeneratedAt] = useState<string | null>(null)
   const [cached, setCached] = useState(false)
+  const [showRawData, setShowRawData] = useState(true)
 
-  const fetchInsights = async (refresh = false) => {
+  const fetchAll = async (refresh = false) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/finance/insights${refresh ? '?refresh=true' : ''}`, {
-        headers: { 'x-api-key': process.env.NEXT_PUBLIC_FINANCE_API_KEY || '' },
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || `HTTP ${res.status}`)
+      const [insightsRes, summaryRes] = await Promise.all([
+        fetch(`/api/finance/insights${refresh ? '?refresh=true' : ''}`),
+        fetch('/api/finance/summary', {
+          headers: { 'x-api-key': process.env.NEXT_PUBLIC_FINANCE_API_KEY || '' },
+        }),
+      ])
+
+      if (!insightsRes.ok) {
+        const data = await insightsRes.json().catch(() => ({}))
+        throw new Error(data.error || `HTTP ${insightsRes.status}`)
       }
-      const data = await res.json()
-      setInsights(data.insights || [])
-      setGeneratedAt(data.generated_at)
-      setCached(data.cached || false)
+
+      const insightsData = await insightsRes.json()
+      setInsights(insightsData.insights || [])
+      setGeneratedAt(insightsData.generated_at)
+      setCached(insightsData.cached || false)
+
+      if (summaryRes.ok) {
+        const summaryData = await summaryRes.json()
+        setSummary(summaryData)
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load insights')
     } finally {
@@ -59,13 +136,17 @@ export default function InsightsClient() {
     }
   }
 
-  useEffect(() => { fetchInsights() }, [])
+  useEffect(() => { fetchAll() }, [])
 
   const alerts = insights.filter(i => i.type === 'alert')
   const recommendations = insights.filter(i => i.type === 'recommendation' || i.type === 'saving')
   const wins = insights.filter(i => i.type === 'win')
   const forecasts = insights.filter(i => i.type === 'forecast')
   const patterns = insights.filter(i => i.type === 'pattern')
+
+  const bva = summary?.current_month?.budget_vs_actual || []
+  const msiTimeline = summary?.msi_timeline || []
+  const goalFunding = summary?.goal_funding
 
   const formatTime = (iso: string) => {
     try { return new Date(iso).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) }
@@ -87,7 +168,7 @@ export default function InsightsClient() {
             </p>
           </div>
           <button
-            onClick={() => fetchInsights(true)}
+            onClick={() => fetchAll(true)}
             disabled={loading}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[hsl(var(--border))] text-xs font-medium hover:bg-[hsl(var(--bg-elevated))] disabled:opacity-50 transition-colors"
           >
@@ -103,6 +184,14 @@ export default function InsightsClient() {
               <div className="h-3 w-24 bg-[hsl(var(--bg-elevated))] rounded animate-pulse" />
               <div className="h-5 w-3/4 bg-[hsl(var(--bg-elevated))] rounded animate-pulse" />
               <div className="h-3 w-1/2 bg-[hsl(var(--bg-elevated))] rounded animate-pulse" />
+            </div>
+            <div className="rounded-lg border border-[hsl(var(--border))] p-4 space-y-3">
+              {[1,2,3,4,5].map(i => (
+                <div key={i} className="flex justify-between">
+                  <div className="h-3 w-1/4 bg-[hsl(var(--bg-elevated))] rounded animate-pulse" />
+                  <div className="h-3 w-1/6 bg-[hsl(var(--bg-elevated))] rounded animate-pulse" />
+                </div>
+              ))}
             </div>
             {[1, 2, 3].map(i => (
               <div key={i} className="rounded-lg border border-[hsl(var(--border))] p-4 flex gap-3">
@@ -121,14 +210,14 @@ export default function InsightsClient() {
           <GlassCard className="text-center py-12">
             <span className="text-3xl block mb-3">🐺</span>
             <p className="text-sm text-[hsl(var(--text-secondary))]">{error}</p>
-            <button onClick={() => fetchInsights(true)} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-medium transition-colors">
+            <button onClick={() => fetchAll(true)} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-medium transition-colors">
               Try Again
             </button>
           </GlassCard>
         )}
 
         {/* Content */}
-        {!loading && !error && insights.length > 0 && (
+        {!loading && !error && (
           <div className="space-y-8">
             {/* Hero — top priority insight */}
             {insights[0] && (
@@ -145,6 +234,73 @@ export default function InsightsClient() {
                   <p className="text-sm text-[hsl(var(--text-secondary))] mt-2 leading-relaxed">{insights[0].detail}</p>
                 </div>
               </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════ */}
+            {/* BUDGET VS ACTUAL TABLE — WOLFF's #1 request */}
+            {/* ══════════════════════════════════════════════════ */}
+            {bva.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">
+                    Budget vs Actual
+                    {summary?.current_month && (
+                      <span className="ml-2 text-xs font-normal normal-case">
+                        — Day {summary.current_month.day_of_month}/{summary.current_month.days_in_month} ({summary.current_month.month_progress_pct}% through month)
+                      </span>
+                    )}
+                  </h2>
+                </div>
+                <div className="rounded-lg border border-[hsl(var(--border))] overflow-hidden">
+                  {/* Header */}
+                  <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[hsl(var(--bg-elevated))] text-xs font-medium text-[hsl(var(--text-tertiary))] border-b border-[hsl(var(--border))]">
+                    <div className="col-span-3">Category</div>
+                    <div className="col-span-2 text-right tabular-nums">Spent</div>
+                    <div className="col-span-2 text-right tabular-nums">Budget</div>
+                    <div className="col-span-1 text-center">Status</div>
+                    <div className="col-span-2 text-right tabular-nums">Projected</div>
+                    <div className="col-span-2 text-right">Pace</div>
+                  </div>
+                  {/* Rows */}
+                  {bva.map((row, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        'grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm border-b border-[hsl(var(--border))] last:border-0',
+                        row.status === 'over' && 'bg-red-500/5',
+                        row.status === 'warning' && 'bg-yellow-500/5',
+                      )}
+                    >
+                      <div className="col-span-3 font-medium truncate flex items-center gap-1.5">
+                        <span className="text-xs">{row.icon}</span>
+                        <span className="truncate">{row.category}</span>
+                      </div>
+                      <div className="col-span-2 text-right tabular-nums">${formatMXN(row.spent)}</div>
+                      <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-tertiary))]">${formatMXN(row.budget)}</div>
+                      <div className="col-span-1 text-center"><StatusBadge status={row.status} pct={row.pct_used} /></div>
+                      <div className="col-span-2 text-right tabular-nums">
+                        <span className={cn(
+                          row.projected_month_total > row.budget ? 'text-red-500' : 'text-[hsl(var(--text-secondary))]'
+                        )}>
+                          ${formatMXN(row.projected_month_total)}
+                        </span>
+                      </div>
+                      <div className="col-span-2 text-right"><PaceBadge pct={row.pace_vs_budget_pct} /></div>
+                    </div>
+                  ))}
+                  {/* Total row */}
+                  {summary?.current_month && (
+                    <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-[hsl(var(--bg-elevated))] font-semibold">
+                      <div className="col-span-3">Total</div>
+                      <div className="col-span-2 text-right tabular-nums">${formatMXN(summary.current_month.total_spent)}</div>
+                      <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-tertiary))]">
+                        ${formatMXN(bva.reduce((s, b) => s + b.budget, 0))}
+                      </div>
+                      <div className="col-span-5" />
+                    </div>
+                  )}
+                </div>
+              </section>
             )}
 
             {/* Alerts */}
@@ -176,8 +332,16 @@ export default function InsightsClient() {
                           <Lightbulb className="h-4 w-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium leading-relaxed">{rec.title}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-medium leading-relaxed">{rec.title}</p>
+                            {rec.effort && <EffortBadge effort={rec.effort} />}
+                          </div>
                           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1 leading-relaxed">{rec.detail}</p>
+                          {rec.savings_amount && rec.savings_amount > 0 && (
+                            <p className="text-xs font-medium text-emerald-500 mt-1.5">
+                              💰 Potential savings: ${formatMXN(rec.savings_amount)}/mo
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -211,7 +375,7 @@ export default function InsightsClient() {
                 <div className="space-y-2">
                   {forecasts.map((f, i) => (
                     <div key={i} className="flex items-start gap-3 rounded-lg border border-[hsl(var(--border))] p-4">
-                      <span className="text-sm shrink-0 mt-0.5">📊</span>
+                      <TrendingUp className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium">{f.title}</p>
                         <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{f.detail}</p>
@@ -239,15 +403,143 @@ export default function InsightsClient() {
                 </div>
               </section>
             )}
-          </div>
-        )}
 
-        {/* Empty state */}
-        {!loading && !error && insights.length === 0 && (
-          <GlassCard className="text-center py-16">
-            <span className="text-4xl block mb-3">🐺</span>
-            <p className="text-sm text-[hsl(var(--text-secondary))] italic">&ldquo;I&apos;ll have your first brief ready tomorrow morning.&rdquo;</p>
-          </GlassCard>
+            {/* ══════════════════════════════════════════════════ */}
+            {/* WOLFF'S COMMENTARY — Raw data behind the insights */}
+            {/* ══════════════════════════════════════════════════ */}
+            {(msiTimeline.length > 0 || goalFunding) && (
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    Wolff&apos;s Commentary
+                  </h2>
+                  <button
+                    onClick={() => setShowRawData(!showRawData)}
+                    className="text-xs text-[hsl(var(--text-tertiary))] hover:text-[hsl(var(--text-secondary))] transition-colors"
+                  >
+                    {showRawData ? 'Hide data' : 'Show data'}
+                  </button>
+                </div>
+
+                {showRawData && (
+                  <div className="space-y-4">
+                    {/* MSI Payoff Timeline */}
+                    {msiTimeline.length > 0 && (
+                      <div className="rounded-lg border border-[hsl(var(--border))] p-4">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-3">
+                          MSI Payoff Timeline
+                        </h3>
+                        <div className="space-y-2.5">
+                          {msiTimeline.map((m, i) => (
+                            <div key={i} className="flex items-center justify-between text-sm">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{m.name}</p>
+                                <p className="text-xs text-[hsl(var(--text-tertiary))]">
+                                  {m.merchant} · {m.payments_remaining} payments left · ends {m.end_date}
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0 ml-4">
+                                <p className="font-medium tabular-nums">${formatMXN(m.monthly_payment)}/mo</p>
+                                <p className="text-xs text-emerald-500">
+                                  Frees ${formatMXN(m.monthly_payment)}/mo after
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                          <div className="pt-2 mt-2 border-t border-[hsl(var(--border))] flex items-center justify-between text-sm font-semibold">
+                            <span>Total MSI commitment</span>
+                            <span className="tabular-nums">${formatMXN(msiTimeline.reduce((s, m) => s + m.monthly_payment, 0))}/mo</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Goal Funding Gap */}
+                    {goalFunding && (
+                      <div className={cn(
+                        'rounded-lg border p-4',
+                        goalFunding.fully_funded
+                          ? 'border-emerald-500/20 bg-emerald-500/5'
+                          : 'border-yellow-500/20 bg-yellow-500/5'
+                      )}>
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-3">
+                          Goal Funding Analysis
+                        </h3>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span>Goals need</span>
+                            <span className="font-medium tabular-nums">${formatMXN(goalFunding.total_monthly_needed)}/mo</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Discretionary available</span>
+                            <span className="font-medium tabular-nums">${formatMXN(goalFunding.discretionary_available)}/mo</span>
+                          </div>
+                          <div className="pt-2 mt-1 border-t border-[hsl(var(--border))]">
+                            {goalFunding.fully_funded ? (
+                              <div className="flex justify-between text-emerald-500 font-semibold">
+                                <span>✅ Fully funded</span>
+                                <span className="tabular-nums">+${formatMXN(Math.abs(goalFunding.gap))}/mo surplus</span>
+                              </div>
+                            ) : (
+                              <div className="flex justify-between text-yellow-500 font-semibold">
+                                <span>⚠️ Funding gap</span>
+                                <span className="tabular-nums">-${formatMXN(goalFunding.gap)}/mo short</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Cash Flow Summary */}
+                    {summary?.cash_flow && (
+                      <div className="rounded-lg border border-[hsl(var(--border))] p-4">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-3">
+                          Monthly Cash Flow
+                        </h3>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span>Income</span>
+                            <span className="font-medium tabular-nums text-emerald-500">${formatMXN(summary.cash_flow.monthly_income)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Fixed commitments</span>
+                            <span className="font-medium tabular-nums text-red-500">-${formatMXN(summary.cash_flow.fixed_commitments)}</span>
+                          </div>
+                          <div className="pt-2 mt-1 border-t border-[hsl(var(--border))] flex justify-between font-semibold">
+                            <span>Discretionary</span>
+                            <span className="tabular-nums">${formatMXN(summary.cash_flow.discretionary_available)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Empty insights but has summary data */}
+            {insights.length === 0 && bva.length > 0 && (
+              <GlassCard className="text-center py-8">
+                <span className="text-2xl block mb-2">🐺</span>
+                <p className="text-sm text-[hsl(var(--text-secondary))]">
+                  AI insights unavailable — check that GEMINI_API_KEY is configured.
+                </p>
+                <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">
+                  Budget vs actual data is still shown above from live data.
+                </p>
+              </GlassCard>
+            )}
+
+            {/* Fully empty */}
+            {insights.length === 0 && bva.length === 0 && (
+              <GlassCard className="text-center py-16">
+                <span className="text-4xl block mb-3">🐺</span>
+                <p className="text-sm text-[hsl(var(--text-secondary))] italic">&ldquo;I&apos;ll have your first brief ready tomorrow morning.&rdquo;</p>
+              </GlassCard>
+            )}
+          </div>
         )}
       </div>
     </PageTransition>
