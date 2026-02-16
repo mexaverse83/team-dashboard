@@ -133,6 +133,8 @@ export default function FinanceOverviewClient() {
   }, [monthTxs])
 
   // Budget status bars
+  const CYCLE_MONTHS: Record<string, number> = { monthly: 1, bimonthly: 2, quarterly: 3, 'semi-annual': 6, annual: 12 }
+
   const budgetStatus = useMemo(() => {
     const monthBudgets = budgets.filter(b => b.month.startsWith(monthStr))
     return monthBudgets.map(b => {
@@ -140,7 +142,11 @@ export default function FinanceOverviewClient() {
         .filter(t => t.type === 'expense' && t.category_id === b.category_id)
         .reduce((s, t) => s + t.amount_mxn, 0)
       const cat = categories.find(c => c.id === b.category_id)
-      return { id: b.id, name: cat?.name || 'Other', icon: cat?.icon || '📦', spent, limit: b.amount }
+      const cycle = cat?.billing_cycle || 'monthly'
+      const cycleMonths = CYCLE_MONTHS[cycle] || 1
+      // Scale budget by cycle for non-monthly categories
+      const effectiveLimit = b.amount * cycleMonths
+      return { id: b.id, name: cat?.name || 'Other', icon: cat?.icon || '📦', spent, limit: effectiveLimit, cycle, isNonMonthly: cycleMonths > 1 }
     }).sort((a, b) => (b.spent / b.limit) - (a.spent / a.limit))
   }, [budgets, monthTxs, monthStr, categories])
 
@@ -292,14 +298,14 @@ export default function FinanceOverviewClient() {
           ) : (
             <div className="space-y-3">
               {budgetStatus.map(budget => {
-                const pct = (budget.spent / budget.limit) * 100
-                const barColor = pct < 60 ? 'bg-emerald-500' : pct < 80 ? 'bg-yellow-500' : pct < 100 ? 'bg-orange-500' : 'bg-rose-500'
+                const pct = budget.limit > 0 ? (budget.spent / budget.limit) * 100 : 0
+                const barColor = pct < 60 ? 'bg-emerald-500' : pct < 80 ? 'bg-yellow-500' : pct <= 100 ? 'bg-orange-500' : 'bg-rose-500'
                 return (
                   <div key={budget.id}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-medium">{budget.icon} {budget.name}</span>
                       <span className="text-xs text-[hsl(var(--text-secondary))]">
-                        ${budget.spent.toLocaleString()} / ${budget.limit.toLocaleString()}
+                        ${budget.spent.toLocaleString()} / ${budget.limit.toLocaleString()}{budget.isNonMonthly && <span className="text-blue-400 ml-0.5">({CYCLE_MONTHS[budget.cycle]}mo)</span>}
                       </span>
                     </div>
                     <div className="h-2 rounded-full bg-[hsl(var(--bg-elevated))]">
@@ -312,7 +318,7 @@ export default function FinanceOverviewClient() {
                     </div>
                     {pct >= 80 && (
                       <span className={cn("text-[10px] font-medium mt-0.5 inline-block", pct >= 100 ? "text-rose-400" : "text-orange-400")}>
-                        {pct >= 100 ? `⚠️ Over budget by $${(budget.spent - budget.limit).toLocaleString()}` : `${Math.round(pct)}% used`}
+                        {pct > 100 ? `⚠️ Over budget by $${(budget.spent - budget.limit).toLocaleString()}` : pct === 100 ? '✅ On budget' : `${Math.round(pct)}% used`}
                       </span>
                     )}
                   </div>

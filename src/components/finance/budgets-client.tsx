@@ -195,7 +195,7 @@ export default function BudgetsClient() {
                   <motion.div className={cn("h-2.5 rounded-full", barColor)} initial={{ width: 0 }} animate={{ width: `${Math.min(b.pct, 100)}%` }} transition={{ duration: 0.6 }} />
                 </div>
                 <p className="text-xs mt-2 text-[hsl(var(--text-tertiary))]">
-                  {b.pct < 100 ? `$${(b.amount - b.spent).toLocaleString()} remaining` : `$${(b.spent - b.amount).toLocaleString()} over budget`}
+                  {b.pct < 100 ? `$${Math.round(b.amount - b.spent).toLocaleString()} remaining` : b.pct <= 100 ? 'On budget' : `$${Math.round(b.spent - b.amount).toLocaleString()} over budget`}
                 </p>
               </GlassCard>
             )
