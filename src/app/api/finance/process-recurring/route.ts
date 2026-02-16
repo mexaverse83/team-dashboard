@@ -20,11 +20,17 @@ const FREQ_DAYS: Record<string, number> = {
  *
  * Call daily via cron or WOLFF agent. Idempotent — won't double-post for same period.
  */
-export async function POST(req: NextRequest) {
-  // Auth
+async function processRecurring(req: NextRequest) {
+  // Auth: x-api-key OR Vercel cron secret
   const key = req.headers.get('x-api-key')
+  const authHeader = req.headers.get('authorization') || ''
+  const cronSecret = process.env.CRON_SECRET
   const expected = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!key || key !== expected) {
+
+  const isApiKey = key && key === expected
+  const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`
+
+  if (!isApiKey && !isCron) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -213,49 +219,22 @@ function advanceDate(dateStr: string, frequency: string): string {
 }
 
 function shouldPostIncome(frequency: string, now: Date): boolean {
-  const day = now.getDate()
+  const month = now.getMonth() // 0-indexed
   switch (frequency) {
-    case 'monthly': return day >= 1 && day <= 5 // Post in first 5 days of month
-    case 'biweekly': return day <= 3 || (day >= 14 && day <= 17) // 1st and 15th windows
-    case 'weekly': return true // Always eligible
-    case 'quarterly': return (now.getMonth() % 3 === 0) && day <= 5
-    case 'yearly': return now.getMonth() === 0 && day <= 5
-    default: return day <= 5
+    case 'monthly': return true // Post every month (idempotency prevents dupes)
+    case 'biweekly': return true // Always eligible
+    case 'weekly': return true
+    case 'quarterly': return month % 3 === 0
+    case 'yearly': return month === 0
+    default: return true
   }
 }
 
-// Also support GET for status check
+// Vercel cron calls GET — wire both methods to the processor
 export async function GET(req: NextRequest) {
-  const key = req.headers.get('x-api-key')
-  const expected = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
-  const referer = req.headers.get('referer') || ''
-  const isSameOrigin = referer.includes(req.nextUrl.host)
-  if (!isSameOrigin && (!key || key !== expected)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  return processRecurring(req)
+}
 
-  const today = new Date().toISOString().slice(0, 10)
-
-  const [{ count: subsCount }, { count: incomeCount }, { count: msiCount }] = await Promise.all([
-    supabase.from('finance_recurring').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    supabase.from('finance_income_sources').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    supabase.from('finance_installments').select('*', { count: 'exact', head: true }).eq('is_active', true),
-  ])
-
-  // Check last auto-transaction
-  const { data: lastAuto } = await supabase
-    .from('finance_transactions')
-    .select('transaction_date, description')
-    .contains('tags', ['auto-recurring'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-
-  return NextResponse.json({
-    status: 'ready',
-    today,
-    active_subscriptions: subsCount || 0,
-    active_income_sources: incomeCount || 0,
-    active_installments: msiCount || 0,
-    last_auto_transaction: lastAuto?.[0] || null,
-  })
+export async function POST(req: NextRequest) {
+  return processRecurring(req)
 }

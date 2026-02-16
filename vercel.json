@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/finance/process-recurring",
+      "schedule": "0 12 1 * *"
+    }
+  ]
+}
