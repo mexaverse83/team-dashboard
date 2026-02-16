@@ -17,7 +17,7 @@ export function LoginClient() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/finance/auth/callback?redirect=${encodeURIComponent(redirect)}`,
+        redirectTo: `${window.location.origin}/finance/auth/callback`,
       },
     })
     if (error) {
