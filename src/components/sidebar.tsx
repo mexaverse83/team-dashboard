@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, ChevronsLeft, ChevronsRight, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard } from 'lucide-react'
+import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard } from 'lucide-react'
 import { FinanceAuthBadge } from './finance-auth-badge'
 
 const navItems = [
@@ -39,10 +39,7 @@ const financeAnalyze = [
 const financeItems = [...financeTrack, ...financePlan, ...financeAnalyze]
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return localStorage.getItem('sidebar-collapsed') === 'true'
-  })
+  const collapsed = false
   const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = usePathname()
 
@@ -192,19 +189,7 @@ export function Sidebar() {
           {!collapsed && <span>Connected</span>}
         </div>
 
-        <button
-          onClick={() => { const next = !collapsed; setCollapsed(next); localStorage.setItem('sidebar-collapsed', String(next)) }}
-          aria-label="Toggle sidebar"
-          className={`flex items-center gap-2 w-full rounded-md text-xs text-[hsl(var(--text-tertiary))] hover:text-[hsl(var(--text-secondary))] transition-colors ${
-            collapsed ? 'justify-center p-2' : 'px-3 py-2'
-          }`}
-        >
-          {collapsed ? <ChevronsRight className="h-3.5 w-3.5" aria-hidden /> : <><ChevronsLeft className="h-3.5 w-3.5" aria-hidden /><span>Collapse</span></>}
-        </button>
-
-        {!collapsed && (
-          <p className="text-[10px] text-[hsl(var(--text-tertiary))] text-center">v2.0 · Nexaminds</p>
-        )}
+        <p className="text-[10px] text-[hsl(var(--text-tertiary))] text-center">v2.0 · Nexaminds</p>
       </div>
     </aside>
     </>
