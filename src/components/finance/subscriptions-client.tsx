@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 
 import type { FinanceCategory, FinanceRecurring } from '@/lib/finance-types'
 import { enrichRecurring, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
+import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 
@@ -36,9 +37,10 @@ interface SubForm {
   next_due_date: string
   merchant: string
   notes: string
+  owner: string
 }
 
-const emptyForm: SubForm = { name: '', amount: '', currency: 'MXN', category_id: '', frequency: 'monthly', next_due_date: '', merchant: '', notes: '' }
+const emptyForm: SubForm = { name: '', amount: '', currency: 'MXN', category_id: '', frequency: 'monthly', next_due_date: '', merchant: '', notes: '', owner: '' }
 
 export default function SubscriptionsClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
@@ -51,6 +53,8 @@ export default function SubscriptionsClient() {
   const [form, setForm] = useState<SubForm>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [defaultOwner, setDefaultOwner] = useState('')
+  useEffect(() => { supabase.auth.getUser().then(({ data }) => setDefaultOwner(getOwnerName(data.user?.email ?? undefined))) }, [])
 
   const fetchData = useCallback(async () => {
     const [catRes, recRes] = await Promise.all([
@@ -82,7 +86,7 @@ export default function SubscriptionsClient() {
 
   const openAdd = () => {
     setEditingId(null)
-    setForm(emptyForm)
+    setForm({ ...emptyForm, owner: defaultOwner })
     setModalOpen(true)
   }
 
@@ -97,6 +101,7 @@ export default function SubscriptionsClient() {
       next_due_date: sub.next_due_date || '',
       merchant: sub.merchant || '',
       notes: sub.notes || '',
+      owner: sub.owner || defaultOwner,
     })
     setModalOpen(true)
   }
@@ -117,6 +122,7 @@ export default function SubscriptionsClient() {
       next_due_date: form.next_due_date || null,
       merchant: form.merchant || form.name,
       notes: form.notes || null,
+      owner: form.owner || null,
       is_active: true,
     }
     if (editingId) {
@@ -381,6 +387,19 @@ export default function SubscriptionsClient() {
             <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Merchant</label>
             <input type="text" placeholder="e.g., Netflix Inc." value={form.merchant}
               onChange={e => updateForm({ merchant: e.target.value })} className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Owner</label>
+            <div className="flex gap-2">
+              {OWNERS.map(name => (
+                <button key={name} type="button" onClick={() => updateForm({ owner: name })}
+                  className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
+                    form.owner === name ? "border-blue-500 bg-blue-500/10 text-blue-400" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                  )}>
+                  <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ background: getOwnerColor(name) }} />{name}
+                </button>
+              ))}
+            </div>
           </div>
           <div>
             <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Notes</label>

@@ -42,6 +42,7 @@ export default function TransactionsClient() {
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
   const [typeFilter, setTypeFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [ownerFilter, setOwnerFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
@@ -101,13 +102,14 @@ export default function TransactionsClient() {
     return transactions.filter(t => {
       if (typeFilter !== 'all' && t.type !== typeFilter) return false
       if (categoryFilter && t.category_id !== categoryFilter) return false
+      if (ownerFilter !== 'all' && (t.owner || '') !== ownerFilter) return false
       if (search) {
         const q = search.toLowerCase()
         if (!(t.merchant?.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q) || t.category?.name.toLowerCase().includes(q))) return false
       }
       return true
     })
-  }, [transactions, typeFilter, categoryFilter, search])
+  }, [transactions, typeFilter, categoryFilter, ownerFilter, search])
 
   const totalPages = Math.ceil(filtered.length / perPage)
   const paginated = filtered.slice((page - 1) * perPage, page * perPage)
@@ -377,6 +379,16 @@ export default function TransactionsClient() {
                 typeFilter === t ? "bg-blue-600 text-white" : "text-[hsl(var(--text-secondary))]"
               )}>
               {t === 'all' ? 'All' : t === 'expense' ? '↓ Expenses' : '↑ Income'}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 p-1 rounded-lg bg-[hsl(var(--bg-elevated))]">
+          {['all', ...OWNERS].map(o => (
+            <button key={o} onClick={() => { setOwnerFilter(o); setPage(1) }}
+              className={cn("px-2.5 py-1 rounded-md text-xs font-medium transition-all",
+                ownerFilter === o ? "bg-blue-600 text-white" : "text-[hsl(var(--text-secondary))]"
+              )}>
+              {o === 'all' ? 'All' : o}
             </button>
           ))}
         </div>
