@@ -315,9 +315,18 @@ export default function DebtClient() {
             </div>
             <div className="sm:hidden space-y-2">
               {debts.map(debt => (
-                <div key={debt.id} className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]" onClick={() => openEdit(debt)}>
-                  <div className="flex items-center justify-between"><div className="flex items-center gap-2"><span className="text-lg">{DEBT_ICONS[debt.type] || '📄'}</span><div><p className="text-sm font-medium">{debt.name}</p><p className="text-xs text-[hsl(var(--text-tertiary))]">{debt.creditor}</p></div></div><span className="text-sm font-bold tabular-nums text-rose-400">${debt.balance.toLocaleString()}</span></div>
-                  <div className="flex items-center gap-3 mt-2 text-xs text-[hsl(var(--text-tertiary))]"><span className={cn(debt.interest_rate >= 25 ? "text-rose-400" : debt.interest_rate >= 15 ? "text-amber-400" : "")}>{debt.interest_rate}% APR</span><span>Min: ${debt.minimum_payment.toLocaleString()}</span></div>
+                <div key={debt.id} className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
+                  <div className="flex items-center justify-between" onClick={() => openEdit(debt)}>
+                    <div className="flex items-center gap-2"><span className="text-lg">{DEBT_ICONS[debt.type] || '📄'}</span><div><p className="text-sm font-medium">{debt.name}</p><p className="text-xs text-[hsl(var(--text-tertiary))]">{debt.creditor}</p></div></div>
+                    <span className="text-sm font-bold tabular-nums text-rose-400">${debt.balance.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-tertiary))]"><span className={cn(debt.interest_rate >= 25 ? "text-rose-400" : debt.interest_rate >= 15 ? "text-amber-400" : "")}>{debt.interest_rate}% APR</span><span>Min: ${debt.minimum_payment.toLocaleString()}</span></div>
+                    <div className="flex gap-1">
+                      <button onClick={() => openEdit(debt)} className="p-1.5 rounded-lg hover:bg-blue-500/10 text-blue-400"><Pencil className="h-3.5 w-3.5" /></button>
+                      <button onClick={() => setDeleteConfirm(debt.id)} className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

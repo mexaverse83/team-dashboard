@@ -437,13 +437,13 @@ export default function TransactionsClient() {
             {/* Mobile card list */}
             <div className="sm:hidden space-y-2">
               {paginated.map(tx => (
-                <div key={tx.id} className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]"
-                  onClick={() => openEdit(tx)}>
+                <div key={tx.id} className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
                   <div className="h-9 w-9 rounded-lg flex items-center justify-center text-sm shrink-0"
-                    style={{ background: `${tx.category?.color || '#6B7280'}20` }}>
+                    style={{ background: `${tx.category?.color || '#6B7280'}20` }}
+                    onClick={() => openEdit(tx)}>
                     {tx.category?.icon || '📦'}
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0" onClick={() => openEdit(tx)}>
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium truncate">{tx.merchant || '—'}</p>
                       <span className={cn("text-sm font-semibold shrink-0 ml-2",
@@ -458,6 +458,14 @@ export default function TransactionsClient() {
                         {tx.category?.name}
                       </span>
                     </div>
+                  </div>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <button onClick={() => openEdit(tx)} className="p-2 rounded-lg hover:bg-blue-500/10 text-blue-400 transition-colors" title="Edit">
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => setDeleteConfirm(tx.id)} className="p-2 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors" title="Delete">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               ))}

@@ -303,6 +303,10 @@ export default function SubscriptionsClient() {
                   className="p-1.5 rounded-md bg-[hsl(var(--bg-elevated))] shrink-0">
                   <Power className="h-3.5 w-3.5" />
                 </button>
+                <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(sub.id) }}
+                  className="p-1.5 rounded-md hover:bg-rose-500/10 shrink-0" title="Delete">
+                  <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                </button>
               </div>
             ))}
           </div>
