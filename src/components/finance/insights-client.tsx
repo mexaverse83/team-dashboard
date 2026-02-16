@@ -241,7 +241,7 @@ export default function InsightsClient() {
                     <span className="text-xs font-semibold uppercase tracking-wider text-amber-400">Today&apos;s Priority</span>
                   </div>
                   <p className="text-lg font-semibold leading-relaxed">{insights[0].title}</p>
-                  <p className="text-sm text-[hsl(var(--text-secondary))] mt-2 leading-relaxed">{insights[0].detail}</p>
+                  <p className="text-sm text-[hsl(var(--text-primary))] mt-2 leading-relaxed opacity-80">{insights[0].detail}</p>
                 </div>
               </div>
             )}
@@ -323,7 +323,7 @@ export default function InsightsClient() {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium">{a.icon} {a.title}</span>
                       </div>
-                      <p className="text-xs text-[hsl(var(--text-tertiary))]">{a.detail}</p>
+                      <p className="text-sm text-[hsl(var(--text-secondary))]">{a.detail}</p>
                     </div>
                   ))}
                 </div>
@@ -346,7 +346,7 @@ export default function InsightsClient() {
                             <p className="text-sm font-medium leading-relaxed">{rec.title}</p>
                             {rec.effort && <EffortBadge effort={rec.effort} />}
                           </div>
-                          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1 leading-relaxed">{rec.detail}</p>
+                          <p className="text-sm text-[hsl(var(--text-secondary))] mt-1 leading-relaxed">{rec.detail}</p>
                           {rec.savings_amount && rec.savings_amount > 0 && (
                             <p className="text-xs font-medium text-emerald-500 mt-1.5">
                               💰 Potential savings: ${formatMXN(rec.savings_amount)}/mo
@@ -370,7 +370,7 @@ export default function InsightsClient() {
                       <Trophy className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium">{w.title}</p>
-                        <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{w.detail}</p>
+                        <p className="text-sm text-[hsl(var(--text-secondary))] mt-0.5">{w.detail}</p>
                       </div>
                     </div>
                   ))}
@@ -388,7 +388,7 @@ export default function InsightsClient() {
                       <TrendingUp className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium">{f.title}</p>
-                        <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{f.detail}</p>
+                        <p className="text-sm text-[hsl(var(--text-secondary))] mt-0.5">{f.detail}</p>
                       </div>
                     </div>
                   ))}
@@ -406,7 +406,7 @@ export default function InsightsClient() {
                       <span className="text-sm shrink-0 mt-0.5">🔍</span>
                       <div>
                         <p className="text-sm font-medium">{p.title}</p>
-                        <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{p.detail}</p>
+                        <p className="text-sm text-[hsl(var(--text-secondary))] mt-0.5">{p.detail}</p>
                       </div>
                     </div>
                   ))}
@@ -445,7 +445,7 @@ export default function InsightsClient() {
                             <div key={i} className="flex items-center justify-between text-sm">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">{m.name}</p>
-                                <p className="text-xs text-[hsl(var(--text-tertiary))]">
+                                <p className="text-sm text-[hsl(var(--text-secondary))]">
                                   {m.merchant} · {m.payments_remaining} payments left · ends {m.end_date}
                                 </p>
                               </div>
