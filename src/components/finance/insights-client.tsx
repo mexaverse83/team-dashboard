@@ -314,7 +314,8 @@ export default function InsightsClient() {
                     )}
                   </h2>
                 </div>
-                <div className="rounded-lg border border-[hsl(var(--border))] overflow-hidden">
+                {/* Desktop table */}
+                <div className="hidden sm:block rounded-lg border border-[hsl(var(--border))] overflow-hidden">
                   {/* Header */}
                   <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[hsl(var(--bg-elevated))] text-xs font-medium text-[hsl(var(--text-secondary))] border-b border-[hsl(var(--border))]">
                     <div className="col-span-3">Category</div>
@@ -369,6 +370,49 @@ export default function InsightsClient() {
                         ${formatMXN(bva.reduce((s, b) => s + b.budget, 0))}
                       </div>
                       <div className="col-span-5" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Mobile card list */}
+                <div className="sm:hidden space-y-2">
+                  {bva.map((row, i) => (
+                    <div key={i} className={cn(
+                      'p-3 rounded-lg border border-[hsl(var(--border))]',
+                      row.status === 'over' && 'bg-red-500/5 border-red-500/20',
+                      row.status === 'warning' && 'bg-yellow-500/5 border-yellow-500/20',
+                    )}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm">{row.icon}</span>
+                          <span className="text-sm font-medium">{row.category}</span>
+                          {row.is_non_monthly && <span className="text-[10px] font-medium text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded">📅 {row.billing_cycle}</span>}
+                        </div>
+                        <StatusBadge status={row.status} pct={row.pct_used} />
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <div>
+                          <span className="text-[hsl(var(--text-secondary))]">Spent </span>
+                          <span className="font-semibold tabular-nums">${formatMXN(row.spent)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[hsl(var(--text-secondary))]">of </span>
+                          <span className="tabular-nums text-[hsl(var(--text-secondary))]">${formatMXN(row.budget)}</span>
+                          {row.is_non_monthly && <span className="text-[10px] text-blue-400 ml-0.5">({row.cycle_months}mo)</span>}
+                        </div>
+                      </div>
+                      {!row.is_non_monthly && (
+                        <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-[hsl(var(--border))]/50 text-xs">
+                          <span className="text-[hsl(var(--text-tertiary))]">Projected: <span className={cn("font-medium", row.projected_month_total > row.budget ? 'text-red-500' : 'text-[hsl(var(--text-secondary))]')}>${formatMXN(row.projected_month_total)}</span></span>
+                          <PaceBadge pct={row.pace_vs_budget_pct} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {summary?.current_month && (
+                    <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))] flex items-center justify-between text-sm font-semibold">
+                      <span>Total Spent</span>
+                      <span className="tabular-nums">${formatMXN(summary.current_month.total_spent)}</span>
                     </div>
                   )}
                 </div>

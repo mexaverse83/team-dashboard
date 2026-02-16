@@ -483,7 +483,7 @@ export function InstallmentsClient() {
             </div>
             <div>
               <label className="text-xs font-medium text-[hsl(var(--text-secondary))]">MSI Months *</label>
-              <div className="grid grid-cols-6 gap-1 mt-1">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mt-1">
                 {MSI_PRESETS.map(n => (
                   <button key={n} onClick={() => setForm(f => ({ ...f, installment_count: String(n) }))}
                     className={cn("py-2 rounded-lg text-xs font-medium transition-all text-center",

@@ -179,16 +179,16 @@ export default function EmergencyFundClient() {
 
       {/* Thermometer + Risk Questionnaire */}
       <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
-        <GlassCard className="flex flex-col items-center py-6">
+        <GlassCard className="flex flex-col items-center py-6 px-8 sm:px-6 overflow-visible">
           <h3 className="text-base font-semibold mb-4">Fund Progress</h3>
-          <div className="relative w-16 h-64 sm:h-80">
+          <div className="relative w-16 h-64 sm:h-80" style={{ overflow: 'visible' }}>
             <div className="absolute inset-x-2 inset-y-0 rounded-full bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))]" />
             <motion.div className="absolute inset-x-2 bottom-0 rounded-full bg-gradient-to-t from-indigo-600 to-indigo-400"
               initial={{ height: 0 }} animate={{ height: `${Math.min(fundPct, 100)}%` }} transition={{ duration: 1.2, type: 'spring', damping: 15 }} />
             {[3, 6].filter(m => m <= recommendedMonths).map(m => (
-              <div key={m} className="absolute left-full ml-3 flex items-center gap-1" style={{ bottom: `${(m / recommendedMonths) * 100}%`, transform: 'translateY(50%)' }}>
-                <div className="h-px w-3 bg-[hsl(var(--text-tertiary))]" />
-                <span className="text-[10px] text-[hsl(var(--text-tertiary))] whitespace-nowrap">{m}mo · ${(monthlyEssentials * m).toLocaleString()}</span>
+              <div key={m} className="absolute left-full ml-2 sm:ml-3 flex items-center gap-1" style={{ bottom: `${(m / recommendedMonths) * 100}%`, transform: 'translateY(50%)' }}>
+                <div className="h-px w-2 sm:w-3 bg-[hsl(var(--text-tertiary))]" />
+                <span className="text-[9px] sm:text-[10px] text-[hsl(var(--text-tertiary))] whitespace-nowrap">{m}mo · ${(monthlyEssentials * m).toLocaleString()}</span>
               </div>
             ))}
           </div>
