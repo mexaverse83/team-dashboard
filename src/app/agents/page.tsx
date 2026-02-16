@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { agentConfigs } from "@/lib/agents"
-import { supabaseServer } from "@/lib/supabase-server"
+import { createSupabaseServer } from "@/lib/supabase-server"
 
 export const metadata: Metadata = {
   title: 'Agents — Interstellar Squad',
@@ -12,7 +12,8 @@ export const metadata: Metadata = {
 export const revalidate = 30
 
 export default async function AgentsPage() {
-  const { data: agents } = await supabaseServer.from('agents').select('*')
+  const supabase = await createSupabaseServer()
+  const { data: agents } = await supabase.from('agents').select('*')
 
   return (
     <div className="space-y-8">

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, ChevronsLeft, ChevronsRight, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard } from 'lucide-react'
+import { FinanceAuthBadge } from './finance-auth-badge'
 
 const navItems = [
   { href: '/', icon: Home, label: 'Overview' },
@@ -182,6 +183,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="mt-auto space-y-3">
+        <FinanceAuthBadge collapsed={collapsed} />
         <div className={`flex items-center gap-2 text-xs text-[hsl(var(--text-secondary))] ${collapsed ? 'justify-center' : 'px-2'}`}>
           <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
           {!collapsed && <span>Connected</span>}
