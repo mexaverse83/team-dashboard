@@ -1,29 +1,73 @@
 'use client'
 
-import { useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { GlassCard } from '@/components/ui/glass-card'
 import { Lock, ShieldAlert } from 'lucide-react'
+import { ALLOWED_EMAILS } from '@/lib/auth'
 
 export function LoginClient() {
   const [loading, setLoading] = useState(false)
+  const [checking, setChecking] = useState(true)
   const searchParams = useSearchParams()
+  const router = useRouter()
   const error = searchParams.get('error')
-  const redirect = searchParams.get('redirect') || '/finance'
+
+  // On mount: check if we already have a session (or if hash fragment contains token)
+  useEffect(() => {
+    const checkAuth = async () => {
+      // This will pick up the access_token from the URL hash if present
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (session?.user) {
+        if (ALLOWED_EMAILS.includes(session.user.email?.toLowerCase() || '')) {
+          router.push('/finance')
+          return
+        } else {
+          await supabase.auth.signOut()
+        }
+      }
+      setChecking(false)
+    }
+
+    // Listen for auth state changes (handles the hash token exchange)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        if (ALLOWED_EMAILS.includes(session.user.email?.toLowerCase() || '')) {
+          router.push('/finance')
+        } else {
+          supabase.auth.signOut()
+          setChecking(false)
+        }
+      }
+    })
+
+    checkAuth()
+
+    return () => subscription.unsubscribe()
+  }, [router])
 
   const handleGoogleLogin = async () => {
     setLoading(true)
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/finance/auth/callback`,
+        redirectTo: `${window.location.origin}/finance/login`,
       },
     })
     if (error) {
       console.error('Auth error:', error)
       setLoading(false)
     }
+  }
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))]">
+        <div className="h-8 w-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
   }
 
   return (
