@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import type { FinanceCategory, FinanceRecurring } from '@/lib/finance-types'
 import { enrichRecurring, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
+import { OwnerDot } from '@/components/finance/owner-dot'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 
@@ -234,7 +235,7 @@ export default function SubscriptionsClient() {
                   <tr key={sub.id} className="border-b border-[hsl(var(--border))] last:border-0 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors group">
                     <td className="py-3 px-4 text-lg">{sub.category?.icon}</td>
                     <td className="py-3 px-4">
-                      <p className="text-sm font-medium">{sub.name}</p>
+                      <p className="text-sm font-medium flex items-center gap-2">{sub.name} <OwnerDot owner={sub.owner} /></p>
                       <p className="text-xs text-[hsl(var(--text-tertiary))]">{sub.merchant}</p>
                     </td>
                     <td className="py-3 px-4 text-sm font-semibold">${sub.amount.toLocaleString()} <span className="text-[hsl(var(--text-tertiary))] font-normal">{sub.currency}</span></td>
@@ -286,7 +287,7 @@ export default function SubscriptionsClient() {
                 <span className="text-lg shrink-0">{sub.category?.icon}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium truncate">{sub.name}</p>
+                    <p className="text-sm font-medium truncate flex items-center gap-1.5">{sub.name} <OwnerDot owner={sub.owner} size="md" /></p>
                     <span className="text-sm font-semibold shrink-0 ml-2">${sub.amount.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">

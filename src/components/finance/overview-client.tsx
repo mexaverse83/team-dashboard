@@ -13,6 +13,7 @@ import { SkeletonKPI, SkeletonGrid } from '@/components/ui/skeleton-card'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 
+import { OwnerBar } from '@/components/finance/owner-dot'
 import type { FinanceCategory, FinanceTransaction, FinanceBudget } from '@/lib/finance-types'
 import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import {
@@ -80,6 +81,12 @@ export default function FinanceOverviewClient() {
   const totalIncome = useMemo(() => monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
   const netSavings = totalIncome - totalSpent
   const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0
+
+  // Per-owner breakdowns
+  const bernardoSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && t.owner === 'Bernardo').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && t.owner === 'Laura').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const bernardoIncome = useMemo(() => monthTxs.filter(t => t.type === 'income' && t.owner === 'Bernardo').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const lauraIncome = useMemo(() => monthTxs.filter(t => t.type === 'income' && t.owner === 'Laura').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
 
   const prevSpent = prevMonthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount_mxn, 0)
   const prevIncome = prevMonthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount_mxn, 0)
@@ -178,6 +185,7 @@ export default function FinanceOverviewClient() {
           </div>
           <p className="text-2xl sm:text-3xl font-bold text-rose-400">${totalSpent.toLocaleString()}</p>
           <TrendBadge value={spentDelta * -1} suffix="% vs last month" />
+          <OwnerBar bernardo={bernardoSpent} laura={lauraSpent} className="mt-2" />
           <div className="mt-3 h-8"><SparklineChart data={dailySpendHistory} color="hsl(350, 80%, 55%)" /></div>
         </GlassCard>
 
@@ -188,6 +196,7 @@ export default function FinanceOverviewClient() {
           </div>
           <p className="text-2xl sm:text-3xl font-bold text-emerald-400">${totalIncome.toLocaleString()}</p>
           <TrendBadge value={incomeDelta} suffix="% vs last month" />
+          <OwnerBar bernardo={bernardoIncome} laura={lauraIncome} className="mt-2" />
           <div className="mt-3 h-8"><SparklineChart data={dailyIncomeHistory} color="hsl(160, 60%, 45%)" /></div>
         </GlassCard>
 

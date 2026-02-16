@@ -75,16 +75,16 @@ export const SEED_TRANSACTIONS: FinanceTransaction[] = [
 ]
 
 export const SEED_BUDGETS: FinanceBudget[] = [
-  { id: 'b01', category_id: 'cat-rent', month: '2026-02-01', amount: 15000 },
-  { id: 'b02', category_id: 'cat-groc', month: '2026-02-01', amount: 18000 },
-  { id: 'b03', category_id: 'cat-dining', month: '2026-02-01', amount: 5000 },
-  { id: 'b04', category_id: 'cat-transport', month: '2026-02-01', amount: 6000 },
-  { id: 'b05', category_id: 'cat-util', month: '2026-02-01', amount: 4000 },
-  { id: 'b06', category_id: 'cat-subs', month: '2026-02-01', amount: 2500 },
-  { id: 'b07', category_id: 'cat-ent', month: '2026-02-01', amount: 3000 },
-  { id: 'b08', category_id: 'cat-health', month: '2026-02-01', amount: 2000 },
-  { id: 'b09', category_id: 'cat-shop', month: '2026-02-01', amount: 5000 },
-  { id: 'b10', category_id: 'cat-biz', month: '2026-02-01', amount: 8000 },
+  { id: 'b01', category_id: 'cat-rent', month: '2026-02-01', amount: 15000, owner: null },
+  { id: 'b02', category_id: 'cat-groc', month: '2026-02-01', amount: 18000, owner: null },
+  { id: 'b03', category_id: 'cat-dining', month: '2026-02-01', amount: 5000, owner: null },
+  { id: 'b04', category_id: 'cat-transport', month: '2026-02-01', amount: 6000, owner: null },
+  { id: 'b05', category_id: 'cat-util', month: '2026-02-01', amount: 4000, owner: null },
+  { id: 'b06', category_id: 'cat-subs', month: '2026-02-01', amount: 2500, owner: null },
+  { id: 'b07', category_id: 'cat-ent', month: '2026-02-01', amount: 3000, owner: null },
+  { id: 'b08', category_id: 'cat-health', month: '2026-02-01', amount: 2000, owner: null },
+  { id: 'b09', category_id: 'cat-shop', month: '2026-02-01', amount: 5000, owner: null },
+  { id: 'b10', category_id: 'cat-biz', month: '2026-02-01', amount: 8000, owner: null },
 ]
 
 export const SEED_RECURRING: FinanceRecurring[] = [

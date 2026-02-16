@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { FinanceGoal } from '@/lib/finance-types'
 import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
+import { OwnerDot } from '@/components/finance/owner-dot'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
@@ -211,7 +212,8 @@ export default function GoalsClient() {
           return (
             <GlassCard key={g.id}
               className={cn("cursor-pointer hover:ring-1 hover:ring-[hsl(var(--border))] transition-all group",
-                selectedGoal === g.id && "ring-1 ring-blue-500/50"
+                selectedGoal === g.id && "ring-1 ring-blue-500/50",
+                g.scope === 'shared' ? "border-l-2 border-l-violet-500" : g.owner === 'Laura' ? "border-l-2 border-l-pink-500" : g.owner === 'Bernardo' ? "border-l-2 border-l-blue-500" : ""
               )}
               onClick={() => setSelectedGoal(g.id === selectedGoal ? null : g.id)}>
               <div className="flex items-center justify-between mb-3">
@@ -223,13 +225,7 @@ export default function GoalsClient() {
                     i > 2 && "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))]",
                   )}>#{g.priority || i + 1}</span>
                   <span className="text-lg">🎯</span>
-                  {g.scope === 'shared' ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 font-medium">🤝 Shared</span>
-                  ) : g.owner && (
-                    <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${getOwnerColor(g.owner)}15`, color: getOwnerColor(g.owner) }}>
-                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: getOwnerColor(g.owner) }} />{g.owner}
-                    </span>
-                  )}
+                  <OwnerDot owner={g.scope === 'shared' ? 'shared' : g.owner} size="md" showLabel />
                 </div>
                 <div className="flex items-center gap-1">
                   <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full",

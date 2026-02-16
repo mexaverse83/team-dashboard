@@ -13,6 +13,7 @@ import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
 import { enrichTransactions, DEFAULT_CATEGORIES, suggestCoveragePeriod, CYCLE_LABELS } from '@/lib/finance-utils'
 import { parseBBVAPdf, detectBankFormat, type ParsedTransaction } from '@/lib/pdf-parser'
 import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
+import { OwnerDot } from '@/components/finance/owner-dot'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 const labelCls = "text-xs text-[hsl(var(--text-secondary))] mb-1 block"
@@ -435,13 +436,7 @@ export default function TransactionsClient() {
                           {tx.category?.icon} {tx.category?.name}
                         </span>
                       </td>
-                      <td className="py-3 px-4">
-                        {tx.owner && (
-                          <span className="inline-flex items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))]">
-                            <span className="h-2 w-2 rounded-full" style={{ background: getOwnerColor(tx.owner) }} />{tx.owner}
-                          </span>
-                        )}
-                      </td>
+                      <td className="py-3 px-4"><OwnerDot owner={tx.owner} showLabel /></td>
                       <td className="py-2 px-2 w-8">
                         <button onClick={() => openEdit(tx)} className="p-1.5 rounded-md sm:opacity-0 sm:group-hover:opacity-100 hover:bg-[hsl(var(--bg-elevated))] transition-all" title="Edit">
                           <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" />
@@ -488,12 +483,7 @@ export default function TransactionsClient() {
                         style={{ background: `${tx.category?.color}20`, color: tx.category?.color }}>
                         {tx.category?.name}
                       </span>
-                      {tx.owner && (
-                        <span className="flex items-center gap-1 text-xs text-[hsl(var(--text-tertiary))]">
-                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: getOwnerColor(tx.owner) }} />
-                          {tx.owner}
-                        </span>
-                      )}
+                      <OwnerDot owner={tx.owner} size="md" showLabel />
                     </div>
                   </div>
                   <div className="flex flex-col gap-1 shrink-0">

@@ -13,6 +13,7 @@ import type { FinanceInstallment, FinanceCategory, FinanceIncomeSource } from '@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
+import { OwnerDot } from '@/components/finance/owner-dot'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 const tooltipStyle = { contentStyle: { background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' } }
@@ -345,7 +346,7 @@ export function InstallmentsClient() {
                       return (
                         <tr key={inst.id} className="border-b border-[hsl(var(--border-subtle))] group hover:bg-[hsl(var(--bg-elevated))] transition-colors">
                           <td className="py-3 px-3">
-                            <div className="font-medium">{inst.name}</div>
+                            <div className="font-medium flex items-center gap-2">{inst.name} <OwnerDot owner={inst.owner} /></div>
                             {inst.merchant && <div className="text-xs text-[hsl(var(--text-tertiary))]">{inst.merchant}</div>}
                           </td>
                           <td className="py-3 px-3">{fmt(inst.total_amount)}</td>

@@ -38,6 +38,7 @@ export interface FinanceBudget {
   category_id: string
   month: string
   amount: number
+  owner: string | null
   // Joined
   category?: FinanceCategory
 }
@@ -83,6 +84,7 @@ export interface FinanceDebt {
   type: 'credit_card' | 'personal_loan' | 'auto_loan' | 'mortgage' | 'student_loan' | 'medical' | 'other'
   start_date: string | null
   is_active: boolean
+  owner: string | null
   created_at: string
   updated_at: string
 }

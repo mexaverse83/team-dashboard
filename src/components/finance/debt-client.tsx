@@ -9,6 +9,7 @@ import { Modal } from '@/components/ui/modal'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import type { FinanceDebt } from '@/lib/finance-types'
+import { OwnerDot } from '@/components/finance/owner-dot'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
@@ -293,7 +294,7 @@ export default function DebtClient() {
                 <tbody>
                   {debts.sort((a, b) => sortBy === 'balance' ? a.balance - b.balance : b.interest_rate - a.interest_rate).map((debt, i) => (
                     <tr key={debt.id} className="border-b border-[hsl(var(--border))] last:border-0 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors group">
-                      <td className="py-3 px-3"><div className="flex items-center gap-2"><span>{DEBT_ICONS[debt.type] || '📄'}</span><div><p className="text-sm font-medium">{debt.name}</p><p className="text-xs text-[hsl(var(--text-tertiary))]">{debt.creditor}</p></div></div></td>
+                      <td className="py-3 px-3"><div className="flex items-center gap-2"><span>{DEBT_ICONS[debt.type] || '📄'}</span><div><p className="text-sm font-medium flex items-center gap-2">{debt.name} <OwnerDot owner={debt.owner} /></p><p className="text-xs text-[hsl(var(--text-tertiary))]">{debt.creditor}</p></div></div></td>
                       <td className="py-3 px-3"><span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(var(--bg-elevated))] capitalize">{debt.type.replace('_', ' ')}</span></td>
                       <td className="py-3 px-3 text-right text-sm font-semibold tabular-nums text-rose-400">${debt.balance.toLocaleString()}</td>
                       <td className="py-3 px-3 text-right"><span className={cn("text-sm font-medium tabular-nums", debt.interest_rate >= 25 ? "text-rose-400" : debt.interest_rate >= 15 ? "text-amber-400" : "")}>{debt.interest_rate}%</span></td>
@@ -317,7 +318,7 @@ export default function DebtClient() {
               {debts.map(debt => (
                 <div key={debt.id} className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
                   <div className="flex items-center justify-between" onClick={() => openEdit(debt)}>
-                    <div className="flex items-center gap-2"><span className="text-lg">{DEBT_ICONS[debt.type] || '📄'}</span><div><p className="text-sm font-medium">{debt.name}</p><p className="text-xs text-[hsl(var(--text-tertiary))]">{debt.creditor}</p></div></div>
+                    <div className="flex items-center gap-2"><span className="text-lg">{DEBT_ICONS[debt.type] || '📄'}</span><div><p className="text-sm font-medium flex items-center gap-2">{debt.name} <OwnerDot owner={debt.owner} /></p><p className="text-xs text-[hsl(var(--text-tertiary))]">{debt.creditor}</p></div></div>
                     <span className="text-sm font-bold tabular-nums text-rose-400">${debt.balance.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between mt-2">
