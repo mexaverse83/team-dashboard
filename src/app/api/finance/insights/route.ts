@@ -51,7 +51,8 @@ export async function GET(req: NextRequest) {
   })
 
   if (!summaryRes.ok) {
-    return NextResponse.json({ error: 'Failed to fetch finance data' }, { status: 500 })
+    const errBody = await summaryRes.text().catch(() => '')
+    return NextResponse.json({ error: `Failed to fetch finance data (${summaryRes.status}): ${errBody.slice(0, 200)}` }, { status: 500 })
   }
 
   const data = await summaryRes.json()
@@ -102,6 +103,7 @@ Return ONLY valid JSON array, no markdown, no explanation.`
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
+        // model: 'claude-3-5-sonnet-20241022',  // fallback if above doesn't work
         max_tokens: 4096,
         messages: [{ role: 'user', content: prompt }],
       }),
@@ -110,7 +112,7 @@ Return ONLY valid JSON array, no markdown, no explanation.`
     if (!claudeRes.ok) {
       const err = await claudeRes.text()
       console.error('Claude API error:', err)
-      return NextResponse.json({ error: 'AI analysis failed' }, { status: 500 })
+      return NextResponse.json({ error: `AI analysis failed: ${err.slice(0, 200)}` }, { status: 500 })
     }
 
     const claudeData = await claudeRes.json()
