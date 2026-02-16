@@ -29,6 +29,8 @@ interface BudgetVsActual {
   budget_daily_pace: number
   pace_vs_budget_pct: number
   projected_month_total: number
+  billing_cycle?: string
+  is_non_monthly?: boolean
 }
 
 interface MsiItem {
@@ -289,13 +291,19 @@ export default function InsightsClient() {
                       <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-secondary))]">${formatMXN(row.budget)}</div>
                       <div className="col-span-1 text-center"><StatusBadge status={row.status} pct={row.pct_used} /></div>
                       <div className="col-span-2 text-right tabular-nums">
-                        <span className={cn(
-                          row.projected_month_total > row.budget ? 'text-red-500' : 'text-[hsl(var(--text-secondary))]'
-                        )}>
-                          ${formatMXN(row.projected_month_total)}
-                        </span>
+                        {row.is_non_monthly
+                          ? <span className="text-[hsl(var(--text-secondary))]">—</span>
+                          : <span className={cn(
+                              row.projected_month_total > row.budget ? 'text-red-500' : 'text-[hsl(var(--text-secondary))]'
+                            )}>
+                              ${formatMXN(row.projected_month_total)}
+                            </span>}
                       </div>
-                      <div className="col-span-2 text-right"><PaceBadge pct={row.pace_vs_budget_pct} /></div>
+                      <div className="col-span-2 text-right">
+                        {row.is_non_monthly
+                          ? <span className="text-xs font-medium text-blue-400">📅 {row.billing_cycle}</span>
+                          : <PaceBadge pct={row.pace_vs_budget_pct} />}
+                      </div>
                     </div>
                   ))}
                   {/* Total row */}

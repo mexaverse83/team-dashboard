@@ -158,25 +158,80 @@ export async function GET(req: NextRequest) {
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
   const monthProgress = dayOfMonth / daysInMonth
 
-  const currentMonthTxs = txs.filter(t => (t.transaction_date || '').startsWith(currentMonthStr))
+  // Billing cycle multipliers: how many months one payment covers
+  const CYCLE_MONTHS: Record<string, number> = {
+    monthly: 1, bimonthly: 2, quarterly: 3, 'semi-annual': 6, annual: 12,
+  }
+
+  // Allocate transaction amount to current month, respecting coverage dates
+  function allocateToMonth(t: Record<string, unknown>, targetMonth: string): number {
+    const amt = (t.amount_mxn as number) || (t.amount as number) || 0
+    const coverStart = t.coverage_start as string | null
+    const coverEnd = t.coverage_end as string | null
+
+    if (!coverStart || !coverEnd) {
+      // No coverage dates — only count if transaction is in target month
+      return ((t.transaction_date as string) || '').startsWith(targetMonth) ? amt : 0
+    }
+
+    // Split evenly across covered months
+    const [sy, sm] = coverStart.split('-').map(Number)
+    const [ey, em] = coverEnd.split('-').map(Number)
+    const [ty, tm] = targetMonth.split('-').map(Number)
+    const coveredMonths = Math.max(1, (ey - sy) * 12 + (em - sm) + 1)
+    const targetVal = ty * 12 + tm
+    const startVal = sy * 12 + sm
+    const endVal = ey * 12 + em
+
+    if (targetVal >= startVal && targetVal <= endVal) {
+      return amt / coveredMonths
+    }
+    return 0
+  }
+
+  // Current month spending by category using allocation logic
   const currentMonthCatSpend: Record<string, number> = {}
-  currentMonthTxs.forEach(t => {
-    const k = t.category_id || 'uncategorized'
-    currentMonthCatSpend[k] = (currentMonthCatSpend[k] || 0) + (t.amount_mxn || t.amount || 0)
+  txs.forEach(t => {
+    const allocated = allocateToMonth(t, currentMonthStr)
+    if (allocated > 0) {
+      const k = (t.category_id as string) || 'uncategorized'
+      currentMonthCatSpend[k] = (currentMonthCatSpend[k] || 0) + allocated
+    }
   })
 
   const budgetVsActual = (budgets || []).map(b => {
     const cat = catMap.get(b.category_id)
+    const billingCycle = cat?.billing_cycle || 'monthly'
+    const cycleMonths = CYCLE_MONTHS[billingCycle] || 1
+    const isNonMonthly = cycleMonths > 1
+
     const spent = currentMonthCatSpend[b.category_id] || 0
     const budget = b.amount || 0
     const pctUsed = budget > 0 ? Math.round(spent / budget * 100) : 0
-    const dailyPace = dayOfMonth > 0 ? spent / dayOfMonth : 0
-    const budgetDailyPace = daysInMonth > 0 ? budget / daysInMonth : 0
-    const paceVsBudget = budgetDailyPace > 0 ? Math.round((dailyPace / budgetDailyPace - 1) * 100) : 0
-    const projectedTotal = Math.round(dailyPace * daysInMonth)
+
+    // Pace calculation: skip for non-monthly categories (bimonthly bills aren't linear spending)
+    let dailyPace = 0
+    let budgetDailyPace = 0
+    let paceVsBudget = 0
+    let projectedTotal = 0
+
+    if (isNonMonthly) {
+      // For non-monthly: just compare allocated monthly amount vs monthly budget
+      dailyPace = 0
+      budgetDailyPace = 0
+      paceVsBudget = 0
+      projectedTotal = Math.round(spent) // Already amortized, don't project linearly
+    } else {
+      dailyPace = dayOfMonth > 0 ? spent / dayOfMonth : 0
+      budgetDailyPace = daysInMonth > 0 ? budget / daysInMonth : 0
+      paceVsBudget = budgetDailyPace > 0 ? Math.round((dailyPace / budgetDailyPace - 1) * 100) : 0
+      projectedTotal = Math.round(dailyPace * daysInMonth)
+    }
+
     return {
       category: cat?.name || 'Unknown',
       icon: cat?.icon || '📦',
+      billing_cycle: billingCycle,
       spent: Math.round(spent),
       budget,
       pct_used: pctUsed,
@@ -186,10 +241,14 @@ export async function GET(req: NextRequest) {
       budget_daily_pace: Math.round(budgetDailyPace),
       pace_vs_budget_pct: paceVsBudget,
       projected_month_total: projectedTotal,
+      is_non_monthly: isNonMonthly,
     }
   }).sort((a, b) => b.pct_used - a.pct_used)
 
-  const totalCurrentMonthSpend = currentMonthTxs.reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
+  // Total current month spend using allocation
+  let totalCurrentMonthSpend = 0
+  txs.forEach(t => { totalCurrentMonthSpend += allocateToMonth(t, currentMonthStr) })
+  totalCurrentMonthSpend = Math.round(totalCurrentMonthSpend)
 
   // Goal funding gap
   const totalGoalMonthlyNeeded = activeGoals.reduce((s, g) => s + g.monthly_needed, 0)
