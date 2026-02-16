@@ -73,11 +73,21 @@ export default function AuditClient() {
   // ── Leaks ─────────────────────────────────────────
   const leaks = useMemo<Leak[]>(() => {
     const result: Leak[] = []
-    // Unused subscriptions
+    // Unused subscriptions — check window based on frequency
+    const freqDays: Record<string, number> = { weekly: 7, biweekly: 14, monthly: 30, quarterly: 90, yearly: 365 }
+    const freqLabels: Record<string, string> = { weekly: 'week', biweekly: '2 weeks', monthly: 'month', quarterly: 'quarter', yearly: 'year' }
+    const freqDivisor: Record<string, number> = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 }
     recurring.forEach(r => {
-      const matching = transactions.filter(t => t.merchant?.toLowerCase() === r.merchant?.toLowerCase() || t.description?.toLowerCase().includes(r.name.toLowerCase()))
+      const window = freqDays[r.frequency] || 30
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - window)
+      const matching = transactions.filter(t => {
+        const match = t.merchant?.toLowerCase() === r.merchant?.toLowerCase() || t.description?.toLowerCase().includes(r.name.toLowerCase())
+        return match && new Date(t.date) >= cutoff
+      })
       if (matching.length === 0) {
-        result.push({ type: 'unused_sub', severity: 'high', title: `${r.name} — no usage this month`, description: 'Being charged but no matching transactions', monthlyAmount: r.amount, action: 'Review subscription' })
+        const monthlyEquiv = r.amount / (freqDivisor[r.frequency] || 1)
+        const label = freqLabels[r.frequency] || 'month'
+        result.push({ type: 'unused_sub', severity: 'high', title: `${r.name} — no usage this ${label}`, description: `${r.frequency === 'yearly' ? `$${r.amount.toLocaleString()}/yr ($${Math.round(monthlyEquiv).toLocaleString()}/mo equiv)` : r.frequency === 'quarterly' ? `$${r.amount.toLocaleString()}/qtr ($${Math.round(monthlyEquiv).toLocaleString()}/mo equiv)` : `$${r.amount.toLocaleString()}/mo`} — no matching transactions in ${window} days`, monthlyAmount: Math.round(monthlyEquiv), action: 'Review subscription' })
       }
     })
     // Bank fees
@@ -403,7 +413,7 @@ export default function AuditClient() {
       {recurring.length > 0 && (
         <GlassCard>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-            <div><h3 className="text-base font-semibold">📋 Subscription Audit</h3><p className="text-xs text-[hsl(var(--text-tertiary))]">{recurring.length} active · ${recurring.reduce((s, r) => s + r.amount, 0).toLocaleString()}/mo</p></div>
+            <div><h3 className="text-base font-semibold">📋 Subscription Audit</h3><p className="text-xs text-[hsl(var(--text-tertiary))]">{recurring.length} active · ${recurring.reduce((s, r) => s + r.amount / ({ weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 }[r.frequency] || 1), 0).toLocaleString()}/mo equiv</p></div>
           </div>
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
@@ -416,8 +426,8 @@ export default function AuditClient() {
                 {recurring.map(sub => (
                   <tr key={sub.id} className={cn("border-b border-[hsl(var(--border))] last:border-0 transition-colors", flaggedSubs.has(sub.id) && "bg-rose-500/5")}>
                     <td className="py-3 px-3"><p className="text-sm font-medium">{sub.name}</p><p className="text-xs text-[hsl(var(--text-tertiary))]">{sub.merchant}</p></td>
-                    <td className="py-3 px-3 text-right text-sm font-semibold tabular-nums">${sub.amount.toLocaleString()}</td>
-                    <td className="py-3 px-3 text-right text-sm tabular-nums text-[hsl(var(--text-secondary))]">${(sub.amount * 12).toLocaleString()}</td>
+                    <td className="py-3 px-3 text-right text-sm font-semibold tabular-nums">{(() => { const d = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 } as Record<string,number>; const mo = Math.round(sub.amount / (d[sub.frequency] || 1)); return `$${mo.toLocaleString()}/mo`; })()}{sub.frequency !== 'monthly' && <span className="text-xs text-[hsl(var(--text-tertiary))] ml-1">({sub.frequency})</span>}</td>
+                    <td className="py-3 px-3 text-right text-sm tabular-nums text-[hsl(var(--text-secondary))]">{(() => { const d = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 } as Record<string,number>; const annual = Math.round(sub.amount / (d[sub.frequency] || 1) * 12); return `$${annual.toLocaleString()}`; })()}/yr</td>
                     <td className="py-3 px-3"><button onClick={() => toggleFlag(sub.id)} className={cn("p-1.5 rounded-md transition-all", flaggedSubs.has(sub.id) ? "bg-rose-500/20 text-rose-400" : "text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-elevated))]")}>{flaggedSubs.has(sub.id) ? '🚩' : '⚑'}</button></td>
                   </tr>
                 ))}
