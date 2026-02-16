@@ -79,6 +79,14 @@ export default function EmergencyFundClient() {
     })
   }, [])
 
+  // Risk calculation
+  const answeredAll = Object.keys(riskAnswers).length === 5
+  const riskScore = answeredAll ? Object.values(riskAnswers).reduce((s, v) => s + (v || 0), 0) : 0
+  const recommendedMonths = answeredAll ? Math.min(12, Math.max(3, Math.round(riskScore * 0.6))) : 6
+  const targetAmount = monthlyEssentials * recommendedMonths
+  const monthsCovered = monthlyEssentials > 0 ? currentFund / monthlyEssentials : 0
+  const fundPct = targetAmount > 0 ? (currentFund / targetAmount) * 100 : 0
+
   // Save to Supabase
   const handleSave = useCallback(async () => {
     setSaving(true)
@@ -104,15 +112,6 @@ export default function EmergencyFundClient() {
     }
     setSaving(false)
   }, [fundId, monthlyEssentials, currentFund, monthlySaving, riskScore, riskAnswers, answeredAll, tier1, tier2, tier3, recommendedMonths, targetAmount])
-
-  // Risk calculation
-  const answeredAll = Object.keys(riskAnswers).length === 5
-  const riskScore = answeredAll ? Object.values(riskAnswers).reduce((s, v) => s + (v || 0), 0) : 0
-  // Map score (5-20) → months (3-12)
-  const recommendedMonths = answeredAll ? Math.min(12, Math.max(3, Math.round(riskScore * 0.6))) : 6
-  const targetAmount = monthlyEssentials * recommendedMonths
-  const monthsCovered = monthlyEssentials > 0 ? currentFund / monthlyEssentials : 0
-  const fundPct = targetAmount > 0 ? (currentFund / targetAmount) * 100 : 0
   const gap = Math.max(0, targetAmount - currentFund)
   const monthsToTarget = monthlySaving > 0 ? Math.ceil(gap / monthlySaving) : Infinity
 
