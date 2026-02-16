@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     supabase.from('finance_installments').select('*').eq('is_active', true),
     supabase.from('finance_debts').select('*').eq('is_active', true),
     supabase.from('finance_emergency_fund').select('*').order('created_at', { ascending: false }).limit(1),
-    supabase.from('finance_goals').select('*').eq('is_active', true),
+    supabase.from('finance_goals').select('*').eq('is_completed', false),
     supabase.from('finance_income_sources').select('*').eq('is_active', true),
   ])
 
