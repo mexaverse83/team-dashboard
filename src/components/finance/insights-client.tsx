@@ -99,6 +99,31 @@ function PaceBadge({ pct }: { pct: number }) {
   return <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">📊 On pace</span>
 }
 
+const STORAGE_KEY = 'wolff-insights-cache'
+
+function saveToLocal(insights: Insight[], generatedAt: string) {
+  try {
+    const today = new Date().toISOString().slice(0, 10)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ insights, generatedAt, date: today }))
+  } catch { /* localStorage full or unavailable */ }
+}
+
+function loadFromLocal(): { insights: Insight[]; generatedAt: string } | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    const today = new Date().toISOString().slice(0, 10)
+    // Only use cache from today
+    if (data.date !== today) {
+      localStorage.removeItem(STORAGE_KEY)
+      return null
+    }
+    if (data.insights?.length > 0) return { insights: data.insights, generatedAt: data.generatedAt }
+    return null
+  } catch { return null }
+}
+
 export default function InsightsClient() {
   const [insights, setInsights] = useState<Insight[]>([])
   const [summary, setSummary] = useState<SummaryData | null>(null)
@@ -126,8 +151,25 @@ export default function InsightsClient() {
       }
 
       const insightsData = await insightsRes.json()
-      setInsights(insightsData.insights || [])
-      setGeneratedAt(insightsData.generated_at)
+      let loadedInsights = insightsData.insights || []
+      let loadedAt = insightsData.generated_at
+
+      // If API returned empty insights (no cache on server), check localStorage
+      if (loadedInsights.length === 0 && !refresh) {
+        const local = loadFromLocal()
+        if (local) {
+          loadedInsights = local.insights
+          loadedAt = local.generatedAt
+        }
+      }
+
+      // If we got insights (from API or refresh), save to localStorage
+      if (loadedInsights.length > 0 && loadedAt) {
+        saveToLocal(loadedInsights, loadedAt)
+      }
+
+      setInsights(loadedInsights)
+      setGeneratedAt(loadedAt)
       setCached(insightsData.cached || false)
       setStale(insightsData.stale || false)
 
@@ -136,7 +178,14 @@ export default function InsightsClient() {
         setSummary(summaryData)
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load insights')
+      // On error, still try localStorage
+      const local = loadFromLocal()
+      if (local) {
+        setInsights(local.insights)
+        setGeneratedAt(local.generatedAt)
+      } else {
+        setError(e instanceof Error ? e.message : 'Failed to load insights')
+      }
     } finally {
       setLoading(false)
       setGenerating(false)

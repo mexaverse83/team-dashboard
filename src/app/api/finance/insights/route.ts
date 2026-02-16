@@ -166,11 +166,12 @@ Return ONLY valid JSON array, no markdown, no explanation.`
       insights = match ? JSON.parse(match[0]) : []
     }
 
-    // Cache results
-    await supabase.from('finance_insights_cache').insert({
+    // Cache results (table may not exist yet — log but don't fail)
+    const { error: cacheErr } = await supabase.from('finance_insights_cache').insert({
       insights_json: insights,
       data_snapshot: data,
     })
+    if (cacheErr) console.error('Insights cache insert failed:', cacheErr.message)
 
     return NextResponse.json({ insights, cached: false, generated_at: new Date().toISOString() })
   } catch (err) {
