@@ -39,7 +39,10 @@ const financeAnalyze = [
 const financeItems = [...financeTrack, ...financePlan, ...financeAnalyze]
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('sidebar-collapsed') === 'true'
+  })
   const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = usePathname()
 
@@ -190,7 +193,7 @@ export function Sidebar() {
         </div>
 
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={() => { const next = !collapsed; setCollapsed(next); localStorage.setItem('sidebar-collapsed', String(next)) }}
           aria-label="Toggle sidebar"
           className={`flex items-center gap-2 w-full rounded-md text-xs text-[hsl(var(--text-tertiary))] hover:text-[hsl(var(--text-secondary))] transition-colors ${
             collapsed ? 'justify-center p-2' : 'px-3 py-2'
