@@ -18,11 +18,15 @@ interface Insight {
 }
 
 export async function GET(req: NextRequest) {
+  // Auth: API key for external calls, allow same-origin browser requests
   const key = req.headers.get('x-api-key')
   const expected = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!key || key !== expected) {
+  const referer = req.headers.get('referer') || ''
+  const isSameOrigin = referer.includes(req.nextUrl.host)
+  if (!isSameOrigin && (!key || key !== expected)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  const authKey = key || expected || ''
 
   const refresh = req.nextUrl.searchParams.get('refresh') === 'true'
 
@@ -43,7 +47,7 @@ export async function GET(req: NextRequest) {
   // Fetch finance summary internally
   const baseUrl = req.nextUrl.origin
   const summaryRes = await fetch(`${baseUrl}/api/finance/summary?months=3`, {
-    headers: { 'x-api-key': key },
+    headers: { 'x-api-key': authKey || process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '' },
   })
 
   if (!summaryRes.ok) {

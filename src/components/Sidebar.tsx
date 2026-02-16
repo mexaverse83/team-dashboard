@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard } from 'lucide-react'
+import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard, Sparkles } from 'lucide-react'
 import { FinanceAuthBadge } from './finance-auth-badge'
 
 const navItems = [
@@ -32,6 +32,7 @@ const financePlan = [
 ]
 
 const financeAnalyze = [
+  { href: '/finance/insights', icon: Sparkles, label: 'Insights' },
   { href: '/finance/audit', icon: Search, label: 'Audit' },
   { href: '/finance/reports', icon: FileBarChart, label: 'Reports' },
 ]

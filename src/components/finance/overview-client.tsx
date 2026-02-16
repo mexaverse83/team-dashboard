@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 
 import { OwnerBar } from '@/components/finance/owner-dot'
+import { WolffWidget } from '@/components/finance/wolff-widget'
 import type { FinanceCategory, FinanceTransaction, FinanceBudget } from '@/lib/finance-types'
 import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import {
@@ -228,6 +229,9 @@ export default function FinanceOverviewClient() {
           </div>
         </GlassCard>
       </div>
+
+      {/* Wolff Widget */}
+      <WolffWidget />
 
       {/* Charts Row */}
       <div className="grid gap-4 lg:grid-cols-2">
