@@ -1,7 +1,7 @@
 // Whitelisted emails — only these can access /finance/*
 export const ALLOWED_EMAILS = [
   'bernardo.gza83@gmail.com',
-  // Add wife's email here later
+  'lcampomtz89@gmail.com',
 ]
 
 export function isAllowedEmail(email: string | undefined): boolean {
