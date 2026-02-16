@@ -149,6 +149,8 @@ export interface FinanceGoal {
   monthly_contribution: number
   investment_vehicle: string | null
   milestones_json: Record<string, unknown>[]
+  owner: string | null
+  scope: 'personal' | 'shared'
   created_at: string
   updated_at: string
 }

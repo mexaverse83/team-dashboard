@@ -411,7 +411,7 @@ export default function TransactionsClient() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[hsl(var(--border))]">
-                    {['Date', 'Merchant', 'Amount', 'Category', '', ''].map((h, i) => (
+                    {['Date', 'Merchant', 'Amount', 'Category', 'Owner', '', ''].map((h, i) => (
                       <th key={i} className="text-left text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider py-3 px-4">{h}</th>
                     ))}
                   </tr>
@@ -434,6 +434,13 @@ export default function TransactionsClient() {
                           style={{ background: `${tx.category?.color || '#6B7280'}20`, color: tx.category?.color }}>
                           {tx.category?.icon} {tx.category?.name}
                         </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        {tx.owner && (
+                          <span className="inline-flex items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))]">
+                            <span className="h-2 w-2 rounded-full" style={{ background: getOwnerColor(tx.owner) }} />{tx.owner}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 px-2 w-8">
                         <button onClick={() => openEdit(tx)} className="p-1.5 rounded-md sm:opacity-0 sm:group-hover:opacity-100 hover:bg-[hsl(var(--bg-elevated))] transition-all" title="Edit">

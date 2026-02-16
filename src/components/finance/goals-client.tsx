@@ -10,6 +10,7 @@ import { Modal } from '@/components/ui/modal'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { FinanceGoal } from '@/lib/finance-types'
+import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
@@ -33,8 +34,9 @@ function vehicleForHorizon(months: number): string {
 interface GoalForm {
   name: string; icon: string; target_amount: string; current_amount: string
   target_date: string; monthly_contribution: string; priority: string
+  scope: 'personal' | 'shared'; owner: string
 }
-const emptyForm: GoalForm = { name: '', icon: '🎯', target_amount: '', current_amount: '0', target_date: '', monthly_contribution: '', priority: '1' }
+const emptyForm: GoalForm = { name: '', icon: '🎯', target_amount: '', current_amount: '0', target_date: '', monthly_contribution: '', priority: '1', scope: 'shared', owner: '' }
 
 export default function GoalsClient() {
   const [goals, setGoals] = useState<FinanceGoal[]>([])
@@ -48,6 +50,9 @@ export default function GoalsClient() {
   const [form, setForm] = useState<GoalForm>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'shared' | string>('all')
+  const [defaultOwner, setDefaultOwner] = useState('')
+  useEffect(() => { supabase.auth.getUser().then(({ data }) => setDefaultOwner(getOwnerName(data.user?.email ?? undefined))) }, [])
 
   const fetchData = useCallback(async () => {
     const { data } = await supabase.from('finance_goals').select('*').order('priority')
@@ -57,8 +62,15 @@ export default function GoalsClient() {
 
   useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
 
+  // Filter by scope/owner
+  const filteredGoals = useMemo(() => {
+    if (scopeFilter === 'all') return goals
+    if (scopeFilter === 'shared') return goals.filter(g => g.scope === 'shared')
+    return goals.filter(g => g.scope === 'personal' && g.owner === scopeFilter)
+  }, [goals, scopeFilter])
+
   // KPIs
-  const activeGoals = goals.filter(g => !g.is_completed)
+  const activeGoals = filteredGoals.filter(g => !g.is_completed)
   const totalTarget = activeGoals.reduce((s, g) => s + g.target_amount, 0)
   const totalSaved = activeGoals.reduce((s, g) => s + g.current_amount, 0)
   const overallPct = totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0
@@ -101,12 +113,12 @@ export default function GoalsClient() {
   // CRUD
   const openAdd = () => {
     setEditingId(null)
-    setForm({ ...emptyForm, priority: String(goals.length + 1) })
+    setForm({ ...emptyForm, priority: String(goals.length + 1), owner: defaultOwner })
     setModalOpen(true)
   }
   const openEdit = (g: FinanceGoal) => {
     setEditingId(g.id)
-    setForm({ name: g.name, icon: '🎯', target_amount: g.target_amount.toString(), current_amount: g.current_amount.toString(), target_date: g.target_date || '', monthly_contribution: (g.monthly_contribution || 0).toString(), priority: (g.priority || 1).toString() })
+    setForm({ name: g.name, icon: '🎯', target_amount: g.target_amount.toString(), current_amount: g.current_amount.toString(), target_date: g.target_date || '', monthly_contribution: (g.monthly_contribution || 0).toString(), priority: (g.priority || 1).toString(), scope: g.scope || 'shared', owner: g.owner || defaultOwner })
     setModalOpen(true)
   }
 
@@ -121,6 +133,7 @@ export default function GoalsClient() {
       name: form.name, target_amount: targetAmt, current_amount: currentAmt,
       target_date: form.target_date, monthly_contribution: parseFloat(form.monthly_contribution || '0'),
       priority: parseInt(form.priority || '1'), investment_vehicle: vehicle,
+      scope: form.scope, owner: form.scope === 'shared' ? null : form.owner,
       milestones_json: [25, 50, 75, 100].map(m => ({ pct: m, amount: targetAmt * m / 100, reached: currentAmt >= targetAmt * m / 100 })),
     }
     if (editingId) {
@@ -149,6 +162,19 @@ export default function GoalsClient() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Savings Goals</h1>
           <p className="text-[hsl(var(--text-secondary))]">Track progress toward your financial targets</p>
         </div>
+      </div>
+
+      {/* Scope filter */}
+      <div className="flex items-center gap-1 p-1 rounded-lg bg-[hsl(var(--bg-elevated))] w-fit">
+        {[{ key: 'all', label: '👨‍👩‍👧 All' }, { key: 'shared', label: '🤝 Shared' }, ...OWNERS.map(o => ({ key: o, label: o }))].map(f => (
+          <button key={f.key} onClick={() => setScopeFilter(f.key)}
+            className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+              scopeFilter === f.key ? "bg-blue-600 text-white" : "text-[hsl(var(--text-secondary))]"
+            )}>
+            {f.key !== 'all' && f.key !== 'shared' && <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ background: getOwnerColor(f.key) }} />}
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {/* Hero KPIs */}
@@ -197,6 +223,13 @@ export default function GoalsClient() {
                     i > 2 && "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))]",
                   )}>#{g.priority || i + 1}</span>
                   <span className="text-lg">🎯</span>
+                  {g.scope === 'shared' ? (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 font-medium">🤝 Shared</span>
+                  ) : g.owner && (
+                    <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${getOwnerColor(g.owner)}15`, color: getOwnerColor(g.owner) }}>
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: getOwnerColor(g.owner) }} />{g.owner}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full",
@@ -344,6 +377,27 @@ export default function GoalsClient() {
             <input type="text" required placeholder="e.g., Down payment" value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />
           </div>
+          {/* Scope + Owner */}
+          <div>
+            <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Who is this for?</label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setForm(f => ({ ...f, scope: 'shared', owner: '' }))}
+                className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
+                  form.scope === 'shared' ? "border-purple-500 bg-purple-500/10 text-purple-400" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                )}>🤝 Shared</button>
+              {OWNERS.map(name => (
+                <button key={name} type="button" onClick={() => setForm(f => ({ ...f, scope: 'personal', owner: name }))}
+                  className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
+                    form.scope === 'personal' && form.owner === name
+                      ? "border-blue-500 bg-blue-500/10 text-blue-400"
+                      : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                  )}>
+                  <span className="inline-block h-2 w-2 rounded-full mr-1" style={{ background: getOwnerColor(name) }} />{name}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex gap-3">
             <div>
               <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Priority</label>
