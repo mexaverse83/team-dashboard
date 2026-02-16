@@ -217,7 +217,7 @@ export default function ReportsClient() {
           <div className="space-y-3">
             {topMerchants.map((m, i) => (
               <div key={m.merchant} className="flex items-center gap-3">
-                <span className="text-sm font-bold text-[hsl(var(--text-tertiary))] w-6">{i + 1}</span>
+                <span className="text-sm font-bold text-[hsl(var(--text-tertiary))] w-7">{i + 1}</span>
                 <div className="flex-1">
                   <p className="text-sm font-medium">{m.merchant}</p>
                   <div className="h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] mt-1">
@@ -237,7 +237,7 @@ export default function ReportsClient() {
       <div className="grid gap-6 lg:grid-cols-2">
         <GlassCard>
           <h3 className="text-base font-semibold mb-4">Monthly Spending Comparison</h3>
-          <div className="h-44 sm:h-64">
+          <div className="h-52 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={ownerMonthly}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 18%)" />

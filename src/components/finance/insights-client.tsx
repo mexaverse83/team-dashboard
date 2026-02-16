@@ -555,10 +555,10 @@ export default function InsightsClient() {
                                   {m.merchant} · {m.payments_remaining} payments left · ends {m.end_date}
                                 </p>
                               </div>
-                              <div className="text-right shrink-0 ml-4">
+                              <div className="text-right shrink-0 ml-3 min-w-[80px]">
                                 <p className="font-medium tabular-nums">${formatMXN(m.monthly_payment)}/mo</p>
-                                <p className="text-xs text-emerald-500">
-                                  Frees ${formatMXN(m.monthly_payment)}/mo after
+                                <p className="text-xs text-emerald-500 whitespace-nowrap">
+                                  Frees ${formatMXN(m.monthly_payment)}/mo
                                 </p>
                               </div>
                             </div>
