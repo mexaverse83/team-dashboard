@@ -82,7 +82,7 @@ export default function AuditClient() {
       const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - window)
       const matching = transactions.filter(t => {
         const match = t.merchant?.toLowerCase() === r.merchant?.toLowerCase() || t.description?.toLowerCase().includes(r.name.toLowerCase())
-        return match && new Date(t.date) >= cutoff
+        return match && new Date(t.transaction_date) >= cutoff
       })
       if (matching.length === 0) {
         const monthlyEquiv = r.amount / (freqDivisor[r.frequency] || 1)

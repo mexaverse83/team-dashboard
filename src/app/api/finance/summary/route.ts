@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
   // Spending by month
   const byMonth: Record<string, number> = {}
   txs.forEach(t => {
-    const m = (t.date || '').slice(0, 7)
+    const m = (t.transaction_date || '').slice(0, 7)
     if (m) byMonth[m] = (byMonth[m] || 0) + (t.amount_mxn || t.amount || 0)
   })
   const spendByMonth = Object.entries(byMonth).sort().map(([month, total]) => ({ month, total: Math.round(total) }))
