@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { supabase } from '@/lib/supabase'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
 import { cn } from '@/lib/utils'
@@ -55,6 +56,54 @@ export default function EmergencyFundClient() {
   const [decisionComplete, setDecisionComplete] = useState(false)
   const [decisionResult, setDecisionResult] = useState<'use' | 'redirect'>('redirect')
   const [decisionMsg, setDecisionMsg] = useState('')
+  const [fundId, setFundId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  // Load from Supabase
+  useEffect(() => {
+    supabase.from('finance_emergency_fund').select('*').order('created_at', { ascending: false }).limit(1).then(({ data }) => {
+      if (data && data[0]) {
+        const d = data[0]
+        setFundId(d.id)
+        if (d.current_amount != null) setCurrentFund(d.current_amount)
+        if (d.account_allocation_json) {
+          const a = d.account_allocation_json
+          if (a.tier1 != null) setTier1(a.tier1)
+          if (a.tier2 != null) setTier2(a.tier2)
+          if (a.tier3 != null) setTier3(a.tier3)
+          if (a.monthly_essentials != null) setMonthlyEssentials(a.monthly_essentials)
+          if (a.monthly_saving != null) setMonthlySaving(a.monthly_saving)
+          if (a.risk_answers) setRiskAnswers(a.risk_answers)
+        }
+      }
+    })
+  }, [])
+
+  // Save to Supabase
+  const handleSave = useCallback(async () => {
+    setSaving(true)
+    const record = {
+      target_months: recommendedMonths,
+      target_amount: targetAmount,
+      current_amount: currentFund,
+      risk_score: answeredAll ? riskScore : null,
+      account_allocation_json: {
+        tier1, tier2, tier3,
+        monthly_essentials: monthlyEssentials,
+        monthly_saving: monthlySaving,
+        risk_answers: answeredAll ? riskAnswers : null,
+      },
+    }
+    if (fundId) {
+      const { error } = await supabase.from('finance_emergency_fund').update(record).eq('id', fundId)
+      if (error) alert(`Save failed: ${error.message}`)
+    } else {
+      const { data, error } = await supabase.from('finance_emergency_fund').insert(record).select().single()
+      if (error) alert(`Save failed: ${error.message}`)
+      else if (data) setFundId(data.id)
+    }
+    setSaving(false)
+  }, [fundId, monthlyEssentials, currentFund, monthlySaving, riskScore, riskAnswers, answeredAll, tier1, tier2, tier3, recommendedMonths, targetAmount])
 
   // Risk calculation
   const answeredAll = Object.keys(riskAnswers).length === 5
@@ -118,6 +167,7 @@ export default function EmergencyFundClient() {
           <div><label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Current Fund Balance</label><input type="number" step={1000} value={currentFund} onChange={e => setCurrentFund(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-indigo-500 transition-colors" /></div>
           <div><label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Monthly Savings</label><input type="number" step={500} value={monthlySaving} onChange={e => setMonthlySaving(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-indigo-500 transition-colors" /></div>
         </div>
+        <button onClick={handleSave} disabled={saving} className="w-full mt-4 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-sm font-medium transition-colors">{saving ? 'Saving...' : '💾 Save Emergency Fund'}</button>
       </GlassCard>
 
       {/* Hero KPIs */}
