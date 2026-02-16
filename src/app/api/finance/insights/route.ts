@@ -31,20 +31,32 @@ export async function GET(req: NextRequest) {
 
   const refresh = req.nextUrl.searchParams.get('refresh') === 'true'
 
-  // Check cache (valid for 24h)
-  if (!refresh) {
-    const { data: cached } = await supabase
-      .from('finance_insights_cache')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+  // Always check cache first — return today's cached insights if they exist
+  const { data: cached } = await supabase
+    .from('finance_insights_cache')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
 
-    if (cached && new Date(cached.created_at).getTime() > Date.now() - 24 * 60 * 60 * 1000) {
-      return NextResponse.json({ insights: cached.insights_json, cached: true, generated_at: cached.created_at })
-    }
+  const cacheAge = cached ? Date.now() - new Date(cached.created_at).getTime() : Infinity
+  const cacheValid = cacheAge < 24 * 60 * 60 * 1000 // 24h
+
+  // Serve cache unless explicit refresh requested
+  if (cached && cacheValid && !refresh) {
+    return NextResponse.json({ insights: cached.insights_json, cached: true, generated_at: cached.created_at })
   }
 
+  // If no refresh requested and cache is stale/missing, return empty — don't auto-generate
+  if (!refresh) {
+    if (cached) {
+      // Serve stale cache with a flag so the UI can show "stale" indicator
+      return NextResponse.json({ insights: cached.insights_json, cached: true, stale: true, generated_at: cached.created_at })
+    }
+    return NextResponse.json({ insights: [], cached: false, empty: true, generated_at: null })
+  }
+
+  // Only reaches here if refresh=true — explicit generation request
   // Fetch finance summary internally
   const baseUrl = req.nextUrl.origin
   const summaryRes = await fetch(`${baseUrl}/api/finance/summary?months=3`, {

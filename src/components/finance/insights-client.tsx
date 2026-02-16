@@ -99,13 +99,16 @@ export default function InsightsClient() {
   const [insights, setInsights] = useState<Insight[]>([])
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [generatedAt, setGeneratedAt] = useState<string | null>(null)
   const [cached, setCached] = useState(false)
+  const [stale, setStale] = useState(false)
   const [showRawData, setShowRawData] = useState(true)
 
   const fetchAll = async (refresh = false) => {
-    setLoading(true)
+    if (refresh) setGenerating(true)
+    else setLoading(true)
     setError(null)
     try {
       const [insightsRes, summaryRes] = await Promise.all([
@@ -124,6 +127,7 @@ export default function InsightsClient() {
       setInsights(insightsData.insights || [])
       setGeneratedAt(insightsData.generated_at)
       setCached(insightsData.cached || false)
+      setStale(insightsData.stale || false)
 
       if (summaryRes.ok) {
         const summaryData = await summaryRes.json()
@@ -133,7 +137,13 @@ export default function InsightsClient() {
       setError(e instanceof Error ? e.message : 'Failed to load insights')
     } finally {
       setLoading(false)
+      setGenerating(false)
     }
+  }
+
+  const handleRefresh = () => {
+    if (!confirm('Generate fresh AI insights? This uses API tokens. Insights are cached for 24 hours.')) return
+    fetchAll(true)
   }
 
   useEffect(() => { fetchAll() }, [])
@@ -164,16 +174,18 @@ export default function InsightsClient() {
               <h1 className="text-2xl font-bold tracking-tight">Daily Brief</h1>
             </div>
             <p className="text-sm text-[hsl(var(--text-tertiary))] mt-1">
-              {generatedAt ? formatTime(generatedAt) : 'Loading...'} {cached && '· Cached'}
+              {generatedAt ? formatTime(generatedAt) : 'No insights yet'} 
+              {cached && !stale && ' · Cached'}
+              {stale && ' · Stale (>24h old)'}
             </p>
           </div>
           <button
-            onClick={() => fetchAll(true)}
-            disabled={loading}
+            onClick={handleRefresh}
+            disabled={loading || generating}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[hsl(var(--border))] text-xs font-medium hover:bg-[hsl(var(--bg-elevated))] disabled:opacity-50 transition-colors"
           >
-            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-            Refresh
+            <RefreshCw className={cn('h-3.5 w-3.5', generating && 'animate-spin')} />
+            {generating ? 'Generating...' : 'Generate'}
           </button>
         </div>
 
@@ -532,11 +544,18 @@ export default function InsightsClient() {
               </GlassCard>
             )}
 
-            {/* Fully empty */}
+            {/* Fully empty — prompt generation */}
             {insights.length === 0 && bva.length === 0 && (
               <GlassCard className="text-center py-16">
                 <span className="text-4xl block mb-3">🐺</span>
-                <p className="text-sm text-[hsl(var(--text-secondary))] italic">&ldquo;I&apos;ll have your first brief ready tomorrow morning.&rdquo;</p>
+                <p className="text-sm text-[hsl(var(--text-secondary))] italic mb-4">&ldquo;Hit Generate to get your first daily brief.&rdquo;</p>
+                <button
+                  onClick={handleRefresh}
+                  disabled={generating}
+                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {generating ? 'Generating...' : '🐺 Generate Daily Brief'}
+                </button>
               </GlassCard>
             )}
           </div>
