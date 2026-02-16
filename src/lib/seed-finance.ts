@@ -23,7 +23,7 @@ export const SEED_CATEGORIES: FinanceCategory[] = [
 ]
 
 function tx(id: string, type: 'expense' | 'income', amount: number, catId: string, merchant: string, date: string, desc: string): FinanceTransaction {
-  return { id, type, amount, currency: 'MXN', amount_mxn: amount, category_id: catId, merchant, description: desc, transaction_date: date, is_recurring: false, recurring_id: null, tags: [], coverage_start: null, coverage_end: null, created_at: date, updated_at: date }
+  return { id, type, amount, currency: 'MXN', amount_mxn: amount, category_id: catId, merchant, description: desc, transaction_date: date, is_recurring: false, recurring_id: null, tags: [], coverage_start: null, coverage_end: null, owner: null, created_at: date, updated_at: date }
 }
 
 export const SEED_TRANSACTIONS: FinanceTransaction[] = [
@@ -88,13 +88,13 @@ export const SEED_BUDGETS: FinanceBudget[] = [
 ]
 
 export const SEED_RECURRING: FinanceRecurring[] = [
-  { id: 'r01', name: 'Claude Pro', amount: 399, currency: 'MXN', category_id: 'cat-subs', frequency: 'monthly', next_due_date: '2026-03-01', is_active: true, merchant: 'Claude', notes: null },
-  { id: 'r02', name: 'Spotify Premium', amount: 199, currency: 'MXN', category_id: 'cat-subs', frequency: 'monthly', next_due_date: '2026-03-01', is_active: true, merchant: 'Spotify', notes: null },
-  { id: 'r03', name: 'Netflix', amount: 279, currency: 'MXN', category_id: 'cat-subs', frequency: 'monthly', next_due_date: '2026-03-01', is_active: true, merchant: 'Netflix', notes: null },
-  { id: 'r04', name: 'AWS Hosting', amount: 850, currency: 'MXN', category_id: 'cat-subs', frequency: 'monthly', next_due_date: '2026-03-01', is_active: true, merchant: 'AWS', notes: null },
-  { id: 'r05', name: 'Izzi Internet', amount: 800, currency: 'MXN', category_id: 'cat-util', frequency: 'monthly', next_due_date: '2026-03-05', is_active: true, merchant: 'Izzi', notes: null },
-  { id: 'r06', name: 'CFE Electricity', amount: 2200, currency: 'MXN', category_id: 'cat-util', frequency: 'monthly', next_due_date: '2026-03-05', is_active: true, merchant: 'CFE', notes: null },
-  { id: 'r07', name: 'GitHub Pro', amount: 2000, currency: 'MXN', category_id: 'cat-subs', frequency: 'yearly', next_due_date: '2026-06-01', is_active: true, merchant: 'GitHub', notes: null },
+  { id: 'r01', name: 'Claude Pro', amount: 399, currency: 'MXN', category_id: 'cat-subs', frequency: 'monthly', next_due_date: '2026-03-01', is_active: true, merchant: 'Claude', notes: null, owner: null },
+  { id: 'r02', name: 'Spotify Premium', amount: 199, currency: 'MXN', category_id: 'cat-subs', frequency: 'monthly', next_due_date: '2026-03-01', is_active: true, merchant: 'Spotify', notes: null, owner: null },
+  { id: 'r03', name: 'Netflix', amount: 279, currency: 'MXN', category_id: 'cat-subs', frequency: 'monthly', next_due_date: '2026-03-01', is_active: true, merchant: 'Netflix', notes: null, owner: null },
+  { id: 'r04', name: 'AWS Hosting', amount: 850, currency: 'MXN', category_id: 'cat-subs', frequency: 'monthly', next_due_date: '2026-03-01', is_active: true, merchant: 'AWS', notes: null, owner: null },
+  { id: 'r05', name: 'Izzi Internet', amount: 800, currency: 'MXN', category_id: 'cat-util', frequency: 'monthly', next_due_date: '2026-03-05', is_active: true, merchant: 'Izzi', notes: null, owner: null },
+  { id: 'r06', name: 'CFE Electricity', amount: 2200, currency: 'MXN', category_id: 'cat-util', frequency: 'monthly', next_due_date: '2026-03-05', is_active: true, merchant: 'CFE', notes: null, owner: null },
+  { id: 'r07', name: 'GitHub Pro', amount: 2000, currency: 'MXN', category_id: 'cat-subs', frequency: 'yearly', next_due_date: '2026-06-01', is_active: true, merchant: 'GitHub', notes: null, owner: null },
 ]
 
 // Helper: attach category objects to transactions

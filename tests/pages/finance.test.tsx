@@ -53,7 +53,7 @@ vi.mock('lucide-react', () => {
     ArrowLeftRight: i('arrowleftright'), PiggyBank: i('piggybank'),
     RefreshCw: i('refreshcw'), FileBarChart: i('filebarchart'),
     Radio: i('radio'), Minus: i('minus'), Plus: i('plus'),
-    Pencil: i('pencil'), Trash2: i('trash2'), Power: i('power'),
+    Pencil: i('pencil'), Trash2: i('trash2'), Power: i('power'), Upload: i('upload'), Download: i('download'),
     CreditCard: i('creditcard'), Calculator: i('calculator'),
     Landmark: i('landmark'), ShieldCheck: i('shieldcheck'), Target: i('target'),
     Menu: i('menu'), X: i('x'),
@@ -63,6 +63,12 @@ vi.mock('lucide-react', () => {
 // Mock Modal
 vi.mock('@/components/ui/modal', () => ({
   Modal: ({ children, open, title }: any) => open ? <div data-testid="modal"><h2>{title}</h2>{children}</div> : null,
+}))
+
+// Mock pdf-parser
+vi.mock('@/lib/pdf-parser', () => ({
+  parseBBVAPdf: vi.fn().mockResolvedValue([]),
+  detectBankFormat: vi.fn().mockReturnValue('unknown'),
 }))
 
 // Mock framer-motion (for budget bars / savings rate)

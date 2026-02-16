@@ -46,6 +46,12 @@ vi.mock('@/components/ui/modal', () => ({
   Modal: ({ children, open, title }: any) => open ? <div data-testid="modal"><h2>{title}</h2>{children}</div> : null,
 }))
 
+// Mock pdf-parser
+vi.mock('@/lib/pdf-parser', () => ({
+  parseBBVAPdf: vi.fn().mockResolvedValue([]),
+  detectBankFormat: vi.fn().mockReturnValue('unknown'),
+}))
+
 // Mock lucide-react (exhaustive)
 vi.mock('lucide-react', () => {
   const i = (n: string) => ({ className, ...rest }: any) => <span data-testid={`icon-${n}`} className={className} />
@@ -65,6 +71,7 @@ vi.mock('lucide-react', () => {
     Pencil: i('pencil'), Trash2: i('trash2'), Calculator: i('calculator'),
     Landmark: i('landmark'), ShieldCheck: i('shieldcheck'), Target: i('target'),
     Menu: i('menu'), X: i('x'), CreditCard: i('creditcard'), Power: i('power'),
+    Upload: i('upload'), Download: i('download'),
   }
 })
 

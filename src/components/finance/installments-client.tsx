@@ -12,6 +12,7 @@ import { motion } from 'framer-motion'
 import type { FinanceInstallment, FinanceCategory, FinanceIncomeSource } from '@/lib/finance-types'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { DEFAULT_CATEGORIES } from '@/lib/finance-utils'
+import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 const tooltipStyle = { contentStyle: { background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' } }
@@ -20,11 +21,11 @@ const MSI_PRESETS = [3, 6, 9, 12, 18, 24]
 
 interface InstallmentForm {
   name: string; merchant: string; total_amount: string; installment_count: string
-  start_date: string; credit_card: string; category_id: string; notes: string
+  start_date: string; credit_card: string; category_id: string; notes: string; owner: string
 }
 const emptyForm: InstallmentForm = {
   name: '', merchant: '', total_amount: '', installment_count: '12',
-  start_date: new Date().toISOString().slice(0, 10), credit_card: '', category_id: '', notes: ''
+  start_date: new Date().toISOString().slice(0, 10), credit_card: '', category_id: '', notes: '', owner: ''
 }
 
 function addMonths(date: string, months: number): string {
@@ -54,6 +55,13 @@ export function InstallmentsClient() {
   const [form, setForm] = useState<InstallmentForm>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [defaultOwner, setDefaultOwner] = useState('')
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setDefaultOwner(getOwnerName(data.user?.email ?? undefined))
+    })
+  }, [])
 
   const fetchData = useCallback(async () => {
     const [instRes, catRes, incRes] = await Promise.all([
@@ -113,13 +121,14 @@ export function InstallmentsClient() {
     }).sort((a, b) => a.remaining - b.remaining)
   }, [active])
 
-  const openAdd = () => { setEditId(null); setForm(emptyForm); setModalOpen(true) }
+  const openAdd = () => { setEditId(null); setForm({ ...emptyForm, owner: defaultOwner }); setModalOpen(true) }
   const openEdit = (inst: FinanceInstallment) => {
     setEditId(inst.id)
     setForm({
       name: inst.name, merchant: inst.merchant || '', total_amount: String(inst.total_amount),
       installment_count: String(inst.installment_count), start_date: inst.start_date,
       credit_card: inst.credit_card || '', category_id: inst.category_id || '', notes: inst.notes || '',
+      owner: inst.owner || defaultOwner,
     })
     setModalOpen(true)
   }
@@ -153,7 +162,7 @@ export function InstallmentsClient() {
       installment_count: count, installment_amount: installmentAmt,
       start_date: form.start_date, end_date: endDate,
       credit_card: form.credit_card || null, category_id: form.category_id || null,
-      notes: form.notes || null, is_active: true,
+      notes: form.notes || null, is_active: true, owner: form.owner || null,
     }
 
     if (editId) {
@@ -517,6 +526,19 @@ export function InstallmentsClient() {
                   <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
                 ))}
               </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-[hsl(var(--text-secondary))]">Owner</label>
+            <div className="flex gap-2 mt-1">
+              {OWNERS.map(name => (
+                <button key={name} type="button" onClick={() => setForm(f => ({ ...f, owner: name }))}
+                  className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
+                    form.owner === name ? "border-blue-500 bg-blue-500/10 text-blue-400" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                  )}>
+                  <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ background: getOwnerColor(name) }} />{name}
+                </button>
+              ))}
             </div>
           </div>
           <div>

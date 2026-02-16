@@ -26,6 +26,7 @@ export interface FinanceTransaction {
   tags: string[]
   coverage_start: string | null
   coverage_end: string | null
+  owner: string | null
   created_at: string
   updated_at: string
   // Joined
@@ -52,6 +53,7 @@ export interface FinanceRecurring {
   is_active: boolean
   merchant: string | null
   notes: string | null
+  owner: string | null
   // Joined
   category?: FinanceCategory
 }
@@ -129,6 +131,7 @@ export interface FinanceInstallment {
   category_id: string | null
   is_active: boolean
   notes: string | null
+  owner: string | null
   created_at: string
   updated_at: string
   // Joined

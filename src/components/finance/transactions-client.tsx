@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
 import { enrichTransactions, DEFAULT_CATEGORIES, suggestCoveragePeriod, CYCLE_LABELS } from '@/lib/finance-utils'
 import { parseBBVAPdf, detectBankFormat, type ParsedTransaction } from '@/lib/pdf-parser'
+import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 const labelCls = "text-xs text-[hsl(var(--text-secondary))] mb-1 block"
@@ -31,9 +32,10 @@ interface TxForm {
   is_recurring: boolean
   coverage_start: string
   coverage_end: string
+  owner: string
 }
 
-const emptyForm: TxForm = { type: 'expense', amount: '', currency: 'MXN', amount_mxn: '', category_id: '', merchant: '', description: '', transaction_date: today(), tags: '', is_recurring: false, coverage_start: '', coverage_end: '' }
+const emptyForm: TxForm = { type: 'expense', amount: '', currency: 'MXN', amount_mxn: '', category_id: '', merchant: '', description: '', transaction_date: today(), tags: '', is_recurring: false, coverage_start: '', coverage_end: '', owner: '' }
 
 export default function TransactionsClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
@@ -43,6 +45,14 @@ export default function TransactionsClient() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
+
+  // Current user owner
+  const [defaultOwner, setDefaultOwner] = useState('')
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setDefaultOwner(getOwnerName(data.user?.email ?? undefined))
+    })
+  }, [])
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
@@ -105,7 +115,7 @@ export default function TransactionsClient() {
   // Open modal for add
   const openAdd = () => {
     setEditingId(null)
-    setForm(emptyForm)
+    setForm({ ...emptyForm, owner: defaultOwner })
     setModalOpen(true)
   }
 
@@ -125,6 +135,7 @@ export default function TransactionsClient() {
       is_recurring: tx.is_recurring,
       coverage_start: tx.coverage_start || '',
       coverage_end: tx.coverage_end || '',
+      owner: tx.owner || defaultOwner,
     })
     setModalOpen(true)
   }
@@ -149,6 +160,7 @@ export default function TransactionsClient() {
       transaction_date: form.transaction_date,
       tags,
       is_recurring: form.is_recurring,
+      owner: form.owner || null,
     }
     // Coverage period for arrears billing
     if (form.coverage_start) record.coverage_start = form.coverage_start
@@ -457,6 +469,12 @@ export default function TransactionsClient() {
                         style={{ background: `${tx.category?.color}20`, color: tx.category?.color }}>
                         {tx.category?.name}
                       </span>
+                      {tx.owner && (
+                        <span className="flex items-center gap-1 text-xs text-[hsl(var(--text-tertiary))]">
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: getOwnerColor(tx.owner) }} />
+                          {tx.owner}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col gap-1 shrink-0">
@@ -552,6 +570,24 @@ export default function TransactionsClient() {
             <label className={labelCls}>Date *</label>
             <input type="date" required value={form.transaction_date}
               onChange={e => updateForm({ transaction_date: e.target.value })} className={inputCls} />
+          </div>
+
+          {/* Owner */}
+          <div>
+            <label className="text-xs font-medium text-[hsl(var(--text-secondary))] mb-1 block">Owner</label>
+            <div className="flex gap-2">
+              {OWNERS.map(name => (
+                <button key={name} type="button" onClick={() => updateForm({ owner: name })}
+                  className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
+                    form.owner === name
+                      ? "border-blue-500 bg-blue-500/10 text-blue-400"
+                      : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))]"
+                  )}>
+                  <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ background: getOwnerColor(name) }} />
+                  {name}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* More Options */}
