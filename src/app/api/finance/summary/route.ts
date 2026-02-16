@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     { data: goals },
     { data: incomeSources },
   ] = await Promise.all([
-    supabase.from('finance_transactions').select('*').gte('date', startStr).lte('date', endStr).eq('type', 'expense'),
+    supabase.from('finance_transactions').select('*').gte('transaction_date', startStr).lte('transaction_date', endStr).eq('type', 'expense'),
     supabase.from('finance_categories').select('*'),
     supabase.from('finance_budgets').select('*'),
     supabase.from('finance_recurring').select('*').eq('is_active', true),
