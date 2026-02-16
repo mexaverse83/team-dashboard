@@ -148,9 +148,9 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  // Cash flow
-  const fixedCommitments = debtItems.reduce((s, d) => s + d.minimum, 0) + instMonthly + subsMonthly +
-    (budgetCategories.filter(b => b.budget_type === 'needs').reduce((s, b) => s + b.budget, 0))
+  // Cash flow — subscriptions are already inside budget categories, don't double-count
+  const totalBudgeted = budgetCategories.reduce((s, b) => s + b.budget, 0)
+  const fixedCommitments = totalBudgeted + instMonthly + debtItems.reduce((s, d) => s + d.minimum, 0)
 
   // Current month budget vs actual with pace
   const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
