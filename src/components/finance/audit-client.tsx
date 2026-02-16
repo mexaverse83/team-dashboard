@@ -240,7 +240,7 @@ export default function AuditClient() {
           <h3 className="text-base font-semibold mb-2">Spending Heatmap</h3>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mb-4">When do you spend most? Darker = more.</p>
           <div className="overflow-x-auto">
-            <div className="min-w-[360px]">
+            <div className="min-w-[340px]">
               <div className="flex items-center gap-1 mb-1 pl-10">
                 {['6a', '8a', '10a', '12p', '2p', '4p', '6p', '8p', '10p', '12a'].map(t => (
                   <span key={t} className="flex-1 text-[9px] text-[hsl(var(--text-tertiary))] text-center">{t}</span>

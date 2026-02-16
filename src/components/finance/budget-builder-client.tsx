@@ -281,14 +281,14 @@ export default function BudgetBuilderClient() {
                   </div>
                   <span className="text-sm font-semibold tabular-nums text-emerald-400">${Math.round(toMonthly(src.amount, src.frequency)).toLocaleString()}</span>
                   <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEditIncome(src)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3 w-3 text-[hsl(var(--text-tertiary))]" /></button>
+                    <button onClick={() => openEditIncome(src)} className="p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
                     {deleteConfirm === src.id ? (
                       <div className="flex gap-0.5">
                         <button onClick={() => handleDeleteIncome(src.id)} className="px-1.5 py-0.5 rounded text-[10px] bg-rose-600 text-white">Del</button>
                         <button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--bg-elevated))]">No</button>
                       </div>
                     ) : (
-                      <button onClick={() => setDeleteConfirm(src.id)} className="p-1 rounded hover:bg-rose-500/10"><Trash2 className="h-3 w-3 text-rose-400" /></button>
+                      <button onClick={() => setDeleteConfirm(src.id)} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-400" /></button>
                     )}
                   </div>
                 </div>
@@ -397,7 +397,7 @@ export default function BudgetBuilderClient() {
           </div>
           <div>
             <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Type</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {(['salary', 'freelance', 'investment', 'side_hustle', 'passive', 'other'] as const).map(t => (
                 <button key={t} type="button" onClick={() => setIncomeForm(f => ({ ...f, type: t }))}
                   className={cn("p-2 rounded-lg border text-xs text-center transition-all capitalize",

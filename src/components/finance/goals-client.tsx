@@ -203,15 +203,8 @@ export default function GoalsClient() {
                     isOnTrack ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
                   )}>{isOnTrack ? '✓ On track' : '⚡ Needs boost'}</span>
                   <div className="flex sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button onClick={e => { e.stopPropagation(); openEdit(g) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3 w-3 text-[hsl(var(--text-tertiary))]" /></button>
-                    {deleteConfirm === g.id ? (
-                      <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => handleDelete(g.id)} className="px-1.5 py-0.5 rounded text-[10px] bg-rose-600 text-white">Del</button>
-                        <button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--bg-elevated))]">No</button>
-                      </div>
-                    ) : (
-                      <button onClick={e => { e.stopPropagation(); setDeleteConfirm(g.id) }} className="p-1 rounded hover:bg-rose-500/10"><Trash2 className="h-3 w-3 text-rose-400" /></button>
-                    )}
+                    <button onClick={e => { e.stopPropagation(); openEdit(g) }} className="p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
+                    <button onClick={e => { e.stopPropagation(); setDeleteConfirm(g.id) }} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-400" /></button>
                   </div>
                 </div>
               </div>
@@ -244,6 +237,13 @@ export default function GoalsClient() {
                   <span className={cn("text-xs font-medium tabular-nums", isOnTrack ? "text-emerald-400" : "text-amber-400")}>${Math.round(needed).toLocaleString()}/mo</span>
                 </div>
               </div>
+              {deleteConfirm === g.id && (
+                <div className="mt-2 pt-2 border-t border-[hsl(var(--border))] flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
+                  <span className="text-xs text-[hsl(var(--text-tertiary))] mr-auto">Delete this goal?</span>
+                  <button onClick={() => handleDelete(g.id)} className="px-3 py-1.5 rounded-lg text-xs bg-rose-600 text-white font-medium">Delete</button>
+                  <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1.5 rounded-lg text-xs bg-[hsl(var(--bg-elevated))]">Cancel</button>
+                </div>
+              )}
             </GlassCard>
           )
         })}

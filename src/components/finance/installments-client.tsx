@@ -277,6 +277,7 @@ export function InstallmentsClient() {
           <GlassCard>
             <h2 className="text-base font-semibold mb-4">MSI Timeline</h2>
             <p className="text-xs text-[hsl(var(--text-tertiary))] mb-4">When each plan ends — visualize when cash flow frees up</p>
+            <div className="overflow-y-auto max-h-[300px] sm:max-h-none">
             <ResponsiveContainer width="100%" height={Math.max(200, timelineData.length * 44 + 40)}>
               <BarChart data={timelineData} layout="vertical" margin={{ left: 0, right: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border-subtle))" horizontal={false} />
@@ -295,6 +296,7 @@ export function InstallmentsClient() {
                 <Bar dataKey="remaining" stackId="a" fill="#3B82F6" radius={[0, 4, 4, 0]} name="remaining" />
               </BarChart>
             </ResponsiveContainer>
+            </div>
             <div className="flex items-center gap-4 mt-2 text-xs text-[hsl(var(--text-tertiary))]">
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> Paid</span>
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-blue-500" /> Remaining</span>
@@ -471,10 +473,10 @@ export function InstallmentsClient() {
             </div>
             <div>
               <label className="text-xs font-medium text-[hsl(var(--text-secondary))]">MSI Months *</label>
-              <div className="flex gap-1 flex-wrap mt-1 items-center">
+              <div className="grid grid-cols-6 gap-1 mt-1">
                 {MSI_PRESETS.map(n => (
                   <button key={n} onClick={() => setForm(f => ({ ...f, installment_count: String(n) }))}
-                    className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                    className={cn("py-2 rounded-lg text-xs font-medium transition-all text-center",
                       form.installment_count === String(n) && MSI_PRESETS.includes(parseInt(form.installment_count))
                         ? "bg-blue-600 text-white"
                         : "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))]/80"
@@ -482,7 +484,9 @@ export function InstallmentsClient() {
                     {n}
                   </button>
                 ))}
-                <span className="text-xs text-[hsl(var(--text-tertiary))]">or</span>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs text-[hsl(var(--text-tertiary))]">or custom:</span>
                 <input
                   type="number"
                   min="1"

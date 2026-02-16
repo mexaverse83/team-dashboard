@@ -349,14 +349,14 @@ export default function DebtClient() {
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {[{ key: 'credit_card', icon: '💳', label: 'Credit Card' }, { key: 'auto_loan', icon: '🚗', label: 'Auto' }, { key: 'mortgage', icon: '🏠', label: 'Mortgage' }, { key: 'student_loan', icon: '🎓', label: 'Student' }, { key: 'personal_loan', icon: '📄', label: 'Personal' }].map(t => (
                 <button key={t.key} type="button" onClick={() => setForm(f => ({ ...f, type: t.key }))}
-                  className={cn("p-2 rounded-lg border text-xs text-center transition-all", form.type === t.key ? "border-blue-500 bg-blue-500/10" : "border-[hsl(var(--border))]")}>
+                  className={cn("p-2.5 rounded-lg border text-xs text-center transition-all", form.type === t.key ? "border-blue-500 bg-blue-500/10" : "border-[hsl(var(--border))]")}>
                   <span className="text-lg block">{t.icon}</span>{t.label}
                 </button>
               ))}
             </div>
           </div>
           <div><label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Creditor</label><input type="text" placeholder="e.g., BBVA, Banorte..." value={form.creditor} onChange={e => setForm(f => ({ ...f, creditor: e.target.value }))} className={inputCls} /></div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div><label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Balance *</label><input type="number" step="100" required placeholder="45000" value={form.balance} onChange={e => setForm(f => ({ ...f, balance: e.target.value }))} className={cn(inputCls, "font-semibold")} /></div>
             <div><label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Rate % *</label><input type="number" step="0.1" required placeholder="36.0" value={form.interest_rate} onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))} className={inputCls} /></div>
             <div><label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Minimum *</label><input type="number" step="100" required placeholder="1800" value={form.minimum_payment} onChange={e => setForm(f => ({ ...f, minimum_payment: e.target.value }))} className={inputCls} /></div>

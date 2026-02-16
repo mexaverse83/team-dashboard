@@ -11,5 +11,9 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
     return <>{children}</>
   }
 
-  return <FinanceAuthGuard>{children}</FinanceAuthGuard>
+  return (
+    <FinanceAuthGuard>
+      <div className="pb-16 md:pb-0">{children}</div>
+    </FinanceAuthGuard>
+  )
 }
