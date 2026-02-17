@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { GlassCard } from '@/components/ui/glass-card'
@@ -29,6 +30,7 @@ interface MerchantGroup { merchant: string; count: number; total: number }
 interface CatConcentration { name: string; icon: string; total: number; merchants: { name: string; pct: number; amount: number }[] }
 
 export default function AuditClient() {
+  const router = useRouter()
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
   const [prevTransactions, setPrevTransactions] = useState<FinanceTransaction[]>([])
   const [recurring, setRecurring] = useState<FinanceRecurring[]>([])
@@ -330,7 +332,7 @@ export default function AuditClient() {
                       <span className="text-sm font-bold tabular-nums text-rose-400">${leak.monthlyAmount.toLocaleString()}/mo</span>
                       <span className="text-xs text-[hsl(var(--text-tertiary))] tabular-nums">${(leak.monthlyAmount * 12).toLocaleString()}/yr</span>
                     </div>
-                    <button className="mt-2 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">{leak.action} →</button>
+                    <button onClick={() => router.push('/finance/subscriptions')} className="mt-2 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">{leak.action} →</button>
                   </div>
                 </div>
               </motion.div>
