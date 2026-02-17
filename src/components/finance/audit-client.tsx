@@ -404,7 +404,7 @@ export default function AuditClient() {
                     <div key={m.name} className="flex items-center gap-1"><div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: `hsl(${(mi * 50 + 200) % 360}, 60%, 50%)` }} /><span className="text-[10px] text-[hsl(var(--text-secondary))]">{m.name} {m.pct}%</span></div>
                   ))}
                 </div>
-                {cat.merchants[0]?.pct >= 60 && <p className="text-[10px] text-amber-400 mt-1">⚠️ {cat.merchants[0].name} accounts for {cat.merchants[0].pct}% — consider diversifying</p>}
+                {cat.merchants[0]?.pct >= 60 && !['Health','Rent/Mortgage','Utilities','Electricity','Insurance','Education'].includes(cat.name) && <p className="text-[10px] text-amber-400 mt-1">⚠️ {cat.merchants[0].name} accounts for {cat.merchants[0].pct}% — consider diversifying</p>}
               </div>
             ))}
           </div>
