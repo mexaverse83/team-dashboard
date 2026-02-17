@@ -36,7 +36,7 @@ async function processRecurring(req: NextRequest) {
 
   const now = new Date()
   const today = now.toISOString().slice(0, 10)
-  const results = { subscriptions: 0, income: 0, installments: 0, skipped: 0, errors: [] as string[] }
+  const results = { subscriptions: 0, income: 0, installments: 0, debt_payments: 0, skipped: 0, errors: [] as string[] }
 
   // ── 1. SUBSCRIPTIONS ──────────────────────────────────────────────
   const { data: subs } = await supabase
@@ -80,6 +80,50 @@ async function processRecurring(req: NextRequest) {
         results.errors.push(`Sub ${sub.name}: ${error.message}`)
       } else {
         results.subscriptions++
+
+        // ── DEBT SYNC: if subscription is linked to a debt, update balance ──
+        if (sub.debt_id) {
+          try {
+            const { data: debt } = await supabase
+              .from('finance_debts')
+              .select('*')
+              .eq('id', sub.debt_id)
+              .single()
+
+            if (debt && debt.balance > 0) {
+              const monthlyRate = (debt.interest_rate || 0) / 100 / 12
+              const interestPortion = Math.round(debt.balance * monthlyRate * 100) / 100
+              const principalPortion = Math.round((sub.amount - interestPortion) * 100) / 100
+              const newBalance = Math.max(0, Math.round((debt.balance - principalPortion) * 100) / 100)
+
+              // Log the payment split
+              await supabase.from('finance_debt_payments').insert({
+                debt_id: sub.debt_id,
+                payment_date: sub.next_due_date,
+                amount: sub.amount,
+                principal_portion: principalPortion,
+                interest_portion: interestPortion,
+                remaining_balance: newBalance,
+              })
+
+              // Update debt balance
+              await supabase.from('finance_debts')
+                .update({ balance: newBalance })
+                .eq('id', sub.debt_id)
+
+              // Auto-deactivate debt if paid off
+              if (newBalance <= 0) {
+                await supabase.from('finance_debts')
+                  .update({ is_active: false })
+                  .eq('id', sub.debt_id)
+              }
+
+              results.debt_payments++
+            }
+          } catch (e) {
+            results.errors.push(`Debt sync ${sub.name}: ${(e as Error).message}`)
+          }
+        }
       }
     }
 
@@ -203,6 +247,7 @@ async function processRecurring(req: NextRequest) {
     processed_at: now.toISOString(),
     results,
     total_created: results.subscriptions + results.income + results.installments,
+    debt_payments_processed: results.debt_payments,
   })
 }
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, CreditCard } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
@@ -137,6 +137,36 @@ export default function DebtClient() {
   const handleDelete = async (id: string) => {
     await supabase.from('finance_debts').delete().eq('id', id)
     setDeleteConfirm(null); fetchData()
+  }
+
+  const [paymentDebt, setPaymentDebt] = useState<string | null>(null)
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentSaving, setPaymentSaving] = useState(false)
+
+  const handleLogPayment = async () => {
+    if (!paymentDebt || !paymentAmount) return
+    const debt = debts.find(d => d.id === paymentDebt)
+    if (!debt) return
+    setPaymentSaving(true)
+    const amount = parseFloat(paymentAmount)
+    const monthlyRate = (debt.interest_rate || 0) / 100 / 12
+    const interestPortion = Math.round(debt.balance * monthlyRate * 100) / 100
+    const principalPortion = Math.round((amount - interestPortion) * 100) / 100
+    const newBalance = Math.max(0, Math.round((debt.balance - principalPortion) * 100) / 100)
+
+    await supabase.from('finance_debt_payments').insert({
+      debt_id: paymentDebt,
+      payment_date: new Date().toISOString().slice(0, 10),
+      amount,
+      principal_portion: principalPortion,
+      interest_portion: interestPortion,
+      remaining_balance: newBalance,
+    })
+    await supabase.from('finance_debts').update({ balance: newBalance }).eq('id', paymentDebt)
+    if (newBalance <= 0) {
+      await supabase.from('finance_debts').update({ is_active: false }).eq('id', paymentDebt)
+    }
+    setPaymentDebt(null); setPaymentAmount(''); setPaymentSaving(false); fetchData()
   }
 
   if (loading) return <div className="h-8 w-48 rounded bg-[hsl(var(--muted))] animate-pulse" />
@@ -301,6 +331,7 @@ export default function DebtClient() {
                       <td className="py-3 px-3 text-right text-sm tabular-nums">${debt.minimum_payment.toLocaleString()}</td>
                       <td className="py-2 px-2 w-16">
                         <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          <button onClick={(e) => { e.stopPropagation(); setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }} className="p-1 rounded hover:bg-emerald-500/10" title="Log payment"><CreditCard className="h-3.5 w-3.5 text-emerald-400" /></button>
                           <button onClick={() => openEdit(debt)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
                           {deleteConfirm === debt.id ? (
                             <div className="flex gap-0.5"><button onClick={() => handleDelete(debt.id)} className="px-1.5 py-0.5 rounded text-[10px] bg-rose-600 text-white">Del</button><button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--bg-elevated))]">No</button></div>
@@ -324,6 +355,7 @@ export default function DebtClient() {
                   <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-tertiary))]"><span className={cn(debt.interest_rate >= 25 ? "text-rose-400" : debt.interest_rate >= 15 ? "text-amber-400" : "")}>{debt.interest_rate}% APR</span><span>Min: ${debt.minimum_payment.toLocaleString()}</span></div>
                     <div className="flex gap-1">
+                      <button onClick={(e) => { e.stopPropagation(); setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }} className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-400" title="Log payment"><CreditCard className="h-3.5 w-3.5" /></button>
                       <button onClick={() => openEdit(debt)} className="p-1.5 rounded-lg hover:bg-blue-500/10 text-blue-400"><Pencil className="h-3.5 w-3.5" /></button>
                       <button onClick={() => setDeleteConfirm(debt.id)} className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400"><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
@@ -367,6 +399,44 @@ export default function DebtClient() {
             {saving ? 'Saving...' : editingId ? 'Update Debt' : 'Add Debt'}
           </button>
         </form>
+      </Modal>
+
+      {/* Log Payment Modal */}
+      <Modal open={!!paymentDebt} onClose={() => { setPaymentDebt(null); setPaymentAmount('') }}
+        title={`💳 Log Payment — ${debts.find(d => d.id === paymentDebt)?.name || ''}`}>
+        {(() => {
+          const debt = debts.find(d => d.id === paymentDebt)
+          if (!debt) return null
+          const amount = parseFloat(paymentAmount) || 0
+          const monthlyRate = (debt.interest_rate || 0) / 100 / 12
+          const interest = Math.round(debt.balance * monthlyRate * 100) / 100
+          const principal = Math.round((amount - interest) * 100) / 100
+          const newBalance = Math.max(0, Math.round((debt.balance - principal) * 100) / 100)
+          return (
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))] text-sm space-y-1">
+                <div className="flex justify-between"><span className="text-[hsl(var(--text-secondary))]">Current balance</span><span className="font-medium tabular-nums">${debt.balance.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-[hsl(var(--text-secondary))]">Rate</span><span>{debt.interest_rate}% APR</span></div>
+              </div>
+              <div>
+                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Payment Amount</label>
+                <input type="number" step="100" value={paymentAmount}
+                  onChange={e => setPaymentAmount(e.target.value)} className={inputCls} autoFocus />
+              </div>
+              {amount > 0 && (
+                <div className="p-3 rounded-lg border border-[hsl(var(--border))] text-sm space-y-1">
+                  <div className="flex justify-between"><span className="text-amber-400">→ Interest</span><span className="tabular-nums">${interest.toLocaleString()}</span></div>
+                  <div className="flex justify-between"><span className="text-emerald-400">→ Principal</span><span className="tabular-nums font-medium">${principal.toLocaleString()}</span></div>
+                  <div className="flex justify-between pt-1 border-t border-[hsl(var(--border))]"><span className="font-medium">New balance</span><span className="tabular-nums font-bold">${newBalance.toLocaleString()}</span></div>
+                </div>
+              )}
+              <button onClick={handleLogPayment} disabled={paymentSaving || amount <= 0}
+                className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
+                {paymentSaving ? 'Processing...' : 'Log Payment & Update Balance'}
+              </button>
+            </div>
+          )
+        })()}
       </Modal>
     </div>
     </PageTransition>

@@ -39,13 +39,17 @@ interface SubForm {
   merchant: string
   notes: string
   owner: string
+  debt_id: string
 }
 
-const emptyForm: SubForm = { name: '', amount: '', currency: 'MXN', category_id: '', frequency: 'monthly', next_due_date: '', merchant: '', notes: '', owner: '' }
+interface Debt { id: string; name: string; balance: number }
+
+const emptyForm: SubForm = { name: '', amount: '', currency: 'MXN', category_id: '', frequency: 'monthly', next_due_date: '', merchant: '', notes: '', owner: '', debt_id: '' }
 
 export default function SubscriptionsClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
   const [recurring, setRecurring] = useState<FinanceRecurring[]>([])
+  const [debts, setDebts] = useState<Debt[]>([])
   const [loading, setLoading] = useState(true)
 
   // Modal
@@ -58,14 +62,16 @@ export default function SubscriptionsClient() {
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setDefaultOwner(getOwnerName(data.user?.email ?? undefined))) }, [])
 
   const fetchData = useCallback(async () => {
-    const [catRes, recRes] = await Promise.all([
+    const [catRes, recRes, debtRes] = await Promise.all([
       supabase.from('finance_categories').select('*').order('sort_order'),
       supabase.from('finance_recurring').select('*').order('next_due_date'),
+      supabase.from('finance_debts').select('id,name,balance').eq('is_active', true).order('name'),
     ])
     const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
     const recs = recRes.data || []
     setCategories(cats)
     setRecurring(enrichRecurring(recs, cats))
+    setDebts(debtRes.data || [])
     setLoading(false)
   }, [])
 
@@ -103,6 +109,7 @@ export default function SubscriptionsClient() {
       merchant: sub.merchant || '',
       notes: sub.notes || '',
       owner: sub.owner || defaultOwner,
+      debt_id: (sub as any).debt_id || '',
     })
     setModalOpen(true)
   }
@@ -124,6 +131,7 @@ export default function SubscriptionsClient() {
       merchant: form.merchant || form.name,
       notes: form.notes || null,
       owner: form.owner || null,
+      debt_id: form.debt_id || null,
       is_active: true,
     }
     if (editingId) {
@@ -407,6 +415,17 @@ export default function SubscriptionsClient() {
             <textarea rows={2} placeholder="Optional notes..." value={form.notes}
               onChange={e => updateForm({ notes: e.target.value })} className={inputCls} />
           </div>
+          {debts.length > 0 && (
+          <div>
+            <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">🔗 Link to Debt (auto-syncs balance)</label>
+            <select value={form.debt_id} onChange={e => updateForm({ debt_id: e.target.value })} className={inputCls}>
+              <option value="">None — not a debt payment</option>
+              {debts.map(d => (
+                <option key={d.id} value={d.id}>{d.name} (${d.balance.toLocaleString()} remaining)</option>
+              ))}
+            </select>
+          </div>
+          )}
           {!editingId && (
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={logAlso} onChange={e => setLogAlso(e.target.checked)} className="rounded" />
