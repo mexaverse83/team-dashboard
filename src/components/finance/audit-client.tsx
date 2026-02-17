@@ -24,7 +24,7 @@ function gradeLabel(g: string) {
 }
 function gradeFromScore(s: number) { return s >= 85 ? 'A' : s >= 70 ? 'B' : s >= 50 ? 'C' : s >= 30 ? 'D' : 'F' }
 
-interface Leak { type: string; title: string; description: string; monthlyAmount: number; action: string; severity: 'high' | 'medium' | 'low' }
+interface Leak { type: string; title: string; description: string; monthlyAmount: number; action: string; severity: 'high' | 'medium' | 'low'; recurringId?: string }
 interface CategoryScore { id: string; name: string; icon: string; spent: number; budget: number; grade: string; trend: number; txCount: number; budgetScore: number; trendScore: number; freqScore: number }
 interface MerchantGroup { merchant: string; count: number; total: number }
 interface CatConcentration { name: string; icon: string; total: number; merchants: { name: string; pct: number; amount: number }[] }
@@ -38,6 +38,15 @@ export default function AuditClient() {
   const [categories, setCategories] = useState<{ id: string; name: string; icon: string; color: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [flaggedSubs, setFlaggedSubs] = useState<Set<string>>(new Set())
+
+  const handleLeakTriage = async (recurringId: string, status: 'keep' | 'cancel' | 'later') => {
+    if (status === 'cancel') {
+      await supabase.from('finance_recurring').update({ is_active: false, leak_status: 'cancel', leak_reviewed_at: new Date().toISOString() }).eq('id', recurringId)
+    } else {
+      await supabase.from('finance_recurring').update({ leak_status: status, leak_reviewed_at: new Date().toISOString() }).eq('id', recurringId)
+    }
+    fetchData()
+  }
 
   // Month nav
   const [monthOffset, setMonthOffset] = useState(0)
@@ -80,6 +89,12 @@ export default function AuditClient() {
     const freqLabels: Record<string, string> = { weekly: 'week', biweekly: '2 weeks', monthly: 'month', quarterly: 'quarter', yearly: 'year' }
     const freqDivisor: Record<string, number> = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 }
     recurring.forEach(r => {
+      // Skip reviewed subs: 'keep' = permanent dismiss, 'later' = 30 day snooze
+      const ls = (r as any).leak_status
+      const lra = (r as any).leak_reviewed_at
+      if (ls === 'keep') return
+      if (ls === 'later' && lra && (Date.now() - new Date(lra).getTime()) < 30 * 86400000) return
+
       const window = freqDays[r.frequency] || 30
       const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - window)
       const matching = transactions.filter(t => {
@@ -89,7 +104,7 @@ export default function AuditClient() {
       if (matching.length === 0) {
         const monthlyEquiv = r.amount / (freqDivisor[r.frequency] || 1)
         const label = freqLabels[r.frequency] || 'month'
-        result.push({ type: 'unused_sub', severity: 'high', title: `${r.name} — no usage this ${label}`, description: `${r.frequency === 'yearly' ? `$${r.amount.toLocaleString()}/yr ($${Math.round(monthlyEquiv).toLocaleString()}/mo equiv)` : r.frequency === 'quarterly' ? `$${r.amount.toLocaleString()}/qtr ($${Math.round(monthlyEquiv).toLocaleString()}/mo equiv)` : `$${r.amount.toLocaleString()}/mo`} — no matching transactions in ${window} days`, monthlyAmount: Math.round(monthlyEquiv), action: 'Review subscription' })
+        result.push({ type: 'unused_sub', severity: 'high', title: `${r.name} — no usage this ${label}`, description: `${r.frequency === 'yearly' ? `$${r.amount.toLocaleString()}/yr ($${Math.round(monthlyEquiv).toLocaleString()}/mo equiv)` : r.frequency === 'quarterly' ? `$${r.amount.toLocaleString()}/qtr ($${Math.round(monthlyEquiv).toLocaleString()}/mo equiv)` : `$${r.amount.toLocaleString()}/mo`} — no matching transactions in ${window} days`, monthlyAmount: Math.round(monthlyEquiv), action: 'Review subscription', recurringId: r.id })
       }
     })
     // Bank fees
@@ -332,7 +347,18 @@ export default function AuditClient() {
                       <span className="text-sm font-bold tabular-nums text-rose-400">${leak.monthlyAmount.toLocaleString()}/mo</span>
                       <span className="text-xs text-[hsl(var(--text-tertiary))] tabular-nums">${(leak.monthlyAmount * 12).toLocaleString()}/yr</span>
                     </div>
-                    <button onClick={() => router.push('/finance/subscriptions')} className="mt-2 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">{leak.action} →</button>
+                    {leak.recurringId ? (
+                      <div className="flex items-center gap-2 mt-2">
+                        <button onClick={() => handleLeakTriage(leak.recurringId!, 'keep')}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">✅ Keep</button>
+                        <button onClick={() => handleLeakTriage(leak.recurringId!, 'cancel')}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors">❌ Cancel</button>
+                        <button onClick={() => handleLeakTriage(leak.recurringId!, 'later')}
+                          className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors">⏰ Later</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => router.push('/finance/subscriptions')} className="mt-2 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">{leak.action} →</button>
+                    )}
                   </div>
                 </div>
               </motion.div>
