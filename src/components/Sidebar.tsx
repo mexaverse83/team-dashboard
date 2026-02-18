@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard, Sparkles } from 'lucide-react'
+import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard, Sparkles, Bitcoin } from 'lucide-react'
 import { FinanceAuthBadge } from './finance-auth-badge'
 
 function useIsFinanceDomain() {
@@ -37,6 +37,7 @@ const financePlan = [
   { href: '/finance/budget-builder', icon: Calculator, label: 'Budget Builder' },
   { href: '/finance/installments', icon: CreditCard, label: 'MSI Tracker' },
   { href: '/finance/debt', icon: Landmark, label: 'Debt Planner' },
+  { href: '/finance/crypto', icon: Bitcoin, label: 'Crypto' },
   { href: '/finance/emergency-fund', icon: ShieldCheck, label: 'Emergency Fund' },
   { href: '/finance/goals', icon: Target, label: 'Goals' },
 ]
