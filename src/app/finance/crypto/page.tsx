@@ -1,5 +1,5 @@
-import { CryptoClient } from '@/components/finance/crypto-client'
+import { redirect } from 'next/navigation'
 
 export default function CryptoPage() {
-  return <CryptoClient />
+  redirect('/finance/investments?tab=Crypto')
 }
