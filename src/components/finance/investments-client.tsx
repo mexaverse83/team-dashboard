@@ -41,6 +41,7 @@ interface FixedIncomeInstrument {
   principal: number; annual_rate: number; term_days: number | null
   maturity_date: string | null; is_liquid: boolean; auto_renew: boolean
   owner: string; tier: number; notes: string | null
+  commission_rate: number | null; net_annual_rate: number | null; settlement_days: number | null
 }
 
 interface RealEstateProperty {
@@ -421,7 +422,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
             <GlassCard className="text-center py-12">
               <BarChart3 className="h-10 w-10 text-[hsl(var(--text-tertiary))] mx-auto mb-3" />
               <p className="text-sm font-medium">No stock holdings yet</p>
-              <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">Ready for when GBM is loaded 📈</p>
+              <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">Add stocks or ETFs you hold</p>
               <button onClick={() => { setStockForm({ ticker: '', name: '', exchange: 'US', asset_type: 'stock', shares: 0, avg_cost_basis: 0, currency: 'MXN', broker: 'GBM', owner: 'Bernardo' }); setShowStockForm(true) }}
                 className="mt-4 px-4 py-2 rounded-lg text-xs bg-blue-600 hover:bg-blue-500 text-white transition-colors">
                 Add Stock
@@ -568,23 +569,47 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       <span className="text-[hsl(var(--text-secondary))]">Principal</span>
                       <span className="font-semibold tabular-nums">{fmtMXN(inst.principal)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-[hsl(var(--text-secondary))]">Rate</span>
-                      <span className="font-semibold text-emerald-400 tabular-nums">{(inst.annual_rate * 100).toFixed(2)}%</span>
-                    </div>
+                    {/* Gross rate + net rate (if commission exists) */}
+                    {inst.commission_rate ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-[hsl(var(--text-secondary))]">Gross Rate</span>
+                          <span className="font-semibold text-[hsl(var(--text-secondary))] tabular-nums">{(inst.annual_rate * 100).toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[hsl(var(--text-secondary))]">Commission</span>
+                          <span className="tabular-nums text-amber-400">-{(inst.commission_rate * 100).toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between border-t border-[hsl(var(--border))] pt-1">
+                          <span className="text-[hsl(var(--text-secondary))] font-medium">Net Rate</span>
+                          <span className="font-bold text-emerald-400 tabular-nums">
+                            {((inst.net_annual_rate ?? (inst.annual_rate - inst.commission_rate)) * 100).toFixed(2)}%
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between">
+                        <span className="text-[hsl(var(--text-secondary))]">Rate</span>
+                        <span className="font-semibold text-emerald-400 tabular-nums">{(inst.annual_rate * 100).toFixed(2)}%</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-[hsl(var(--text-secondary))]">Term</span>
                       <span>
                         {inst.is_liquid ? (
                           <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium">Liquid</span>
+                        ) : inst.settlement_days ? (
+                          <span className="tabular-nums">{inst.settlement_days}d settlement</span>
                         ) : (
                           <span className="tabular-nums">{inst.term_days}d{inst.maturity_date ? ` → ${inst.maturity_date.slice(5)}` : ''}</span>
                         )}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[hsl(var(--text-secondary))]">Annual Yield</span>
-                      <span className="font-semibold tabular-nums">{fmtMXN(inst.principal * inst.annual_rate)}</span>
+                      <span className="text-[hsl(var(--text-secondary))]">Net Annual Yield</span>
+                      <span className="font-semibold tabular-nums">
+                        {fmtMXN(inst.principal * (inst.net_annual_rate ?? inst.annual_rate))}
+                      </span>
                     </div>
                   </div>
 
@@ -816,6 +841,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                 <select value={fiForm.instrument_type || 'cetes'} onChange={e => setFIForm(f => ({ ...f, instrument_type: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500">
                   <option value="cetes">CETES</option>
+                  <option value="debt_fund">Debt Fund (GBM, etc.)</option>
                   <option value="hey_banco">Hey Banco</option>
                   <option value="nu">Nu</option>
                   <option value="supertasas">Supertasas</option>
@@ -858,6 +884,32 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                     className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500" />
                 </div>
               </div>
+              {/* Commission fields — shown for debt_fund type */}
+              {fiForm.instrument_type === 'debt_fund' && (
+                <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                  <div>
+                    <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Commission Rate</label>
+                    <input type="number" step="0.0001" placeholder="0.0125" value={fiForm.commission_rate ?? ''}
+                      onChange={e => {
+                        const cr = parseFloat(e.target.value) || 0
+                        setFIForm(f => ({ ...f, commission_rate: cr || null, net_annual_rate: (f.annual_rate || 0) - cr || null }))
+                      }}
+                      className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                    <p className="text-[10px] text-[hsl(var(--text-secondary))] mt-0.5">e.g. 0.0125 = 1.25%</p>
+                  </div>
+                  <div>
+                    <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Settlement Days</label>
+                    <input type="number" placeholder="3" value={fiForm.settlement_days ?? ''}
+                      onChange={e => setFIForm(f => ({ ...f, settlement_days: e.target.value ? parseInt(e.target.value) : null }))}
+                      className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-amber-500" />
+                    <p className="text-[10px] text-[hsl(var(--text-secondary))] mt-0.5">GBM = 3 (48–72h)</p>
+                  </div>
+                  <div className="col-span-2 text-xs text-amber-400">
+                    Net rate: <strong>{(((fiForm.annual_rate || 0) - (fiForm.commission_rate || 0)) * 100).toFixed(2)}%</strong>
+                    {' '}(gross {((fiForm.annual_rate || 0) * 100).toFixed(2)}% − commission {((fiForm.commission_rate || 0) * 100).toFixed(2)}%)
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={fiForm.is_liquid || false} onChange={e => setFIForm(f => ({ ...f, is_liquid: e.target.checked }))}
