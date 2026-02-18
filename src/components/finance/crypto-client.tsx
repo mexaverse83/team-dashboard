@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { Bitcoin, TrendingUp, TrendingDown, Plus, Pencil, Trash2, X, Wallet, RefreshCw } from 'lucide-react'
+import { OwnerDot } from '@/components/finance/owner-dot'
 
 interface Holding {
   id: string
@@ -11,6 +12,7 @@ interface Holding {
   quantity: number
   avg_cost_basis_usd: number | null
   wallet_address: string | null
+  owner: string
   notes: string | null
 }
 
@@ -24,10 +26,11 @@ interface FormData {
   quantity: string
   avg_cost_basis_usd: string
   wallet_address: string
+  owner: string
   notes: string
 }
 
-const EMPTY_FORM: FormData = { symbol: 'BTC', quantity: '', avg_cost_basis_usd: '', wallet_address: '', notes: '' }
+const EMPTY_FORM: FormData = { symbol: 'BTC', quantity: '', avg_cost_basis_usd: '', wallet_address: '', owner: 'Bernardo', notes: '' }
 
 const COIN_ICONS: Record<string, string> = { BTC: '₿', ETH: 'Ξ', SOL: '◎' }
 const COIN_COLORS: Record<string, string> = {
@@ -93,6 +96,7 @@ export function CryptoClient() {
           quantity: parseFloat(form.quantity),
           avg_cost_basis_usd: form.avg_cost_basis_usd ? parseFloat(form.avg_cost_basis_usd) : null,
           wallet_address: form.wallet_address || null,
+          owner: form.owner || 'Bernardo',
           notes: form.notes || null,
         }),
       })
@@ -128,6 +132,7 @@ export function CryptoClient() {
       quantity: String(h.quantity),
       avg_cost_basis_usd: h.avg_cost_basis_usd ? String(h.avg_cost_basis_usd) : '',
       wallet_address: h.wallet_address || '',
+      owner: h.owner || 'Bernardo',
       notes: h.notes || '',
     })
     setShowForm(true)
@@ -264,7 +269,7 @@ export function CryptoClient() {
                     {COIN_ICONS[h.symbol] || '?'}
                   </div>
                   <div>
-                    <p className="font-semibold text-sm">{h.name}</p>
+                    <p className="font-semibold text-sm flex items-center gap-1.5">{h.name} <OwnerDot owner={h.owner} size="sm" /></p>
                     <p className="text-[10px] text-[hsl(var(--text-tertiary))]">{h.symbol}</p>
                   </div>
                 </div>
@@ -349,6 +354,26 @@ export function CryptoClient() {
                       }`}
                     >
                       {COIN_ICONS[s]} {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Owner */}
+              <div>
+                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Owner</label>
+                <div className="flex gap-2">
+                  {['Bernardo', 'Laura'].map(o => (
+                    <button
+                      key={o}
+                      onClick={() => setForm(f => ({ ...f, owner: o }))}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                        form.owner === o
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]'
+                      }`}
+                    >
+                      <OwnerDot owner={o} size="sm" /> {o}
                     </button>
                   ))}
                 </div>

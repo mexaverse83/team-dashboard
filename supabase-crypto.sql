@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS finance_crypto_holdings (
   quantity NUMERIC(18,8) NOT NULL DEFAULT 0,
   avg_cost_basis_usd NUMERIC(12,2),
   wallet_address TEXT,
+  owner TEXT NOT NULL DEFAULT 'Bernardo',
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
