@@ -22,6 +22,7 @@ interface WestData {
     pct_paid: number
     investment_value: number
     crypto_value: number
+    infonavit_laura: number
     total_available: number
     gap: number
   }
@@ -29,13 +30,15 @@ interface WestData {
     total_paid: number
     investment_value: number
     crypto_value: number
+    infonavit_laura: number
     total_projected: number
     gap: number
     gap_pct: number
     financing_needed: number
+    sub_million_gap: boolean
   } | null
   monthly_projection: Array<{
-    month: string; paid: number; investments: number; crypto: number; total: number; gap: number; property_value: number
+    month: string; paid: number; investments: number; crypto: number; infonavit: number; total: number; gap: number; property_value: number
   }>
   milestones: Array<{ date: string; label: string; status: string }>
   property: {
@@ -84,11 +87,12 @@ function recalcProjection(data: WestData, rate: number, appreciationPct: number,
   let paid = data.current_status.amount_paid
   let inv = data.current_status.investment_value
   let crypto = data.current_status.crypto_value
+  const infonavit = data.current_status.infonavit_laura || 350000 // Laura's Infonavit — fixed, no compounding
   const debtPayoff = data.assumptions.debt_payoff_total
   const saleRemaining = 7200000 - 750000
   let propVal = data.property?.current_market_value || data.target
 
-  const months: Array<{ month: string; paid: number; investments: number; crypto: number; total: number; gap: number; property_value: number }> = []
+  const months: Array<{ month: string; paid: number; investments: number; crypto: number; infonavit: number; total: number; gap: number; property_value: number }> = []
 
   for (const mp of data.monthly_projection) {
     const isFirst = mp.month === data.monthly_projection[0].month
@@ -102,12 +106,13 @@ function recalcProjection(data: WestData, rate: number, appreciationPct: number,
       propVal *= (1 + monthlyAppreciation)
     }
 
-    const total = paid + inv + crypto
+    const total = paid + inv + crypto + infonavit
     months.push({
       month: mp.month,
       paid: Math.round(paid),
       investments: Math.round(inv),
       crypto: Math.round(crypto),
+      infonavit: Math.round(infonavit),
       total: Math.round(total),
       gap: Math.round(data.target - total),
       property_value: Math.round(propVal),
@@ -164,7 +169,8 @@ export function WestTracker() {
   const cryptoValue = data.current_status.crypto_value
   const projectedTotal = projection.projectedTotal
   const gap = Math.max(0, projection.gap)
-  const projectedGrowth = Math.max(0, projectedTotal - amountPaid - investmentValue - cryptoValue)
+  const subMillionGap = gap > 0 && gap < 1_000_000
+  const projectedGrowth = Math.max(0, projectedTotal - amountPaid - investmentValue - cryptoValue - (data.current_status.infonavit_laura || 350000))
 
   const paidPct = (amountPaid / target) * 100
   const investmentPct = (investmentValue / target) * 100
@@ -180,10 +186,12 @@ export function WestTracker() {
 
   // Funding sources
   const lastProj = projection.months[projection.months.length - 1]
+  const infonavitValue = data.current_status.infonavit_laura || 350000
   const fundingSources = [
-    { name: 'Direct Payments', current: amountPaid, atDelivery: lastProj?.paid || 0, dotColor: 'bg-emerald-500', status: 'on_track' },
-    { name: 'GBM Investment', current: investmentValue, atDelivery: lastProj?.investments || 0, dotColor: 'bg-blue-500', status: 'growing' },
-    { name: 'Crypto', current: cryptoValue, atDelivery: lastProj?.crypto || 0, dotColor: 'bg-amber-500', status: cryptoValue > 0 ? 'growing' : 'not_set' },
+    { name: 'Direct Payments', current: amountPaid, atDelivery: lastProj?.paid || 0, dotColor: 'bg-emerald-500', status: 'on_track', owner: 'Bernardo' },
+    { name: 'GBM Investment', current: investmentValue, atDelivery: lastProj?.investments || 0, dotColor: 'bg-blue-500', status: 'growing', owner: 'Bernardo' },
+    { name: 'Crypto', current: cryptoValue, atDelivery: lastProj?.crypto || 0, dotColor: 'bg-amber-500', status: cryptoValue > 0 ? 'growing' : 'not_set', owner: 'Bernardo' },
+    { name: "Laura's Infonavit", current: infonavitValue, atDelivery: infonavitValue, dotColor: 'bg-pink-500', status: 'on_track', owner: 'Laura' },
   ]
 
   return (
@@ -239,6 +247,19 @@ export function WestTracker() {
         </div>
       </GlassCard>
 
+      {/* ── SUB-$1M GAP CALLOUT ── */}
+      {subMillionGap && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+          <span className="text-2xl">🎯</span>
+          <div>
+            <p className="text-sm font-bold text-emerald-400">Gap is under $1M!</p>
+            <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
+              Only <span className="font-semibold text-emerald-400">{fmtMXN(gap)}</span> remaining — within mortgage financing range.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── FUNDING SOURCES ── */}
       <GlassCard className="p-4 sm:p-5">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-4">Funding Sources</h3>
@@ -247,8 +268,9 @@ export function WestTracker() {
         <div className="hidden sm:block">
           <div className="grid grid-cols-12 gap-3 text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider pb-2 border-b border-[hsl(var(--border))]">
             <div className="col-span-4">Source</div>
-            <div className="col-span-3 text-right">Current</div>
+            <div className="col-span-2 text-right">Current</div>
             <div className="col-span-3 text-right">At Delivery</div>
+            <div className="col-span-1 text-center">Owner</div>
             <div className="col-span-2 text-center">Status</div>
           </div>
           {fundingSources.map(src => (
@@ -257,23 +279,28 @@ export function WestTracker() {
                 <div className={cn("h-2 w-2 rounded-full shrink-0", src.dotColor)} />
                 <span className="font-medium">{src.name}</span>
               </div>
-              <div className="col-span-3 text-right tabular-nums">{fmtMXN(src.current)}</div>
+              <div className="col-span-2 text-right tabular-nums">{fmtMXN(src.current)}</div>
               <div className="col-span-3 text-right tabular-nums font-semibold">{fmtMXN(src.atDelivery)}</div>
+              <div className="col-span-1 text-center">
+                <span className={cn("text-[10px] font-medium", src.owner === 'Laura' ? 'text-pink-400' : 'text-blue-400')}>{src.owner}</span>
+              </div>
               <div className="col-span-2 text-center"><StatusPill status={src.status} /></div>
             </div>
           ))}
           <div className="grid grid-cols-12 gap-3 py-3 items-center text-sm font-bold bg-[hsl(var(--bg-elevated))]/50 rounded-lg px-2 mt-1">
             <div className="col-span-4">Total Projected</div>
-            <div className="col-span-3 text-right tabular-nums">{fmtMXN(amountPaid + investmentValue + cryptoValue)}</div>
+            <div className="col-span-2 text-right tabular-nums">{fmtMXN(amountPaid + investmentValue + cryptoValue + infonavitValue)}</div>
             <div className="col-span-3 text-right tabular-nums text-emerald-400">{fmtMXN(projectedTotal)}</div>
-            <div className="col-span-2" />
+            <div className="col-span-3" />
           </div>
           {gap > 0 && (
             <div className="grid grid-cols-12 gap-3 py-3 items-center text-sm font-bold px-2">
-              <div className="col-span-4 text-red-400">Gap (Financing Needed)</div>
-              <div className="col-span-3" />
-              <div className="col-span-3 text-right tabular-nums text-red-400">{fmtMXN(gap)}</div>
-              <div className="col-span-2 text-center"><StatusPill status="gap" /></div>
+              <div className={cn("col-span-4", subMillionGap ? "text-emerald-400" : "text-red-400")}>
+                Gap (Financing Needed) {subMillionGap && '🎯'}
+              </div>
+              <div className="col-span-2" />
+              <div className={cn("col-span-3 text-right tabular-nums", subMillionGap ? "text-emerald-400" : "text-red-400")}>{fmtMXN(gap)}</div>
+              <div className="col-span-3 text-center"><StatusPill status={subMillionGap ? 'on_track' : 'gap'} /></div>
             </div>
           )}
         </div>

@@ -42,6 +42,7 @@ interface MonthProjection {
   paid: number
   investments: number
   crypto: number
+  infonavit: number
   total: number
   gap: number
   property_value: number
@@ -106,6 +107,8 @@ export async function GET(req: NextRequest) {
     const saleRemaining = (target.sale_price || 0) - (target.sale_deposit_received || 0)
     let investmentBalance = target.sale_deposit_received || 0 // GBM starting balance
     let paidCumulative = target.amount_paid || 0
+    // Laura's Infonavit subcuenta — confirmed $350K, applied at delivery, no compounding
+    const lauraInfonvait = target.laura_infonavit_mxn || 350000
 
     // Property appreciation
     const targetAmount = target.target_amount || 11204000
@@ -151,7 +154,7 @@ export async function GET(req: NextRequest) {
         propertyValue *= (1 + monthlyAppreciation)
       }
 
-      const total = paidCumulative + investmentBalance + cryptoProjected
+      const total = paidCumulative + investmentBalance + cryptoProjected + lauraInfonvait
       const gap = targetAmount - total
 
       monthly.push({
@@ -160,6 +163,7 @@ export async function GET(req: NextRequest) {
         paid: Math.round(paidCumulative),
         investments: Math.round(investmentBalance),
         crypto: Math.round(cryptoProjected),
+        infonavit: Math.round(lauraInfonvait),
         total: Math.round(total),
         gap: Math.round(gap),
       })
@@ -190,7 +194,7 @@ export async function GET(req: NextRequest) {
         }
         cur.setMonth(cur.getMonth() + 1)
       }
-      const total = paid + inv + crypto
+      const total = paid + inv + crypto + lauraInfonvait
       return { total: Math.round(total), gap: Math.round(targetAmount - total) }
     }
 
@@ -239,6 +243,12 @@ export async function GET(req: NextRequest) {
 
     milestones.push({
       date: target.delivery_date,
+      label: `Laura's Infonavit ($${(lauraInfonvait / 1000).toFixed(0)}K) applied to balance`,
+      status: 'pending',
+    })
+
+    milestones.push({
+      date: target.delivery_date,
       label: `WEST delivery — final balance due`,
       status: 'target',
     })
@@ -259,17 +269,20 @@ export async function GET(req: NextRequest) {
         pct_paid: ((target.amount_paid / targetAmount) * 100),
         investment_value: Math.round(target.sale_deposit_received || 0),
         crypto_value: Math.round(cryptoValue),
-        total_available: Math.round((target.amount_paid || 0) + (target.sale_deposit_received || 0) + cryptoValue),
-        gap: Math.round(targetAmount - (target.amount_paid || 0) - (target.sale_deposit_received || 0) - cryptoValue),
+        infonavit_laura: Math.round(lauraInfonvait),
+        total_available: Math.round((target.amount_paid || 0) + (target.sale_deposit_received || 0) + cryptoValue + lauraInfonvait),
+        gap: Math.round(targetAmount - (target.amount_paid || 0) - (target.sale_deposit_received || 0) - cryptoValue - lauraInfonvait),
       },
       projected_at_delivery: lastMonth ? {
         total_paid: lastMonth.paid,
         investment_value: lastMonth.investments,
         crypto_value: lastMonth.crypto,
+        infonavit_laura: lastMonth.infonavit,
         total_projected: lastMonth.total,
         gap: lastMonth.gap,
         gap_pct: ((lastMonth.gap / targetAmount) * 100),
         financing_needed: Math.max(0, lastMonth.gap),
+        sub_million_gap: lastMonth.gap < 1000000,
       } : null,
       monthly_projection: monthly,
       scenarios: {
@@ -288,11 +301,18 @@ export async function GET(req: NextRequest) {
         projected_value_at_delivery: lastMonth?.property_value || currentMarketValue,
         equity_at_delivery: (lastMonth?.property_value || currentMarketValue) - targetAmount,
       },
+      funding_sources: [
+        { name: 'Direct Payments', current: Math.round(target.amount_paid || 0), at_delivery: lastMonth?.paid || 0, owner: 'bernardo', status: 'on_track' },
+        { name: 'GBM Investment', current: Math.round(target.sale_deposit_received || 0), at_delivery: lastMonth?.investments || 0, owner: 'bernardo', status: 'growing' },
+        { name: 'Crypto', current: Math.round(cryptoValue), at_delivery: lastMonth?.crypto || 0, owner: 'bernardo', status: 'growing' },
+        { name: "Laura's Infonavit", current: Math.round(lauraInfonvait), at_delivery: Math.round(lauraInfonvait), owner: 'laura', status: 'on_track' },
+      ],
       assumptions: {
         investment_return: annualRate,
         appreciation_rate: appreciationRate,
         debt_payoff_total: debtPayoffTotal,
         crypto_growth: cryptoAnnualGrowth,
+        laura_infonavit: lauraInfonvait,
         monthly_savings: 0,
       },
     })
