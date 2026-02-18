@@ -60,12 +60,19 @@ export function CryptoClient() {
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch('/api/finance/crypto')
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
+      const text = await res.text()
+      if (!text) {
+        setHoldings([])
+        setPrices(null)
+        return
+      }
+      const data = JSON.parse(text)
+      if (data.dbError) console.warn('DB:', data.dbError)
       setHoldings(data.holdings || [])
       setPrices(data.prices || null)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load')
+      console.error('Crypto fetch error:', e)
+      setError('Failed to load crypto data')
     } finally {
       setLoading(false)
     }

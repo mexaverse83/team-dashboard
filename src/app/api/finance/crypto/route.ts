@@ -49,17 +49,29 @@ async function fetchPrices() {
 
 // GET: return holdings + live prices
 export async function GET() {
-  const [{ data: holdings, error }, prices] = await Promise.all([
-    getSupabase().from('finance_crypto_holdings').select('*').order('symbol'),
-    fetchPrices(),
-  ])
+  let holdings: Record<string, unknown>[] = []
+  let dbError: string | null = null
 
-  if (error) {
-    console.error('Crypto holdings fetch error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  try {
+    const { data, error } = await getSupabase()
+      .from('finance_crypto_holdings')
+      .select('*')
+      .order('symbol')
+
+    if (error) {
+      console.error('Crypto holdings fetch error:', error)
+      dbError = error.message
+    } else {
+      holdings = data || []
+    }
+  } catch (e) {
+    console.error('Crypto DB error:', e)
+    dbError = 'Database unavailable'
   }
 
-  return NextResponse.json({ holdings: holdings || [], prices })
+  const prices = await fetchPrices()
+
+  return NextResponse.json({ holdings, prices, dbError })
 }
 
 // POST: add or update a holding
