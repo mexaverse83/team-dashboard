@@ -30,6 +30,11 @@ function fmt(n: number, d = 2) {
 }
 function fmtMXN(n: number) { return `$${fmt(n, 0)} MXN` }
 function fmtUSD(n: number) { return `$${fmt(n)} USD` }
+// Defensive: DB may store rates as percentage (10.26) instead of decimal (0.1026)
+function normalizeRate(r: number | null | undefined): number {
+  if (r == null) return 0
+  return r > 1 ? r / 100 : r
+}
 function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' ') }
 
 // ─── Types ───
@@ -682,29 +687,37 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       <span className="font-semibold tabular-nums">{fmtMXN(inst.principal)}</span>
                     </div>
                     {/* Gross rate + net rate (if commission exists) */}
-                    {inst.commission_rate ? (
-                      <>
+                    {(() => {
+                      const grossRate = normalizeRate(inst.annual_rate)
+                      const commRate = normalizeRate(inst.commission_rate)
+                      const netRate = inst.net_annual_rate != null
+                        ? normalizeRate(inst.net_annual_rate)
+                        : grossRate - commRate
+                      return inst.commission_rate ? (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-[hsl(var(--text-secondary))]">Gross Rate</span>
+                            <span className="font-semibold text-[hsl(var(--text-secondary))] tabular-nums">{(grossRate * 100).toFixed(2)}%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[hsl(var(--text-secondary))]">Commission</span>
+                            <span className="tabular-nums text-amber-400">-{(commRate * 100).toFixed(2)}%</span>
+                          </div>
+                          <div className="flex justify-between border-t border-[hsl(var(--border))] pt-1">
+                            <span className="text-[hsl(var(--text-secondary))] font-medium">Net Rate</span>
+                            <span className="font-bold text-emerald-400 tabular-nums">
+                              {(netRate * 100).toFixed(2)}%
+                            </span>
+                          </div>
+                          {/* net rate computed above, used in yield row */}
+                        </>
+                      ) : (
                         <div className="flex justify-between">
-                          <span className="text-[hsl(var(--text-secondary))]">Gross Rate</span>
-                          <span className="font-semibold text-[hsl(var(--text-secondary))] tabular-nums">{(inst.annual_rate * 100).toFixed(2)}%</span>
+                          <span className="text-[hsl(var(--text-secondary))]">Rate</span>
+                          <span className="font-semibold text-emerald-400 tabular-nums">{(grossRate * 100).toFixed(2)}%</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-[hsl(var(--text-secondary))]">Commission</span>
-                          <span className="tabular-nums text-amber-400">-{(inst.commission_rate * 100).toFixed(2)}%</span>
-                        </div>
-                        <div className="flex justify-between border-t border-[hsl(var(--border))] pt-1">
-                          <span className="text-[hsl(var(--text-secondary))] font-medium">Net Rate</span>
-                          <span className="font-bold text-emerald-400 tabular-nums">
-                            {((inst.net_annual_rate ?? (inst.annual_rate - inst.commission_rate)) * 100).toFixed(2)}%
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex justify-between">
-                        <span className="text-[hsl(var(--text-secondary))]">Rate</span>
-                        <span className="font-semibold text-emerald-400 tabular-nums">{(inst.annual_rate * 100).toFixed(2)}%</span>
-                      </div>
-                    )}
+                      )
+                    })()}
                     <div className="flex justify-between">
                       <span className="text-[hsl(var(--text-secondary))]">Term</span>
                       <span>
@@ -720,7 +733,9 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                     <div className="flex justify-between">
                       <span className="text-[hsl(var(--text-secondary))]">Net Annual Yield</span>
                       <span className="font-semibold tabular-nums">
-                        {fmtMXN(inst.principal * (inst.net_annual_rate ?? inst.annual_rate))}
+                        {fmtMXN(inst.principal * (inst.net_annual_rate != null
+                          ? normalizeRate(inst.net_annual_rate)
+                          : normalizeRate(inst.annual_rate) - normalizeRate(inst.commission_rate)))}
                       </span>
                     </div>
                   </div>
