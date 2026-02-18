@@ -1,0 +1,475 @@
+'use client'
+
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { GlassCard } from '@/components/ui/glass-card'
+import { Check } from 'lucide-react'
+import Link from 'next/link'
+import {
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
+} from 'recharts'
+
+function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' ') }
+function fmt(n: number, d = 0) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n) }
+function fmtMXN(n: number) { return `$${fmt(n)} MXN` }
+function fmtShort(n: number) { return `$${(n / 1e6).toFixed(1)}M` }
+
+interface WestData {
+  target: number
+  delivery_date: string
+  months_to_delivery: number
+  current_status: {
+    amount_paid: number
+    pct_paid: number
+    investment_value: number
+    crypto_value: number
+    total_available: number
+    gap: number
+  }
+  projected_at_delivery: {
+    total_paid: number
+    investment_value: number
+    crypto_value: number
+    total_projected: number
+    gap: number
+    gap_pct: number
+    financing_needed: number
+  } | null
+  monthly_projection: Array<{
+    month: string; paid: number; investments: number; crypto: number; total: number; gap: number
+  }>
+  milestones: Array<{ date: string; label: string; status: string }>
+  assumptions: { investment_return: number; debt_payoff_total: number }
+}
+
+// ─── Legend Item ───
+function LegendItem({ color, label, value, striped, border }: {
+  color: string; label: string; value?: string; striped?: boolean; border?: boolean
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className={cn("h-2.5 w-2.5 rounded-sm shrink-0", color, border && "border border-[hsl(var(--border))]")}
+        style={striped ? { backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px)' } : undefined} />
+      <span className="text-xs text-[hsl(var(--text-secondary))]">{label}</span>
+      {value && <span className="text-xs font-semibold tabular-nums">{value}</span>}
+    </div>
+  )
+}
+
+// ─── Status Pill ───
+function StatusPill({ status }: { status: string }) {
+  const config: Record<string, { label: string; cls: string }> = {
+    on_track: { label: 'On track', cls: 'bg-emerald-500/10 text-emerald-400' },
+    growing: { label: 'Growing', cls: 'bg-blue-500/10 text-blue-400' },
+    static: { label: 'Static', cls: 'bg-amber-500/10 text-amber-400' },
+    not_set: { label: 'Not set', cls: 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]' },
+    gap: { label: 'Needs plan', cls: 'bg-red-500/10 text-red-400' },
+  }
+  const c = config[status] || config.not_set
+  return <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full", c.cls)}>{c.label}</span>
+}
+
+// ─── Client-side projection recalculation ───
+function recalcProjection(data: WestData, rate: number) {
+  const monthlyRate = Math.pow(1 + rate / 100, 1 / 12) - 1
+  const now = new Date()
+  const saleDate = '2026-04'
+  const lumpDate = '2026-12'
+  const paymentEnd = '2027-03'
+
+  let paid = data.current_status.amount_paid
+  let inv = data.current_status.investment_value
+  const crypto = data.current_status.crypto_value
+  const debtPayoff = data.assumptions.debt_payoff_total
+  const saleRemaining = 7200000 - 750000 // $6.45M
+
+  const months: Array<{ month: string; paid: number; investments: number; crypto: number; total: number; gap: number }> = []
+
+  for (const mp of data.monthly_projection) {
+    const isFirst = mp.month === data.monthly_projection[0].month
+
+    if (!isFirst) {
+      // Monthly payment
+      if (mp.month <= paymentEnd) paid += 10000
+      // Lump sum
+      if (mp.month === lumpDate) paid += 100000
+      // Sale proceeds
+      if (mp.month === saleDate) inv += Math.max(0, saleRemaining - debtPayoff)
+      // Compounding
+      inv *= (1 + monthlyRate)
+    }
+
+    const total = paid + inv + crypto
+    months.push({
+      month: mp.month,
+      paid: Math.round(paid),
+      investments: Math.round(inv),
+      crypto: Math.round(crypto),
+      total: Math.round(total),
+      gap: Math.round(data.target - total),
+    })
+  }
+
+  const last = months[months.length - 1]
+  return { months, projectedTotal: last?.total || 0, gap: last?.gap || 0 }
+}
+
+// ═══════════════════════════════════════════
+// FULL WEST TRACKER (Portfolio tab)
+// ═══════════════════════════════════════════
+export function WestTracker() {
+  const [data, setData] = useState<WestData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [returnRate, setReturnRate] = useState(10.3)
+
+  useEffect(() => {
+    fetch('/api/finance/investments/west-projection')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        setData(d)
+        if (d?.assumptions?.investment_return) setReturnRate(d.assumptions.investment_return * 100)
+      })
+      .catch(() => null)
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Client-side recalc when slider moves
+  const projection = useMemo(() => {
+    if (!data) return null
+    return recalcProjection(data, returnRate)
+  }, [data, returnRate])
+
+  if (loading) {
+    return <div className="h-64 rounded-xl bg-[hsl(var(--accent))] animate-pulse" />
+  }
+  if (!data || !projection) return null
+
+  const target = data.target
+  const amountPaid = data.current_status.amount_paid
+  const investmentValue = data.current_status.investment_value
+  const cryptoValue = data.current_status.crypto_value
+  const projectedTotal = projection.projectedTotal
+  const gap = Math.max(0, projection.gap)
+  const projectedGrowth = Math.max(0, projectedTotal - amountPaid - investmentValue - cryptoValue)
+
+  const paidPct = (amountPaid / target) * 100
+  const investmentPct = (investmentValue / target) * 100
+  const growthPct = Math.min((projectedGrowth / target) * 100, 100 - paidPct - investmentPct)
+  const fundedPct = (projectedTotal / target) * 100
+  const gapPct = gap > 0 ? (gap / target) * 100 : 0
+
+  const deliveryDate = new Date(data.delivery_date)
+  const now = new Date()
+  const totalDays = Math.max(0, Math.ceil((deliveryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+  const monthsRemaining = data.months_to_delivery
+  const daysRemaining = totalDays % 30
+
+  // Funding sources
+  const lastProj = projection.months[projection.months.length - 1]
+  const fundingSources = [
+    { name: 'Direct Payments', current: amountPaid, atDelivery: lastProj?.paid || 0, dotColor: 'bg-emerald-500', status: 'on_track' },
+    { name: 'GBM Investment', current: investmentValue, atDelivery: lastProj?.investments || 0, dotColor: 'bg-blue-500', status: 'growing' },
+    { name: 'Crypto', current: cryptoValue, atDelivery: lastProj?.crypto || 0, dotColor: 'bg-amber-500', status: cryptoValue > 0 ? 'static' : 'not_set' },
+  ]
+
+  return (
+    <div className="space-y-4">
+      {/* ── HERO ── */}
+      <GlassCard className="p-5 sm:p-8 relative overflow-hidden">
+        <div className={cn("absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl", gapPct < 20 ? "bg-emerald-500/5" : "bg-amber-500/5")} />
+        <div className="relative">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-xl">🏗️</div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight">WEST Apartment</h2>
+                <p className="text-sm text-[hsl(var(--text-secondary))]">
+                  Target: <span className="font-semibold text-[hsl(var(--foreground))]">{fmtMXN(target)}</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 sm:gap-6">
+              <div className="text-center">
+                <p className="text-2xl sm:text-3xl font-bold tabular-nums">{monthsRemaining}</p>
+                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Months</p>
+              </div>
+              <div className="h-8 w-px bg-[hsl(var(--border))]" />
+              <div className="text-center">
+                <p className="text-2xl sm:text-3xl font-bold tabular-nums">{daysRemaining}</p>
+                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Days</p>
+              </div>
+              <div className="h-8 w-px bg-[hsl(var(--border))]" />
+              <div className="text-center">
+                <p className="text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400">{fundedPct.toFixed(1)}%</p>
+                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Funded</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="space-y-2">
+            <div className="flex h-4 sm:h-5 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))]">
+              <div className="h-full bg-emerald-500 transition-all duration-700" style={{ width: `${paidPct}%` }} title={`Paid: ${fmtMXN(amountPaid)}`} />
+              <div className="h-full bg-blue-500 transition-all duration-700" style={{ width: `${investmentPct}%` }} title={`Investments: ${fmtMXN(investmentValue)}`} />
+              <div className="h-full bg-amber-500/60 transition-all duration-700"
+                style={{ width: `${growthPct}%`, backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 6px)' }}
+                title={`Projected Growth: ${fmtMXN(projectedGrowth)}`} />
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              <LegendItem color="bg-emerald-500" label="Paid" value={fmtMXN(amountPaid)} />
+              <LegendItem color="bg-blue-500" label="Investments" value={fmtMXN(investmentValue)} />
+              <LegendItem color="bg-amber-500/60" label="Projected Growth" value={fmtMXN(projectedGrowth)} striped />
+              <LegendItem color="bg-[hsl(var(--bg-elevated))]" label="Gap" value={fmtMXN(gap)} border />
+            </div>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* ── FUNDING SOURCES ── */}
+      <GlassCard className="p-4 sm:p-5">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-4">Funding Sources</h3>
+
+        {/* Desktop */}
+        <div className="hidden sm:block">
+          <div className="grid grid-cols-12 gap-3 text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider pb-2 border-b border-[hsl(var(--border))]">
+            <div className="col-span-4">Source</div>
+            <div className="col-span-3 text-right">Current</div>
+            <div className="col-span-3 text-right">At Delivery</div>
+            <div className="col-span-2 text-center">Status</div>
+          </div>
+          {fundingSources.map(src => (
+            <div key={src.name} className="grid grid-cols-12 gap-3 py-3 items-center text-sm border-b border-[hsl(var(--border))] last:border-0">
+              <div className="col-span-4 flex items-center gap-2">
+                <div className={cn("h-2 w-2 rounded-full shrink-0", src.dotColor)} />
+                <span className="font-medium">{src.name}</span>
+              </div>
+              <div className="col-span-3 text-right tabular-nums">{fmtMXN(src.current)}</div>
+              <div className="col-span-3 text-right tabular-nums font-semibold">{fmtMXN(src.atDelivery)}</div>
+              <div className="col-span-2 text-center"><StatusPill status={src.status} /></div>
+            </div>
+          ))}
+          <div className="grid grid-cols-12 gap-3 py-3 items-center text-sm font-bold bg-[hsl(var(--bg-elevated))]/50 rounded-lg px-2 mt-1">
+            <div className="col-span-4">Total Projected</div>
+            <div className="col-span-3 text-right tabular-nums">{fmtMXN(amountPaid + investmentValue + cryptoValue)}</div>
+            <div className="col-span-3 text-right tabular-nums text-emerald-400">{fmtMXN(projectedTotal)}</div>
+            <div className="col-span-2" />
+          </div>
+          {gap > 0 && (
+            <div className="grid grid-cols-12 gap-3 py-3 items-center text-sm font-bold px-2">
+              <div className="col-span-4 text-red-400">Gap (Financing Needed)</div>
+              <div className="col-span-3" />
+              <div className="col-span-3 text-right tabular-nums text-red-400">{fmtMXN(gap)}</div>
+              <div className="col-span-2 text-center"><StatusPill status="gap" /></div>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile */}
+        <div className="sm:hidden space-y-2">
+          {fundingSources.map(src => (
+            <div key={src.name} className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
+              <div className="flex items-center gap-2">
+                <div className={cn("h-2 w-2 rounded-full shrink-0", src.dotColor)} />
+                <div>
+                  <p className="text-sm font-medium">{src.name}</p>
+                  <p className="text-xs text-[hsl(var(--text-secondary))] tabular-nums">Now: {fmtMXN(src.current)}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-semibold tabular-nums">{fmtMXN(src.atDelivery)}</p>
+                <StatusPill status={src.status} />
+              </div>
+            </div>
+          ))}
+          {gap > 0 && (
+            <div className="flex items-center justify-between p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+              <span className="text-sm font-bold text-red-400">Gap</span>
+              <span className="text-sm font-bold tabular-nums text-red-400">{fmtMXN(gap)}</span>
+            </div>
+          )}
+        </div>
+      </GlassCard>
+
+      {/* ── PROJECTION CHART ── */}
+      <GlassCard className="p-4 sm:p-5">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-4">Projection</h3>
+        <div className="h-56 sm:h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={projection.months}>
+              <defs>
+                <linearGradient id="westPaidGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10B981" stopOpacity={0.4} />
+                  <stop offset="100%" stopColor="#10B981" stopOpacity={0.1} />
+                </linearGradient>
+                <linearGradient id="westInvestGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.4} />
+                  <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.1} />
+                </linearGradient>
+                <linearGradient id="westCryptoGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#F59E0B" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={m => m.slice(5)} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
+              <Tooltip
+                contentStyle={{ background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                formatter={(val: any, name: any) => [fmtMXN(Number(val) || 0), String(name)]}
+                labelFormatter={m => `Month: ${m}`}
+              />
+              <Area type="monotone" dataKey="paid" stackId="1" stroke="#10B981" strokeWidth={1.5} fill="url(#westPaidGrad)" name="Paid" />
+              <Area type="monotone" dataKey="investments" stackId="1" stroke="#3B82F6" strokeWidth={1.5} fill="url(#westInvestGrad)" name="Investments" />
+              <Area type="monotone" dataKey="crypto" stackId="1" stroke="#F59E0B" strokeWidth={1} fill="url(#westCryptoGrad)" name="Crypto" />
+              <ReferenceLine y={target} stroke="#EF4444" strokeDasharray="6 4" strokeWidth={1.5}
+                label={{ value: 'Target $11.2M', position: 'right', fill: '#EF4444', fontSize: 11, fontWeight: 600 }} />
+              <ReferenceLine x="2026-04" stroke="hsl(222, 15%, 35%)" strokeDasharray="3 3"
+                label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(222, 15%, 55%)', fontSize: 10 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+          <LegendItem color="bg-emerald-500" label="Direct Payments" />
+          <LegendItem color="bg-blue-500" label="Investments (GBM)" />
+          <LegendItem color="bg-amber-500" label="Crypto" />
+          <div className="flex items-center gap-1.5">
+            <div className="h-0.5 w-4 border-t-2 border-dashed border-red-500" />
+            <span className="text-xs text-[hsl(var(--text-secondary))]">Target</span>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* ── SCENARIO SLIDER ── */}
+      <GlassCard className="p-4 sm:p-5">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-4">Scenarios</h3>
+        <div className="flex gap-2 mb-4">
+          {[
+            { label: 'Conservative', rate: 8 },
+            { label: 'Base', rate: 10.3 },
+            { label: 'Optimistic', rate: 13 },
+          ].map(preset => (
+            <button key={preset.label} onClick={() => setReturnRate(preset.rate)}
+              className={cn(
+                "flex-1 py-2 rounded-lg text-xs font-medium transition-all border",
+                Math.abs(returnRate - preset.rate) < 0.1
+                  ? "border-blue-500 bg-blue-500/10 text-blue-400"
+                  : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]"
+              )}>
+              {preset.label} ({preset.rate}%)
+            </button>
+          ))}
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-[hsl(var(--text-secondary))]">Annual Return Rate</label>
+            <span className="text-sm font-bold tabular-nums">{returnRate.toFixed(1)}%</span>
+          </div>
+          <input type="range" min={5} max={15} step={0.1} value={returnRate}
+            onChange={e => setReturnRate(parseFloat(e.target.value))}
+            className="w-full h-2 rounded-full appearance-none cursor-pointer bg-[hsl(var(--bg-elevated))]
+              [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
+              [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:shadow-lg
+              [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
+          <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))]">
+            <span>5%</span><span>15%</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mt-4 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Projected Total</span>
+            <p className="text-lg font-bold tabular-nums text-emerald-400">{fmtMXN(projectedTotal)}</p>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Gap</span>
+            <p className={cn("text-lg font-bold tabular-nums", gap > 0 ? "text-red-400" : "text-emerald-400")}>
+              {gap > 0 ? fmtMXN(gap) : '✅ Fully funded!'}
+            </p>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* ── MILESTONES ── */}
+      <GlassCard className="p-4 sm:p-5">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-4">Milestones</h3>
+        <div className="relative pl-7 space-y-5">
+          <div className="absolute left-3 top-1 bottom-1 w-px bg-[hsl(var(--border))]" />
+          {data.milestones.map((ms, i) => {
+            const isDone = ms.status === 'done'
+            const isCurrent = i === data.milestones.findIndex(m => m.status !== 'done')
+            const isTarget = ms.status === 'target'
+            return (
+              <div key={i} className="relative">
+                <div className={cn(
+                  "absolute -left-7 top-0.5 w-[14px] h-[14px] rounded-full border-2 flex items-center justify-center",
+                  isDone ? "bg-emerald-500 border-emerald-500"
+                    : isCurrent && !isDone ? "bg-blue-500 border-blue-500 animate-pulse"
+                    : isTarget ? "bg-violet-500 border-violet-500"
+                    : "bg-[hsl(var(--background))] border-[hsl(var(--border))]"
+                )}>
+                  {isDone && <Check className="h-2.5 w-2.5 text-white" />}
+                  {isTarget && <span className="text-[8px] text-white">🎯</span>}
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-[hsl(var(--text-secondary))]">{ms.date}</span>
+                  <p className="text-sm font-medium mt-0.5">{ms.label}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </GlassCard>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════
+// COMPACT WEST WIDGET (Finance Overview)
+// ═══════════════════════════════════════════
+export function WestCompactWidget() {
+  const [data, setData] = useState<WestData | null>(null)
+
+  useEffect(() => {
+    fetch('/api/finance/investments/west-projection')
+      .then(r => r.ok ? r.json() : null)
+      .then(setData)
+      .catch(() => null)
+  }, [])
+
+  if (!data || !data.projected_at_delivery) return null
+
+  const target = data.target
+  const proj = data.projected_at_delivery
+  const paidPct = (data.current_status.amount_paid / target) * 100
+  const investPct = (data.current_status.investment_value / target) * 100
+  const growthPct = Math.max(0, ((proj.total_projected - data.current_status.total_available) / target) * 100)
+  const fundedPct = (proj.total_projected / target) * 100
+  const gap = Math.max(0, proj.gap)
+
+  return (
+    <GlassCard className="p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-base">🏗️</span>
+          <span className="text-sm font-semibold">WEST Apartment</span>
+        </div>
+        <Link href="/finance/investments" className="text-xs text-blue-400 hover:underline">Details →</Link>
+      </div>
+      <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))]">
+        <div className="h-full bg-emerald-500" style={{ width: `${paidPct}%` }} />
+        <div className="h-full bg-blue-500" style={{ width: `${investPct}%` }} />
+        <div className="h-full bg-amber-500/60" style={{ width: `${growthPct}%` }} />
+      </div>
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-xs text-[hsl(var(--text-secondary))]">
+          Projected: <span className="font-semibold text-[hsl(var(--foreground))] tabular-nums">{fmtMXN(proj.total_projected)}</span>
+          <span className="text-[hsl(var(--text-tertiary))]"> / {fmtMXN(target)}</span>
+        </span>
+        <span className="text-xs font-semibold tabular-nums text-emerald-400">{fundedPct.toFixed(0)}%</span>
+      </div>
+      <div className="flex items-center justify-between mt-1">
+        <span className="text-xs text-red-400 tabular-nums">Gap: {fmtMXN(gap)}</span>
+        <span className="text-xs text-[hsl(var(--text-secondary))]">{data.months_to_delivery}mo to delivery</span>
+      </div>
+    </GlassCard>
+  )
+}

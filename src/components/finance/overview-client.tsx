@@ -15,6 +15,7 @@ import { motion } from 'framer-motion'
 
 import { OwnerBar } from '@/components/finance/owner-dot'
 import { WolffWidget } from '@/components/finance/wolff-widget'
+import { WestCompactWidget } from '@/components/finance/west-tracker'
 import type { FinanceCategory, FinanceTransaction, FinanceBudget } from '@/lib/finance-types'
 import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import {
@@ -236,7 +237,8 @@ export default function FinanceOverviewClient() {
         </GlassCard>
       </div>
 
-      {/* Wolff Widget */}
+      {/* WEST Target + Wolff Widget */}
+      <WestCompactWidget />
       <WolffWidget />
 
       {/* Charts Row */}

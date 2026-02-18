@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { OwnerDot } from '@/components/finance/owner-dot'
 import { CryptoClient } from '@/components/finance/crypto-client'
+import { WestTracker } from '@/components/finance/west-tracker'
 import {
   TrendingUp, TrendingDown, Bitcoin, BarChart3, Shield, Home,
   Plus, Pencil, Trash2, X, RefreshCw,
@@ -306,6 +307,9 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {/* ═══════════ PORTFOLIO TAB ═══════════ */}
       {activeTab === 'Portfolio' && (
         <div className="space-y-6">
+          {/* WEST Target Tracker — THE #1 widget */}
+          <WestTracker />
+
           {/* Net Worth Hero */}
           <GlassCard className="p-5 sm:p-6 relative overflow-hidden">
             <div className="absolute -top-20 -right-20 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl" />
