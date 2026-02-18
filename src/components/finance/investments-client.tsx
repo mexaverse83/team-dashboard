@@ -5,6 +5,7 @@ import { GlassCard } from '@/components/ui/glass-card'
 import { OwnerDot } from '@/components/finance/owner-dot'
 import { CryptoClient } from '@/components/finance/crypto-client'
 import { WestTracker, WestCompactWidget } from '@/components/finance/west-tracker'
+import { RetirementTab } from '@/components/finance/retirement-client'
 import {
   TrendingUp, TrendingDown, Bitcoin, BarChart3, Shield, Home,
   Plus, Pencil, Trash2, X, RefreshCw,
@@ -972,39 +973,9 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
         </div>
       )}
 
-      {/* ═══════════ RETIREMENT TAB (placeholder — Tom's design pending) ═══════════ */}
+      {/* ═══════════ RETIREMENT TAB ═══════════ */}
       {activeTab === 'Retirement' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Retirement</h2>
-              <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">AFORE & Infonavit — locked until age 65</p>
-            </div>
-            <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-slate-500/10 text-slate-400">🔒 Not available for WEST</span>
-          </div>
-
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
-            <GlassCard className="border-l-2 border-slate-500">
-              <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Retirement</span>
-              <p className="text-2xl font-bold mt-1 tabular-nums">{fmtMXN(retirementTotal)}</p>
-            </GlassCard>
-            <GlassCard>
-              <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">AFORE (Bernardo + Laura)</span>
-              <p className="text-2xl font-bold mt-1 tabular-nums">{fmtMXN(retirementTotal > 0 ? retirementTotal - 350000 : 0)}</p>
-            </GlassCard>
-            <GlassCard className="border-l-2 border-emerald-500">
-              <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Available for WEST</span>
-              <p className="text-2xl font-bold text-emerald-400 mt-1 tabular-nums">{fmtMXN(350000)}</p>
-              <p className="text-[10px] text-[hsl(var(--text-secondary))] mt-1">Laura's Infonavit — at delivery</p>
-            </GlassCard>
-          </div>
-
-          <GlassCard className="text-center py-12">
-            <p className="text-2xl mb-2">🏦</p>
-            <p className="text-sm font-medium">Full retirement view coming soon</p>
-            <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">Tom's design in progress — AFORE cards + projection table</p>
-          </GlassCard>
-        </div>
+        <RetirementTab ownerFilter={ownerFilter.toLowerCase()} />
       )}
 
       {/* ═══════════ REAL ESTATE FORM MODAL ═══════════ */}
