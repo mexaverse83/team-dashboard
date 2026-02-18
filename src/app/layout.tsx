@@ -5,6 +5,11 @@ import { Sidebar } from "@/components/Sidebar"
 export const metadata: Metadata = {
   title: "Team Dashboard — Interstellar Squad",
   description: "Mission control for our 6-agent AI team",
+  icons: {
+    icon: [
+      { url: '/favicon-finance.svg', type: 'image/svg+xml' },
+    ],
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
