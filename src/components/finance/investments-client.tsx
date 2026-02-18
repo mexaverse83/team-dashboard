@@ -19,6 +19,7 @@ const ASSET_COLORS: Record<string, string> = {
   Stocks: '#3b82f6',
   'Fixed Income': '#10b981',
   'Real Estate': '#8b5cf6',
+  Retirement: '#64748b', // slate-500 — locked/long-term
 }
 
 // ─── Formatting ───
@@ -55,9 +56,9 @@ interface RealEstateProperty {
 
 interface PortfolioSnapshot { date: string; total: number }
 
-type Tab = 'Portfolio' | 'Crypto' | 'Stocks' | 'Fixed Income' | 'Real Estate'
+type Tab = 'Portfolio' | 'Crypto' | 'Stocks' | 'Fixed Income' | 'Real Estate' | 'Retirement'
 
-const TABS: Tab[] = ['Portfolio', 'Crypto', 'Stocks', 'Fixed Income', 'Real Estate']
+const TABS: Tab[] = ['Portfolio', 'Crypto', 'Stocks', 'Fixed Income', 'Real Estate', 'Retirement']
 
 // ─── Owner Toggle ───
 function OwnerToggle({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -112,6 +113,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   const [stocks, setStocks] = useState<StockHolding[]>([])
   const [fixedIncome, setFixedIncome] = useState<FixedIncomeInstrument[]>([])
   const [realEstate, setRealEstate] = useState<RealEstateProperty[]>([])
+  const [retirementTotal, setRetirementTotal] = useState(0)
   const [snapshots, setSnapshots] = useState<PortfolioSnapshot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -127,11 +129,12 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
 
   const fetchData = useCallback(async () => {
     try {
-      const [cryptoRes, stocksRes, fiRes, reRes] = await Promise.all([
+      const [cryptoRes, stocksRes, fiRes, reRes, retirementRes] = await Promise.all([
         fetch('/api/finance/crypto').then(r => r.text()).then(t => t ? JSON.parse(t) : null).catch(() => null),
         fetch('/api/finance/investments/stocks').then(r => r.ok ? r.json() : { stocks: [] }).catch(() => ({ stocks: [] })),
         fetch('/api/finance/investments/fixed-income').then(r => r.ok ? r.json() : { instruments: [] }).catch(() => ({ instruments: [] })),
         fetch('/api/finance/investments/real-estate').then(r => r.ok ? r.json() : { properties: [] }).catch(() => ({ properties: [] })),
+        fetch('/api/finance/retirement').then(r => r.ok ? r.json() : { total_balance: 0 }).catch(() => ({ total_balance: 0 })),
       ])
 
       // Compute crypto totals from existing API
@@ -152,6 +155,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       setStocks(stocksRes.stocks || [])
       setFixedIncome(fiRes.instruments || [])
       setRealEstate(reRes.properties || [])
+      setRetirementTotal(retirementRes.total_balance || 0)
     } catch (e) {
       console.error('Investments fetch error:', e)
     } finally {
@@ -171,7 +175,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   const fiTotal = filteredFI.reduce((s, i) => s + i.principal, 0)
   const reTotal = filteredRE.reduce((s, p) => s + (p.current_value || 0) - (p.mortgage_balance || 0), 0)
   const cryptoMXN = cryptoTotal.mxn // TODO: filter by owner
-  const totalPortfolio = cryptoMXN + stocksTotal + fiTotal + reTotal
+  const totalPortfolio = cryptoMXN + stocksTotal + fiTotal + reTotal + retirementTotal
   const totalCost = cryptoTotal.cost + filteredStocks.reduce((s, h) => s + h.shares * h.avg_cost_basis, 0) + fiTotal
   const totalPL = totalCost > 0 ? totalPortfolio - totalCost : null
   const totalPLPct = totalPL !== null && totalCost > 0 ? (totalPL / totalCost) * 100 : null
@@ -181,13 +185,15 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
     { name: 'Stocks', value: stocksTotal, pct: totalPortfolio > 0 ? (stocksTotal / totalPortfolio) * 100 : 0 },
     { name: 'Fixed Income', value: fiTotal, pct: totalPortfolio > 0 ? (fiTotal / totalPortfolio) * 100 : 0 },
     { name: 'Real Estate', value: reTotal, pct: totalPortfolio > 0 ? (reTotal / totalPortfolio) * 100 : 0 },
+    { name: 'Retirement', value: retirementTotal, pct: totalPortfolio > 0 ? (retirementTotal / totalPortfolio) * 100 : 0 },
   ].filter(a => a.value > 0)
 
   const assetClasses = [
-    { name: 'Crypto', tab: 'Crypto' as Tab, icon: Bitcoin, gradient: 'from-amber-500 to-orange-500', borderColor: 'border-amber-500', totalMXN: cryptoMXN, pl: cryptoTotal.cost > 0 ? cryptoMXN - cryptoTotal.cost : 0, plPct: cryptoTotal.cost > 0 ? ((cryptoMXN - cryptoTotal.cost) / cryptoTotal.cost) * 100 : 0, positionCount: cryptoTotal.positions },
-    { name: 'Stocks', tab: 'Stocks' as Tab, icon: BarChart3, gradient: 'from-blue-500 to-cyan-500', borderColor: 'border-blue-500', totalMXN: stocksTotal, pl: 0, plPct: 0, positionCount: filteredStocks.length },
-    { name: 'Fixed Income', tab: 'Fixed Income' as Tab, icon: Shield, gradient: 'from-emerald-500 to-teal-500', borderColor: 'border-emerald-500', totalMXN: fiTotal, pl: 0, plPct: 0, positionCount: filteredFI.length },
-    { name: 'Real Estate', tab: 'Real Estate' as Tab, icon: Home, gradient: 'from-violet-500 to-purple-500', borderColor: 'border-violet-500', totalMXN: reTotal, pl: 0, plPct: 0, positionCount: filteredRE.length },
+    { name: 'Crypto', tab: 'Crypto' as Tab, icon: Bitcoin, gradient: 'from-amber-500 to-orange-500', borderColor: 'border-amber-500', totalMXN: cryptoMXN, pl: cryptoTotal.cost > 0 ? cryptoMXN - cryptoTotal.cost : 0, plPct: cryptoTotal.cost > 0 ? ((cryptoMXN - cryptoTotal.cost) / cryptoTotal.cost) * 100 : 0, positionCount: cryptoTotal.positions, locked: false },
+    { name: 'Stocks', tab: 'Stocks' as Tab, icon: BarChart3, gradient: 'from-blue-500 to-cyan-500', borderColor: 'border-blue-500', totalMXN: stocksTotal, pl: 0, plPct: 0, positionCount: filteredStocks.length, locked: false },
+    { name: 'Fixed Income', tab: 'Fixed Income' as Tab, icon: Shield, gradient: 'from-emerald-500 to-teal-500', borderColor: 'border-emerald-500', totalMXN: fiTotal, pl: 0, plPct: 0, positionCount: filteredFI.length, locked: false },
+    { name: 'Real Estate', tab: 'Real Estate' as Tab, icon: Home, gradient: 'from-violet-500 to-purple-500', borderColor: 'border-violet-500', totalMXN: reTotal, pl: 0, plPct: 0, positionCount: filteredRE.length, locked: false },
+    { name: 'Retirement', tab: 'Retirement' as Tab, icon: Shield, gradient: 'from-slate-500 to-slate-600', borderColor: 'border-slate-500', totalMXN: retirementTotal, pl: 0, plPct: 0, positionCount: retirementTotal > 0 ? 3 : 0, locked: true },
   ]
 
   // ─── CRUD helpers ───
@@ -389,9 +395,13 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                     </div>
                     <p className="text-lg font-bold tabular-nums">{fmtMXN(ac.totalMXN)}</p>
                     <div className="flex items-center justify-between mt-1">
-                      <span className={cn("text-xs font-medium", ac.pl >= 0 ? "text-emerald-400" : "text-red-400")}>
-                        {ac.plPct !== 0 ? `${ac.pl >= 0 ? '+' : ''}${ac.plPct.toFixed(1)}%` : '—'}
-                      </span>
+                      {ac.locked ? (
+                        <span className="text-xs text-[hsl(var(--text-secondary))]">🔒 locked until 65</span>
+                      ) : (
+                        <span className={cn("text-xs font-medium", ac.pl >= 0 ? "text-emerald-400" : "text-red-400")}>
+                          {ac.plPct !== 0 ? `${ac.pl >= 0 ? '+' : ''}${ac.plPct.toFixed(1)}%` : '—'}
+                        </span>
+                      )}
                       <span className="text-xs text-[hsl(var(--text-secondary))]">
                         {ac.positionCount} position{ac.positionCount !== 1 ? 's' : ''}
                       </span>
@@ -959,6 +969,41 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ═══════════ RETIREMENT TAB (placeholder — Tom's design pending) ═══════════ */}
+      {activeTab === 'Retirement' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Retirement</h2>
+              <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">AFORE & Infonavit — locked until age 65</p>
+            </div>
+            <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-slate-500/10 text-slate-400">🔒 Not available for WEST</span>
+          </div>
+
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+            <GlassCard className="border-l-2 border-slate-500">
+              <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Retirement</span>
+              <p className="text-2xl font-bold mt-1 tabular-nums">{fmtMXN(retirementTotal)}</p>
+            </GlassCard>
+            <GlassCard>
+              <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">AFORE (Bernardo + Laura)</span>
+              <p className="text-2xl font-bold mt-1 tabular-nums">{fmtMXN(retirementTotal > 0 ? retirementTotal - 350000 : 0)}</p>
+            </GlassCard>
+            <GlassCard className="border-l-2 border-emerald-500">
+              <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Available for WEST</span>
+              <p className="text-2xl font-bold text-emerald-400 mt-1 tabular-nums">{fmtMXN(350000)}</p>
+              <p className="text-[10px] text-[hsl(var(--text-secondary))] mt-1">Laura's Infonavit — at delivery</p>
+            </GlassCard>
+          </div>
+
+          <GlassCard className="text-center py-12">
+            <p className="text-2xl mb-2">🏦</p>
+            <p className="text-sm font-medium">Full retirement view coming soon</p>
+            <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">Tom's design in progress — AFORE cards + projection table</p>
+          </GlassCard>
         </div>
       )}
 
