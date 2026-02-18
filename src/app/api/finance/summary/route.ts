@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
     { data: emergencyFund },
     { data: goals },
     { data: incomeSources },
+    { data: cryptoHoldings },
   ] = await Promise.all([
     supabase.from('finance_transactions').select('*').gte('transaction_date', startStr).lte('transaction_date', endStr).eq('type', 'expense'),
     supabase.from('finance_categories').select('*'),
@@ -44,6 +45,7 @@ export async function GET(req: NextRequest) {
     supabase.from('finance_emergency_fund').select('*').order('created_at', { ascending: false }).limit(1),
     supabase.from('finance_goals').select('*').eq('is_completed', false),
     supabase.from('finance_income_sources').select('*').eq('is_active', true),
+    supabase.from('finance_crypto_holdings').select('*'),
   ])
 
   const catMap = new Map((categories || []).map(c => [c.id, c]))
@@ -232,6 +234,88 @@ export async function GET(req: NextRequest) {
     total_remaining: i.total_remaining,
   })).sort((a, b) => (a.end_date || '').localeCompare(b.end_date || ''))
 
+  // Crypto portfolio
+  let cryptoSummary = null
+  try {
+    const holdings = (cryptoHoldings || []).filter((h: Record<string, unknown>) => (h.quantity as number) > 0)
+    if (holdings.length > 0) {
+      const geckoIds: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana' }
+      const ids = [...new Set(holdings.map((h: Record<string, unknown>) => geckoIds[h.symbol as string]).filter(Boolean))].join(',')
+      let prices: Record<string, { usd: number; mxn: number }> = {}
+      try {
+        const pRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd,mxn`, { next: { revalidate: 300 } })
+        if (pRes.ok) {
+          const pData = await pRes.json()
+          for (const [sym, gId] of Object.entries(geckoIds)) {
+            const coin = pData[gId as string]
+            if (coin) prices[sym] = { usd: coin.usd ?? 0, mxn: coin.mxn ?? 0 }
+          }
+        }
+      } catch { /* CoinGecko unavailable */ }
+
+      const usdToMxn = Object.values(prices).find(p => p.usd > 0 && p.mxn > 0)
+        ? Object.values(prices).find(p => p.usd > 0)!.mxn / Object.values(prices).find(p => p.usd > 0)!.usd
+        : 17
+
+      let totalValueMXN = 0, totalValueUSD = 0, totalCostMXN = 0
+      const holdingSummaries = holdings.map((h: Record<string, unknown>) => {
+        const sym = h.symbol as string
+        const qty = h.quantity as number
+        const costBasis = h.avg_cost_basis_usd as number | null
+        const costCurrency = (h.cost_currency as string) || 'MXN'
+        const priceMXN = prices[sym]?.mxn ?? 0
+        const priceUSD = prices[sym]?.usd ?? 0
+        const valueMXN = qty * priceMXN
+        const valueUSD = qty * priceUSD
+        const costMXN = costBasis ? qty * (costCurrency === 'USD' ? costBasis * usdToMxn : costBasis) : 0
+
+        totalValueMXN += valueMXN
+        totalValueUSD += valueUSD
+        totalCostMXN += costMXN
+
+        return { symbol: sym, qty, value_mxn: Math.round(valueMXN), value_usd: Math.round(valueUSD * 100) / 100, cost_mxn: Math.round(costMXN), owner: h.owner as string }
+      })
+
+      // Aggregate by symbol
+      const bySymbol: Record<string, { qty: number; value_mxn: number; allocation_pct: number }> = {}
+      for (const h of holdingSummaries) {
+        if (!bySymbol[h.symbol]) bySymbol[h.symbol] = { qty: 0, value_mxn: 0, allocation_pct: 0 }
+        bySymbol[h.symbol].qty += h.qty
+        bySymbol[h.symbol].value_mxn += h.value_mxn
+      }
+      const holdingsAgg = Object.entries(bySymbol).map(([sym, d]) => ({
+        symbol: sym, qty: d.qty, value_mxn: d.value_mxn,
+        allocation_pct: totalValueMXN > 0 ? Math.round(d.value_mxn / totalValueMXN * 100) : 0,
+      })).sort((a, b) => b.value_mxn - a.value_mxn)
+
+      const pnlMXN = totalCostMXN > 0 ? totalValueMXN - totalCostMXN : 0
+      const pnlPct = totalCostMXN > 0 ? Math.round(pnlMXN / totalCostMXN * 1000) / 10 : 0
+
+      // Risk flags
+      const concentrationRisk = holdingsAgg.find(h => h.allocation_pct > 80)
+      const largeLoss = pnlPct < -20
+
+      cryptoSummary = {
+        total_value_mxn: Math.round(totalValueMXN),
+        total_value_usd: Math.round(totalValueUSD * 100) / 100,
+        total_cost_mxn: Math.round(totalCostMXN),
+        pnl_mxn: Math.round(pnlMXN),
+        pnl_pct: pnlPct,
+        holdings: holdingsAgg,
+        by_owner: {
+          Bernardo: { value_mxn: holdingSummaries.filter(h => h.owner === 'Bernardo').reduce((s, h) => s + h.value_mxn, 0) },
+          Laura: { value_mxn: holdingSummaries.filter(h => h.owner === 'Laura').reduce((s, h) => s + h.value_mxn, 0) },
+        },
+        risks: {
+          concentration: concentrationRisk ? { symbol: concentrationRisk.symbol, pct: concentrationRisk.allocation_pct } : null,
+          large_loss: largeLoss ? { pnl_pct: pnlPct } : null,
+        },
+      }
+    }
+  } catch (e) {
+    console.error('Crypto summary error:', e)
+  }
+
   return NextResponse.json({
     period: { start: startStr, end: endStr },
     income: { sources: incSources, total_monthly: totalMonthlyIncome },
@@ -271,6 +355,7 @@ export async function GET(req: NextRequest) {
       fully_funded: goalFundingGap <= 0,
     },
     msi_timeline: msiTimeline,
+    crypto: cryptoSummary,
   })
 }
 // 1771253121

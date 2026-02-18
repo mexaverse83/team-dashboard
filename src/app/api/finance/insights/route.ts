@@ -88,6 +88,16 @@ ${(data.msi_timeline as Record<string, unknown>[]).map((m) =>
   `- ${m.name} (${m.merchant}): $${Number(m.monthly_payment).toLocaleString()}/mo × ${m.payments_remaining} remaining → ends ${m.end_date} → frees $${Number(m.monthly_payment).toLocaleString()}/mo`
 ).join('\n')}` : ''
 
+  const cryptoSection = data.crypto ? `
+CRYPTO PORTFOLIO:
+- Total Value: $${Number(data.crypto.total_value_mxn).toLocaleString()} MXN ($${Number(data.crypto.total_value_usd).toLocaleString()} USD)
+- Cost Basis: $${Number(data.crypto.total_cost_mxn).toLocaleString()} MXN
+- P&L: ${data.crypto.pnl_mxn >= 0 ? '+' : ''}$${Number(data.crypto.pnl_mxn).toLocaleString()} MXN (${data.crypto.pnl_pct}%)
+- Holdings: ${(data.crypto.holdings as Record<string, unknown>[]).map((h: Record<string, unknown>) => `${h.symbol}: ${h.qty} (${h.allocation_pct}% of crypto)`).join(', ')}
+${data.crypto.risks?.concentration ? `- ⚠️ CONCENTRATION RISK: ${data.crypto.risks.concentration.symbol} is ${data.crypto.risks.concentration.pct}% of crypto portfolio` : ''}
+${data.crypto.risks?.large_loss ? `- ⚠️ LARGE UNREALIZED LOSS: ${data.crypto.risks.large_loss.pnl_pct}% unrealized loss` : ''}
+- Crypto as % of total finances: consider vs monthly income of $${Number(data.income?.total_monthly).toLocaleString()}/mo` : ''
+
   const goalSection = data.goal_funding ? `
 GOAL FUNDING GAP:
 - Goals need: $${Number(data.goal_funding.total_monthly_needed).toLocaleString()}/mo
@@ -101,6 +111,7 @@ ${JSON.stringify(data, null, 2)}
 ${bvaSection}
 ${msiSection}
 ${goalSection}
+${cryptoSection}
 
 CONTEXT:
 - Currency is MXN (Mexican Pesos)
@@ -132,6 +143,10 @@ Rules:
 - Analyze goal funding gap — can goals be met with current discretionary income?
 - Compare daily spending pace vs budget pace for categories over 80%
 - If a category is way over budget, suggest specific cuts or explain if it's a billing anomaly
+- If crypto data exists: analyze portfolio performance, concentration risk, crypto as % of total assets
+- Flag if any single coin is >80% of crypto portfolio (concentration risk)
+- Flag if unrealized crypto loss exceeds 20% — suggest DCA or holding strategy
+- Consider crypto value in overall financial health assessment
 
 CRITICAL — Bimonthly/non-monthly billing categories:
 - Categories marked [bimonthly billing] or [quarterly billing] etc are KNOWN recurring charges

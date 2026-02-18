@@ -38,6 +38,8 @@ export default function AuditClient() {
   const [categories, setCategories] = useState<{ id: string; name: string; icon: string; color: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [flaggedSubs, setFlaggedSubs] = useState<Set<string>>(new Set())
+  const [cryptoRisks, setCryptoRisks] = useState<{ type: string; title: string; detail: string; severity: 'high' | 'medium' | 'low' }[]>([])
+  const [cryptoValue, setCryptoValue] = useState(0)
 
   const handleLeakTriage = async (recurringId: string, status: 'keep' | 'cancel' | 'later') => {
     if (status === 'cancel') {
@@ -71,6 +73,54 @@ export default function AuditClient() {
     setRecurring(recRes.data || [])
     setBudgets(budRes.data || [])
     setCategories(catRes.data?.length ? catRes.data : DEFAULT_CATEGORIES as typeof categories)
+
+    // Fetch crypto data for risk assessment
+    try {
+      const cryptoRes = await fetch('/api/finance/crypto')
+      const cryptoText = await cryptoRes.text()
+      if (cryptoText) {
+        const cd = JSON.parse(cryptoText)
+        const holdings = (cd.holdings || []).filter((h: Record<string, unknown>) => (h.quantity as number) > 0)
+        const prices = cd.prices || {}
+        const risks: { type: string; title: string; detail: string; severity: 'high' | 'medium' | 'low' }[] = []
+
+        if (holdings.length > 0) {
+          // Calculate totals
+          let totalVal = 0
+          const bySymbol: Record<string, number> = {}
+          let totalCost = 0
+          for (const h of holdings) {
+            const val = h.quantity * (prices[h.symbol]?.mxn ?? 0)
+            totalVal += val
+            bySymbol[h.symbol] = (bySymbol[h.symbol] || 0) + val
+            if (h.avg_cost_basis_usd) {
+              const costCurr = h.cost_currency || 'MXN'
+              const rate = costCurr === 'USD' && prices[h.symbol]?.usd > 0 ? prices[h.symbol].mxn / prices[h.symbol].usd : 1
+              totalCost += h.quantity * h.avg_cost_basis_usd * (costCurr === 'USD' ? rate : 1)
+            }
+          }
+          setCryptoValue(totalVal)
+
+          // Concentration risk
+          for (const [sym, val] of Object.entries(bySymbol)) {
+            const pct = totalVal > 0 ? (val / totalVal) * 100 : 0
+            if (pct > 80) {
+              risks.push({ type: 'concentration', title: `${sym} concentration: ${pct.toFixed(0)}%`, detail: `${sym} represents ${pct.toFixed(0)}% of your crypto portfolio. Consider diversifying to reduce single-asset risk.`, severity: 'medium' })
+            }
+          }
+
+          // Large unrealized loss
+          if (totalCost > 0) {
+            const pnlPct = ((totalVal - totalCost) / totalCost) * 100
+            if (pnlPct < -20) {
+              risks.push({ type: 'loss', title: `Unrealized crypto loss: ${pnlPct.toFixed(1)}%`, detail: `Your crypto portfolio is down ${Math.abs(pnlPct).toFixed(1)}% ($${Math.round(Math.abs(totalVal - totalCost)).toLocaleString()} MXN). Consider DCA strategy to lower cost basis.`, severity: pnlPct < -40 ? 'high' : 'medium' })
+            }
+          }
+        }
+        setCryptoRisks(risks)
+      }
+    } catch { /* crypto fetch failed, non-blocking */ }
+
     setLoading(false)
   }, [monthStart, monthEnd, prevMonthStart])
 
@@ -366,6 +416,33 @@ export default function AuditClient() {
           </div>
         )}
       </GlassCard>
+
+      {/* Crypto Portfolio Risks */}
+      {(cryptoRisks.length > 0 || cryptoValue > 0) && (
+        <GlassCard>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+            <div><h3 className="text-base font-semibold">₿ Crypto Portfolio Audit</h3><p className="text-xs text-[hsl(var(--text-tertiary))]">Risk assessment for your crypto holdings</p></div>
+            <span className="text-sm font-bold tabular-nums text-orange-400">${cryptoValue.toLocaleString()} MXN</span>
+          </div>
+          {cryptoRisks.length === 0 ? (
+            <div className="text-center py-6"><span className="text-3xl block mb-2">✅</span><p className="text-sm text-emerald-400 font-medium">No crypto risks detected</p></div>
+          ) : (
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+              {cryptoRisks.map((risk, i) => (
+                <div key={i} className={cn("p-4 rounded-xl border", risk.severity === 'high' ? 'border-rose-500/30 bg-rose-500/5' : risk.severity === 'medium' ? 'border-amber-500/30 bg-amber-500/5' : 'border-blue-500/30 bg-blue-500/5')}>
+                  <div className="flex items-start gap-3">
+                    <span className="text-xl shrink-0">{risk.type === 'concentration' ? '⚖️' : risk.type === 'loss' ? '📉' : '⚠️'}</span>
+                    <div>
+                      <h4 className="text-sm font-semibold">{risk.title}</h4>
+                      <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">{risk.detail}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </GlassCard>
+      )}
 
       {/* Top 10 Lists */}
       <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
