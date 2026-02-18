@@ -247,6 +247,58 @@ function runFixedIncomeFlags(fiData: Array<Record<string, unknown>>, findings: F
   }
 }
 
+function runPrivateEquityFlags(stocks: Array<Record<string, unknown>>, findings: Finding[]) {
+  const today = new Date()
+  for (const s of stocks) {
+    if (s.asset_type !== 'private_equity') continue
+
+    // Stale valuation (>180 days since updated_at)
+    if (s.updated_at) {
+      const updatedDate = new Date(s.updated_at as string)
+      const daysSince = Math.floor((today.getTime() - updatedDate.getTime()) / (1000 * 60 * 60 * 24))
+      if (daysSince > 180) {
+        findings.push({
+          id: `pe-stale-${s.ticker}`,
+          severity: 'amber',
+          category: 'general',
+          title: `${s.ticker} equity valuation is ${Math.floor(daysSince / 30)} months old`,
+          detail: `Last updated: ${(s.updated_at as string).slice(0, 10)}. Estimated price per share ($${s.current_price_usd}) may no longer reflect current company valuation.`,
+          suggestion: 'Check with company for updated 409A valuation or estimated share price.',
+          action_url: '/finance/investments?tab=Stocks',
+        })
+      }
+    }
+
+    // Exit window approaching — within 18 months
+    if (s.expected_exit_end) {
+      const exitEnd = new Date(s.expected_exit_end as string)
+      const monthsToExit = Math.round((exitEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30.4))
+      if (monthsToExit <= 18 && monthsToExit > 0) {
+        findings.push({
+          id: `pe-exit-approaching-${s.ticker}`,
+          severity: 'amber',
+          category: 'general',
+          title: `${s.name} exit window in ~${monthsToExit} months — prepare tax strategy`,
+          detail: `Expected exit: ${s.expected_exit_start} – ${s.expected_exit_end}. Private company share sale is subject to ISR at marginal rate, not 10% flat.`,
+          suggestion: 'Consult fiscal advisor on exit tax treatment before the event. Plan for ISR at marginal rate on capital gains.',
+          action_url: '/finance/investments?tab=Stocks',
+        })
+      }
+    }
+
+    // Tax advisory flag — always show for private equity
+    findings.push({
+      id: 'pe-tax-advisory',
+      severity: 'amber',
+      category: 'general',
+      title: 'Nexaminds exit: ISR at marginal rate, NOT 10% flat',
+      detail: 'Private company (non-BMV) share sales are taxed at your marginal ISR rate. At $199,800 USD net gain, tax could be significant. The 10% preferential rate only applies to BMV-listed securities.',
+      suggestion: 'Engage a fiscal advisor 12+ months before exit to structure the transaction optimally.',
+      action_url: '/finance/investments?tab=Stocks',
+    })
+  }
+}
+
 function runRetirementFlags(retirementData: Array<Record<string, unknown>>, monthlyIncome: number, findings: Finding[]) {
   const todayMs = now.getTime()
 
@@ -405,9 +457,16 @@ export async function GET(req: NextRequest) {
       ? (Number(emergencyFund.current_amount) || 0) / monthlyIncome : 0
     const hasMultipleAssets = [cryptoTotal > 0, fiTotal > 0, reEquity > 0, retirementTotal > 0].filter(Boolean).length >= 3
 
+    // Fetch stocks for PE flags
+    const { data: stocksData } = await supabase.from('finance_stock_holdings').select('*')
+    const peData = (stocksData || []) as Record<string, unknown>[]
+    const peCurrentValue = peData.filter(s => s.asset_type === 'private_equity')
+      .reduce((sum, s) => sum + (Number(s.shares || 0) * Number(s.current_price_usd || 0) * 17.13), 0)
+    const finalNetWorth = totalNetWorth + peCurrentValue
+
     // Run all flag rules
     const findings: Finding[] = []
-    runCryptoFlags(cryptoSummary, totalNetWorth, findings)
+    runCryptoFlags(cryptoSummary, finalNetWorth, findings)
     runRealEstateFlags(reData, {
       gap: westTarget * (westGapPct / 100),
       gap_pct: westGapPct,
@@ -415,6 +474,7 @@ export async function GET(req: NextRequest) {
     }, findings)
     runFixedIncomeFlags(fiData, findings)
     runRetirementFlags(retirementData, monthlyIncome, findings)
+    runPrivateEquityFlags(peData, findings)
 
     // Emergency fund green finding
     if (emergencyMonths >= 6) {
@@ -444,12 +504,13 @@ export async function GET(req: NextRequest) {
       score_breakdown: score.breakdown,
       findings,
       net_worth: {
-        total: Math.round(totalNetWorth),
+        total: Math.round(finalNetWorth),
         by_class: {
           crypto: Math.round(cryptoTotal),
           fixed_income: Math.round(fiTotal),
           real_estate: Math.round(reEquity),
           retirement: Math.round(retirementTotal),
+          private_equity: Math.round(peCurrentValue),
         },
       },
       summary: {

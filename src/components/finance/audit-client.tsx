@@ -299,48 +299,65 @@ export default function AuditClient() {
         </div>
       </div>
 
-      {/* ── FINANCIAL HEALTH SCORE ── */}
-      {investmentAudit && (
-        <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <div>
-              <h2 className="text-lg font-semibold">Financial Health Score</h2>
-              <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">Across 6 categories — spending, investments, debt, liquidity, retirement, net worth</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className={`text-5xl font-black tabular-nums ${investmentAudit.score >= 80 ? 'text-emerald-400' : investmentAudit.score >= 65 ? 'text-blue-400' : investmentAudit.score >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
-                {investmentAudit.score}
-              </div>
-              <div>
-                <div className="text-xs text-[hsl(var(--text-secondary))] font-medium">/ 100</div>
-                <div className={`text-sm font-bold ${investmentAudit.score >= 80 ? 'text-emerald-400' : investmentAudit.score >= 65 ? 'text-blue-400' : investmentAudit.score >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
-                  {investmentAudit.score_label}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {Object.entries(investmentAudit.score_breakdown).map(([key, val]) => {
-              const maxScores: Record<string, number> = { west_readiness: 25, debt_health: 20, investment_diversity: 15, liquidity: 15, retirement: 15, net_worth_trend: 10 }
-              const labels: Record<string, string> = { west_readiness: '🏗️ WEST', debt_health: '💳 Debt', investment_diversity: '📊 Diversity', liquidity: '💧 Liquidity', retirement: '🔒 Retirement', net_worth_trend: '📈 Net Worth' }
-              const max = maxScores[key] || 10
-              const pct = (val / max) * 100
-              return (
-                <div key={key} className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[hsl(var(--text-secondary))]">{labels[key] || key}</span>
-                    <span className="font-semibold tabular-nums">{val}/{max}</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-[hsl(var(--bg-elevated))]">
-                    <div className={`h-full rounded-full ${pct >= 80 ? 'bg-emerald-500' : pct >= 60 ? 'bg-blue-500' : pct >= 40 ? 'bg-amber-500' : 'bg-red-500'}`}
-                      style={{ width: `${pct}%` }} />
+      {/* ── FINANCIAL HEALTH SCORE — SVG ring ── */}
+      {investmentAudit && (() => {
+        const score = investmentAudit.score
+        const ringColor = score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444'
+        const scoreLabel = score >= 80 ? '✅ Good' : score >= 60 ? '⚠️ Fair' : '🔴 Needs Work'
+        const scoreLabelCls = score >= 80 ? 'bg-emerald-500/10 text-emerald-400' : score >= 60 ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400'
+        const catConfig: { key: string; label: string; max: number }[] = [
+          { key: 'west_readiness', label: 'WEST Readiness', max: 25 },
+          { key: 'debt_health', label: 'Debt Health', max: 20 },
+          { key: 'investment_diversity', label: 'Investment Diversity', max: 15 },
+          { key: 'liquidity', label: 'Liquidity', max: 15 },
+          { key: 'retirement', label: 'Retirement Progress', max: 15 },
+          { key: 'net_worth_trend', label: 'Net Worth Trend', max: 10 },
+        ]
+        return (
+          <GlassCard className="p-5 sm:p-6 mb-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
+              {/* SVG ring */}
+              <div className="flex flex-col items-center sm:items-start shrink-0">
+                <div className="relative w-28 h-28">
+                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(222, 47%, 9%)" strokeWidth="10" />
+                    <circle cx="50" cy="50" r="40" fill="none"
+                      stroke={ringColor} strokeWidth="10" strokeLinecap="round"
+                      strokeDasharray={`${(score / 100) * 251.2} 251.2`}
+                      className="transition-all duration-700" />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-2xl font-bold tabular-nums">{score}</span>
+                    <span className="text-[10px] text-[hsl(var(--text-tertiary))]">/ 100</span>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+                <span className={cn("mt-2 text-sm font-semibold px-3 py-1 rounded-full", scoreLabelCls)}>{scoreLabel}</span>
+              </div>
+              {/* Category bars */}
+              <div className="flex-1 space-y-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">Financial Health Score</h3>
+                {catConfig.map(cat => {
+                  const val = investmentAudit.score_breakdown[cat.key] || 0
+                  const pct = (val / cat.max) * 100
+                  return (
+                    <div key={cat.key}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium">{cat.label}</span>
+                        <span className="text-xs tabular-nums text-[hsl(var(--text-secondary))]">{val}/{cat.max}pts</span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-[hsl(var(--bg-elevated))]">
+                        <div className={cn("h-1.5 rounded-full transition-all duration-500",
+                          pct >= 80 ? 'bg-emerald-500' : pct >= 60 ? 'bg-amber-500' : 'bg-red-500')}
+                          style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </GlassCard>
+        )
+      })()}
 
       {/* Hero KPIs */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
@@ -502,47 +519,54 @@ export default function AuditClient() {
         </GlassCard>
       )}
 
-      {/* ── INVESTMENT HEALTH FINDINGS ── */}
+      {/* ── INVESTMENT HEALTH — grouped by category ── */}
       {investmentAudit && investmentAudit.findings.length > 0 && (
-        <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">📊 Investment Health</h2>
-            <div className="flex gap-2 text-xs">
-              <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-400">{investmentAudit.findings.filter(f => f.severity === 'red').length} critical</span>
-              <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400">{investmentAudit.findings.filter(f => f.severity === 'amber').length} watch</span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">{investmentAudit.findings.filter(f => f.severity === 'green').length} good</span>
-            </div>
+        <div>
+          <div className="flex items-center justify-between mb-3 mt-8">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">Investment Health</h2>
+            <span className="text-xs text-[hsl(var(--text-secondary))]">{investmentAudit.findings.length} findings</span>
           </div>
-          <div className="space-y-3">
-            {investmentAudit.findings.map(f => {
-              const sevCfg: Record<string, { border: string; bg: string; badge: string; icon: string }> = {
-                red: { border: 'border-red-500/30', bg: 'bg-red-500/5', badge: 'bg-red-500/10 text-red-400', icon: '🔴' },
-                amber: { border: 'border-amber-500/30', bg: 'bg-amber-500/5', badge: 'bg-amber-500/10 text-amber-400', icon: '🟡' },
-                green: { border: 'border-emerald-500/30', bg: 'bg-emerald-500/5', badge: 'bg-emerald-500/10 text-emerald-400', icon: '✅' },
-              }
-              const cfg = sevCfg[f.severity] || sevCfg.amber
-              return (
-                <div key={f.id} className={`p-4 rounded-xl border ${cfg.border} ${cfg.bg}`}>
-                  <div className="flex items-start gap-3">
-                    <span className="text-base shrink-0">{cfg.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <h4 className="text-sm font-semibold">{f.title}</h4>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize ${cfg.badge}`}>{f.category.replace('_', ' ')}</span>
+          {(['crypto', 'real_estate', 'fixed_income', 'retirement', 'general'] as const).map(cat => {
+            const catFindings = investmentAudit.findings.filter(f => f.category === cat)
+            if (catFindings.length === 0) return null
+            const catIcons: Record<string, string> = { crypto: '₿', real_estate: '🏠', fixed_income: '🏦', retirement: '🔒', general: '📊' }
+            const catLabels: Record<string, string> = { crypto: 'Crypto', real_estate: 'Real Estate', fixed_income: 'Fixed Income', retirement: 'Retirement', general: 'General' }
+            return (
+              <div key={cat} className="mb-4">
+                <p className="text-xs font-semibold text-[hsl(var(--text-tertiary))] uppercase tracking-wider mb-2 px-1">
+                  {catIcons[cat]} {catLabels[cat]}
+                </p>
+                <div className="space-y-2">
+                  {catFindings.map(f => {
+                    const sev = {
+                      red:   { bg: 'bg-red-500/5 border-red-500/30',       icon: '🔴' },
+                      amber: { bg: 'bg-yellow-500/5 border-yellow-500/30', icon: '🟡' },
+                      green: { bg: 'bg-emerald-500/5 border-emerald-500/20', icon: '✅' },
+                    }[f.severity] || { bg: 'bg-amber-500/5 border-amber-500/20', icon: '🟡' }
+                    return (
+                      <div key={f.id} className={cn("rounded-lg border p-4", sev.bg)}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs">{sev.icon}</span>
+                              <p className="text-sm font-medium">{f.title}</p>
+                            </div>
+                            <p className="text-sm text-[hsl(var(--text-secondary))] leading-relaxed">{f.detail}</p>
+                            {f.suggestion && <p className="text-xs text-[hsl(var(--text-secondary))] mt-1.5 italic">{f.suggestion}</p>}
+                          </div>
+                          {f.action_url && (
+                            <a href={f.action_url} className="text-xs font-medium text-blue-400 hover:underline whitespace-nowrap shrink-0">
+                              Take Action →
+                            </a>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-xs text-[hsl(var(--text-secondary))] mb-2">{f.detail}</p>
-                      <p className="text-xs text-[hsl(var(--text-tertiary))] italic">{f.suggestion}</p>
-                      {f.action_url && (
-                        <a href={f.action_url} className="inline-block mt-2 text-[10px] px-2 py-1 rounded-lg bg-[hsl(var(--bg-elevated))] hover:bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))] transition-colors">
-                          View →
-                        </a>
-                      )}
-                    </div>
-                  </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
-          </div>
+              </div>
+            )
+          })}
         </div>
       )}
 

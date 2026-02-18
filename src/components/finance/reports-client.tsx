@@ -242,82 +242,150 @@ export default function ReportsClient() {
           </div>
         </GlassCard>
       </div>
-      {/* ── NET WORTH & INVESTMENTS SECTION ── */}
-      {investmentAudit && (
-        <>
-          <h3 className="text-lg font-semibold mt-2">Net Worth & Investments</h3>
-          <div className="grid gap-4 lg:grid-cols-2">
+      {/* ── INVESTMENTS & NET WORTH SECTION ── */}
+      {investmentAudit && (() => {
+        const nw = investmentAudit.net_worth
+        const nwItems = [
+          { label: 'Real Estate (equity)', value: nw.by_class.real_estate || 0, color: 'bg-violet-500' },
+          { label: 'Retirement (locked)', value: nw.by_class.retirement || 0, color: 'bg-slate-500' },
+          { label: 'Fixed Income (GBM)', value: nw.by_class.fixed_income || 0, color: 'bg-emerald-500' },
+          { label: 'Crypto', value: nw.by_class.crypto || 0, color: 'bg-amber-500' },
+        ]
+        const investmentRows = [
+          { asset: 'Crypto', color: 'bg-amber-500', value: nw.by_class.crypto || 0, momChange: null, ytdReturn: null, ytdEstimate: 'volatile' },
+          { asset: 'Fixed Income (GBM)', color: 'bg-emerald-500', value: nw.by_class.fixed_income || 0, momChange: null, ytdReturn: 9.5, ytdEstimate: '9.5% net' },
+          { asset: 'Real Estate', color: 'bg-violet-500', value: nw.by_class.real_estate || 0, momChange: null, ytdReturn: null, ytdEstimate: '+10–15% est.' },
+          { asset: 'Retirement (AFORE)', color: 'bg-slate-500', value: nw.by_class.retirement || 0, momChange: null, ytdReturn: null, ytdEstimate: '+8.5% est.' },
+        ]
+        const topFindings = investmentAudit.findings.filter(f => f.severity !== 'green').slice(0, 3)
+        const fmtN = (n: number) => `$${n.toLocaleString()} MXN`
+
+        return (
+          <>
+            <div className="flex items-center justify-between mb-3 mt-8">
+              <h2 className="text-base font-semibold">Investments & Net Worth</h2>
+            </div>
+
             {/* Net Worth Statement */}
-            <GlassCard>
-              <h3 className="text-base font-semibold mb-3">Net Worth Statement</h3>
+            <GlassCard className="mb-4">
+              <h3 className="text-sm font-semibold mb-4">Net Worth Statement</h3>
               <div className="space-y-2 text-sm">
-                {Object.entries(investmentAudit.net_worth.by_class).map(([cls, val]) => {
-                  const labels: Record<string, { label: string; color: string }> = {
-                    crypto: { label: '₿ Crypto', color: 'bg-amber-500' },
-                    fixed_income: { label: '🏦 Fixed Income (GBM)', color: 'bg-emerald-500' },
-                    real_estate: { label: '🏠 Real Estate (equity)', color: 'bg-violet-500' },
-                    retirement: { label: '🔒 Retirement (locked)', color: 'bg-slate-500' },
-                  }
-                  const cfg = labels[cls] || { label: cls, color: 'bg-gray-500' }
-                  const pct = investmentAudit.net_worth.total > 0 ? ((val / investmentAudit.net_worth.total) * 100).toFixed(1) : '0'
-                  return (
-                    <div key={cls} className="flex items-center gap-3">
-                      <div className={`h-2 w-2 rounded-full shrink-0 ${cfg.color}`} />
-                      <span className="text-[hsl(var(--text-secondary))] flex-1">{cfg.label}</span>
-                      <span className="tabular-nums font-semibold">${val.toLocaleString()}</span>
-                      <span className="text-xs text-[hsl(var(--text-tertiary))] w-12 text-right">{pct}%</span>
+                {nwItems.map(item => (
+                  <div key={item.label} className="flex items-center justify-between">
+                    <span className="flex items-center gap-2 text-[hsl(var(--text-secondary))]">
+                      <span className={`h-2 w-2 rounded-full shrink-0 ${item.color}`} />
+                      {item.label}
+                    </span>
+                    <div className="text-right">
+                      <span className="font-medium tabular-nums">{fmtN(item.value)}</span>
+                      <span className="text-xs text-[hsl(var(--text-secondary))] ml-2 tabular-nums">
+                        ({nw.total > 0 ? ((item.value / nw.total) * 100).toFixed(1) : 0}%)
+                      </span>
                     </div>
-                  )
-                })}
-                <div className="border-t border-[hsl(var(--border))] pt-2 flex items-center justify-between font-bold">
+                  </div>
+                ))}
+                <div className="pt-2 mt-1 border-t border-[hsl(var(--border))] flex justify-between font-bold">
                   <span>Total Net Worth</span>
-                  <span className="tabular-nums text-emerald-400">${investmentAudit.net_worth.total.toLocaleString()}</span>
+                  <span className="tabular-nums">{fmtN(nw.total)}</span>
                 </div>
               </div>
             </GlassCard>
 
-            {/* WEST Progress */}
-            <GlassCard>
-              <h3 className="text-base font-semibold mb-3">🏗️ WEST Apartment Progress</h3>
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between text-xs text-[hsl(var(--text-secondary))] mb-1">
-                    <span>Funded</span>
-                    <span className="font-semibold">91.2%</span>
-                  </div>
-                  <div className="h-2.5 rounded-full bg-[hsl(var(--bg-elevated))]">
-                    <div className="h-full rounded-full bg-emerald-500" style={{ width: '91.2%' }} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><p className="text-[hsl(var(--text-secondary))] text-xs">Projected Total</p><p className="font-bold tabular-nums">$10,213,365</p></div>
-                  <div><p className="text-[hsl(var(--text-secondary))] text-xs">Gap</p><p className="font-bold tabular-nums text-emerald-400">$990,635 🎯</p></div>
-                  <div><p className="text-[hsl(var(--text-secondary))] text-xs">Delivery</p><p className="font-bold">Dec 2027 (22mo)</p></div>
-                  <div><p className="text-[hsl(var(--text-secondary))] text-xs">Market Value</p><p className="font-bold tabular-nums">$13,500,000</p></div>
-                </div>
-                <a href="/finance/investments?tab=Real Estate" className="block text-center text-xs py-2 rounded-lg bg-[hsl(var(--bg-elevated))] hover:bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))] transition-colors">
-                  Full WEST tracker →
-                </a>
+            {/* WEST compact */}
+            <GlassCard className="mb-4 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold flex items-center gap-2">🏗️ WEST Apartment</h3>
+                <span className="text-xs text-emerald-400 tabular-nums font-semibold">91.2% funded</span>
               </div>
+              <div className="flex h-2 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))] mb-2">
+                <div className="h-full bg-emerald-500" style={{ width: '22.4%' }} />
+                <div className="h-full bg-blue-500" style={{ width: '6.7%' }} />
+                <div className="h-full bg-amber-500/60" style={{ width: '62.1%' }} />
+              </div>
+              <div className="flex justify-between text-xs text-[hsl(var(--text-secondary))]">
+                <span>Projected $10,213,365 / $11,204,000</span>
+                <span className="text-red-400">Gap $990,635</span>
+              </div>
+              <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">
+                Est. market value: <span className="text-emerald-400 font-medium">$16,753,803 MXN</span> · +$5,549,803 equity
+              </p>
             </GlassCard>
-          </div>
 
-          {/* Top Investment Findings */}
-          {investmentAudit.findings.filter(f => f.severity !== 'green').length > 0 && (
-            <GlassCard>
-              <h3 className="text-base font-semibold mb-3">🚨 Top Investment Findings This Month</h3>
-              <div className="space-y-2">
-                {investmentAudit.findings.filter(f => f.severity !== 'green').slice(0, 3).map((f, i) => (
-                  <div key={i} className={`p-3 rounded-lg border text-sm ${f.severity === 'red' ? 'border-red-500/20 bg-red-500/5' : 'border-amber-500/20 bg-amber-500/5'}`}>
-                    <p className="font-medium">{f.severity === 'red' ? '🔴' : '🟡'} {f.title}</p>
-                    <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{f.detail}</p>
+            {/* Investment Performance */}
+            <GlassCard className="mb-4">
+              <h3 className="text-sm font-semibold mb-4">Investment Performance</h3>
+              {/* Desktop table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[hsl(var(--border))]">
+                      <th className="text-left text-xs text-[hsl(var(--text-secondary))] uppercase tracking-wider py-2 px-3">Asset</th>
+                      <th className="text-right text-xs text-[hsl(var(--text-secondary))] uppercase tracking-wider py-2 px-3">Current Value</th>
+                      <th className="text-right text-xs text-[hsl(var(--text-secondary))] uppercase tracking-wider py-2 px-3">MoM</th>
+                      <th className="text-right text-xs text-[hsl(var(--text-secondary))] uppercase tracking-wider py-2 px-3">Return YTD</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {investmentRows.map(row => (
+                      <tr key={row.asset} className="border-b border-[hsl(var(--border))] last:border-0">
+                        <td className="py-2.5 px-3 font-medium">
+                          <span className="flex items-center gap-2">
+                            <span className={`h-2 w-2 rounded-full ${row.color}`} />
+                            {row.asset}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right tabular-nums">{fmtN(row.value)}</td>
+                        <td className="py-2.5 px-3 text-right text-[hsl(var(--text-secondary))] text-xs">Manual</td>
+                        <td className="py-2.5 px-3 text-right tabular-nums text-xs">
+                          {row.ytdReturn !== null
+                            ? <span className={row.ytdReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>{row.ytdReturn >= 0 ? '+' : ''}{row.ytdReturn.toFixed(1)}%</span>
+                            : <span className="text-[hsl(var(--text-secondary))]">Est. {row.ytdEstimate}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Mobile stacked */}
+              <div className="sm:hidden space-y-2">
+                {investmentRows.map(row => (
+                  <div key={row.asset} className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2 w-2 rounded-full shrink-0 ${row.color}`} />
+                      <span className="text-sm font-medium">{row.asset}</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold tabular-nums">{fmtN(row.value)}</p>
+                      <p className="text-xs text-[hsl(var(--text-secondary))]">Est. {row.ytdEstimate}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             </GlassCard>
-          )}
-        </>
-      )}
+
+            {/* Top Audit Findings */}
+            {topFindings.length > 0 && (
+              <GlassCard className="mb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold">Top Audit Findings</h3>
+                  <a href="/finance/audit" className="text-xs text-blue-400 hover:underline">View all →</a>
+                </div>
+                <div className="space-y-2">
+                  {topFindings.map((f, i) => (
+                    <div key={i} className="flex items-start gap-2.5">
+                      <span className="text-xs mt-0.5 shrink-0">{f.severity === 'red' ? '🔴' : '🟡'}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-tight">{f.title}</p>
+                        <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5 line-clamp-1">{f.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            )}
+          </>
+        )
+      })()}
 
       {/* By Owner Section */}
       <h3 className="text-lg font-semibold mt-2">By Owner</h3>

@@ -500,6 +500,28 @@ export function WestTracker() {
               </div>
             )
           })}
+
+          {/* Post-delivery: Nexaminds exit — speculative, dashed dot */}
+          {(() => {
+            // Dynamic: 20000 shares × $10 target × live FX (approximated at 17.13)
+            const nexamindsAtTarget = 20000 * 10 * 17.13
+            return (
+              <div className="relative opacity-70">
+                <div className="absolute -left-7 top-0.5 w-[14px] h-[14px] rounded-full border-2 border-dashed border-[hsl(var(--text-tertiary))] bg-[hsl(var(--background))] flex items-center justify-center">
+                  <span className="text-[8px]">🔮</span>
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-[hsl(var(--text-secondary))]">2028–2029</span>
+                  {' '}
+                  <span className="text-xs font-medium tabular-nums text-amber-400">Est. {fmtMXN(nexamindsAtTarget)}</span>
+                  <p className="text-sm font-medium mt-0.5">Nexaminds Exit Event</p>
+                  <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5 leading-relaxed">
+                    At $10/share target. Could eliminate WEST bridge financing within 12–24 months of delivery.
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       </GlassCard>
 

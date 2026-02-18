@@ -5,6 +5,21 @@ import { RefreshCw, Target, Lightbulb, Trophy, TrendingUp, Sparkles } from 'luci
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
+
+function fmtMXN(n: number) { return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)} MXN` }
+function fmtUSD(n: number) { return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)} USD` }
+
+interface WestSnapshot {
+  projectedTotal: number; target: number; gap: number; paidPct: number; investPct: number
+  growthPct: number; fundedPct: number; monthsRemaining: number; nextMilestone?: { title: string; date: string }
+}
+interface NetWorthSnapshot {
+  total: number; totalUSD: number; crypto: number; fixedIncome: number; realEstate: number; retirement: number
+}
+interface UpcomingEvent {
+  title: string; date: string; amount?: number; type: 'money_in' | 'payment' | 'milestone' | 'info'
+}
 
 interface Insight {
   type: 'alert' | 'recommendation' | 'win' | 'forecast' | 'pattern' | 'saving'
@@ -134,16 +149,60 @@ export default function InsightsClient() {
   const [cached, setCached] = useState(false)
   const [stale, setStale] = useState(false)
   const [showRawData, setShowRawData] = useState(true)
+  const [westSnapshot, setWestSnapshot] = useState<WestSnapshot | null>(null)
+  const [netWorthSnapshot, setNetWorthSnapshot] = useState<NetWorthSnapshot | null>(null)
 
   const fetchAll = async (refresh = false) => {
     if (refresh) setGenerating(true)
     else setLoading(true)
     setError(null)
     try {
-      const [insightsRes, summaryRes] = await Promise.all([
+      const [insightsRes, summaryRes, westRes, auditRes] = await Promise.all([
         fetch(`/api/finance/insights${refresh ? '?refresh=true' : ''}`),
         fetch('/api/finance/summary?months=3'),
+        fetch('/api/finance/investments/west-projection').catch(() => null),
+        fetch('/api/finance/audit/investments').catch(() => null),
       ])
+
+      // WEST snapshot
+      if (westRes?.ok) {
+        const wd = await westRes.json().catch(() => null)
+        if (wd) {
+          const last = wd.monthly_projection?.[wd.monthly_projection.length - 1]
+          const target = wd.target || 11204000
+          const projTotal = last?.total || 0
+          const gap = Math.max(0, target - projTotal)
+          const paidAmt = wd.current_status?.amount_paid || 0
+          const invAmt = wd.current_status?.investment_value || 0
+          const paidPct = (paidAmt / target) * 100
+          const invPct = (invAmt / target) * 100
+          const growthPct = Math.min(((projTotal - paidAmt - invAmt) / target) * 100, 100 - paidPct - invPct)
+          const nextMilestone = (wd.milestones || []).find((m: Record<string,string>) => m.status === 'pending')
+          setWestSnapshot({
+            projectedTotal: projTotal, target, gap,
+            paidPct, investPct: invPct, growthPct,
+            fundedPct: (projTotal / target) * 100,
+            monthsRemaining: wd.months_to_delivery || 22,
+            nextMilestone: nextMilestone ? { title: nextMilestone.label, date: nextMilestone.date } : undefined,
+          })
+        }
+      }
+
+      // Net worth snapshot
+      if (auditRes?.ok) {
+        const ad = await auditRes.json().catch(() => null)
+        if (ad?.net_worth) {
+          const nw = ad.net_worth
+          setNetWorthSnapshot({
+            total: nw.total,
+            totalUSD: Math.round(nw.total / 17.13),
+            crypto: nw.by_class?.crypto || 0,
+            fixedIncome: nw.by_class?.fixed_income || 0,
+            realEstate: nw.by_class?.real_estate || 0,
+            retirement: nw.by_class?.retirement || 0,
+          })
+        }
+      }
 
       if (!insightsRes.ok) {
         const data = await insightsRes.json().catch(() => ({}))
@@ -419,6 +478,79 @@ export default function InsightsClient() {
               </section>
             )}
 
+            {/* ── WEST Progress ── */}
+            {westSnapshot && (
+              <section className="mb-8">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">WEST Progress</h2>
+                <GlassCard className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🏗️</span>
+                      <span className="text-sm font-semibold">WEST Apartment</span>
+                    </div>
+                    <Link href="/finance/investments" className="text-xs text-blue-400 hover:underline">Full tracker →</Link>
+                  </div>
+                  <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))] mb-2">
+                    <div className="h-full bg-emerald-500" style={{ width: `${Math.max(0, westSnapshot.paidPct)}%` }} />
+                    <div className="h-full bg-blue-500" style={{ width: `${Math.max(0, westSnapshot.investPct)}%` }} />
+                    <div className="h-full bg-amber-500/60" style={{ width: `${Math.max(0, westSnapshot.growthPct)}%` }} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 text-xs">
+                    <div>
+                      <span className="text-[hsl(var(--text-secondary))]">Projected: </span>
+                      <span className="font-semibold tabular-nums">{fmtMXN(westSnapshot.projectedTotal)}</span>
+                      <span className="text-[hsl(var(--text-secondary))]"> / {fmtMXN(westSnapshot.target)}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-semibold tabular-nums text-emerald-400">{westSnapshot.fundedPct.toFixed(0)}%</span>
+                      <span className="text-[hsl(var(--text-secondary))]"> funded</span>
+                    </div>
+                    <div className="mt-1"><span className="text-red-400 tabular-nums">Gap: {fmtMXN(westSnapshot.gap)}</span></div>
+                    <div className="text-right mt-1"><span className="text-[hsl(var(--text-secondary))]">{westSnapshot.monthsRemaining}mo to delivery</span></div>
+                  </div>
+                  {westSnapshot.nextMilestone && (
+                    <div className="mt-3 pt-3 border-t border-[hsl(var(--border))] flex items-center gap-2 text-xs">
+                      <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                      <span className="text-[hsl(var(--text-secondary))]">Next: </span>
+                      <span className="font-medium">{westSnapshot.nextMilestone.title}</span>
+                      <span className="text-[hsl(var(--text-secondary))] ml-auto">{westSnapshot.nextMilestone.date}</span>
+                    </div>
+                  )}
+                </GlassCard>
+              </section>
+            )}
+
+            {/* ── Net Worth Snapshot ── */}
+            {netWorthSnapshot && (
+              <section className="mb-8">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">Net Worth</h2>
+                <GlassCard className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-xl font-bold tabular-nums">{fmtMXN(netWorthSnapshot.total)}</p>
+                      <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">≈ {fmtUSD(netWorthSnapshot.totalUSD)}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 border-t border-[hsl(var(--border))] pt-3">
+                    {[
+                      { label: 'Real Estate (equity)', value: netWorthSnapshot.realEstate, color: 'bg-violet-500' },
+                      { label: 'Retirement', value: netWorthSnapshot.retirement, color: 'bg-slate-500' },
+                      { label: 'Fixed Income', value: netWorthSnapshot.fixedIncome, color: 'bg-emerald-500' },
+                      { label: 'Crypto', value: netWorthSnapshot.crypto, color: 'bg-amber-500' },
+                    ].map(item => (
+                      <div key={item.label} className="flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-1.5">
+                          <span className={cn("h-2 w-2 rounded-full shrink-0", item.color)} />
+                          <span className="text-[hsl(var(--text-secondary))]">{item.label}</span>
+                        </span>
+                        <span className="font-medium tabular-nums">{fmtMXN(item.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </GlassCard>
+              </section>
+            )}
+
             {/* Alerts */}
             {alerts.length > 0 && (
               <section>
@@ -519,6 +651,49 @@ export default function InsightsClient() {
                 </div>
               </section>
             )}
+
+            {/* ── Upcoming Events ── */}
+            {(() => {
+              const upcomingEvents: UpcomingEvent[] = [
+                { title: 'Current apartment sale closes', date: 'April 2026', amount: 5530000, type: 'money_in' },
+                { title: 'BBVA + Infonavit paid off from proceeds', date: 'April 2026', amount: 1670000, type: 'payment' },
+                { title: 'GBM commission: 1.25% → 0.82% (+$27K/yr saved)', date: 'April 2026', type: 'milestone' },
+                { title: 'GBM capital gains — declaración anual deadline', date: 'April 30, 2026', type: 'info' },
+                { title: '$100K lump sum to WEST developer', date: 'December 2026', amount: 100000, type: 'payment' },
+                { title: 'Final $10K WEST monthly payment', date: 'March 2027', amount: 10000, type: 'payment' },
+                { title: 'WEST apartment delivery', date: 'December 2027', type: 'milestone' },
+              ]
+              return (
+                <section className="mb-8">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">Coming Up</h2>
+                  <GlassCard className="p-4">
+                    <div className="relative pl-5 space-y-4">
+                      <div className="absolute left-2 top-1 bottom-1 w-px bg-[hsl(var(--border))]" />
+                      {upcomingEvents.map((ev, i) => (
+                        <div key={i} className="relative">
+                          <div className={cn(
+                            "absolute -left-5 top-1 w-[9px] h-[9px] rounded-full border-2 border-background",
+                            ev.type === 'money_in' ? 'bg-emerald-500' :
+                            ev.type === 'payment' ? 'bg-amber-500' :
+                            ev.type === 'milestone' ? 'bg-blue-500' : 'bg-[hsl(var(--text-tertiary))]'
+                          )} />
+                          <div className="flex items-baseline justify-between gap-3">
+                            <p className="text-sm font-medium leading-tight">{ev.title}</p>
+                            {ev.amount && (
+                              <span className={cn("text-xs font-semibold tabular-nums shrink-0",
+                                ev.type === 'money_in' ? 'text-emerald-400' : 'text-[hsl(var(--text-secondary))]')}>
+                                {ev.type === 'money_in' ? '+' : '-'}{fmtMXN(ev.amount)}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{ev.date}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </GlassCard>
+                </section>
+              )
+            })()}
 
             {/* ══════════════════════════════════════════════════ */}
             {/* WOLFF'S COMMENTARY — Raw data behind the insights */}

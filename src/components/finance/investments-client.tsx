@@ -6,6 +6,7 @@ import { OwnerDot } from '@/components/finance/owner-dot'
 import { CryptoClient } from '@/components/finance/crypto-client'
 import { WestTracker, WestCompactWidget } from '@/components/finance/west-tracker'
 import { RetirementTab } from '@/components/finance/retirement-client'
+import { PrivateEquityCard, type PrivateEquityHolding } from '@/components/finance/private-equity-card'
 import {
   TrendingUp, TrendingDown, Bitcoin, BarChart3, Shield, Home,
   Plus, Pencil, Trash2, X, RefreshCw,
@@ -34,8 +35,12 @@ function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boole
 // ─── Types ───
 interface StockHolding {
   id: string; ticker: string; name: string; exchange: string; asset_type: string
-  shares: number; avg_cost_basis: number; currency: string; broker: string
+  shares: number; avg_cost_basis: number; currency: string; broker: string | null
   owner: string; notes: string | null
+  // Private equity fields
+  current_price_usd?: number; target_price_usd?: number
+  expected_exit_start?: string; expected_exit_end?: string
+  is_liquid?: boolean; valuation_type?: string
 }
 
 interface FixedIncomeInstrument {
@@ -167,12 +172,19 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   useEffect(() => { fetchData() }, [fetchData])
 
   // Filtered data
-  const filteredStocks = useMemo(() => ownerFilter === 'All' ? stocks : stocks.filter(s => s.owner === ownerFilter), [stocks, ownerFilter])
+  const privateEquityHoldings = useMemo(() =>
+    (ownerFilter === 'All' ? stocks : stocks.filter(s => s.owner === ownerFilter))
+      .filter((s): s is StockHolding & PrivateEquityHolding => s.asset_type === 'private_equity'),
+    [stocks, ownerFilter])
+  const filteredStocks = useMemo(() => (ownerFilter === 'All' ? stocks : stocks.filter(s => s.owner === ownerFilter)).filter(s => s.asset_type !== 'private_equity'), [stocks, ownerFilter])
   const filteredFI = useMemo(() => ownerFilter === 'All' ? fixedIncome : fixedIncome.filter(i => i.owner === ownerFilter), [fixedIncome, ownerFilter])
   const filteredRE = useMemo(() => ownerFilter === 'All' ? realEstate : realEstate.filter(p => p.owner === ownerFilter), [realEstate, ownerFilter])
 
   // Portfolio totals
-  const stocksTotal = filteredStocks.reduce((s, h) => s + h.shares * h.avg_cost_basis, 0) // No live prices yet
+  // FX rate from crypto data (reuse existing fetch)
+  const fxRate = 17.13 // TODO: pull from crypto prices API
+  const peTotal = privateEquityHoldings.reduce((s, h) => s + h.shares * (h.current_price_usd || 0) * fxRate, 0)
+  const stocksTotal = filteredStocks.reduce((s, h) => s + h.shares * h.avg_cost_basis, 0) + peTotal
   const fiTotal = filteredFI.reduce((s, i) => s + i.principal, 0)
   const reTotal = filteredRE.reduce((s, p) => s + (p.current_value || 0) - (p.mortgage_balance || 0), 0)
   const cryptoMXN = cryptoTotal.mxn // TODO: filter by owner
@@ -421,6 +433,25 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {/* ═══════════ STOCKS TAB ═══════════ */}
       {activeTab === 'Stocks' && (
         <div className="space-y-4">
+
+          {/* Private Equity section */}
+          {privateEquityHoldings.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">
+                Private Equity
+              </p>
+              {privateEquityHoldings.map(h => (
+                <PrivateEquityCard key={h.id} holding={h as PrivateEquityHolding} fxRate={fxRate} />
+              ))}
+            </div>
+          )}
+
+          <div>
+            {filteredStocks.length > 0 && (
+              <p className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">
+                Public Stocks
+              </p>
+            )}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Stock Holdings</h2>
             <button onClick={() => { setStockForm({ ticker: '', name: '', exchange: 'US', asset_type: 'stock', shares: 0, avg_cost_basis: 0, currency: 'MXN', broker: 'GBM', owner: 'Bernardo', notes: '' }); setShowStockForm(true) }}
@@ -511,6 +542,13 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
               </div>
             </>
           )}
+          {/* Private equity footnote */}
+          {privateEquityHoldings.length > 0 && peTotal > 0 && (
+            <p className="text-xs text-[hsl(var(--text-tertiary))] italic px-1">
+              * Includes {`$${Math.round(peTotal).toLocaleString()} MXN`} estimated private equity (Nexaminds, illiquid until exit)
+            </p>
+          )}
+          </div>{/* close Public Stocks div */}
         </div>
       )}
 
