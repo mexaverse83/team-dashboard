@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error(`Missing env: URL=${!!url} KEY=${!!key}`)
+  }
+  return createClient(url, key)
 }
 
 const COINGECKO_IDS: Record<string, string> = {
@@ -66,7 +68,7 @@ export async function GET() {
     }
   } catch (e) {
     console.error('Crypto DB error:', e)
-    dbError = 'Database unavailable'
+    dbError = e instanceof Error ? e.message : 'Database unavailable'
   }
 
   const prices = await fetchPrices()
