@@ -159,7 +159,7 @@ export function CryptoClient() {
   const totalPL = totalCostMXN > 0 ? totalMXN - totalCostMXN : null
   const totalPLPct = totalPL !== null && totalCostMXN > 0 ? (totalPL / totalCostMXN) * 100 : null
 
-  // Per-owner totals (always computed from full set)
+  // Per-owner totals with per-coin breakdown (always computed from full set)
   const ownerTotals = useMemo(() => {
     const calc = (owner: string) => {
       const owned = holdings.filter(h => h.owner === owner)
@@ -167,7 +167,13 @@ export function CryptoClient() {
       const cost = owned.reduce((s, h) => s + getCostMXN(h, usdToMxn), 0)
       const pl = cost > 0 ? mxn - cost : null
       const plPct = pl !== null && cost > 0 ? (pl / cost) * 100 : null
-      return { mxn, cost, pl, plPct }
+      const coins = owned.map(h => ({
+        symbol: h.symbol,
+        qty: h.quantity,
+        valueMXN: getValueMXN(h, prices),
+        costMXN: getCostMXN(h, usdToMxn),
+      })).filter(c => c.qty > 0).sort((a, b) => b.valueMXN - a.valueMXN)
+      return { mxn, cost, pl, plPct, coins, count: owned.filter(h => h.quantity > 0).length }
     }
     return { Bernardo: calc('Bernardo'), Laura: calc('Laura') }
   }, [holdings, prices, usdToMxn])
@@ -357,33 +363,80 @@ export function CryptoClient() {
           </div>
         </div>
 
-        {/* Owner Breakdown */}
-        {ownerFilter === 'All' && holdings.length > 0 && (
-          <div className="border-t border-[hsl(var(--border))] mt-4 pt-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {(['Bernardo', 'Laura'] as const).map(name => {
-                const o = ownerTotals[name]
-                if (o.mxn === 0 && o.cost === 0) return null
-                return (
-                  <div key={name} className="space-y-1.5">
-                    <OwnerDot owner={name} size="md" showLabel />
-                    <p className="text-lg font-bold tabular-nums">{fmtMXN(o.mxn)}</p>
-                    <p className="text-xs text-[hsl(var(--text-secondary))] tabular-nums">
-                      Cost: {o.cost > 0 ? fmtMXN(o.cost) : '—'}
-                      {o.pl !== null && (
-                        <span className={`ml-2 ${o.pl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          P&L: {o.pl >= 0 ? '+' : ''}{fmtMXN(o.pl)}
-                          {o.plPct !== null && ` (${o.plPct >= 0 ? '+' : ''}${o.plPct.toFixed(1)}%)`}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+        {/* Owner summary removed — now in dedicated section below */}
       </GlassCard>
+
+      {/* Owner Portfolios */}
+      {holdings.length > 0 && ownerFilter === 'All' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {(['Bernardo', 'Laura'] as const).map(name => {
+            const o = ownerTotals[name]
+            if (o.count === 0) return null
+            const ownerColor = name === 'Bernardo' ? 'border-blue-500/30' : 'border-pink-500/30'
+            const ownerBg = name === 'Bernardo' ? 'bg-blue-500/5' : 'bg-pink-500/5'
+            return (
+              <GlassCard key={name} className={`p-4 ${ownerBg} border ${ownerColor}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <OwnerDot owner={name} size="md" showLabel />
+                  {o.pl !== null && (
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full tabular-nums ${
+                      o.pl >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                    }`}>
+                      {o.pl >= 0 ? '+' : ''}{o.plPct !== null ? `${o.plPct.toFixed(1)}%` : ''}
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-2xl font-bold tabular-nums mb-1">{fmtMXN(o.mxn)}</p>
+                <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-secondary))] mb-3">
+                  <span>Cost: {o.cost > 0 ? fmtMXN(o.cost) : '—'}</span>
+                  {o.pl !== null && (
+                    <span className={o.pl >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                      P&L: {o.pl >= 0 ? '+' : ''}{fmtMXN(o.pl)}
+                    </span>
+                  )}
+                </div>
+
+                {/* Per-coin breakdown */}
+                <div className="space-y-2 border-t border-[hsl(var(--border))] pt-3">
+                  {o.coins.map(c => {
+                    const pct = o.mxn > 0 ? (c.valueMXN / o.mxn) * 100 : 0
+                    const coinPL = c.costMXN > 0 ? c.valueMXN - c.costMXN : null
+                    return (
+                      <div key={c.symbol} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2.5 w-2.5 rounded-full ${COIN_SOLIDS[c.symbol] || 'bg-gray-500'}`} />
+                          <span className="text-xs font-medium">{c.symbol}</span>
+                          <span className="text-[10px] text-[hsl(var(--text-tertiary))]">{fmt(c.qty, 8).replace(/\.?0+$/, '')}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-semibold tabular-nums">{fmtMXN(c.valueMXN)}</span>
+                          <span className="text-[10px] text-[hsl(var(--text-tertiary))] ml-1.5">{pct.toFixed(0)}%</span>
+                          {coinPL !== null && (
+                            <span className={`text-[10px] ml-1.5 ${coinPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {coinPL >= 0 ? '↑' : '↓'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Mini allocation bar */}
+                {o.coins.length > 1 && o.mxn > 0 && (
+                  <div className="flex h-1.5 w-full rounded-full overflow-hidden mt-3">
+                    {o.coins.map(c => (
+                      <div key={c.symbol} className={`h-full ${COIN_SOLIDS[c.symbol] || 'bg-gray-500'}`}
+                        style={{ width: `${(c.valueMXN / o.mxn) * 100}%` }} />
+                    ))}
+                  </div>
+                )}
+              </GlassCard>
+            )
+          })}
+        </div>
+      )}
 
       {/* Owner Filter Tabs */}
       <div className="flex gap-1 p-1 bg-[hsl(var(--accent))] rounded-lg w-fit">
