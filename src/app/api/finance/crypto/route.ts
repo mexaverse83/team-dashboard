@@ -79,7 +79,7 @@ export async function GET() {
 // POST: add or update a holding
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { id, symbol, quantity, avg_cost_basis_usd, wallet_address, notes, owner } = body
+  const { id, symbol, quantity, avg_cost_basis_usd, cost_currency, wallet_address, notes, owner } = body
 
   if (!symbol || !COIN_NAMES[symbol]) {
     return NextResponse.json({ error: 'Invalid symbol' }, { status: 400 })
@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
     wallet_address: wallet_address || null,
     notes: notes || null,
     owner: owner || 'Bernardo',
+    cost_currency: cost_currency || 'MXN',
   }
 
   if (id) {

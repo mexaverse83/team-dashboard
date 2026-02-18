@@ -11,6 +11,7 @@ interface Holding {
   name: string
   quantity: number
   avg_cost_basis_usd: number | null
+  cost_currency: 'MXN' | 'USD'
   wallet_address: string | null
   owner: string
   notes: string | null
@@ -25,12 +26,13 @@ interface FormData {
   symbol: string
   quantity: string
   avg_cost_basis_usd: string
+  cost_currency: 'MXN' | 'USD'
   wallet_address: string
   owner: string
   notes: string
 }
 
-const EMPTY_FORM: FormData = { symbol: 'BTC', quantity: '', avg_cost_basis_usd: '', wallet_address: '', owner: 'Bernardo', notes: '' }
+const EMPTY_FORM: FormData = { symbol: 'BTC', quantity: '', avg_cost_basis_usd: '', cost_currency: 'MXN', wallet_address: '', owner: 'Bernardo', notes: '' }
 
 const COIN_ICONS: Record<string, string> = { BTC: '₿', ETH: 'Ξ', SOL: '◎' }
 const COIN_COLORS: Record<string, string> = {
@@ -110,6 +112,7 @@ export function CryptoClient() {
           symbol: form.symbol,
           quantity: parseFloat(form.quantity),
           avg_cost_basis_usd: form.avg_cost_basis_usd ? parseFloat(form.avg_cost_basis_usd) : null,
+          cost_currency: form.cost_currency || 'MXN',
           wallet_address: form.wallet_address || null,
           owner: form.owner || 'Bernardo',
           notes: form.notes || null,
@@ -146,6 +149,7 @@ export function CryptoClient() {
       symbol: h.symbol,
       quantity: String(h.quantity),
       avg_cost_basis_usd: h.avg_cost_basis_usd ? String(h.avg_cost_basis_usd) : '',
+      cost_currency: h.cost_currency || 'MXN',
       wallet_address: h.wallet_address || '',
       owner: h.owner || 'Bernardo',
       notes: h.notes || '',
@@ -156,9 +160,21 @@ export function CryptoClient() {
   // Portfolio totals
   const totalUSD = holdings.reduce((sum, h) => sum + h.quantity * (prices?.[h.symbol]?.usd ?? 0), 0)
   const totalMXN = holdings.reduce((sum, h) => sum + getValueMXN(h, prices), 0)
+  // USD→MXN rate from any available coin price
+  const usdToMxn = (() => {
+    if (!prices) return 17 // fallback
+    for (const p of Object.values(prices)) {
+      if (p.usd > 0 && p.mxn > 0) return p.mxn / p.usd
+    }
+    return 17
+  })()
+
   const totalCostMXN = holdings.reduce((sum, h) => {
     if (!h.avg_cost_basis_usd) return sum
-    return sum + h.quantity * h.avg_cost_basis_usd
+    const costPerCoinMXN = h.cost_currency === 'USD'
+      ? h.avg_cost_basis_usd * usdToMxn
+      : h.avg_cost_basis_usd
+    return sum + h.quantity * costPerCoinMXN
   }, 0)
   const totalPL = totalCostMXN > 0 ? totalMXN - totalCostMXN : null
   const totalPLPct = totalPL !== null && totalCostMXN > 0 ? (totalPL / totalCostMXN) * 100 : null
@@ -290,7 +306,10 @@ export function CryptoClient() {
             const price = prices?.[h.symbol]
             const valueUSD = h.quantity * (price?.usd ?? 0)
             const valueMXN = h.quantity * (price?.mxn ?? 0)
-            const costMXN = h.avg_cost_basis_usd ? h.quantity * h.avg_cost_basis_usd : null
+            const costPerCoinMXN = h.avg_cost_basis_usd
+              ? (h.cost_currency === 'USD' ? h.avg_cost_basis_usd * usdToMxn : h.avg_cost_basis_usd)
+              : null
+            const costMXN = costPerCoinMXN ? h.quantity * costPerCoinMXN : null
             const pl = costMXN ? valueMXN - costMXN : null
             const plPct = costMXN && costMXN > 0 ? (valueMXN / costMXN - 1) * 100 : null
             const change = price?.change24h ?? 0
@@ -438,15 +457,32 @@ export function CryptoClient() {
 
               {/* Cost Basis */}
               <div>
-                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Avg Cost Basis (MXN per coin)</label>
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="Optional"
-                  value={form.avg_cost_basis_usd}
-                  onChange={e => setForm(f => ({ ...f, avg_cost_basis_usd: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
+                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Avg Cost Basis (per coin)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="Optional"
+                    value={form.avg_cost_basis_usd}
+                    onChange={e => setForm(f => ({ ...f, avg_cost_basis_usd: e.target.value }))}
+                    className="flex-1 px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <div className="flex rounded-lg overflow-hidden border border-[hsl(var(--border))]">
+                    {(['MXN', 'USD'] as const).map(c => (
+                      <button
+                        key={c}
+                        onClick={() => setForm(f => ({ ...f, cost_currency: c }))}
+                        className={`px-3 py-2 text-xs font-medium transition-colors ${
+                          form.cost_currency === c
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]'
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Wallet */}
