@@ -142,11 +142,11 @@ export function CryptoClient() {
     const p = prices?.[h.symbol]?.mxn ?? 0
     return sum + h.quantity * p
   }, 0)
-  const totalCostUSD = holdings.reduce((sum, h) => {
+  const totalCostMXN = holdings.reduce((sum, h) => {
     if (!h.avg_cost_basis_usd) return sum
-    return sum + h.quantity * h.avg_cost_basis_usd
+    return sum + h.quantity * h.avg_cost_basis_usd // field stores MXN despite column name
   }, 0)
-  const totalPL = totalCostUSD > 0 ? totalUSD - totalCostUSD : null
+  const totalPL = totalCostMXN > 0 ? totalMXN - totalCostMXN : null
 
   if (loading) {
     return (
@@ -206,14 +206,14 @@ export function CryptoClient() {
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Cost Basis</p>
-            <p className="text-lg font-bold text-[hsl(var(--text-secondary))]">{totalCostUSD > 0 ? fmtUSD(totalCostUSD) : '—'}</p>
+            <p className="text-lg font-bold text-[hsl(var(--text-secondary))]">{totalCostMXN > 0 ? fmtMXN(totalCostMXN) : '—'}</p>
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">P&L</p>
             {totalPL !== null ? (
               <p className={`text-lg font-bold flex items-center gap-1 ${totalPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {totalPL >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                {totalPL >= 0 ? '+' : ''}{fmtUSD(totalPL)}
+                {totalPL >= 0 ? '+' : ''}{fmtMXN(totalPL)}
               </p>
             ) : (
               <p className="text-lg font-bold text-[hsl(var(--text-secondary))]">—</p>
@@ -241,10 +241,9 @@ export function CryptoClient() {
             const price = prices?.[h.symbol]
             const valueUSD = h.quantity * (price?.usd ?? 0)
             const valueMXN = h.quantity * (price?.mxn ?? 0)
-            const pl = h.avg_cost_basis_usd ? valueUSD - h.quantity * h.avg_cost_basis_usd : null
-            const plPct = h.avg_cost_basis_usd && h.avg_cost_basis_usd > 0
-              ? ((price?.usd ?? 0) / h.avg_cost_basis_usd - 1) * 100
-              : null
+            const costMXN = h.avg_cost_basis_usd ? h.quantity * h.avg_cost_basis_usd : null // field stores MXN
+            const pl = costMXN ? valueMXN - costMXN : null
+            const plPct = costMXN && costMXN > 0 ? (valueMXN / costMXN - 1) * 100 : null
             const change = price?.change24h ?? 0
 
             return (
@@ -307,7 +306,7 @@ export function CryptoClient() {
                     <div className="flex justify-between text-xs">
                       <span className="text-[hsl(var(--text-secondary))]">P&L</span>
                       <span className={`font-semibold ${pl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {pl >= 0 ? '+' : ''}{fmtUSD(pl)}
+                        {pl >= 0 ? '+' : ''}{fmtMXN(pl)}
                         {plPct !== null && <span className="ml-1 text-[10px]">({plPct >= 0 ? '+' : ''}{plPct.toFixed(1)}%)</span>}
                       </span>
                     </div>
@@ -370,7 +369,7 @@ export function CryptoClient() {
 
               {/* Cost Basis */}
               <div>
-                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Avg Cost Basis (USD per coin)</label>
+                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Avg Cost Basis (MXN per coin)</label>
                 <input
                   type="number"
                   step="any"
