@@ -29,6 +29,11 @@ export default function ReportsClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [investmentAudit, setInvestmentAudit] = useState<{
+    score: number; score_label: string;
+    net_worth: { total: number; by_class: Record<string, number> };
+    findings: Array<{ severity: string; title: string; detail: string }>;
+  } | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -41,6 +46,11 @@ export default function ReportsClient() {
       setTransactions(enrichTransactions(txs, cats))
       setLoading(false)
     })
+    // Load investment audit for reports
+    fetch('/api/finance/audit/investments')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setInvestmentAudit(d))
+      .catch(() => null)
   }, [])
 
   // Monthly income vs expenses
@@ -232,6 +242,83 @@ export default function ReportsClient() {
           </div>
         </GlassCard>
       </div>
+      {/* ── NET WORTH & INVESTMENTS SECTION ── */}
+      {investmentAudit && (
+        <>
+          <h3 className="text-lg font-semibold mt-2">Net Worth & Investments</h3>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Net Worth Statement */}
+            <GlassCard>
+              <h3 className="text-base font-semibold mb-3">Net Worth Statement</h3>
+              <div className="space-y-2 text-sm">
+                {Object.entries(investmentAudit.net_worth.by_class).map(([cls, val]) => {
+                  const labels: Record<string, { label: string; color: string }> = {
+                    crypto: { label: '₿ Crypto', color: 'bg-amber-500' },
+                    fixed_income: { label: '🏦 Fixed Income (GBM)', color: 'bg-emerald-500' },
+                    real_estate: { label: '🏠 Real Estate (equity)', color: 'bg-violet-500' },
+                    retirement: { label: '🔒 Retirement (locked)', color: 'bg-slate-500' },
+                  }
+                  const cfg = labels[cls] || { label: cls, color: 'bg-gray-500' }
+                  const pct = investmentAudit.net_worth.total > 0 ? ((val / investmentAudit.net_worth.total) * 100).toFixed(1) : '0'
+                  return (
+                    <div key={cls} className="flex items-center gap-3">
+                      <div className={`h-2 w-2 rounded-full shrink-0 ${cfg.color}`} />
+                      <span className="text-[hsl(var(--text-secondary))] flex-1">{cfg.label}</span>
+                      <span className="tabular-nums font-semibold">${val.toLocaleString()}</span>
+                      <span className="text-xs text-[hsl(var(--text-tertiary))] w-12 text-right">{pct}%</span>
+                    </div>
+                  )
+                })}
+                <div className="border-t border-[hsl(var(--border))] pt-2 flex items-center justify-between font-bold">
+                  <span>Total Net Worth</span>
+                  <span className="tabular-nums text-emerald-400">${investmentAudit.net_worth.total.toLocaleString()}</span>
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* WEST Progress */}
+            <GlassCard>
+              <h3 className="text-base font-semibold mb-3">🏗️ WEST Apartment Progress</h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between text-xs text-[hsl(var(--text-secondary))] mb-1">
+                    <span>Funded</span>
+                    <span className="font-semibold">91.2%</span>
+                  </div>
+                  <div className="h-2.5 rounded-full bg-[hsl(var(--bg-elevated))]">
+                    <div className="h-full rounded-full bg-emerald-500" style={{ width: '91.2%' }} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><p className="text-[hsl(var(--text-secondary))] text-xs">Projected Total</p><p className="font-bold tabular-nums">$10,213,365</p></div>
+                  <div><p className="text-[hsl(var(--text-secondary))] text-xs">Gap</p><p className="font-bold tabular-nums text-emerald-400">$990,635 🎯</p></div>
+                  <div><p className="text-[hsl(var(--text-secondary))] text-xs">Delivery</p><p className="font-bold">Dec 2027 (22mo)</p></div>
+                  <div><p className="text-[hsl(var(--text-secondary))] text-xs">Market Value</p><p className="font-bold tabular-nums">$13,500,000</p></div>
+                </div>
+                <a href="/finance/investments?tab=Real Estate" className="block text-center text-xs py-2 rounded-lg bg-[hsl(var(--bg-elevated))] hover:bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))] transition-colors">
+                  Full WEST tracker →
+                </a>
+              </div>
+            </GlassCard>
+          </div>
+
+          {/* Top Investment Findings */}
+          {investmentAudit.findings.filter(f => f.severity !== 'green').length > 0 && (
+            <GlassCard>
+              <h3 className="text-base font-semibold mb-3">🚨 Top Investment Findings This Month</h3>
+              <div className="space-y-2">
+                {investmentAudit.findings.filter(f => f.severity !== 'green').slice(0, 3).map((f, i) => (
+                  <div key={i} className={`p-3 rounded-lg border text-sm ${f.severity === 'red' ? 'border-red-500/20 bg-red-500/5' : 'border-amber-500/20 bg-amber-500/5'}`}>
+                    <p className="font-medium">{f.severity === 'red' ? '🔴' : '🟡'} {f.title}</p>
+                    <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{f.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+        </>
+      )}
+
       {/* By Owner Section */}
       <h3 className="text-lg font-semibold mt-2">By Owner</h3>
       <div className="grid gap-6 lg:grid-cols-2">
