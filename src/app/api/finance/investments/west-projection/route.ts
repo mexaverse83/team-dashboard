@@ -85,7 +85,8 @@ export async function GET(req: NextRequest) {
 
     // 4. Parse override return rate from query
     const overrideRate = req.nextUrl.searchParams.get('rate')
-    const annualRate = overrideRate ? parseFloat(overrideRate) : (target.investment_annual_return || 0.103)
+    // 9.5% net = 10.75% gross − 1.25% commission (based on 2023-2025 avg ~10.3% gross)
+    const annualRate = overrideRate ? parseFloat(overrideRate) : (target.investment_annual_return || 0.095)
     const monthlyRate = Math.pow(1 + annualRate, 1 / 12) - 1
 
     // Crypto growth rate (default 15% annual — conservative for BTC/ETH/SOL mix)
@@ -210,6 +211,14 @@ export async function GET(req: NextRequest) {
         label: `BBVA + Infonavit paid off`,
         status: past ? 'done' : 'pending',
       })
+      // GBM commission drops from 1.25% → 0.82% when balance crosses $2.5M (April proceeds land)
+      const postAprilBalance = Math.max(0, saleRemaining - debtPayoffTotal) + (target.sale_deposit_received || 0)
+      const annualSavings = Math.round(postAprilBalance * (0.0125 - 0.0082))
+      milestones.push({
+        date: target.sale_remaining_date,
+        label: `GBM commission 1.25% → 0.82% (+$${(annualSavings / 1000).toFixed(0)}K/yr saved)`,
+        status: past ? 'done' : 'pending',
+      })
     }
 
     if (lumpSumDate) {
@@ -264,9 +273,10 @@ export async function GET(req: NextRequest) {
       } : null,
       monthly_projection: monthly,
       scenarios: {
-        conservative_8pct: calcScenario(0.08),
-        base_10_3pct: calcScenario(0.103),
-        optimistic_13pct: calcScenario(0.13),
+        // Net rates (after commission): conservative −1.25%, base −1.25%, optimistic −1.25%
+        conservative_8pct: calcScenario(0.08),   // 9.25% gross − 1.25%
+        base_9_5pct: calcScenario(0.095),         // 10.75% gross − 1.25%
+        optimistic_11pct: calcScenario(0.11),     // 12.25% gross − 1.25%
       },
       milestones,
       property: {

@@ -130,7 +130,7 @@ function recalcProjection(data: WestData, rate: number, appreciationPct: number,
 export function WestTracker() {
   const [data, setData] = useState<WestData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [returnRate, setReturnRate] = useState(10.3)
+  const [returnRate, setReturnRate] = useState(9.5) // net after 1.25% commission
   const [appreciationRate, setAppreciationRate] = useState(12.5)
   const [cryptoGrowth, setCryptoGrowth] = useState(15)
 
@@ -364,9 +364,9 @@ export function WestTracker() {
         <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-4">Scenarios</h3>
         <div className="flex gap-2 mb-4">
           {[
-            { label: 'Conservative', rate: 8 },
-            { label: 'Base', rate: 10.3 },
-            { label: 'Optimistic', rate: 13 },
+            { label: 'Conservative', rate: 8.0 },
+            { label: 'Base', rate: 9.5 },
+            { label: 'Optimistic', rate: 11.0 },
           ].map(preset => (
             <button key={preset.label} onClick={() => setReturnRate(preset.rate)}
               className={cn(
@@ -381,17 +381,19 @@ export function WestTracker() {
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs text-[hsl(var(--text-secondary))]">Annual Return Rate</label>
+            <label className="text-xs text-[hsl(var(--text-secondary))]">Annual Net Return Rate (after commission)</label>
             <span className="text-sm font-bold tabular-nums">{returnRate.toFixed(1)}%</span>
           </div>
-          <input type="range" min={5} max={15} step={0.1} value={returnRate}
+          <input type="range" min={5} max={13} step={0.1} value={returnRate}
             onChange={e => setReturnRate(parseFloat(e.target.value))}
             className="w-full h-2 rounded-full appearance-none cursor-pointer bg-[hsl(var(--bg-elevated))]
               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
               [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:shadow-lg
               [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
           <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))]">
-            <span>5%</span><span>15%</span>
+            <span>5%</span>
+            <span className="text-center">Based on 2023–25 avg ~10.3% gross − 1.25% commission</span>
+            <span>13%</span>
           </div>
         </div>
 
