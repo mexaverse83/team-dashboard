@@ -5,7 +5,7 @@ import { GlassCard } from '@/components/ui/glass-card'
 import { Check } from 'lucide-react'
 import Link from 'next/link'
 import {
-  ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
+  ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from 'recharts'
 
 function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' ') }
@@ -35,10 +35,14 @@ interface WestData {
     financing_needed: number
   } | null
   monthly_projection: Array<{
-    month: string; paid: number; investments: number; crypto: number; total: number; gap: number
+    month: string; paid: number; investments: number; crypto: number; total: number; gap: number; property_value: number
   }>
   milestones: Array<{ date: string; label: string; status: string }>
-  assumptions: { investment_return: number; debt_payoff_total: number }
+  property: {
+    purchase_price: number; current_market_value: number; appreciation_rate: number
+    projected_value_at_delivery: number; equity_at_delivery: number
+  }
+  assumptions: { investment_return: number; appreciation_rate: number; debt_payoff_total: number }
 }
 
 // ─── Legend Item ───
@@ -69,9 +73,9 @@ function StatusPill({ status }: { status: string }) {
 }
 
 // ─── Client-side projection recalculation ───
-function recalcProjection(data: WestData, rate: number) {
+function recalcProjection(data: WestData, rate: number, appreciationPct: number) {
   const monthlyRate = Math.pow(1 + rate / 100, 1 / 12) - 1
-  const now = new Date()
+  const monthlyAppreciation = Math.pow(1 + appreciationPct / 100, 1 / 12) - 1
   const saleDate = '2026-04'
   const lumpDate = '2026-12'
   const paymentEnd = '2027-03'
@@ -80,22 +84,20 @@ function recalcProjection(data: WestData, rate: number) {
   let inv = data.current_status.investment_value
   const crypto = data.current_status.crypto_value
   const debtPayoff = data.assumptions.debt_payoff_total
-  const saleRemaining = 7200000 - 750000 // $6.45M
+  const saleRemaining = 7200000 - 750000
+  let propVal = data.property?.current_market_value || data.target
 
-  const months: Array<{ month: string; paid: number; investments: number; crypto: number; total: number; gap: number }> = []
+  const months: Array<{ month: string; paid: number; investments: number; crypto: number; total: number; gap: number; property_value: number }> = []
 
   for (const mp of data.monthly_projection) {
     const isFirst = mp.month === data.monthly_projection[0].month
 
     if (!isFirst) {
-      // Monthly payment
       if (mp.month <= paymentEnd) paid += 10000
-      // Lump sum
       if (mp.month === lumpDate) paid += 100000
-      // Sale proceeds
       if (mp.month === saleDate) inv += Math.max(0, saleRemaining - debtPayoff)
-      // Compounding
       inv *= (1 + monthlyRate)
+      propVal *= (1 + monthlyAppreciation)
     }
 
     const total = paid + inv + crypto
@@ -106,11 +108,18 @@ function recalcProjection(data: WestData, rate: number) {
       crypto: Math.round(crypto),
       total: Math.round(total),
       gap: Math.round(data.target - total),
+      property_value: Math.round(propVal),
     })
   }
 
   const last = months[months.length - 1]
-  return { months, projectedTotal: last?.total || 0, gap: last?.gap || 0 }
+  return {
+    months,
+    projectedTotal: last?.total || 0,
+    gap: last?.gap || 0,
+    projectedPropertyValue: last?.property_value || propVal,
+    equityAtDelivery: (last?.property_value || propVal) - data.target,
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -120,6 +129,7 @@ export function WestTracker() {
   const [data, setData] = useState<WestData | null>(null)
   const [loading, setLoading] = useState(true)
   const [returnRate, setReturnRate] = useState(10.3)
+  const [appreciationRate, setAppreciationRate] = useState(12.5)
 
   useEffect(() => {
     fetch('/api/finance/investments/west-projection')
@@ -127,16 +137,17 @@ export function WestTracker() {
       .then(d => {
         setData(d)
         if (d?.assumptions?.investment_return) setReturnRate(d.assumptions.investment_return * 100)
+        if (d?.assumptions?.appreciation_rate) setAppreciationRate(d.assumptions.appreciation_rate * 100)
       })
       .catch(() => null)
       .finally(() => setLoading(false))
   }, [])
 
-  // Client-side recalc when slider moves
+  // Client-side recalc when sliders move
   const projection = useMemo(() => {
     if (!data) return null
-    return recalcProjection(data, returnRate)
-  }, [data, returnRate])
+    return recalcProjection(data, returnRate, appreciationRate)
+  }, [data, returnRate, appreciationRate])
 
   if (loading) {
     return <div className="h-64 rounded-xl bg-[hsl(var(--accent))] animate-pulse" />
@@ -321,6 +332,7 @@ export function WestTracker() {
               <Area type="monotone" dataKey="paid" stackId="1" stroke="#10B981" strokeWidth={1.5} fill="url(#westPaidGrad)" name="Paid" />
               <Area type="monotone" dataKey="investments" stackId="1" stroke="#3B82F6" strokeWidth={1.5} fill="url(#westInvestGrad)" name="Investments" />
               <Area type="monotone" dataKey="crypto" stackId="1" stroke="#F59E0B" strokeWidth={1} fill="url(#westCryptoGrad)" name="Crypto" />
+              <Line type="monotone" dataKey="property_value" stroke="#10B981" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" />
               <ReferenceLine y={target} stroke="#EF4444" strokeDasharray="6 4" strokeWidth={1.5}
                 label={{ value: 'Target $11.2M', position: 'right', fill: '#EF4444', fontSize: 11, fontWeight: 600 }} />
               <ReferenceLine x="2026-04" stroke="hsl(222, 15%, 35%)" strokeDasharray="3 3"
@@ -332,6 +344,10 @@ export function WestTracker() {
           <LegendItem color="bg-emerald-500" label="Direct Payments" />
           <LegendItem color="bg-blue-500" label="Investments (GBM)" />
           <LegendItem color="bg-amber-500" label="Crypto" />
+          <div className="flex items-center gap-1.5">
+            <div className="h-0.5 w-4 border-t-2 border-dashed border-emerald-500" />
+            <span className="text-xs text-[hsl(var(--text-secondary))]">Property Value</span>
+          </div>
           <div className="flex items-center gap-1.5">
             <div className="h-0.5 w-4 border-t-2 border-dashed border-red-500" />
             <span className="text-xs text-[hsl(var(--text-secondary))]">Target</span>
@@ -418,6 +434,77 @@ export function WestTracker() {
           })}
         </div>
       </GlassCard>
+
+      {/* ── EQUITY OUTLOOK ── */}
+      {data.property && (
+        <GlassCard className="p-4 sm:p-5">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-4">Equity Outlook</h3>
+
+          {/* Value progression */}
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            <div className="text-center px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Purchase</p>
+              <p className="text-sm font-bold tabular-nums">{fmtShort(data.property.purchase_price)}</p>
+            </div>
+            <span className="text-[hsl(var(--text-tertiary))]">→</span>
+            <div className="text-center px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Current</p>
+              <p className="text-sm font-bold tabular-nums">{fmtShort(data.property.current_market_value)}</p>
+              <p className="text-[10px] text-emerald-400">+{(((data.property.current_market_value - data.property.purchase_price) / data.property.purchase_price) * 100).toFixed(1)}%</p>
+            </div>
+            <span className="text-[hsl(var(--text-tertiary))]">→</span>
+            <div className="text-center px-4 py-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+              <p className="text-[10px] uppercase tracking-wider text-emerald-400">Projected</p>
+              <p className="text-lg font-bold tabular-nums text-emerald-400">{fmtShort(projection.projectedPropertyValue)}</p>
+            </div>
+          </div>
+
+          {/* Equity hero */}
+          <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 mb-4">
+            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-1">Equity at Delivery</p>
+            <p className="text-2xl sm:text-3xl font-bold text-emerald-400 tabular-nums">
+              {fmtMXN(projection.equityAtDelivery)}
+            </p>
+            <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">
+              Even with a {fmtMXN(gap)} financing gap, you&apos;re walking into {fmtShort(projection.equityAtDelivery)}+ equity on day one.
+            </p>
+          </div>
+
+          {/* Appreciation slider */}
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              {[
+                { label: 'Conservative', rate: 10 },
+                { label: 'Base', rate: 12.5 },
+                { label: 'Optimistic', rate: 15 },
+              ].map(preset => (
+                <button key={preset.label} onClick={() => setAppreciationRate(preset.rate)}
+                  className={cn(
+                    "flex-1 py-2 rounded-lg text-xs font-medium transition-all border",
+                    Math.abs(appreciationRate - preset.rate) < 0.1
+                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
+                      : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]"
+                  )}>
+                  {preset.label} ({preset.rate}%)
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-[hsl(var(--text-secondary))]">Annual Appreciation</label>
+              <span className="text-sm font-bold tabular-nums">{appreciationRate.toFixed(1)}%</span>
+            </div>
+            <input type="range" min={5} max={20} step={0.5} value={appreciationRate}
+              onChange={e => setAppreciationRate(parseFloat(e.target.value))}
+              className="w-full h-2 rounded-full appearance-none cursor-pointer bg-[hsl(var(--bg-elevated))]
+                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
+                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:shadow-lg
+                [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
+            <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))]">
+              <span>5%</span><span>20%</span>
+            </div>
+          </div>
+        </GlassCard>
+      )}
     </div>
   )
 }
@@ -470,6 +557,13 @@ export function WestCompactWidget() {
         <span className="text-xs text-red-400 tabular-nums">Gap: {fmtMXN(gap)}</span>
         <span className="text-xs text-[hsl(var(--text-secondary))]">{data.months_to_delivery}mo to delivery</span>
       </div>
+      {data.property && (
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-xs text-emerald-400 tabular-nums">
+            Est. value: {fmtMXN(data.property.projected_value_at_delivery)} (+{fmtMXN(data.property.equity_at_delivery)} equity)
+          </span>
+        </div>
+      )}
     </GlassCard>
   )
 }

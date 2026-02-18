@@ -44,6 +44,7 @@ interface MonthProjection {
   crypto: number
   total: number
   gap: number
+  property_value: number
 }
 
 export async function GET(req: NextRequest) {
@@ -100,8 +101,14 @@ export async function GET(req: NextRequest) {
     let investmentBalance = target.sale_deposit_received || 0 // GBM starting balance
     let paidCumulative = target.amount_paid || 0
 
-    const monthly: MonthProjection[] = []
+    // Property appreciation
     const targetAmount = target.target_amount || 11204000
+    const currentMarketValue = target.current_market_value || targetAmount
+    const appreciationRate = target.appreciation_rate_annual || 0.125
+    const monthlyAppreciation = Math.pow(1 + appreciationRate, 1 / 12) - 1
+    let propertyValue = currentMarketValue
+
+    const monthly: MonthProjection[] = []
 
     const current = new Date(startMonth)
 
@@ -133,6 +140,7 @@ export async function GET(req: NextRequest) {
       // Monthly investment compounding
       if (!isCurrentMonth) {
         investmentBalance *= (1 + monthlyRate)
+        propertyValue *= (1 + monthlyAppreciation)
       }
 
       const total = paidCumulative + investmentBalance + cryptoValue
@@ -140,6 +148,7 @@ export async function GET(req: NextRequest) {
 
       monthly.push({
         month: monthStr,
+        property_value: Math.round(propertyValue),
         paid: Math.round(paidCumulative),
         investments: Math.round(investmentBalance),
         crypto: Math.round(cryptoValue),
@@ -249,8 +258,18 @@ export async function GET(req: NextRequest) {
         optimistic_13pct: calcScenario(0.13),
       },
       milestones,
+      property: {
+        purchase_price: targetAmount,
+        current_market_value: currentMarketValue,
+        purchase_date: target.purchase_date,
+        last_valuation_date: target.last_valuation_date,
+        appreciation_rate: appreciationRate,
+        projected_value_at_delivery: lastMonth?.property_value || currentMarketValue,
+        equity_at_delivery: (lastMonth?.property_value || currentMarketValue) - targetAmount,
+      },
       assumptions: {
         investment_return: annualRate,
+        appreciation_rate: appreciationRate,
         debt_payoff_total: debtPayoffTotal,
         crypto_growth: 0,
         monthly_savings: 0,

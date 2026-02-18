@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS finance_real_estate_targets (
   -- Investment assumptions
   investment_annual_return NUMERIC(6,4),
 
+  -- Property appreciation tracking
+  purchase_date DATE,
+  current_market_value NUMERIC(14,2),
+  last_valuation_date DATE,
+  appreciation_rate_annual NUMERIC(6,4),
+
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -40,11 +46,15 @@ INSERT INTO finance_real_estate_targets (
   amount_paid, monthly_payment, monthly_payment_end,
   lump_sum_amount, lump_sum_date,
   sale_price, sale_deposit_received, sale_remaining_date,
-  investment_annual_return, is_active
+  investment_annual_return,
+  purchase_date, current_market_value, last_valuation_date, appreciation_rate_annual,
+  is_active
 ) VALUES (
   'WEST Apartment', 11204000, '2027-12-31',
   2504700, 10000, '2027-03-31',
   100000, '2026-12-01',
   7200000, 750000, '2026-04-01',
-  0.103, true
+  0.103,
+  '2024-02-01', 13500000, '2026-02-18', 0.125,
+  true
 );
