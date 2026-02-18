@@ -649,12 +649,18 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           ) : (
             <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
               {filteredRE.map(prop => {
+                const isPreSale = prop.property_type === 'pre_sale'
+                const isSalePending = prop.property_type === 'sale_pending'
                 const equity = (prop.current_value || 0) - (prop.mortgage_balance || 0)
                 const appreciation = prop.purchase_price > 0
                   ? ((prop.current_value - prop.purchase_price) / prop.purchase_price) * 100 : null
                 const monthlyCashFlow = (prop.rental_income || 0) - (prop.monthly_mortgage || 0) - (prop.monthly_expenses || 0)
                 const valuationAge = prop.last_valuation_date
                   ? Math.floor((Date.now() - new Date(prop.last_valuation_date).getTime()) / (1000 * 60 * 60 * 24 * 30)) : null
+                const propertyTypeLabel = isPreSale ? 'Pre-sale' : isSalePending ? 'Sale Pending' : prop.property_type
+                const propertyTypeColor = isPreSale ? 'bg-blue-500/10 text-blue-400' : isSalePending ? 'bg-amber-500/10 text-amber-400' : 'bg-violet-500/10 text-violet-400'
+                const mortgageLabelText = isPreSale ? 'Remaining to Developer' : 'Mortgage'
+                const equityLabelText = isPreSale ? 'Unrealized Equity' : isSalePending ? 'Net Proceeds' : 'Equity'
 
                 return (
                   <GlassCard key={prop.id} className="p-4 relative group border-l-2 border-violet-500">
@@ -676,7 +682,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                           {prop.name} <OwnerDot owner={prop.owner} size="sm" />
                         </h4>
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 font-medium capitalize">{prop.property_type}</span>
+                          <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize", propertyTypeColor)}>{propertyTypeLabel}</span>
                           {valuationAge !== null && valuationAge > 6 && (
                             <span className="text-[10px] text-amber-400" title="Valuation older than 6 months">⚠️ Stale valuation</span>
                           )}
@@ -695,7 +701,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                         )}
                       </div>
                       <div>
-                        <span className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Equity</span>
+                        <span className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">{equityLabelText}</span>
                         <p className="text-lg font-bold text-violet-400 tabular-nums">{fmtMXN(equity)}</p>
                       </div>
                     </div>
@@ -704,7 +710,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       {prop.mortgage_balance && (
                         <>
                           <div className="flex justify-between">
-                            <span className="text-[hsl(var(--text-secondary))]">Mortgage</span>
+                            <span className="text-[hsl(var(--text-secondary))]">{mortgageLabelText}</span>
                             <span className="tabular-nums">{fmtMXN(prop.mortgage_balance)} @ {((prop.mortgage_rate || 0) * 100).toFixed(1)}%</span>
                           </div>
                           {prop.monthly_mortgage && (
@@ -975,6 +981,8 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                 <select value={reForm.property_type || 'apartment'} onChange={e => setREForm(f => ({ ...f, property_type: e.target.value }))}
                   className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm focus:outline-none focus:ring-1 focus:ring-violet-500">
                   <option value="apartment">Apartment</option>
+                  <option value="pre_sale">Pre-sale</option>
+                  <option value="sale_pending">Sale Pending</option>
                   <option value="house">House</option>
                   <option value="land">Land</option>
                   <option value="commercial">Commercial</option>
