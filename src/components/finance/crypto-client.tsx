@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { Bitcoin, TrendingUp, TrendingDown, Plus, Pencil, Trash2, X, Wallet, RefreshCw } from 'lucide-react'
 import { OwnerDot } from '@/components/finance/owner-dot'
@@ -34,9 +34,14 @@ const EMPTY_FORM: FormData = { symbol: 'BTC', quantity: '', avg_cost_basis_usd: 
 
 const COIN_ICONS: Record<string, string> = { BTC: '₿', ETH: 'Ξ', SOL: '◎' }
 const COIN_COLORS: Record<string, string> = {
-  BTC: 'from-orange-500 to-amber-500',
-  ETH: 'from-indigo-500 to-blue-500',
-  SOL: 'from-purple-500 to-fuchsia-500',
+  BTC: 'from-orange-500 to-amber-600',
+  ETH: 'from-indigo-400 to-blue-600',
+  SOL: 'from-purple-400 to-fuchsia-600',
+}
+const COIN_SOLIDS: Record<string, string> = {
+  BTC: 'bg-orange-500',
+  ETH: 'bg-indigo-500',
+  SOL: 'bg-purple-500',
 }
 
 function fmt(n: number, decimals = 2) {
@@ -49,6 +54,10 @@ function fmtMXN(n: number) {
 
 function fmtUSD(n: number) {
   return `$${fmt(n)} USD`
+}
+
+function getValueMXN(h: Holding, prices: Prices | null) {
+  return h.quantity * (prices?.[h.symbol]?.mxn ?? 0)
 }
 
 export function CryptoClient() {
@@ -83,9 +92,15 @@ export function CryptoClient() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
+  // Sort holdings by descending MXN value
+  const sortedHoldings = useMemo(() => {
+    return [...holdings].sort((a, b) => getValueMXN(b, prices) - getValueMXN(a, prices))
+  }, [holdings, prices])
+
   const handleSave = async () => {
     if (!form.quantity || parseFloat(form.quantity) <= 0) return
     setSaving(true)
+    setError(null)
     try {
       const res = await fetch('/api/finance/crypto', {
         method: 'POST',
@@ -139,19 +154,14 @@ export function CryptoClient() {
   }
 
   // Portfolio totals
-  const totalUSD = holdings.reduce((sum, h) => {
-    const p = prices?.[h.symbol]?.usd ?? 0
-    return sum + h.quantity * p
-  }, 0)
-  const totalMXN = holdings.reduce((sum, h) => {
-    const p = prices?.[h.symbol]?.mxn ?? 0
-    return sum + h.quantity * p
-  }, 0)
+  const totalUSD = holdings.reduce((sum, h) => sum + h.quantity * (prices?.[h.symbol]?.usd ?? 0), 0)
+  const totalMXN = holdings.reduce((sum, h) => sum + getValueMXN(h, prices), 0)
   const totalCostMXN = holdings.reduce((sum, h) => {
     if (!h.avg_cost_basis_usd) return sum
-    return sum + h.quantity * h.avg_cost_basis_usd // field stores MXN despite column name
+    return sum + h.quantity * h.avg_cost_basis_usd
   }, 0)
   const totalPL = totalCostMXN > 0 ? totalMXN - totalCostMXN : null
+  const totalPLPct = totalPL !== null && totalCostMXN > 0 ? (totalPL / totalCostMXN) * 100 : null
 
   if (loading) {
     return (
@@ -202,23 +212,26 @@ export function CryptoClient() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total (MXN)</p>
-            <p className="text-lg font-bold text-emerald-400">{fmtMXN(totalMXN)}</p>
+            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total (MXN)</p>
+            <p className="text-lg font-bold text-emerald-400 tabular-nums">{fmtMXN(totalMXN)}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total (USD)</p>
-            <p className="text-lg font-bold">{fmtUSD(totalUSD)}</p>
+            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total (USD)</p>
+            <p className="text-lg font-bold tabular-nums">{fmtUSD(totalUSD)}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Cost Basis</p>
-            <p className="text-lg font-bold text-[hsl(var(--text-secondary))]">{totalCostMXN > 0 ? fmtMXN(totalCostMXN) : '—'}</p>
+            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">Cost Basis</p>
+            <p className="text-lg font-bold text-[hsl(var(--text-secondary))] tabular-nums">{totalCostMXN > 0 ? fmtMXN(totalCostMXN) : '—'}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">P&L</p>
+            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">P&L</p>
             {totalPL !== null ? (
-              <p className={`text-lg font-bold flex items-center gap-1 ${totalPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                {totalPL >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+              <p className={`text-lg font-bold flex items-center gap-1 tabular-nums whitespace-nowrap ${totalPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                {totalPL >= 0 ? <TrendingUp className="h-4 w-4 shrink-0" /> : <TrendingDown className="h-4 w-4 shrink-0" />}
                 {totalPL >= 0 ? '+' : ''}{fmtMXN(totalPL)}
+                {totalPLPct !== null && (
+                  <span className="text-xs font-medium ml-1">({totalPLPct >= 0 ? '+' : ''}{totalPLPct.toFixed(1)}%)</span>
+                )}
               </p>
             ) : (
               <p className="text-lg font-bold text-[hsl(var(--text-secondary))]">—</p>
@@ -226,6 +239,37 @@ export function CryptoClient() {
           </div>
         </div>
       </GlassCard>
+
+      {/* Allocation Bar */}
+      {sortedHoldings.length > 0 && totalMXN > 0 && (
+        <div>
+          <div className="flex h-3 w-full rounded-full overflow-hidden">
+            {sortedHoldings.map(h => {
+              const pct = (getValueMXN(h, prices) / totalMXN) * 100
+              if (pct < 0.5) return null
+              return (
+                <div
+                  key={h.id}
+                  className={`h-full first:rounded-l-full last:rounded-r-full ${COIN_SOLIDS[h.symbol] || 'bg-gray-500'}`}
+                  style={{ width: `${pct}%` }}
+                  title={`${h.symbol}: ${pct.toFixed(1)}%`}
+                />
+              )
+            })}
+          </div>
+          <div className="flex gap-4 mt-1.5">
+            {sortedHoldings.map(h => {
+              const pct = totalMXN > 0 ? (getValueMXN(h, prices) / totalMXN) * 100 : 0
+              return (
+                <span key={h.id} className="flex items-center gap-1.5 text-[11px] text-[hsl(var(--text-secondary))]">
+                  <span className={`h-2 w-2 rounded-full ${COIN_SOLIDS[h.symbol] || 'bg-gray-500'}`} />
+                  {h.symbol} {pct.toFixed(0)}%
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Asset Cards */}
       {holdings.length === 0 ? (
@@ -242,19 +286,19 @@ export function CryptoClient() {
         </GlassCard>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {holdings.map(h => {
+          {sortedHoldings.map(h => {
             const price = prices?.[h.symbol]
             const valueUSD = h.quantity * (price?.usd ?? 0)
             const valueMXN = h.quantity * (price?.mxn ?? 0)
-            const costMXN = h.avg_cost_basis_usd ? h.quantity * h.avg_cost_basis_usd : null // field stores MXN
+            const costMXN = h.avg_cost_basis_usd ? h.quantity * h.avg_cost_basis_usd : null
             const pl = costMXN ? valueMXN - costMXN : null
             const plPct = costMXN && costMXN > 0 ? (valueMXN / costMXN - 1) * 100 : null
             const change = price?.change24h ?? 0
 
             return (
               <GlassCard key={h.id} className="p-4 relative group">
-                {/* Actions */}
-                <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Actions — visible on mobile, hover-reveal on desktop */}
+                <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   <button onClick={() => editHolding(h)} className="p-1.5 rounded-md hover:bg-[hsl(var(--accent))]">
                     <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                   </button>
@@ -278,18 +322,18 @@ export function CryptoClient() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs">
                     <span className="text-[hsl(var(--text-secondary))]">Holdings</span>
-                    <span className="font-mono">{fmt(h.quantity, 8).replace(/\.?0+$/, '')} {h.symbol}</span>
+                    <span className="font-mono tabular-nums">{fmt(h.quantity, 8).replace(/\.?0+$/, '')} {h.symbol}</span>
                   </div>
 
                   {price && (
                     <>
                       <div className="flex justify-between text-xs">
                         <span className="text-[hsl(var(--text-secondary))]">Price</span>
-                        <span className="font-mono">{fmtUSD(price.usd)}</span>
+                        <span className="font-mono tabular-nums">{fmtUSD(price.usd)}</span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-[hsl(var(--text-secondary))]">24h</span>
-                        <span className={`font-mono ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span className={`font-mono tabular-nums ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                           {change >= 0 ? '+' : ''}{change.toFixed(2)}%
                         </span>
                       </div>
@@ -300,17 +344,17 @@ export function CryptoClient() {
 
                   <div className="flex justify-between text-xs">
                     <span className="text-[hsl(var(--text-secondary))]">Value (MXN)</span>
-                    <span className="font-semibold text-emerald-400">{fmtMXN(valueMXN)}</span>
+                    <span className="font-semibold text-emerald-400 tabular-nums">{fmtMXN(valueMXN)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-[hsl(var(--text-secondary))]">Value (USD)</span>
-                    <span className="font-semibold">{fmtUSD(valueUSD)}</span>
+                    <span className="font-semibold tabular-nums">{fmtUSD(valueUSD)}</span>
                   </div>
 
                   {pl !== null && (
                     <div className="flex justify-between text-xs">
                       <span className="text-[hsl(var(--text-secondary))]">P&L</span>
-                      <span className={`font-semibold ${pl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <span className={`font-semibold tabular-nums ${pl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {pl >= 0 ? '+' : ''}{fmtMXN(pl)}
                         {plPct !== null && <span className="ml-1 text-[10px]">({plPct >= 0 ? '+' : ''}{plPct.toFixed(1)}%)</span>}
                       </span>
@@ -329,8 +373,8 @@ export function CryptoClient() {
 
       {/* Add/Edit Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowForm(false)}>
-          <div className="w-full max-w-md bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto" onClick={() => setShowForm(false)}>
+          <div className="w-full max-w-md bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{form.id ? 'Edit Position' : 'Add Position'}</h2>
               <button onClick={() => setShowForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]">

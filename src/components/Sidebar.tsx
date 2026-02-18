@@ -31,13 +31,13 @@ const financeTrack = [
   { href: '/finance/transactions', icon: ArrowLeftRight, label: 'Transactions' },
   { href: '/finance/budgets', icon: PiggyBank, label: 'Budgets' },
   { href: '/finance/subscriptions', icon: RefreshCw, label: 'Subscriptions' },
+  { href: '/finance/crypto', icon: Bitcoin, label: 'Crypto' },
 ]
 
 const financePlan = [
   { href: '/finance/budget-builder', icon: Calculator, label: 'Budget Builder' },
   { href: '/finance/installments', icon: CreditCard, label: 'MSI Tracker' },
   { href: '/finance/debt', icon: Landmark, label: 'Debt Planner' },
-  { href: '/finance/crypto', icon: Bitcoin, label: 'Crypto' },
   { href: '/finance/emergency-fund', icon: ShieldCheck, label: 'Emergency Fund' },
   { href: '/finance/goals', icon: Target, label: 'Goals' },
 ]
