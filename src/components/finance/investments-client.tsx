@@ -35,6 +35,15 @@ function normalizeRate(r: number | null | undefined): number {
   if (r == null) return 0
   return r > 1 ? r / 100 : r
 }
+// For commission-bearing instruments: always compute net from gross - commission.
+// The stored net_annual_rate is unreliable (DB corruption risk). If no commission, use stored or gross.
+function effectiveNetRate(inst: { annual_rate: number; commission_rate: number | null; net_annual_rate: number | null }): number {
+  const gross = normalizeRate(inst.annual_rate)
+  const comm = normalizeRate(inst.commission_rate)
+  if (inst.commission_rate != null) return gross - comm          // always compute when commission exists
+  if (inst.net_annual_rate != null) return normalizeRate(inst.net_annual_rate)
+  return gross
+}
 function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' ') }
 
 // ─── Types ───
@@ -95,7 +104,7 @@ function OwnerToggle({ value, onChange }: { value: string; onChange: (v: string)
 function TierBadge({ tier }: { tier: number }) {
   const config: Record<number, { label: string; color: string; tooltip: string }> = {
     1: { label: 'Tier 1', color: 'bg-emerald-500/10 text-emerald-400', tooltip: 'Fintech — Nu, Mercado Pago' },
-    2: { label: 'Tier 2', color: 'bg-blue-500/10 text-blue-400', tooltip: 'Neobank — Hey Banco, Klar' },
+    2: { label: 'Tier 2', color: 'bg-blue-500/10 text-blue-400', tooltip: 'Regulated Broker/Neobank — GBM, Hey Banco, Klar (INDEVAL custody, no deposit insurance)' },
     3: { label: 'Tier 3', color: 'bg-amber-500/10 text-amber-400', tooltip: 'Higher yield — CETES, Supertasas, Kubo. PROSOFIPO cap: $190K/institution' },
   }
   const c = config[tier] || { label: `Tier ${tier}`, color: 'bg-gray-500/10 text-gray-400', tooltip: '' }
@@ -687,37 +696,29 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       <span className="font-semibold tabular-nums">{fmtMXN(inst.principal)}</span>
                     </div>
                     {/* Gross rate + net rate (if commission exists) */}
-                    {(() => {
-                      const grossRate = normalizeRate(inst.annual_rate)
-                      const commRate = normalizeRate(inst.commission_rate)
-                      const netRate = inst.net_annual_rate != null
-                        ? normalizeRate(inst.net_annual_rate)
-                        : grossRate - commRate
-                      return inst.commission_rate ? (
-                        <>
-                          <div className="flex justify-between">
-                            <span className="text-[hsl(var(--text-secondary))]">Gross Rate</span>
-                            <span className="font-semibold text-[hsl(var(--text-secondary))] tabular-nums">{(grossRate * 100).toFixed(2)}%</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-[hsl(var(--text-secondary))]">Commission</span>
-                            <span className="tabular-nums text-amber-400">-{(commRate * 100).toFixed(2)}%</span>
-                          </div>
-                          <div className="flex justify-between border-t border-[hsl(var(--border))] pt-1">
-                            <span className="text-[hsl(var(--text-secondary))] font-medium">Net Rate</span>
-                            <span className="font-bold text-emerald-400 tabular-nums">
-                              {(netRate * 100).toFixed(2)}%
-                            </span>
-                          </div>
-                          {/* net rate computed above, used in yield row */}
-                        </>
-                      ) : (
+                    {inst.commission_rate ? (
+                      <>
                         <div className="flex justify-between">
-                          <span className="text-[hsl(var(--text-secondary))]">Rate</span>
-                          <span className="font-semibold text-emerald-400 tabular-nums">{(grossRate * 100).toFixed(2)}%</span>
+                          <span className="text-[hsl(var(--text-secondary))]">Gross Rate</span>
+                          <span className="font-semibold text-[hsl(var(--text-secondary))] tabular-nums">{(normalizeRate(inst.annual_rate) * 100).toFixed(2)}%</span>
                         </div>
-                      )
-                    })()}
+                        <div className="flex justify-between">
+                          <span className="text-[hsl(var(--text-secondary))]">Commission</span>
+                          <span className="tabular-nums text-amber-400">-{(normalizeRate(inst.commission_rate) * 100).toFixed(2)}%</span>
+                        </div>
+                        <div className="flex justify-between border-t border-[hsl(var(--border))] pt-1">
+                          <span className="text-[hsl(var(--text-secondary))] font-medium">Net Rate</span>
+                          <span className="font-bold text-emerald-400 tabular-nums">
+                            {(effectiveNetRate(inst) * 100).toFixed(2)}%
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between">
+                        <span className="text-[hsl(var(--text-secondary))]">Rate</span>
+                        <span className="font-semibold text-emerald-400 tabular-nums">{(normalizeRate(inst.annual_rate) * 100).toFixed(2)}%</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-[hsl(var(--text-secondary))]">Term</span>
                       <span>
@@ -733,9 +734,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                     <div className="flex justify-between">
                       <span className="text-[hsl(var(--text-secondary))]">Net Annual Yield</span>
                       <span className="font-semibold tabular-nums">
-                        {fmtMXN(inst.principal * (inst.net_annual_rate != null
-                          ? normalizeRate(inst.net_annual_rate)
-                          : normalizeRate(inst.annual_rate) - normalizeRate(inst.commission_rate)))}
+                        {fmtMXN(inst.principal * effectiveNetRate(inst))}
                       </span>
                     </div>
                   </div>
@@ -1080,7 +1079,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                   <select value={fiForm.tier || 1} onChange={e => setFIForm(f => ({ ...f, tier: parseInt(e.target.value) }))}
                     className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500">
                     <option value={1}>Tier 1 — Fintech</option>
-                    <option value={2}>Tier 2 — Neobank</option>
+                    <option value={2}>Tier 2 — Broker/Neobank</option>
                     <option value={3}>Tier 3 — Higher Yield</option>
                   </select>
                 </div>
