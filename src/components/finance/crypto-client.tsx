@@ -50,6 +50,7 @@ interface TxFormData {
   owner: string
   quantity: string
   price_per_coin_mxn: string
+  price_currency: 'MXN' | 'USD'
   exchange: string
   notes: string
   transaction_date: string
@@ -60,7 +61,7 @@ const EMPTY_HOLDING_FORM: HoldingFormData = { symbol: 'BTC', owner: 'Bernardo', 
 const today = new Date().toISOString().slice(0, 10)
 const EMPTY_TX_FORM: TxFormData = {
   holding_id: '', type: 'buy', symbol: 'BTC', owner: 'Bernardo',
-  quantity: '', price_per_coin_mxn: '', exchange: '', notes: '', transaction_date: today,
+  quantity: '', price_per_coin_mxn: '', price_currency: 'MXN', exchange: '', notes: '', transaction_date: today,
 }
 
 const COIN_ICONS: Record<string, string> = { BTC: '₿', ETH: 'Ξ', SOL: '◎' }
@@ -234,7 +235,9 @@ export function CryptoClient() {
           holding_id: holdingId,
           type: txForm.type,
           quantity: parseFloat(txForm.quantity),
-          price_per_coin_mxn: parseFloat(txForm.price_per_coin_mxn),
+          price_per_coin_mxn: txForm.price_currency === 'USD'
+            ? parseFloat(txForm.price_per_coin_mxn) * usdToMxn
+            : parseFloat(txForm.price_per_coin_mxn),
           exchange: txForm.exchange || null,
           notes: txForm.notes || null,
           transaction_date: txForm.transaction_date || today,
@@ -283,13 +286,16 @@ export function CryptoClient() {
       symbol: symbol || 'BTC',
       owner: owner || 'Bernardo',
       holding_id: holdingId || '',
+      price_currency: 'MXN',
       transaction_date: today,
     })
     setShowTxForm(true)
   }
 
-  const txTotal = txForm.quantity && txForm.price_per_coin_mxn
-    ? parseFloat(txForm.quantity) * parseFloat(txForm.price_per_coin_mxn)
+  const txPriceRaw = txForm.price_per_coin_mxn ? parseFloat(txForm.price_per_coin_mxn) : 0
+  const txPriceMXN = txForm.price_currency === 'USD' ? txPriceRaw * usdToMxn : txPriceRaw
+  const txTotal = txForm.quantity && txPriceRaw > 0
+    ? parseFloat(txForm.quantity) * txPriceMXN
     : null
 
   if (loading) {
@@ -764,20 +770,35 @@ export function CryptoClient() {
               </div>
               {/* Price per coin */}
               <div>
-                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Price per coin (MXN) *</label>
-                <input type="number" step="any" placeholder="1,850,000" value={txForm.price_per_coin_mxn}
-                  onChange={e => setTxForm(f => ({ ...f, price_per_coin_mxn: e.target.value }))}
-                  className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Price per coin *</label>
+                <div className="flex gap-2">
+                  <input type="number" step="any" placeholder={txForm.price_currency === 'MXN' ? '1,850,000' : '95,000'} value={txForm.price_per_coin_mxn}
+                    onChange={e => setTxForm(f => ({ ...f, price_per_coin_mxn: e.target.value }))}
+                    className="flex-1 px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                  <div className="flex rounded-lg overflow-hidden border border-[hsl(var(--border))]">
+                    {(['MXN', 'USD'] as const).map(c => (
+                      <button key={c} onClick={() => setTxForm(f => ({ ...f, price_currency: c }))}
+                        className={`px-3 py-2 text-xs font-medium transition-colors ${
+                          txForm.price_currency === c ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'
+                        }`}>{c}</button>
+                    ))}
+                  </div>
+                </div>
                 {prices?.[txForm.symbol] && (
                   <p className="text-[10px] text-[hsl(var(--text-tertiary))] mt-1">
-                    Current: {fmtMXN(prices[txForm.symbol].mxn)}
+                    Current: {txForm.price_currency === 'USD' ? fmtUSD(prices[txForm.symbol].usd) : fmtMXN(prices[txForm.symbol].mxn)}
                   </p>
                 )}
               </div>
               {/* Auto total */}
               <div className="p-3 rounded-lg bg-[hsl(var(--accent))]">
-                <span className="text-xs text-[hsl(var(--text-secondary))]">Total</span>
+                <span className="text-xs text-[hsl(var(--text-secondary))]">Total (MXN)</span>
                 <p className="text-lg font-bold tabular-nums">{txTotal ? fmtMXN(txTotal) : '—'}</p>
+                {txTotal && txForm.price_currency === 'USD' && (
+                  <p className="text-[10px] text-[hsl(var(--text-tertiary))] mt-0.5">
+                    Converted at {fmt(usdToMxn, 2)} MXN/USD
+                  </p>
+                )}
               </div>
               {/* Date */}
               <div>
