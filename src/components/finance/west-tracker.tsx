@@ -73,16 +73,17 @@ function StatusPill({ status }: { status: string }) {
 }
 
 // ─── Client-side projection recalculation ───
-function recalcProjection(data: WestData, rate: number, appreciationPct: number) {
+function recalcProjection(data: WestData, rate: number, appreciationPct: number, cryptoGrowthPct: number) {
   const monthlyRate = Math.pow(1 + rate / 100, 1 / 12) - 1
   const monthlyAppreciation = Math.pow(1 + appreciationPct / 100, 1 / 12) - 1
+  const monthlyCryptoGrowth = Math.pow(1 + cryptoGrowthPct / 100, 1 / 12) - 1
   const saleDate = '2026-04'
   const lumpDate = '2026-12'
   const paymentEnd = '2027-03'
 
   let paid = data.current_status.amount_paid
   let inv = data.current_status.investment_value
-  const crypto = data.current_status.crypto_value
+  let crypto = data.current_status.crypto_value
   const debtPayoff = data.assumptions.debt_payoff_total
   const saleRemaining = 7200000 - 750000
   let propVal = data.property?.current_market_value || data.target
@@ -97,6 +98,7 @@ function recalcProjection(data: WestData, rate: number, appreciationPct: number)
       if (mp.month === lumpDate) paid += 100000
       if (mp.month === saleDate) inv += Math.max(0, saleRemaining - debtPayoff)
       inv *= (1 + monthlyRate)
+      crypto *= (1 + monthlyCryptoGrowth)
       propVal *= (1 + monthlyAppreciation)
     }
 
@@ -130,6 +132,7 @@ export function WestTracker() {
   const [loading, setLoading] = useState(true)
   const [returnRate, setReturnRate] = useState(10.3)
   const [appreciationRate, setAppreciationRate] = useState(12.5)
+  const [cryptoGrowth, setCryptoGrowth] = useState(15)
 
   useEffect(() => {
     fetch('/api/finance/investments/west-projection')
@@ -138,6 +141,7 @@ export function WestTracker() {
         setData(d)
         if (d?.assumptions?.investment_return) setReturnRate(d.assumptions.investment_return * 100)
         if (d?.assumptions?.appreciation_rate) setAppreciationRate(d.assumptions.appreciation_rate * 100)
+        if (d?.assumptions?.crypto_growth) setCryptoGrowth(d.assumptions.crypto_growth * 100)
       })
       .catch(() => null)
       .finally(() => setLoading(false))
@@ -146,8 +150,8 @@ export function WestTracker() {
   // Client-side recalc when sliders move
   const projection = useMemo(() => {
     if (!data) return null
-    return recalcProjection(data, returnRate, appreciationRate)
-  }, [data, returnRate, appreciationRate])
+    return recalcProjection(data, returnRate, appreciationRate, cryptoGrowth)
+  }, [data, returnRate, appreciationRate, cryptoGrowth])
 
   if (loading) {
     return <div className="h-64 rounded-xl bg-[hsl(var(--accent))] animate-pulse" />
@@ -179,7 +183,7 @@ export function WestTracker() {
   const fundingSources = [
     { name: 'Direct Payments', current: amountPaid, atDelivery: lastProj?.paid || 0, dotColor: 'bg-emerald-500', status: 'on_track' },
     { name: 'GBM Investment', current: investmentValue, atDelivery: lastProj?.investments || 0, dotColor: 'bg-blue-500', status: 'growing' },
-    { name: 'Crypto', current: cryptoValue, atDelivery: lastProj?.crypto || 0, dotColor: 'bg-amber-500', status: cryptoValue > 0 ? 'static' : 'not_set' },
+    { name: 'Crypto', current: cryptoValue, atDelivery: lastProj?.crypto || 0, dotColor: 'bg-amber-500', status: cryptoValue > 0 ? 'growing' : 'not_set' },
   ]
 
   return (
@@ -390,6 +394,41 @@ export function WestTracker() {
             <span>5%</span><span>15%</span>
           </div>
         </div>
+
+        {/* Crypto growth slider */}
+        <div className="space-y-2 mt-4 pt-4 border-t border-[hsl(var(--border))]">
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-[hsl(var(--text-secondary))]">Crypto Annual Growth</label>
+            <span className="text-sm font-bold tabular-nums text-amber-400">{cryptoGrowth.toFixed(0)}%</span>
+          </div>
+          <div className="flex gap-2 mb-2">
+            {[
+              { label: 'Bear', rate: 0 },
+              { label: 'Moderate', rate: 15 },
+              { label: 'Bull', rate: 40 },
+            ].map(preset => (
+              <button key={preset.label} onClick={() => setCryptoGrowth(preset.rate)}
+                className={cn(
+                  "flex-1 py-1.5 rounded-lg text-[10px] font-medium transition-all border",
+                  Math.abs(cryptoGrowth - preset.rate) < 1
+                    ? "border-amber-500 bg-amber-500/10 text-amber-400"
+                    : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]"
+                )}>
+                {preset.label} ({preset.rate}%)
+              </button>
+            ))}
+          </div>
+          <input type="range" min={-20} max={60} step={1} value={cryptoGrowth}
+            onChange={e => setCryptoGrowth(parseFloat(e.target.value))}
+            className="w-full h-2 rounded-full appearance-none cursor-pointer bg-[hsl(var(--bg-elevated))]
+              [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
+              [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:shadow-lg
+              [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
+          <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))]">
+            <span>-20%</span><span>60%</span>
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-4 mt-4 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
           <div>
             <span className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Projected Total</span>

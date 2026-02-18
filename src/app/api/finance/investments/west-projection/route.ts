@@ -88,6 +88,11 @@ export async function GET(req: NextRequest) {
     const annualRate = overrideRate ? parseFloat(overrideRate) : (target.investment_annual_return || 0.103)
     const monthlyRate = Math.pow(1 + annualRate, 1 / 12) - 1
 
+    // Crypto growth rate (default 15% annual — conservative for BTC/ETH/SOL mix)
+    const overrideCryptoGrowth = req.nextUrl.searchParams.get('cryptoGrowth')
+    const cryptoAnnualGrowth = overrideCryptoGrowth ? parseFloat(overrideCryptoGrowth) : 0.15
+    const cryptoMonthlyGrowth = Math.pow(1 + cryptoAnnualGrowth, 1 / 12) - 1
+
     // 5. Build month-by-month projection
     const now = new Date()
     const deliveryDate = new Date(target.delivery_date)
@@ -107,6 +112,7 @@ export async function GET(req: NextRequest) {
     const appreciationRate = target.appreciation_rate_annual || 0.125
     const monthlyAppreciation = Math.pow(1 + appreciationRate, 1 / 12) - 1
     let propertyValue = currentMarketValue
+    let cryptoProjected = cryptoValue // Start from live value, compound forward
 
     const monthly: MonthProjection[] = []
 
@@ -137,13 +143,14 @@ export async function GET(req: NextRequest) {
         investmentBalance += Math.max(0, netProceeds)
       }
 
-      // Monthly investment compounding
+      // Monthly investment compounding + crypto growth
       if (!isCurrentMonth) {
         investmentBalance *= (1 + monthlyRate)
+        cryptoProjected *= (1 + cryptoMonthlyGrowth)
         propertyValue *= (1 + monthlyAppreciation)
       }
 
-      const total = paidCumulative + investmentBalance + cryptoValue
+      const total = paidCumulative + investmentBalance + cryptoProjected
       const gap = targetAmount - total
 
       monthly.push({
@@ -151,7 +158,7 @@ export async function GET(req: NextRequest) {
         property_value: Math.round(propertyValue),
         paid: Math.round(paidCumulative),
         investments: Math.round(investmentBalance),
-        crypto: Math.round(cryptoValue),
+        crypto: Math.round(cryptoProjected),
         total: Math.round(total),
         gap: Math.round(gap),
       })
@@ -166,6 +173,7 @@ export async function GET(req: NextRequest) {
       const mr = Math.pow(1 + rate, 1 / 12) - 1
       let inv = target.sale_deposit_received || 0
       let paid = target.amount_paid || 0
+      let crypto = cryptoValue
       const cur = new Date(startMonth)
 
       while (cur <= deliveryDate) {
@@ -175,10 +183,13 @@ export async function GET(req: NextRequest) {
         if (!isCur && saleRemainingDate && cur.getFullYear() === saleRemainingDate.getFullYear() && cur.getMonth() === saleRemainingDate.getMonth()) {
           inv += Math.max(0, saleRemaining - debtPayoffTotal)
         }
-        if (!isCur) inv *= (1 + mr)
+        if (!isCur) {
+          inv *= (1 + mr)
+          crypto *= (1 + cryptoMonthlyGrowth)
+        }
         cur.setMonth(cur.getMonth() + 1)
       }
-      const total = paid + inv + cryptoValue
+      const total = paid + inv + crypto
       return { total: Math.round(total), gap: Math.round(targetAmount - total) }
     }
 
@@ -271,7 +282,7 @@ export async function GET(req: NextRequest) {
         investment_return: annualRate,
         appreciation_rate: appreciationRate,
         debt_payoff_total: debtPayoffTotal,
-        crypto_growth: 0,
+        crypto_growth: cryptoAnnualGrowth,
         monthly_savings: 0,
       },
     })

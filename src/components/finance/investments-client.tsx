@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { OwnerDot } from '@/components/finance/owner-dot'
 import { CryptoClient } from '@/components/finance/crypto-client'
-import { WestTracker } from '@/components/finance/west-tracker'
+import { WestTracker, WestCompactWidget } from '@/components/finance/west-tracker'
 import {
   TrendingUp, TrendingDown, Bitcoin, BarChart3, Shield, Home,
   Plus, Pencil, Trash2, X, RefreshCw,
@@ -307,8 +307,8 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {/* ═══════════ PORTFOLIO TAB ═══════════ */}
       {activeTab === 'Portfolio' && (
         <div className="space-y-6">
-          {/* WEST Target Tracker — THE #1 widget */}
-          <WestTracker />
+          {/* WEST Target Tracker — compact on Portfolio, full on Real Estate tab */}
+          <WestCompactWidget />
 
           {/* Net Worth Hero */}
           <GlassCard className="p-5 sm:p-6 relative overflow-hidden">
@@ -603,7 +603,10 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
 
       {/* ═══════════ REAL ESTATE TAB ═══════════ */}
       {activeTab === 'Real Estate' && (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* WEST Target Tracker — THE #1 widget, lives in Real Estate */}
+          <WestTracker />
+
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Properties</h2>
             <button onClick={() => { setREForm({ name: '', property_type: 'apartment', purchase_price: 0, current_value: 0, owner: 'Bernardo' }); setShowREForm(true) }}
