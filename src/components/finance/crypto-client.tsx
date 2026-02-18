@@ -192,11 +192,6 @@ export function CryptoClient() {
     return Object.values(map).sort((a, b) => b.valueMXN - a.valueMXN)
   }, [holdings, prices])
 
-  // BTC goal
-  const BTC_GOAL = 1
-  const totalBTC = combinedCoins.find(c => c.symbol === 'BTC')?.qty ?? 0
-  const btcGoalPct = Math.min((totalBTC / BTC_GOAL) * 100, 100)
-
   // Save holding (simplified — just symbol + owner + wallet)
   const handleSaveHolding = async () => {
     setSaving(true); setError(null)
@@ -392,7 +387,7 @@ export function CryptoClient() {
 
       {/* Combined Holdings + BTC Goal */}
       {combinedCoins.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
           {/* Combined per-coin totals */}
           <GlassCard className="p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -419,51 +414,6 @@ export function CryptoClient() {
                 </div>
               ))}
             </div>
-          </GlassCard>
-
-          {/* BTC Goal */}
-          <GlassCard className="p-4 border border-orange-500/20 bg-orange-500/5">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white font-bold text-sm">₿</div>
-              <div>
-                <span className="text-sm font-semibold">BTC Goal: 1.0</span>
-                <p className="text-[10px] text-[hsl(var(--text-tertiary))]">Target for 2025</p>
-              </div>
-            </div>
-
-            {/* Progress */}
-            <div className="mb-2">
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-[hsl(var(--text-secondary))]">Progress</span>
-                <span className="font-mono tabular-nums font-semibold">{fmt(totalBTC, 8).replace(/\.?0+$/, '')} / {BTC_GOAL} BTC</span>
-              </div>
-              <div className="h-3 w-full rounded-full bg-[hsl(var(--accent))] overflow-hidden">
-                <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all duration-500"
-                  style={{ width: `${btcGoalPct}%` }} />
-              </div>
-              <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))] mt-1">
-                <span>{btcGoalPct.toFixed(1)}% complete</span>
-                <span>{fmt(BTC_GOAL - totalBTC, 8).replace(/\.?0+$/, '')} BTC remaining</span>
-              </div>
-            </div>
-
-            {/* Value at goal */}
-            {prices?.BTC && (
-              <div className="border-t border-[hsl(var(--border))] pt-2 mt-2 space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-[hsl(var(--text-secondary))]">Current {fmt(totalBTC, 4)} BTC</span>
-                  <span className="tabular-nums">{fmtMXN(totalBTC * prices.BTC.mxn)}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-[hsl(var(--text-secondary))]">At goal (1 BTC)</span>
-                  <span className="font-semibold text-orange-400 tabular-nums">{fmtMXN(prices.BTC.mxn)}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-[hsl(var(--text-secondary))]">Still needed</span>
-                  <span className="tabular-nums">{fmtMXN((BTC_GOAL - totalBTC) * prices.BTC.mxn)}</span>
-                </div>
-              </div>
-            )}
           </GlassCard>
         </div>
       )}

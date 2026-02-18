@@ -153,6 +153,8 @@ export interface FinanceGoal {
   milestones_json: Record<string, unknown>[]
   owner: string | null
   scope: 'personal' | 'shared'
+  goal_type: 'savings' | 'crypto'
+  crypto_symbol: string | null
   created_at: string
   updated_at: string
 }

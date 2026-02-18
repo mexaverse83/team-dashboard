@@ -32,18 +32,25 @@ function vehicleForHorizon(months: number): string {
   return 'VOO via GBM+ / ETFs'
 }
 
+const CRYPTO_SYMBOLS = ['BTC', 'ETH', 'SOL']
+const COIN_ICONS: Record<string, string> = { BTC: '₿', ETH: 'Ξ', SOL: '◎' }
+const COIN_SOLIDS: Record<string, string> = { BTC: 'bg-orange-500', ETH: 'bg-indigo-500', SOL: 'bg-purple-500' }
+const COIN_GRADIENTS: Record<string, string> = { BTC: 'from-orange-500/20 to-amber-500/20', ETH: 'from-indigo-500/20 to-blue-500/20', SOL: 'from-purple-500/20 to-fuchsia-500/20' }
+
 interface GoalForm {
   name: string; icon: string; target_amount: string; current_amount: string
   target_date: string; monthly_contribution: string; priority: string
   scope: 'personal' | 'shared'; owner: string
+  goal_type: 'savings' | 'crypto'; crypto_symbol: string
 }
-const emptyForm: GoalForm = { name: '', icon: '🎯', target_amount: '', current_amount: '0', target_date: '', monthly_contribution: '', priority: '1', scope: 'shared', owner: '' }
+const emptyForm: GoalForm = { name: '', icon: '🎯', target_amount: '', current_amount: '0', target_date: '', monthly_contribution: '', priority: '1', scope: 'shared', owner: '', goal_type: 'savings', crypto_symbol: '' }
 
 export default function GoalsClient() {
   const [goals, setGoals] = useState<FinanceGoal[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedGoal, setSelectedGoal] = useState<string | null>(null)
   const [whatIfAmount, setWhatIfAmount] = useState(0)
+  const [cryptoData, setCryptoData] = useState<{ holdings: { symbol: string; quantity: number; owner: string }[]; prices: Record<string, { usd: number; mxn: number }> | null }>({ holdings: [], prices: null })
 
   // Modal
   const [modalOpen, setModalOpen] = useState(false)
@@ -56,12 +63,25 @@ export default function GoalsClient() {
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setDefaultOwner(getOwnerName(data.user?.email ?? undefined))) }, [])
 
   const fetchData = useCallback(async () => {
-    const { data } = await supabase.from('finance_goals').select('*').order('priority')
-    setGoals(data || [])
+    const [goalsRes, cryptoRes] = await Promise.all([
+      supabase.from('finance_goals').select('*').order('priority'),
+      fetch('/api/finance/crypto').then(r => r.text()).then(t => t ? JSON.parse(t) : { holdings: [], prices: null }).catch(() => ({ holdings: [], prices: null })),
+    ])
+    setGoals(goalsRes.data || [])
+    setCryptoData(cryptoRes)
     setLoading(false)
   }, [])
 
   useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
+
+  // Helper: get total crypto qty for a symbol (both owners)
+  const getCryptoQty = useCallback((symbol: string) => {
+    return cryptoData.holdings.filter(h => h.symbol === symbol).reduce((s, h) => s + h.quantity, 0)
+  }, [cryptoData])
+  const getCryptoMXN = useCallback((symbol: string) => {
+    const qty = getCryptoQty(symbol)
+    return qty * (cryptoData.prices?.[symbol]?.mxn ?? 0)
+  }, [getCryptoQty, cryptoData.prices])
 
   // Filter by scope/owner
   const filteredGoals = useMemo(() => {
@@ -119,22 +139,26 @@ export default function GoalsClient() {
   }
   const openEdit = (g: FinanceGoal) => {
     setEditingId(g.id)
-    setForm({ name: g.name, icon: '🎯', target_amount: g.target_amount.toString(), current_amount: g.current_amount.toString(), target_date: g.target_date || '', monthly_contribution: (g.monthly_contribution || 0).toString(), priority: (g.priority || 1).toString(), scope: g.scope || 'shared', owner: g.owner || defaultOwner })
+    setForm({ name: g.name, icon: '🎯', target_amount: g.target_amount.toString(), current_amount: g.current_amount.toString(), target_date: g.target_date || '', monthly_contribution: (g.monthly_contribution || 0).toString(), priority: (g.priority || 1).toString(), scope: g.scope || 'shared', owner: g.owner || defaultOwner, goal_type: g.goal_type || 'savings', crypto_symbol: g.crypto_symbol || '' })
     setModalOpen(true)
   }
 
   const handleSave = async () => {
     if (!form.name || !form.target_amount || !form.target_date) return
+    if (form.goal_type === 'crypto' && !form.crypto_symbol) return
     setSaving(true)
     const targetAmt = parseFloat(form.target_amount)
-    const currentAmt = parseFloat(form.current_amount || '0')
+    const isCrypto = form.goal_type === 'crypto'
+    // For crypto goals, current_amount is auto-calculated from holdings
+    const currentAmt = isCrypto ? getCryptoQty(form.crypto_symbol) : parseFloat(form.current_amount || '0')
     const months = monthsBetween(new Date(), new Date(form.target_date))
-    const vehicle = vehicleForHorizon(months)
+    const vehicle = isCrypto ? `Crypto (${form.crypto_symbol})` : vehicleForHorizon(months)
     const record = {
       name: form.name, target_amount: targetAmt, current_amount: currentAmt,
       target_date: form.target_date, monthly_contribution: parseFloat(form.monthly_contribution || '0'),
       priority: parseInt(form.priority || '1'), investment_vehicle: vehicle,
       scope: form.scope, owner: form.scope === 'shared' ? null : form.owner,
+      goal_type: form.goal_type, crypto_symbol: isCrypto ? form.crypto_symbol : null,
       milestones_json: [25, 50, 75, 100].map(m => ({ pct: m, amount: targetAmt * m / 100, reached: currentAmt >= targetAmt * m / 100 })),
     }
     if (editingId) {
@@ -160,8 +184,8 @@ export default function GoalsClient() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Savings Goals</h1>
-          <p className="text-[hsl(var(--text-secondary))]">Track progress toward your financial targets</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Goals</h1>
+          <p className="text-[hsl(var(--text-secondary))]">Track progress toward your financial & crypto targets</p>
         </div>
       </div>
 
@@ -203,16 +227,22 @@ export default function GoalsClient() {
       {/* Goal Cards Grid */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {activeGoals.sort((a, b) => (a.priority || 99) - (b.priority || 99)).map((g, i) => {
-          const pct = (g.current_amount / g.target_amount) * 100
+          const isCrypto = g.goal_type === 'crypto' && g.crypto_symbol
+          const cryptoQty = isCrypto ? getCryptoQty(g.crypto_symbol!) : 0
+          const currentVal = isCrypto ? cryptoQty : g.current_amount
+          const pct = (currentVal / g.target_amount) * 100
           const months = monthsBetween(new Date(), new Date(g.target_date || '2027-01-01'))
-          const remaining = g.target_amount - g.current_amount
+          const remaining = g.target_amount - currentVal
           const needed = months > 0 ? remaining / months : remaining
-          const isOnTrack = (g.monthly_contribution || 0) >= needed
+          const isOnTrack = isCrypto ? pct >= ((Date.now() - new Date(g.created_at).getTime()) / (new Date(g.target_date || '2027-01-01').getTime() - new Date(g.created_at).getTime())) * 100 : (g.monthly_contribution || 0) >= needed
+          const cryptoMXN = isCrypto ? getCryptoMXN(g.crypto_symbol!) : 0
+          const goalGradient = isCrypto ? (COIN_GRADIENTS[g.crypto_symbol!] || GRADIENTS[0]) : GRADIENTS[Math.min(i, 3)]
 
           return (
             <GlassCard key={g.id}
               className={cn("cursor-pointer hover:ring-1 hover:ring-[hsl(var(--border))] transition-all group",
                 selectedGoal === g.id && "ring-1 ring-blue-500/50",
+                isCrypto ? `border-l-2 ${g.crypto_symbol === 'BTC' ? 'border-l-orange-500' : g.crypto_symbol === 'ETH' ? 'border-l-indigo-500' : 'border-l-purple-500'}` :
                 g.scope === 'shared' ? "border-l-2 border-l-violet-500" : g.owner === 'Laura' ? "border-l-2 border-l-pink-500" : g.owner === 'Bernardo' ? "border-l-2 border-l-blue-500" : ""
               )}
               onClick={() => setSelectedGoal(g.id === selectedGoal ? null : g.id)}>
@@ -224,7 +254,11 @@ export default function GoalsClient() {
                     i === 2 && "bg-emerald-500/20 text-emerald-400",
                     i > 2 && "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))]",
                   )}>#{g.priority || i + 1}</span>
-                  <span className="text-lg">🎯</span>
+                  {isCrypto ? (
+                    <span className={cn("h-6 w-6 rounded-md flex items-center justify-center text-white text-xs font-bold", COIN_SOLIDS[g.crypto_symbol!] || 'bg-gray-500')}>{COIN_ICONS[g.crypto_symbol!] || '?'}</span>
+                  ) : (
+                    <span className="text-lg">🎯</span>
+                  )}
                   <OwnerDot owner={g.scope === 'shared' ? 'shared' : g.owner} size="md" showLabel />
                 </div>
                 <div className="flex items-center gap-1">
@@ -239,11 +273,22 @@ export default function GoalsClient() {
               </div>
 
               <h4 className="text-sm font-semibold">{g.name}</h4>
-              <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">${g.current_amount.toLocaleString()} of ${g.target_amount.toLocaleString()}</p>
+              {isCrypto ? (
+                <div className="mt-0.5">
+                  <p className="text-xs text-[hsl(var(--text-tertiary))] tabular-nums font-mono">
+                    {cryptoQty.toFixed(8).replace(/\.?0+$/, '')} / {g.target_amount} {g.crypto_symbol}
+                  </p>
+                  <p className="text-[10px] text-[hsl(var(--text-tertiary))]">
+                    Current value: ${cryptoMXN.toLocaleString(undefined, { maximumFractionDigits: 0 })} MXN
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">${g.current_amount.toLocaleString()} of ${g.target_amount.toLocaleString()}</p>
+              )}
 
               <div className="relative mt-3 mb-2">
                 <div className="h-3 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
-                  <motion.div className={cn("h-3 rounded-full bg-gradient-to-r", GRADIENTS[Math.min(i, 3)])}
+                  <motion.div className={cn("h-3 rounded-full bg-gradient-to-r", goalGradient)}
                     initial={{ width: 0 }} animate={{ width: `${Math.min(pct, 100)}%` }} transition={{ duration: 0.8 }} />
                 </div>
                 {[25, 50, 75].map(m => (
@@ -257,14 +302,31 @@ export default function GoalsClient() {
               </div>
 
               <div className="mt-2 pt-2 border-t border-[hsl(var(--border))]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-[hsl(var(--text-tertiary))]">Contributing</span>
-                  <span className="text-xs font-medium tabular-nums">${(g.monthly_contribution || 0).toLocaleString()}/mo</span>
-                </div>
-                <div className="flex items-center justify-between mt-0.5">
-                  <span className="text-xs text-[hsl(var(--text-tertiary))]">Needed</span>
-                  <span className={cn("text-xs font-medium tabular-nums", isOnTrack ? "text-emerald-400" : "text-amber-400")}>${Math.round(needed).toLocaleString()}/mo</span>
-                </div>
+                {isCrypto ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-[hsl(var(--text-tertiary))]">Remaining</span>
+                      <span className="text-xs font-medium tabular-nums font-mono">{Math.max(0, g.target_amount - cryptoQty).toFixed(8).replace(/\.?0+$/, '')} {g.crypto_symbol}</span>
+                    </div>
+                    {months > 0 && (
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-xs text-[hsl(var(--text-tertiary))]">Needed/mo</span>
+                        <span className={cn("text-xs font-medium tabular-nums font-mono", isOnTrack ? "text-emerald-400" : "text-amber-400")}>{(Math.max(0, g.target_amount - cryptoQty) / months).toFixed(8).replace(/\.?0+$/, '')} {g.crypto_symbol}</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-[hsl(var(--text-tertiary))]">Contributing</span>
+                      <span className="text-xs font-medium tabular-nums">${(g.monthly_contribution || 0).toLocaleString()}/mo</span>
+                    </div>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <span className="text-xs text-[hsl(var(--text-tertiary))]">Needed</span>
+                      <span className={cn("text-xs font-medium tabular-nums", isOnTrack ? "text-emerald-400" : "text-amber-400")}>${Math.round(needed).toLocaleString()}/mo</span>
+                    </div>
+                  </>
+                )}
               </div>
               {deleteConfirm === g.id && (
                 <div className="mt-2 pt-2 border-t border-[hsl(var(--border))] flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
@@ -368,9 +430,41 @@ export default function GoalsClient() {
       {/* Add/Edit Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit Goal' : 'New Savings Goal'}>
         <form onSubmit={e => { e.preventDefault(); handleSave() }} className="space-y-4">
+          {/* Goal Type Toggle */}
+          <div>
+            <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Goal Type</label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setForm(f => ({ ...f, goal_type: 'savings', crypto_symbol: '' }))}
+                className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
+                  form.goal_type === 'savings' ? "border-indigo-500 bg-indigo-500/10 text-indigo-400" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                )}>💰 Savings</button>
+              <button type="button" onClick={() => setForm(f => ({ ...f, goal_type: 'crypto', crypto_symbol: f.crypto_symbol || 'BTC' }))}
+                className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
+                  form.goal_type === 'crypto' ? "border-orange-500 bg-orange-500/10 text-orange-400" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                )}>₿ Crypto</button>
+            </div>
+          </div>
+
+          {/* Crypto Symbol (only for crypto goals) */}
+          {form.goal_type === 'crypto' && (
+            <div>
+              <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Coin</label>
+              <div className="flex gap-2">
+                {CRYPTO_SYMBOLS.map(s => (
+                  <button key={s} type="button" onClick={() => setForm(f => ({ ...f, crypto_symbol: s, name: f.name || `Accumulate ${s}` }))}
+                    className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border flex items-center justify-center gap-1.5",
+                      form.crypto_symbol === s ? `${COIN_SOLIDS[s]} text-white border-transparent` : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                    )}>
+                    {COIN_ICONS[s]} {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Goal Name *</label>
-            <input type="text" required placeholder="e.g., Down payment" value={form.name}
+            <input type="text" required placeholder={form.goal_type === 'crypto' ? `e.g., Accumulate 1 ${form.crypto_symbol || 'BTC'}` : "e.g., Down payment"} value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />
           </div>
           {/* Scope + Owner */}
@@ -404,8 +498,11 @@ export default function GoalsClient() {
               </select>
             </div>
             <div className="flex-1">
-              <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Target Amount *</label>
-              <input type="number" step="1000" required placeholder="500000" value={form.target_amount}
+              <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">
+                {form.goal_type === 'crypto' ? `Target (${form.crypto_symbol || 'coins'}) *` : 'Target Amount *'}
+              </label>
+              <input type="number" step={form.goal_type === 'crypto' ? '0.001' : '1000'} required
+                placeholder={form.goal_type === 'crypto' ? '1' : '500000'} value={form.target_amount}
                 onChange={e => setForm(f => ({ ...f, target_amount: e.target.value }))} className={cn(inputCls, "font-semibold")} />
             </div>
           </div>
@@ -415,23 +512,45 @@ export default function GoalsClient() {
               <input type="date" required value={form.target_date}
                 onChange={e => setForm(f => ({ ...f, target_date: e.target.value }))} className={inputCls} />
             </div>
+            {form.goal_type !== 'crypto' && (
+              <div>
+                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Current Savings</label>
+                <input type="number" step="100" placeholder="0" value={form.current_amount}
+                  onChange={e => setForm(f => ({ ...f, current_amount: e.target.value }))} className={inputCls} />
+              </div>
+            )}
+            {form.goal_type === 'crypto' && form.crypto_symbol && (
+              <div>
+                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Current Holdings</label>
+                <div className={cn(inputCls, "bg-[hsl(var(--bg-elevated))]/50 text-[hsl(var(--text-secondary))]")}>
+                  {getCryptoQty(form.crypto_symbol).toFixed(8).replace(/\.?0+$/, '')} {form.crypto_symbol}
+                  <span className="text-[10px] text-[hsl(var(--text-tertiary))] ml-1">(auto from holdings)</span>
+                </div>
+              </div>
+            )}
+          </div>
+          {form.goal_type !== 'crypto' && (
             <div>
-              <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Current Savings</label>
-              <input type="number" step="100" placeholder="0" value={form.current_amount}
-                onChange={e => setForm(f => ({ ...f, current_amount: e.target.value }))} className={inputCls} />
+              <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Monthly Contribution</label>
+              <input type="number" step="500" placeholder="5000" value={form.monthly_contribution}
+                onChange={e => setForm(f => ({ ...f, monthly_contribution: e.target.value }))} className={inputCls} />
             </div>
-          </div>
-          <div>
-            <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Monthly Contribution</label>
-            <input type="number" step="500" placeholder="5000" value={form.monthly_contribution}
-              onChange={e => setForm(f => ({ ...f, monthly_contribution: e.target.value }))} className={inputCls} />
-          </div>
+          )}
 
-          {form.target_amount && form.target_date && (
+          {form.target_amount && form.target_date && form.goal_type !== 'crypto' && (
             <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))] text-center">
               <p className="text-xs text-[hsl(var(--text-secondary))]">You need to save</p>
               <p className="text-xl font-bold tabular-nums text-indigo-400">${Math.round(formMonthlyNeeded).toLocaleString()}/mo</p>
               <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">or ${Math.round(formMonthlyNeeded / 30).toLocaleString()}/day • {formMonthsLeft} months</p>
+            </div>
+          )}
+          {form.target_amount && form.target_date && form.goal_type === 'crypto' && form.crypto_symbol && (
+            <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))] text-center">
+              <p className="text-xs text-[hsl(var(--text-secondary))]">You need to accumulate</p>
+              <p className="text-xl font-bold tabular-nums text-orange-400 font-mono">
+                {formMonthsLeft > 0 ? (Math.max(0, parseFloat(form.target_amount) - getCryptoQty(form.crypto_symbol)) / formMonthsLeft).toFixed(8).replace(/\.?0+$/, '') : '—'} {form.crypto_symbol}/mo
+              </p>
+              <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{formMonthsLeft} months • Currently {getCryptoQty(form.crypto_symbol).toFixed(4)} {form.crypto_symbol}</p>
             </div>
           )}
 
