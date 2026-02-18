@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { GlassCard } from '@/components/ui/glass-card'
-import { OwnerDot } from '@/components/finance/owner-dot'
+import { OwnerDot, OwnerBar } from '@/components/finance/owner-dot'
 import { CryptoClient } from '@/components/finance/crypto-client'
 import { WestTracker, WestCompactWidget } from '@/components/finance/west-tracker'
 import { RetirementTab } from '@/components/finance/retirement-client'
@@ -116,6 +116,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
 
   // Data states
   const [cryptoTotal, setCryptoTotal] = useState({ mxn: 0, usd: 0, cost: 0, positions: 0 })
+  const [cryptoByOwner, setCryptoByOwner] = useState({ bernardo: 0, laura: 0 })
   const [stocks, setStocks] = useState<StockHolding[]>([])
   const [fixedIncome, setFixedIncome] = useState<FixedIncomeInstrument[]>([])
   const [realEstate, setRealEstate] = useState<RealEstateProperty[]>([])
@@ -156,6 +157,9 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           return s + h.quantity * (h.cost_currency === 'USD' ? h.avg_cost_basis_usd * usdToMxn : h.avg_cost_basis_usd)
         }, 0)
         setCryptoTotal({ mxn, usd, cost, positions: holdings.filter((h: { quantity: number }) => h.quantity > 0).length })
+        const bermxn = holdings.filter(h => h.owner?.toLowerCase() === 'bernardo').reduce((s, h) => s + h.quantity * (prices[h.symbol]?.mxn ?? 0), 0)
+        const lauramxn = holdings.filter(h => h.owner?.toLowerCase() === 'laura').reduce((s, h) => s + h.quantity * (prices[h.symbol]?.mxn ?? 0), 0)
+        setCryptoByOwner({ bernardo: bermxn, laura: lauramxn })
       }
 
       setStocks(stocksRes.stocks || [])
@@ -180,9 +184,33 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   const filteredFI = useMemo(() => ownerFilter === 'All' ? fixedIncome : fixedIncome.filter(i => i.owner === ownerFilter), [fixedIncome, ownerFilter])
   const filteredRE = useMemo(() => ownerFilter === 'All' ? realEstate : realEstate.filter(p => p.owner === ownerFilter), [realEstate, ownerFilter])
 
+  // FX rate (declared early — needed by per-owner memos below)
+  const fxRate = 17.13 // TODO: pull from live crypto prices API
+
+  // ─── Per-owner totals (unfiltered — full ownership breakdown) ───
+  const stocksByOwner = useMemo(() => {
+    const b = stocks.filter(s => s.owner?.toLowerCase() === 'bernardo')
+    const l = stocks.filter(s => s.owner?.toLowerCase() === 'laura')
+    const val = (arr: typeof stocks) =>
+      arr.filter(s => s.asset_type === 'private_equity').reduce((s, h) => s + h.shares * (h.current_price_usd || 0) * fxRate, 0)
+      + arr.filter(s => s.asset_type !== 'private_equity').reduce((s, h) => s + h.shares * h.avg_cost_basis, 0)
+    return { bernardo: val(b), laura: val(l), bCount: b.length, lCount: l.length }
+  }, [stocks, fxRate])
+
+  const fiByOwner = useMemo(() => {
+    const b = fixedIncome.filter(i => i.owner?.toLowerCase() === 'bernardo')
+    const l = fixedIncome.filter(i => i.owner?.toLowerCase() === 'laura')
+    return { bernardo: b.reduce((s, i) => s + i.principal, 0), laura: l.reduce((s, i) => s + i.principal, 0), bCount: b.length, lCount: l.length }
+  }, [fixedIncome])
+
+  const reByOwner = useMemo(() => {
+    const b = realEstate.filter(p => p.owner?.toLowerCase() === 'bernardo')
+    const l = realEstate.filter(p => p.owner?.toLowerCase() === 'laura')
+    const equity = (arr: typeof realEstate) => arr.reduce((s, p) => s + (p.current_value || 0) - (p.mortgage_balance || 0), 0)
+    return { bernardo: equity(b), laura: equity(l), bCount: b.length, lCount: l.length }
+  }, [realEstate])
+
   // Portfolio totals
-  // FX rate from crypto data (reuse existing fetch)
-  const fxRate = 17.13 // TODO: pull from crypto prices API
   const peTotal = privateEquityHoldings.reduce((s, h) => s + h.shares * (h.current_price_usd || 0) * fxRate, 0)
   const stocksTotal = filteredStocks.reduce((s, h) => s + h.shares * h.avg_cost_basis, 0) + peTotal
   const fiTotal = filteredFI.reduce((s, i) => s + i.principal, 0)
@@ -202,11 +230,11 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   ].filter(a => a.value > 0)
 
   const assetClasses = [
-    { name: 'Crypto', tab: 'Crypto' as Tab, icon: Bitcoin, gradient: 'from-amber-500 to-orange-500', borderColor: 'border-amber-500', totalMXN: cryptoMXN, pl: cryptoTotal.cost > 0 ? cryptoMXN - cryptoTotal.cost : 0, plPct: cryptoTotal.cost > 0 ? ((cryptoMXN - cryptoTotal.cost) / cryptoTotal.cost) * 100 : 0, positionCount: cryptoTotal.positions, locked: false },
-    { name: 'Stocks', tab: 'Stocks' as Tab, icon: BarChart3, gradient: 'from-blue-500 to-cyan-500', borderColor: 'border-blue-500', totalMXN: stocksTotal, pl: 0, plPct: 0, positionCount: filteredStocks.length, locked: false },
-    { name: 'Fixed Income', tab: 'Fixed Income' as Tab, icon: Shield, gradient: 'from-emerald-500 to-teal-500', borderColor: 'border-emerald-500', totalMXN: fiTotal, pl: 0, plPct: 0, positionCount: filteredFI.length, locked: false },
-    { name: 'Real Estate', tab: 'Real Estate' as Tab, icon: Home, gradient: 'from-violet-500 to-purple-500', borderColor: 'border-violet-500', totalMXN: reTotal, pl: 0, plPct: 0, positionCount: filteredRE.length, locked: false },
-    { name: 'Retirement', tab: 'Retirement' as Tab, icon: Shield, gradient: 'from-slate-500 to-slate-600', borderColor: 'border-slate-500', totalMXN: retirementTotal, pl: 0, plPct: 0, positionCount: retirementTotal > 0 ? 3 : 0, locked: true },
+    { name: 'Crypto', tab: 'Crypto' as Tab, icon: Bitcoin, gradient: 'from-amber-500 to-orange-500', borderColor: 'border-amber-500', totalMXN: cryptoMXN, pl: cryptoTotal.cost > 0 ? cryptoMXN - cryptoTotal.cost : 0, plPct: cryptoTotal.cost > 0 ? ((cryptoMXN - cryptoTotal.cost) / cryptoTotal.cost) * 100 : 0, positionCount: cryptoTotal.positions, locked: false, bernardo: cryptoByOwner.bernardo, laura: cryptoByOwner.laura },
+    { name: 'Stocks', tab: 'Stocks' as Tab, icon: BarChart3, gradient: 'from-blue-500 to-cyan-500', borderColor: 'border-blue-500', totalMXN: stocksTotal, pl: 0, plPct: 0, positionCount: (ownerFilter === 'All' ? stocks : stocks.filter(s => s.owner?.toLowerCase() === ownerFilter.toLowerCase())).length, locked: false, bernardo: stocksByOwner.bernardo, laura: stocksByOwner.laura },
+    { name: 'Fixed Income', tab: 'Fixed Income' as Tab, icon: Shield, gradient: 'from-emerald-500 to-teal-500', borderColor: 'border-emerald-500', totalMXN: fiTotal, pl: 0, plPct: 0, positionCount: filteredFI.length, locked: false, bernardo: fiByOwner.bernardo, laura: fiByOwner.laura },
+    { name: 'Real Estate', tab: 'Real Estate' as Tab, icon: Home, gradient: 'from-violet-500 to-purple-500', borderColor: 'border-violet-500', totalMXN: reTotal, pl: 0, plPct: 0, positionCount: filteredRE.length, locked: false, bernardo: reByOwner.bernardo, laura: reByOwner.laura },
+    { name: 'Retirement', tab: 'Retirement' as Tab, icon: Shield, gradient: 'from-slate-500 to-slate-600', borderColor: 'border-slate-500', totalMXN: retirementTotal, pl: 0, plPct: 0, positionCount: retirementTotal > 0 ? 3 : 0, locked: true, bernardo: 0, laura: 0 },
   ]
 
   // ─── CRUD helpers ───
@@ -419,6 +447,9 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                         {ac.positionCount} position{ac.positionCount !== 1 ? 's' : ''}
                       </span>
                     </div>
+                    {'bernardo' in ac && !ac.locked && ownerFilter === 'All' && (ac.bernardo > 0 || ac.laura > 0) && (
+                      <OwnerBar bernardo={ac.bernardo} laura={ac.laura} className="mt-2" />
+                    )}
                   </GlassCard>
                 </button>
               ))}
@@ -433,6 +464,22 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {/* ═══════════ STOCKS TAB ═══════════ */}
       {activeTab === 'Stocks' && (
         <div className="space-y-4">
+
+          {/* Owner breakdown */}
+          {ownerFilter === 'All' && (stocksByOwner.bernardo > 0 || stocksByOwner.laura > 0) && (
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+              <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] border-l-2 border-l-blue-500">
+                <div className="flex items-center gap-2 mb-1"><OwnerDot owner="Bernardo" size="sm" /><span className="text-xs font-semibold">Bernardo</span></div>
+                <p className="text-lg font-bold tabular-nums">{fmtMXN(stocksByOwner.bernardo)}</p>
+                <p className="text-xs text-[hsl(var(--text-secondary))]">{stocksByOwner.bCount} position{stocksByOwner.bCount !== 1 ? 's' : ''}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] border-l-2 border-l-pink-500">
+                <div className="flex items-center gap-2 mb-1"><OwnerDot owner="Laura" size="sm" /><span className="text-xs font-semibold">Laura</span></div>
+                <p className="text-lg font-bold tabular-nums">{fmtMXN(stocksByOwner.laura)}</p>
+                <p className="text-xs text-[hsl(var(--text-secondary))]">{stocksByOwner.lCount} position{stocksByOwner.lCount !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+          )}
 
           {/* Private Equity section */}
           {privateEquityHoldings.length > 0 && (
@@ -555,6 +602,22 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {/* ═══════════ FIXED INCOME TAB ═══════════ */}
       {activeTab === 'Fixed Income' && (
         <div className="space-y-6">
+          {/* Owner breakdown */}
+          {ownerFilter === 'All' && (fiByOwner.bernardo > 0 || fiByOwner.laura > 0) && (
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+              <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] border-l-2 border-l-blue-500">
+                <div className="flex items-center gap-2 mb-1"><OwnerDot owner="Bernardo" size="sm" /><span className="text-xs font-semibold">Bernardo</span></div>
+                <p className="text-lg font-bold tabular-nums">{fmtMXN(fiByOwner.bernardo)}</p>
+                <p className="text-xs text-[hsl(var(--text-secondary))]">{fiByOwner.bCount} position{fiByOwner.bCount !== 1 ? 's' : ''}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] border-l-2 border-l-pink-500">
+                <div className="flex items-center gap-2 mb-1"><OwnerDot owner="Laura" size="sm" /><span className="text-xs font-semibold">Laura</span></div>
+                <p className="text-lg font-bold tabular-nums">{fmtMXN(fiByOwner.laura)}</p>
+                <p className="text-xs text-[hsl(var(--text-secondary))]">{fiByOwner.lCount} position{fiByOwner.lCount !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+          )}
+
           {/* KPIs */}
           <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
             <GlassCard>
@@ -680,6 +743,25 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
         <div className="space-y-6">
           {/* WEST Target Tracker — THE #1 widget, lives in Real Estate */}
           <WestTracker />
+
+          {/* Owner breakdown */}
+          {ownerFilter === 'All' && (reByOwner.bernardo > 0 || reByOwner.laura > 0) && (
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+              <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] border-l-2 border-l-blue-500">
+                <div className="flex items-center gap-2 mb-1"><OwnerDot owner="Bernardo" size="sm" /><span className="text-xs font-semibold">Bernardo</span></div>
+                <p className="text-lg font-bold tabular-nums">{fmtMXN(reByOwner.bernardo)}</p>
+                <p className="text-xs text-[hsl(var(--text-secondary))]">{reByOwner.bCount} propert{reByOwner.bCount !== 1 ? 'ies' : 'y'}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] border-l-2 border-l-pink-500">
+                <div className="flex items-center gap-2 mb-1"><OwnerDot owner="Laura" size="sm" /><span className="text-xs font-semibold">Laura</span></div>
+                <p className="text-lg font-bold tabular-nums">{fmtMXN(reByOwner.laura)}</p>
+                <p className="text-xs text-[hsl(var(--text-secondary))]">
+                  {reByOwner.lCount} propert{reByOwner.lCount !== 1 ? 'ies' : 'y'}
+                  {reByOwner.lCount === 0 && <span className="ml-1 text-[hsl(var(--text-tertiary))]">· Infonavit in Retirement</span>}
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Properties</h2>

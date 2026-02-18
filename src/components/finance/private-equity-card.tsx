@@ -82,7 +82,7 @@ export function PrivateEquityCard({ holding, fxRate }: Props) {
                 <OwnerDot owner={holding.owner} size="sm" />
               </div>
               <p className="text-xs text-[hsl(var(--text-secondary))]">
-                {holding.ticker} · {holding.shares.toLocaleString()} shares · Cost: {fmtUSD(totalCostUSD)}
+                {holding.ticker} · {holding.shares.toLocaleString()} shares · Private Company
               </p>
             </div>
           </div>
@@ -182,6 +182,11 @@ export function PrivateEquityCard({ holding, fxRate }: Props) {
               </p>
             </div>
           </div>
+
+          {/* Cost basis footnote */}
+          <p className="text-[10px] text-[hsl(var(--text-tertiary))]">
+            Cost basis: {fmtUSD(totalCostUSD)} ({holding.shares.toLocaleString()} × ${costPerShare.toFixed(2)})
+          </p>
 
           {/* Tax note */}
           <p className="text-[10px] text-[hsl(var(--text-tertiary))] leading-relaxed">
