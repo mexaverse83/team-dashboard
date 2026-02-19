@@ -148,6 +148,41 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   const [reForm, setREForm] = useState<Partial<RealEstateProperty> & { id?: string }>({})
   const [saving, setSaving] = useState(false)
 
+  // Add Funds modal (FI merged cards)
+  type FIGroup = { representative: FixedIncomeInstrument; allMembers: FixedIncomeInstrument[]; filtered: FixedIncomeInstrument[]; totalPrincipal: number }
+  const [showAddFunds, setShowAddFunds] = useState(false)
+  const [addFundsGroup, setAddFundsGroup] = useState<FIGroup | null>(null)
+  const [addFundsOwner, setAddFundsOwner] = useState('Bernardo')
+  const [addFundsAmount, setAddFundsAmount] = useState('')
+
+  const openAddFunds = (group: FIGroup) => {
+    const defaultOwner = ownerFilter !== 'All' ? ownerFilter : 'Bernardo'
+    setAddFundsGroup(group)
+    setAddFundsOwner(defaultOwner)
+    setAddFundsAmount('')
+    setShowAddFunds(true)
+  }
+
+  const handleAddFunds = async () => {
+    if (!addFundsGroup) return
+    const member = addFundsGroup.allMembers.find(m => m.owner === addFundsOwner)
+    if (!member) return
+    const amount = parseFloat(addFundsAmount) || 0
+    if (amount <= 0) return
+    const newPrincipal = member.principal + amount
+    setSaving(true)
+    try {
+      const res = await fetch('/api/finance/investments/fixed-income', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: member.id, principal: newPrincipal }),
+      })
+      if (!res.ok) throw new Error('Save failed')
+      setShowAddFunds(false); setAddFundsGroup(null); setAddFundsAmount('')
+      await fetchData()
+    } catch { setError('Failed to add funds') }
+    finally { setSaving(false) }
+  }
+
   const fetchData = useCallback(async () => {
     try {
       const [cryptoRes, stocksRes, fiRes, reRes, retirementRes] = await Promise.all([
@@ -800,11 +835,17 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[hsl(var(--border))]">
-                      <TierBadge tier={inst.tier} />
-                      {inst.auto_renew && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-medium">Auto-renew</span>
-                      )}
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-[hsl(var(--border))]">
+                      <div className="flex items-center gap-2">
+                        <TierBadge tier={inst.tier} />
+                        {inst.auto_renew && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-medium">Auto-renew</span>
+                        )}
+                      </div>
+                      <button onClick={() => openAddFunds(group)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 transition-colors">
+                        <Plus className="h-3 w-3" /> Add Funds
+                      </button>
                     </div>
                   </GlassCard>
                 )
@@ -1168,6 +1209,90 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           </div>
         </div>
       )}
+
+      {/* ═══════════ ADD FUNDS MODAL (FI merged cards) ═══════════ */}
+      {showAddFunds && addFundsGroup && (() => {
+        const inst = addFundsGroup.representative
+        const selectedMember = addFundsGroup.allMembers.find(m => m.owner === addFundsOwner)
+        const currentPrincipal = selectedMember?.principal ?? 0
+        const amount = parseFloat(addFundsAmount) || 0
+        const newPrincipal = currentPrincipal + amount
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowAddFunds(false)}>
+            <div className="w-full max-w-sm bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-sm">Add Funds</h2>
+                  <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{inst.name.trim()} · {inst.institution}</p>
+                </div>
+                <button onClick={() => setShowAddFunds(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
+              </div>
+
+              {/* Owner selector */}
+              <div>
+                <label className="text-xs text-[hsl(var(--text-secondary))] mb-2 block font-medium">Who is investing?</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {addFundsGroup.allMembers.map(m => (
+                    <button key={m.id} onClick={() => setAddFundsOwner(m.owner)}
+                      className={cn(
+                        "flex flex-col items-start p-3 rounded-xl border transition-all text-left",
+                        addFundsOwner === m.owner
+                          ? "border-emerald-500/50 bg-emerald-500/5"
+                          : "border-[hsl(var(--border))] hover:border-[hsl(var(--border))]/60"
+                      )}>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <OwnerDot owner={m.owner} size="sm" />
+                        <span className="text-xs font-semibold">{m.owner}</span>
+                        {addFundsOwner === m.owner && <span className="ml-auto text-emerald-400">✓</span>}
+                      </div>
+                      <span className="text-[11px] text-[hsl(var(--text-secondary))] tabular-nums">{fmtMXN(m.principal)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1.5 block font-medium">Amount to add (MXN)</label>
+                <input
+                  type="number" step="1000" min="0"
+                  value={addFundsAmount}
+                  onChange={e => setAddFundsAmount(e.target.value)}
+                  placeholder="e.g. 50000"
+                  className="w-full px-3 py-2.5 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  autoFocus
+                />
+              </div>
+
+              {/* Preview */}
+              {amount > 0 && (
+                <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-xs space-y-1">
+                  <div className="flex justify-between text-[hsl(var(--text-secondary))]">
+                    <span>Current ({addFundsOwner})</span>
+                    <span className="tabular-nums">{fmtMXN(currentPrincipal)}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-400">
+                    <span>+ Adding</span>
+                    <span className="tabular-nums font-medium">+{fmtMXN(amount)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold border-t border-emerald-500/20 pt-1">
+                    <span>New balance</span>
+                    <span className="tabular-nums text-emerald-400">{fmtMXN(newPrincipal)}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button onClick={() => setShowAddFunds(false)} className="flex-1 py-2.5 rounded-xl text-sm bg-[hsl(var(--accent))]">Cancel</button>
+                <button onClick={handleAddFunds} disabled={saving || amount <= 0}
+                  className="flex-1 py-2.5 rounded-xl text-sm bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 font-medium transition-colors">
+                  {saving ? 'Saving...' : `Add ${amount > 0 ? fmtMXN(amount) : ''}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ═══════════ RETIREMENT TAB ═══════════ */}
       {activeTab === 'Retirement' && (
