@@ -468,7 +468,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {activeTab === 'Portfolio' && (
         <div className="space-y-6">
           {/* WEST Target Tracker — compact on Portfolio, full on Real Estate tab */}
-          <WestCompactWidget />
+          <WestTracker />
 
           {/* Net Worth Hero */}
           <GlassCard className="p-5 sm:p-6 relative overflow-hidden">
@@ -896,7 +896,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {activeTab === 'Real Estate' && (
         <div className="space-y-6">
           {/* WEST Target Tracker — THE #1 widget, lives in Real Estate */}
-          <WestTracker />
+          <WestCompactWidget />
 
           {/* Owner breakdown */}
           {ownerFilter === 'All' && (reByOwner.bernardo > 0 || reByOwner.laura > 0) && (

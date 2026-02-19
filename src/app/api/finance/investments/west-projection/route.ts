@@ -81,7 +81,16 @@ export async function GET(req: NextRequest) {
       debtPayoffTotal = (debts || []).reduce((s: number, d: { balance: number }) => s + (d.balance || 0), 0)
     }
 
-    // 3. Fetch crypto total
+    // 3. Fetch live GBM balance from finance_fixed_income (sum all GBM debt funds)
+    const { data: gbmRecords } = await supabase
+      .from('finance_fixed_income')
+      .select('principal')
+      .eq('institution', 'GBM')
+    const liveGBMBalance = gbmRecords && gbmRecords.length > 0
+      ? gbmRecords.reduce((s: number, r: { principal: number }) => s + (r.principal || 0), 0)
+      : (target.sale_deposit_received || 0)
+
+    // 4. Fetch crypto total
     const cryptoValue = await getCryptoTotal()
 
     // 4. Parse override return rate from query
@@ -105,7 +114,7 @@ export async function GET(req: NextRequest) {
     const lumpSumDate = target.lump_sum_date ? new Date(target.lump_sum_date) : null
 
     const saleRemaining = (target.sale_price || 0) - (target.sale_deposit_received || 0)
-    let investmentBalance = target.sale_deposit_received || 0 // GBM starting balance
+    let investmentBalance = liveGBMBalance // GBM starting balance (live from DB)
     let paidCumulative = target.amount_paid || 0
     // Laura's Infonavit subcuenta — confirmed $350K, applied at delivery, no compounding
     const lauraInfonvait = target.laura_infonavit_mxn || 350000
@@ -176,7 +185,7 @@ export async function GET(req: NextRequest) {
     // 6. Scenario calculations
     const calcScenario = (rate: number) => {
       const mr = Math.pow(1 + rate, 1 / 12) - 1
-      let inv = target.sale_deposit_received || 0
+      let inv = liveGBMBalance
       let paid = target.amount_paid || 0
       let crypto = cryptoValue
       const cur = new Date(startMonth)
@@ -267,7 +276,7 @@ export async function GET(req: NextRequest) {
       current_status: {
         amount_paid: target.amount_paid,
         pct_paid: ((target.amount_paid / targetAmount) * 100),
-        investment_value: Math.round(target.sale_deposit_received || 0),
+        investment_value: Math.round(liveGBMBalance),
         crypto_value: Math.round(cryptoValue),
         infonavit_laura: Math.round(lauraInfonvait),
         total_available: Math.round((target.amount_paid || 0) + (target.sale_deposit_received || 0) + cryptoValue + lauraInfonvait),
@@ -303,7 +312,7 @@ export async function GET(req: NextRequest) {
       },
       funding_sources: [
         { name: 'Direct Payments', current: Math.round(target.amount_paid || 0), at_delivery: lastMonth?.paid || 0, owner: 'bernardo', status: 'on_track' },
-        { name: 'GBM Investment', current: Math.round(target.sale_deposit_received || 0), at_delivery: lastMonth?.investments || 0, owner: 'bernardo', status: 'growing' },
+        { name: 'GBM Investment', current: Math.round(liveGBMBalance), at_delivery: lastMonth?.investments || 0, owner: 'bernardo', status: 'growing' },
         { name: 'Crypto', current: Math.round(cryptoValue), at_delivery: lastMonth?.crypto || 0, owner: 'bernardo', status: 'growing' },
         { name: "Laura's Infonavit", current: Math.round(lauraInfonvait), at_delivery: Math.round(lauraInfonvait), owner: 'laura', status: 'on_track' },
       ],
