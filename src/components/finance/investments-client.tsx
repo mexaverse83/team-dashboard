@@ -895,7 +895,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {activeTab === 'Real Estate' && (
         <div className="space-y-6">
           {/* WEST Target Tracker — THE #1 widget, lives in Real Estate */}
-          <WestCompactWidget />
+          <WestTracker />
 
           {/* Owner breakdown */}
           {ownerFilter === 'All' && (reByOwner.bernardo > 0 || reByOwner.laura > 0) && (

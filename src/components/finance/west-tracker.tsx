@@ -189,8 +189,8 @@ export function WestTracker() {
   const infonavitValue = data.current_status.infonavit_laura || 350000
   const fundingSources = [
     { name: 'Direct Payments', current: amountPaid, atDelivery: lastProj?.paid || 0, dotColor: 'bg-emerald-500', status: 'on_track', owner: 'Bernardo' },
-    { name: 'GBM Investment', current: investmentValue, atDelivery: lastProj?.investments || 0, dotColor: 'bg-blue-500', status: 'growing', owner: 'Bernardo' },
-    { name: 'Crypto', current: cryptoValue, atDelivery: lastProj?.crypto || 0, dotColor: 'bg-amber-500', status: cryptoValue > 0 ? 'growing' : 'not_set', owner: 'Bernardo' },
+    { name: 'GBM Investment', current: investmentValue, atDelivery: lastProj?.investments || 0, dotColor: 'bg-blue-500', status: 'growing', owner: 'shared' },
+    { name: 'Crypto', current: cryptoValue, atDelivery: lastProj?.crypto || 0, dotColor: 'bg-amber-500', status: cryptoValue > 0 ? 'growing' : 'not_set', owner: 'shared' },
     { name: "Laura's Infonavit", current: infonavitValue, atDelivery: infonavitValue, dotColor: 'bg-pink-500', status: 'on_track', owner: 'Laura' },
   ]
 
@@ -319,7 +319,14 @@ export function WestTracker() {
               <div className="flex items-center gap-2">
                 <div className={cn("h-2 w-2 rounded-full shrink-0", src.dotColor)} />
                 <div>
-                  <p className="text-sm font-medium">{src.name}</p>
+                  <p className="text-sm font-medium flex items-center gap-1.5">
+                    {src.name}
+                    {src.owner === 'shared' && (
+                      <span className="flex items-center gap-0.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500" /><span className="h-1.5 w-1.5 rounded-full bg-pink-500" />
+                      </span>
+                    )}
+                  </p>
                   <p className="text-xs text-[hsl(var(--text-secondary))] tabular-nums">Now: {fmtMXN(src.current)}</p>
                 </div>
               </div>
