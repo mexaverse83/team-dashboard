@@ -282,7 +282,14 @@ export function WestTracker() {
               <div className="col-span-2 text-right tabular-nums">{fmtMXN(src.current)}</div>
               <div className="col-span-3 text-right tabular-nums font-semibold">{fmtMXN(src.atDelivery)}</div>
               <div className="col-span-1 text-center">
-                <span className={cn("text-[10px] font-medium", src.owner === 'Laura' ? 'text-pink-400' : 'text-blue-400')}>{src.owner}</span>
+                {src.owner === 'shared' ? (
+                  <span className="flex items-center justify-center gap-0.5">
+                    <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" title="Bernardo" />
+                    <span className="h-2 w-2 rounded-full bg-pink-500 shrink-0" title="Laura" />
+                  </span>
+                ) : (
+                  <span className={cn("text-[10px] font-medium capitalize", src.owner === 'laura' ? 'text-pink-400' : 'text-blue-400')}>{src.owner}</span>
+                )}
               </div>
               <div className="col-span-2 text-center"><StatusPill status={src.status} /></div>
             </div>
@@ -602,6 +609,93 @@ export function WestTracker() {
 // ═══════════════════════════════════════════
 // COMPACT WEST WIDGET (Finance Overview)
 // ═══════════════════════════════════════════
+// ─── Standalone projection chart — used in Portfolio tab ───────────────────
+export function WestProjectionChart() {
+  const [data, setData] = useState<WestData | null>(null)
+  const [returnRate, setReturnRate] = useState(9.5)
+  const [cryptoGrowth, setCryptoGrowth] = useState(15)
+
+  useEffect(() => {
+    fetch('/api/finance/investments/west-projection')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        setData(d)
+        if (d?.assumptions?.investment_return) setReturnRate(d.assumptions.investment_return * 100)
+        if (d?.assumptions?.crypto_growth) setCryptoGrowth(d.assumptions.crypto_growth * 100)
+      })
+      .catch(() => null)
+  }, [])
+
+  const projection = useMemo(() => {
+    if (!data) return null
+    return recalcProjection(data, returnRate, 12.5, cryptoGrowth)
+  }, [data, returnRate, cryptoGrowth])
+
+  if (!data || !projection) return null
+
+  const target = data.target
+
+  return (
+    <GlassCard className="p-4 sm:p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">WEST Projection</h3>
+          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">Monthly growth toward $11.2M target · {data.months_to_delivery}mo to delivery</p>
+        </div>
+        <Link href="/finance/investments?tab=Real%20Estate" className="text-xs text-blue-400 hover:underline">Full tracker →</Link>
+      </div>
+      <div className="h-56 sm:h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={projection.months}>
+            <defs>
+              <linearGradient id="pcPaidGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10B981" stopOpacity={0.4} /><stop offset="100%" stopColor="#10B981" stopOpacity={0.1} />
+              </linearGradient>
+              <linearGradient id="pcInvestGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.4} /><stop offset="100%" stopColor="#3B82F6" stopOpacity={0.1} />
+              </linearGradient>
+              <linearGradient id="pcCryptoGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.3} /><stop offset="100%" stopColor="#F59E0B" stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
+            <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={(m: string) => m.slice(5)} interval="preserveStartEnd" />
+            <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
+            <Tooltip
+              contentStyle={{ background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' }}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter={(val: any, name: any) => [fmtMXN(Number(val) || 0), String(name)]}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              labelFormatter={(m: any) => `Month: ${m}`}
+            />
+            <Area type="monotone" dataKey="paid" stackId="1" stroke="#10B981" strokeWidth={1.5} fill="url(#pcPaidGrad)" name="Direct Payments" />
+            <Area type="monotone" dataKey="investments" stackId="1" stroke="#3B82F6" strokeWidth={1.5} fill="url(#pcInvestGrad)" name="Investments (GBM)" />
+            <Area type="monotone" dataKey="crypto" stackId="1" stroke="#F59E0B" strokeWidth={1} fill="url(#pcCryptoGrad)" name="Crypto" />
+            <Line type="monotone" dataKey="property_value" stroke="#10B981" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" />
+            <ReferenceLine y={target} stroke="#EF4444" strokeDasharray="6 4" strokeWidth={1.5}
+              label={{ value: 'Target $11.2M', position: 'right', fill: '#EF4444', fontSize: 11, fontWeight: 600 }} />
+            <ReferenceLine x="2026-04" stroke="hsl(222, 15%, 35%)" strokeDasharray="3 3"
+              label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(222, 15%, 55%)', fontSize: 10 }} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+        <LegendItem color="bg-emerald-500" label="Direct Payments" />
+        <LegendItem color="bg-blue-500" label="Investments (GBM)" />
+        <LegendItem color="bg-amber-500" label="Crypto" />
+        <div className="flex items-center gap-1.5">
+          <div className="h-0.5 w-4 border-t-2 border-dashed border-emerald-500" />
+          <span className="text-xs text-[hsl(var(--text-secondary))]">Property Value</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-0.5 w-4 border-t-2 border-dashed border-red-500" />
+          <span className="text-xs text-[hsl(var(--text-secondary))]">Target</span>
+        </div>
+      </div>
+    </GlassCard>
+  )
+}
+
 export function WestCompactWidget() {
   const [data, setData] = useState<WestData | null>(null)
 

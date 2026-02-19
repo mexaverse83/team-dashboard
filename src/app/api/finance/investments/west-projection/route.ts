@@ -312,7 +312,7 @@ export async function GET(req: NextRequest) {
       },
       funding_sources: [
         { name: 'Direct Payments', current: Math.round(target.amount_paid || 0), at_delivery: lastMonth?.paid || 0, owner: 'bernardo', status: 'on_track' },
-        { name: 'GBM Investment', current: Math.round(liveGBMBalance), at_delivery: lastMonth?.investments || 0, owner: 'bernardo', status: 'growing' },
+        { name: 'GBM Investment', current: Math.round(liveGBMBalance), at_delivery: lastMonth?.investments || 0, owner: 'shared', status: 'growing' },
         { name: 'Crypto', current: Math.round(cryptoValue), at_delivery: lastMonth?.crypto || 0, owner: 'bernardo', status: 'growing' },
         { name: "Laura's Infonavit", current: Math.round(lauraInfonvait), at_delivery: Math.round(lauraInfonvait), owner: 'laura', status: 'on_track' },
       ],
