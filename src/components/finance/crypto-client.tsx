@@ -96,6 +96,7 @@ export function CryptoClient() {
   const [transactions, setTransactions] = useState<CryptoTx[]>([])
   const [prices, setPrices] = useState<Prices | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showHoldingForm, setShowHoldingForm] = useState(false)
   const [showTxForm, setShowTxForm] = useState(false)
@@ -104,10 +105,11 @@ export function CryptoClient() {
   const [error, setError] = useState<string | null>(null)
   const [ownerFilter, setOwnerFilter] = useState<'All' | 'Bernardo' | 'Laura'>('All')
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (bust = false) => {
     try {
+      const bust_qs = bust ? `?t=${Date.now()}` : ''
       const [holdingsRes, txRes] = await Promise.all([
-        fetch('/api/finance/crypto'),
+        fetch(`/api/finance/crypto${bust_qs}`),
         fetch('/api/finance/crypto/transactions'),
       ])
       const hText = await holdingsRes.text()
@@ -131,6 +133,12 @@ export function CryptoClient() {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await fetchData(true)
+    setRefreshing(false)
+  }
 
   // USD→MXN rate
   const usdToMxn = useMemo(() => {
@@ -335,8 +343,9 @@ export function CryptoClient() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={fetchData} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-[hsl(var(--accent))] hover:bg-[hsl(var(--accent))]/80 transition-colors">
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          <button onClick={handleRefresh} disabled={refreshing} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-[hsl(var(--accent))] hover:bg-[hsl(var(--accent))]/80 transition-colors disabled:opacity-60">
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
           <button onClick={() => openTxForm()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
             <Plus className="h-3.5 w-3.5" /> Log Transaction

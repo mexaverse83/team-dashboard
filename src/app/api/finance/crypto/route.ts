@@ -22,12 +22,12 @@ const COIN_NAMES: Record<string, string> = {
   SOL: 'Solana',
 }
 
-async function fetchPrices() {
+async function fetchPrices(bust = false) {
   try {
     const ids = Object.values(COINGECKO_IDS).join(',')
     const res = await fetch(
       `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd,mxn&include_24hr_change=true`,
-      { next: { revalidate: 300 } } // cache 5 min
+      bust ? { cache: 'no-store' } : { next: { revalidate: 300 } }
     )
     if (!res.ok) return null
     const data = await res.json()
@@ -50,7 +50,8 @@ async function fetchPrices() {
 }
 
 // GET: return holdings + live prices
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const bust = req.nextUrl.searchParams.has('t')
   let holdings: Record<string, unknown>[] = []
   let dbError: string | null = null
 
@@ -71,7 +72,7 @@ export async function GET() {
     dbError = e instanceof Error ? e.message : 'Database unavailable'
   }
 
-  const prices = await fetchPrices()
+  const prices = await fetchPrices(bust)
 
   return NextResponse.json({ holdings, prices, dbError })
 }
