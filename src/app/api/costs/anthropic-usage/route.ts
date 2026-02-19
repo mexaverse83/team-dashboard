@@ -20,31 +20,49 @@ export async function GET() {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-3-5-20241022',
+        model: 'claude-3-5-haiku-20241022',
         max_tokens: 1,
         messages: [{ role: 'user', content: '0' }],
       }),
     })
 
-    // Harvest every anthropic rate-limit header
-    const headers: Record<string, string> = {}
-    res.headers.forEach((val, key) => {
-      if (key.startsWith('anthropic-ratelimit')) headers[key] = val
+    // Always capture all headers for debugging
+    const allHeaders: Record<string, string> = {}
+    res.headers.forEach((val, key) => { allHeaders[key] = val })
+
+    const rateLimitHeaders: Record<string, string> = {}
+    Object.entries(allHeaders).forEach(([k, v]) => {
+      if (k.startsWith('anthropic-ratelimit') || k.startsWith('x-ratelimit') || k.startsWith('retry-after')) {
+        rateLimitHeaders[k] = v
+      }
     })
 
-    // Parse the useful ones
-    const tokensLimit     = parseInt(headers['anthropic-ratelimit-tokens-limit'] ?? '0', 10)
-    const tokensRemaining = parseInt(headers['anthropic-ratelimit-tokens-remaining'] ?? '0', 10)
-    const tokensReset     = headers['anthropic-ratelimit-tokens-reset'] ?? null
+    // If non-200, surface the body so we can diagnose
+    if (!res.ok) {
+      const body = await res.text().catch(() => '(unreadable)')
+      return NextResponse.json({
+        ok: false,
+        status: res.status,
+        error: `Anthropic returned ${res.status}`,
+        body,
+        rateLimitHeaders,
+        allHeaderKeys: Object.keys(allHeaders),
+      })
+    }
 
-    const inputLimit     = parseInt(headers['anthropic-ratelimit-input-tokens-limit'] ?? '0', 10)
-    const inputRemaining = parseInt(headers['anthropic-ratelimit-input-tokens-remaining'] ?? '0', 10)
-    const outputLimit    = parseInt(headers['anthropic-ratelimit-output-tokens-limit'] ?? '0', 10)
-    const outputRemaining= parseInt(headers['anthropic-ratelimit-output-tokens-remaining'] ?? '0', 10)
+    // Parse the useful rate-limit headers
+    const tokensLimit     = parseInt(rateLimitHeaders['anthropic-ratelimit-tokens-limit'] ?? '0', 10)
+    const tokensRemaining = parseInt(rateLimitHeaders['anthropic-ratelimit-tokens-remaining'] ?? '0', 10)
+    const tokensReset     = rateLimitHeaders['anthropic-ratelimit-tokens-reset'] ?? null
 
-    const reqLimit     = parseInt(headers['anthropic-ratelimit-requests-limit'] ?? '0', 10)
-    const reqRemaining = parseInt(headers['anthropic-ratelimit-requests-remaining'] ?? '0', 10)
-    const reqReset     = headers['anthropic-ratelimit-requests-reset'] ?? null
+    const inputLimit      = parseInt(rateLimitHeaders['anthropic-ratelimit-input-tokens-limit'] ?? '0', 10)
+    const inputRemaining  = parseInt(rateLimitHeaders['anthropic-ratelimit-input-tokens-remaining'] ?? '0', 10)
+    const outputLimit     = parseInt(rateLimitHeaders['anthropic-ratelimit-output-tokens-limit'] ?? '0', 10)
+    const outputRemaining = parseInt(rateLimitHeaders['anthropic-ratelimit-output-tokens-remaining'] ?? '0', 10)
+
+    const reqLimit     = parseInt(rateLimitHeaders['anthropic-ratelimit-requests-limit'] ?? '0', 10)
+    const reqRemaining = parseInt(rateLimitHeaders['anthropic-ratelimit-requests-remaining'] ?? '0', 10)
+    const reqReset     = rateLimitHeaders['anthropic-ratelimit-requests-reset'] ?? null
 
     const tokensUsed = tokensLimit > 0 ? tokensLimit - tokensRemaining : null
     const usedPct    = tokensLimit > 0 ? Math.round(((tokensLimit - tokensRemaining) / tokensLimit) * 100) : null
@@ -53,20 +71,12 @@ export async function GET() {
       ok: true,
       status: res.status,
       rateWindow: {
-        tokensLimit,
-        tokensRemaining,
-        tokensUsed,
-        usedPct,
-        tokensReset,
-        inputLimit,
-        inputRemaining,
-        outputLimit,
-        outputRemaining,
-        reqLimit,
-        reqRemaining,
-        reqReset,
+        tokensLimit, tokensRemaining, tokensUsed, usedPct, tokensReset,
+        inputLimit, inputRemaining, outputLimit, outputRemaining,
+        reqLimit, reqRemaining, reqReset,
       },
-      rawHeaders: headers,
+      rawHeaders: rateLimitHeaders,
+      allHeaderKeys: Object.keys(allHeaders),
     })
   } catch (e) {
     console.error('Anthropic usage error:', e)
