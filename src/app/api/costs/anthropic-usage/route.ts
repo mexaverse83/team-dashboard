@@ -9,19 +9,20 @@ export async function GET() {
   }
 
   try {
-    // Use count_tokens — free endpoint, no tokens consumed, but still returns rate-limit headers
-    const res = await fetch('https://api.anthropic.com/v1/messages/count_tokens', {
+    // Use a minimal messages call with max_tokens=1 + claude-haiku-3 (cheapest possible)
+    // count_tokens beta doesn't return rate-limit headers; messages endpoint does
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       cache: 'no-store',
       headers: {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'token-counting-2024-11-01',
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
-        messages: [{ role: 'user', content: 'ping' }],
+        model: 'claude-haiku-3-5-20241022',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: '0' }],
       }),
     })
 

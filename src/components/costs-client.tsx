@@ -546,7 +546,10 @@ export default function CostsClient() {
                   <div className="flex-1">
                     <h3 className="text-sm font-semibold">{config?.name || agent.name}</h3>
                     <p className="text-xs text-[hsl(var(--text-tertiary))]">
-                      {agent.model.includes('gemini') ? '🔵 Gemini' : '🟣 Opus 4.6'}
+                      {agent.model.includes('gemini') ? '🔵 Gemini' :
+                        agent.model.includes('haiku') ? '🟣 Haiku' :
+                        agent.model.includes('opus') ? '🟣 Opus' :
+                        '🟣 Sonnet 4.6'}
                     </p>
                   </div>
                   <span className="text-lg font-bold">${agent.cost.toFixed(2)}</span>
