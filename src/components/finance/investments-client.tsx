@@ -148,8 +148,40 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   const [reForm, setREForm] = useState<Partial<RealEstateProperty> & { id?: string }>({})
   const [saving, setSaving] = useState(false)
 
-  // Add Funds modal (FI merged cards)
+  // ─── FI Group Edit modal (merged card — edit shared fund with per-owner slices) ───
   type FIGroup = { representative: FixedIncomeInstrument; allMembers: FixedIncomeInstrument[]; filtered: FixedIncomeInstrument[]; totalPrincipal: number }
+  const [showFIGroupEdit, setShowFIGroupEdit] = useState(false)
+  const [fiGroupEditData, setFIGroupEditData] = useState<FIGroup | null>(null)
+  // Per-owner slice amounts while editing
+  const [fiGroupSlices, setFIGroupSlices] = useState<Record<string, string>>({})
+
+  const openFIGroupEdit = (group: FIGroup) => {
+    const slices: Record<string, string> = {}
+    group.allMembers.forEach(m => { slices[m.id] = String(m.principal) })
+    setFIGroupEditData(group)
+    setFIGroupSlices(slices)
+    setShowFIGroupEdit(true)
+  }
+
+  const saveFIGroupEdit = async () => {
+    if (!fiGroupEditData) return
+    setSaving(true)
+    try {
+      await Promise.all(fiGroupEditData.allMembers.map(m => {
+        const newPrincipal = parseFloat(fiGroupSlices[m.id]) || m.principal
+        return fetch('/api/finance/investments/fixed-income', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: m.id, principal: newPrincipal }),
+        })
+      }))
+      setShowFIGroupEdit(false); setFIGroupEditData(null); setFIGroupSlices({})
+      await fetchData()
+    } catch { setError('Failed to save') }
+    finally { setSaving(false) }
+  }
+
+  // Add Funds modal (FI merged cards)
+  
   const [showAddFunds, setShowAddFunds] = useState(false)
   const [addFundsGroup, setAddFundsGroup] = useState<FIGroup | null>(null)
   const [addFundsOwner, setAddFundsOwner] = useState('Bernardo')
@@ -742,16 +774,21 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                 return (
                   <GlassCard key={`${inst.institution}-${inst.name.trim()}-${inst.instrument_type}`} className="p-4 relative group">
                     <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                      {group.filtered.map(i => (
-                        <button key={i.id} onClick={() => { setFIForm(i); setShowFIForm(true) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]" title={`Edit ${i.owner}`}>
+                      {/* For merged (multi-owner) cards: open group edit; single-owner: use standard form */}
+                      {group.allMembers.length > 1 ? (
+                        <button onClick={() => openFIGroupEdit(group)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]" title="Edit ownership split">
                           <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                         </button>
-                      ))}
-                      {group.filtered.map(i => (
-                        <button key={`del-${i.id}`} onClick={() => deleteFI(i.id)} className="p-1 rounded hover:bg-rose-500/10" title={`Delete ${i.owner}`}>
-                          <Trash2 className="h-3.5 w-3.5 text-rose-400" />
-                        </button>
-                      ))}
+                      ) : (
+                        <>
+                          <button onClick={() => { setFIForm(group.filtered[0]); setShowFIForm(true) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
+                            <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
+                          </button>
+                          <button onClick={() => deleteFI(group.filtered[0].id)} className="p-1 rounded hover:bg-rose-500/10">
+                            <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                          </button>
+                        </>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-3 mb-3">
@@ -1209,6 +1246,71 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           </div>
         </div>
       )}
+
+      {/* ═══════════ FI GROUP EDIT MODAL (ownership split editor) ═══════════ */}
+      {showFIGroupEdit && fiGroupEditData && (() => {
+        const inst = fiGroupEditData.representative
+        const total = fiGroupEditData.allMembers.reduce((s, m) => s + (parseFloat(fiGroupSlices[m.id]) || 0), 0)
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowFIGroupEdit(false)}>
+            <div className="w-full max-w-sm bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-sm">Edit Ownership Split</h2>
+                  <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{inst.name.trim()} · {inst.institution}</p>
+                </div>
+                <button onClick={() => setShowFIGroupEdit(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
+              </div>
+
+              <p className="text-xs text-[hsl(var(--text-secondary))]">
+                This is one fund held by multiple people. Edit each person&apos;s slice separately. Rates and settings apply to all.
+              </p>
+
+              {/* Per-owner principal inputs */}
+              <div className="space-y-3">
+                {fiGroupEditData.allMembers.map(m => (
+                  <div key={m.id}>
+                    <label className="flex items-center gap-1.5 text-xs font-medium mb-1.5">
+                      <OwnerDot owner={m.owner} size="sm" /> {m.owner}&apos;s balance (MXN)
+                    </label>
+                    <input
+                      type="number" step="1000" min="0"
+                      value={fiGroupSlices[m.id] ?? m.principal}
+                      onChange={e => setFIGroupSlices(s => ({ ...s, [m.id]: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Total preview */}
+              <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/40 border border-[hsl(var(--border))] text-xs">
+                <div className="flex justify-between font-semibold">
+                  <span>Combined Total</span>
+                  <span className="tabular-nums text-emerald-400">{fmtMXN(total)}</span>
+                </div>
+                {fiGroupEditData.allMembers.map(m => {
+                  const v = parseFloat(fiGroupSlices[m.id]) || 0
+                  return (
+                    <div key={m.id} className="flex justify-between mt-1 text-[hsl(var(--text-secondary))]">
+                      <span className="flex items-center gap-1"><OwnerDot owner={m.owner} size="sm" />{m.owner}</span>
+                      <span className="tabular-nums">{fmtMXN(v)} {total > 0 && <span className="text-[hsl(var(--text-tertiary))]">({((v / total) * 100).toFixed(0)}%)</span>}</span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={() => setShowFIGroupEdit(false)} className="flex-1 py-2.5 rounded-xl text-sm bg-[hsl(var(--accent))]">Cancel</button>
+                <button onClick={saveFIGroupEdit} disabled={saving}
+                  className="flex-1 py-2.5 rounded-xl text-sm bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 font-medium">
+                  {saving ? 'Saving...' : 'Save Split'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ═══════════ ADD FUNDS MODAL (FI merged cards) ═══════════ */}
       {showAddFunds && addFundsGroup && (() => {
