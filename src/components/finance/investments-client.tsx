@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { OwnerDot, OwnerBar } from '@/components/finance/owner-dot'
 import { CryptoClient } from '@/components/finance/crypto-client'
-import { WestTracker, WestCompactWidget, WestProjectionChart } from '@/components/finance/west-tracker'
+import { WestTracker, WestCompactWidget, WestProjectionWithScenarios } from '@/components/finance/west-tracker'
 import { RetirementTab } from '@/components/finance/retirement-client'
 import { PrivateEquityCard, type PrivateEquityHolding } from '@/components/finance/private-equity-card'
 import {
@@ -468,7 +468,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {activeTab === 'Portfolio' && (
         <div className="space-y-6">
           {/* WEST Target Tracker — compact on Portfolio, full on Real Estate tab */}
-          <WestProjectionChart />
+          <WestProjectionWithScenarios />
 
           {/* Net Worth Hero */}
           <GlassCard className="p-5 sm:p-6 relative overflow-hidden">
@@ -896,7 +896,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {activeTab === 'Real Estate' && (
         <div className="space-y-6">
           {/* WEST Target Tracker — THE #1 widget, lives in Real Estate */}
-          <WestTracker />
+          <WestCompactWidget />
 
           {/* Owner breakdown */}
           {ownerFilter === 'All' && (reByOwner.bernardo > 0 || reByOwner.laura > 0) && (
