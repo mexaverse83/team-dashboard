@@ -214,8 +214,39 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   const fiByOwner = useMemo(() => {
     const b = fixedIncome.filter(i => i.owner?.toLowerCase() === 'bernardo')
     const l = fixedIncome.filter(i => i.owner?.toLowerCase() === 'laura')
-    return { bernardo: b.reduce((s, i) => s + i.principal, 0), laura: l.reduce((s, i) => s + i.principal, 0), bCount: b.length, lCount: l.length }
+    // Count unique funds (groups), not raw records
+    const uniqueKeys = new Set(fixedIncome.map(i => `${i.institution}::${i.name.trim()}::${i.instrument_type}`))
+    const bKeys = new Set(b.map(i => `${i.institution}::${i.name.trim()}::${i.instrument_type}`))
+    const lKeys = new Set(l.map(i => `${i.institution}::${i.name.trim()}::${i.instrument_type}`))
+    return {
+      bernardo: b.reduce((s, i) => s + i.principal, 0),
+      laura: l.reduce((s, i) => s + i.principal, 0),
+      bCount: bKeys.size, lCount: lKeys.size, uniqueCount: uniqueKeys.size,
+    }
   }, [fixedIncome])
+
+  // ─── Group FI by fund identity — same fund held by multiple owners → one card ───
+  const groupedFI = useMemo(() => {
+    const groups = new Map<string, FixedIncomeInstrument[]>()
+    fixedIncome.forEach(inst => {
+      const key = `${inst.institution}::${inst.name.trim()}::${inst.instrument_type}`
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(inst)
+    })
+    return Array.from(groups.values())
+      .map(members => {
+        const filtered = ownerFilter === 'All' ? members : members.filter(i => i.owner === ownerFilter)
+        if (filtered.length === 0) return null
+        const totalPrincipal = filtered.reduce((s, i) => s + i.principal, 0)
+        return { representative: members[0], allMembers: members, filtered, totalPrincipal }
+      })
+      .filter(Boolean) as Array<{
+        representative: FixedIncomeInstrument
+        allMembers: FixedIncomeInstrument[]
+        filtered: FixedIncomeInstrument[]
+        totalPrincipal: number
+      }>
+  }, [fixedIncome, ownerFilter])
 
   const reByOwner = useMemo(() => {
     const b = realEstate.filter(p => p.owner?.toLowerCase() === 'bernardo')
@@ -246,7 +277,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   const assetClasses = [
     { name: 'Crypto', tab: 'Crypto' as Tab, icon: Bitcoin, gradient: 'from-amber-500 to-orange-500', borderColor: 'border-amber-500', totalMXN: cryptoMXN, pl: cryptoTotal.cost > 0 ? cryptoMXN - cryptoTotal.cost : 0, plPct: cryptoTotal.cost > 0 ? ((cryptoMXN - cryptoTotal.cost) / cryptoTotal.cost) * 100 : 0, positionCount: cryptoTotal.positions, locked: false, bernardo: cryptoByOwner.bernardo, laura: cryptoByOwner.laura },
     { name: 'Stocks', tab: 'Stocks' as Tab, icon: BarChart3, gradient: 'from-blue-500 to-cyan-500', borderColor: 'border-blue-500', totalMXN: stocksTotal, pl: 0, plPct: 0, positionCount: (ownerFilter === 'All' ? stocks : stocks.filter(s => s.owner?.toLowerCase() === ownerFilter.toLowerCase())).length, locked: false, bernardo: stocksByOwner.bernardo, laura: stocksByOwner.laura },
-    { name: 'Fixed Income', tab: 'Fixed Income' as Tab, icon: Shield, gradient: 'from-emerald-500 to-teal-500', borderColor: 'border-emerald-500', totalMXN: fiTotal, pl: 0, plPct: 0, positionCount: filteredFI.length, locked: false, bernardo: fiByOwner.bernardo, laura: fiByOwner.laura },
+    { name: 'Fixed Income', tab: 'Fixed Income' as Tab, icon: Shield, gradient: 'from-emerald-500 to-teal-500', borderColor: 'border-emerald-500', totalMXN: fiTotal, pl: 0, plPct: 0, positionCount: groupedFI.length, locked: false, bernardo: fiByOwner.bernardo, laura: fiByOwner.laura },
     { name: 'Real Estate', tab: 'Real Estate' as Tab, icon: Home, gradient: 'from-violet-500 to-purple-500', borderColor: 'border-violet-500', totalMXN: reTotal, pl: 0, plPct: 0, positionCount: filteredRE.length, locked: false, bernardo: reByOwner.bernardo, laura: reByOwner.laura },
     { name: 'Retirement', tab: 'Retirement' as Tab, icon: Shield, gradient: 'from-slate-500 to-slate-600', borderColor: 'border-slate-500', totalMXN: retirementTotal, pl: 0, plPct: 0, positionCount: retirementTotal > 0 ? 3 : 0, locked: true, bernardo: 0, laura: 0 },
   ]
@@ -659,7 +690,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
             </button>
           </div>
 
-          {filteredFI.length === 0 ? (
+          {groupedFI.length === 0 ? (
             <GlassCard className="text-center py-12">
               <Shield className="h-10 w-10 text-[hsl(var(--text-tertiary))] mx-auto mb-3" />
               <p className="text-sm font-medium">No fixed income instruments yet</p>
@@ -667,86 +698,117 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
             </GlassCard>
           ) : (
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredFI.map(inst => (
-                <GlassCard key={inst.id} className="p-4 relative group">
-                  <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => { setFIForm(inst); setShowFIForm(true) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
-                      <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
-                    </button>
-                    <button onClick={() => deleteFI(inst.id)} className="p-1 rounded hover:bg-rose-500/10">
-                      <Trash2 className="h-3.5 w-3.5 text-rose-400" />
-                    </button>
-                  </div>
+              {groupedFI.map(group => {
+                const inst = group.representative
+                const isMultiOwner = ownerFilter === 'All' && group.allMembers.length > 1
+                const bernMember = group.allMembers.find(i => i.owner?.toLowerCase() === 'bernardo')
+                const lauraMember = group.allMembers.find(i => i.owner?.toLowerCase() === 'laura')
+                const netRate = effectiveNetRate(inst)
+                return (
+                  <GlassCard key={`${inst.institution}-${inst.name.trim()}-${inst.instrument_type}`} className="p-4 relative group">
+                    <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      {group.filtered.map(i => (
+                        <button key={i.id} onClick={() => { setFIForm(i); setShowFIForm(true) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]" title={`Edit ${i.owner}`}>
+                          <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
+                        </button>
+                      ))}
+                      {group.filtered.map(i => (
+                        <button key={`del-${i.id}`} onClick={() => deleteFI(i.id)} className="p-1 rounded hover:bg-rose-500/10" title={`Delete ${i.owner}`}>
+                          <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                        </button>
+                      ))}
+                    </div>
 
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm">
-                      {inst.institution.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-sm font-semibold flex items-center gap-1.5">
-                        {inst.name} <OwnerDot owner={inst.owner} size="sm" />
-                      </h4>
-                      <p className="text-xs text-[hsl(var(--text-secondary))]">{inst.institution}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-[hsl(var(--text-secondary))]">Principal</span>
-                      <span className="font-semibold tabular-nums">{fmtMXN(inst.principal)}</span>
-                    </div>
-                    {/* Gross rate + net rate (if commission exists) */}
-                    {inst.commission_rate ? (
-                      <>
-                        <div className="flex justify-between">
-                          <span className="text-[hsl(var(--text-secondary))]">Gross Rate</span>
-                          <span className="font-semibold text-[hsl(var(--text-secondary))] tabular-nums">{(normalizeRate(inst.annual_rate) * 100).toFixed(2)}%</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-[hsl(var(--text-secondary))]">Commission</span>
-                          <span className="tabular-nums text-amber-400">-{(normalizeRate(inst.commission_rate) * 100).toFixed(2)}%</span>
-                        </div>
-                        <div className="flex justify-between border-t border-[hsl(var(--border))] pt-1">
-                          <span className="text-[hsl(var(--text-secondary))] font-medium">Net Rate</span>
-                          <span className="font-bold text-emerald-400 tabular-nums">
-                            {(effectiveNetRate(inst) * 100).toFixed(2)}%
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex justify-between">
-                        <span className="text-[hsl(var(--text-secondary))]">Rate</span>
-                        <span className="font-semibold text-emerald-400 tabular-nums">{(normalizeRate(inst.annual_rate) * 100).toFixed(2)}%</span>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm">
+                        {inst.institution.slice(0, 2).toUpperCase()}
                       </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-[hsl(var(--text-secondary))]">Term</span>
-                      <span>
-                        {inst.is_liquid ? (
-                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium">Liquid</span>
-                        ) : inst.settlement_days ? (
-                          <span className="tabular-nums">{inst.settlement_days}d settlement</span>
-                        ) : (
-                          <span className="tabular-nums">{inst.term_days}d{inst.maturity_date ? ` → ${inst.maturity_date.slice(5)}` : ''}</span>
-                        )}
-                      </span>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                          {inst.name.trim()}
+                          {/* Show all owners' dots when multi-owner */}
+                          {isMultiOwner
+                            ? group.allMembers.map(i => <OwnerDot key={i.id} owner={i.owner} size="sm" />)
+                            : <OwnerDot owner={group.filtered[0]?.owner} size="sm" />
+                          }
+                        </h4>
+                        <p className="text-xs text-[hsl(var(--text-secondary))]">{inst.institution}</p>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-[hsl(var(--text-secondary))]">Net Annual Yield</span>
-                      <span className="font-semibold tabular-nums">
-                        {fmtMXN(inst.principal * effectiveNetRate(inst))}
-                      </span>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[hsl(var(--border))]">
-                    <TierBadge tier={inst.tier} />
-                    {inst.auto_renew && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-medium">Auto-renew</span>
-                    )}
-                  </div>
-                </GlassCard>
-              ))}
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-[hsl(var(--text-secondary))]">Principal</span>
+                        <span className="font-semibold tabular-nums">{fmtMXN(group.totalPrincipal)}</span>
+                      </div>
+
+                      {/* Owner split when showing both */}
+                      {isMultiOwner && (
+                        <div className="flex flex-col gap-1 p-2 rounded-lg bg-[hsl(var(--bg-elevated))]/40 border border-[hsl(var(--border))]">
+                          {bernMember && (
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-1.5"><OwnerDot owner="Bernardo" size="sm" /><span className="text-[hsl(var(--text-secondary))]">Bernardo</span></span>
+                              <span className="tabular-nums font-medium">{fmtMXN(bernMember.principal)} <span className="text-[hsl(var(--text-tertiary))]">({((bernMember.principal / group.totalPrincipal) * 100).toFixed(0)}%)</span></span>
+                            </div>
+                          )}
+                          {lauraMember && (
+                            <div className="flex items-center justify-between">
+                              <span className="flex items-center gap-1.5"><OwnerDot owner="Laura" size="sm" /><span className="text-[hsl(var(--text-secondary))]">Laura</span></span>
+                              <span className="tabular-nums font-medium">{fmtMXN(lauraMember.principal)} <span className="text-[hsl(var(--text-tertiary))]">({((lauraMember.principal / group.totalPrincipal) * 100).toFixed(0)}%)</span></span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Rates */}
+                      {inst.commission_rate ? (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-[hsl(var(--text-secondary))]">Gross Rate</span>
+                            <span className="font-semibold text-[hsl(var(--text-secondary))] tabular-nums">{(normalizeRate(inst.annual_rate) * 100).toFixed(2)}%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[hsl(var(--text-secondary))]">Commission</span>
+                            <span className="tabular-nums text-amber-400">-{(normalizeRate(inst.commission_rate) * 100).toFixed(2)}%</span>
+                          </div>
+                          <div className="flex justify-between border-t border-[hsl(var(--border))] pt-1">
+                            <span className="text-[hsl(var(--text-secondary))] font-medium">Net Rate</span>
+                            <span className="font-bold text-emerald-400 tabular-nums">{(netRate * 100).toFixed(2)}%</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex justify-between">
+                          <span className="text-[hsl(var(--text-secondary))]">Rate</span>
+                          <span className="font-semibold text-emerald-400 tabular-nums">{(normalizeRate(inst.annual_rate) * 100).toFixed(2)}%</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-[hsl(var(--text-secondary))]">Term</span>
+                        <span>
+                          {inst.is_liquid ? (
+                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium">Liquid</span>
+                          ) : inst.settlement_days ? (
+                            <span className="tabular-nums">{inst.settlement_days}d settlement</span>
+                          ) : (
+                            <span className="tabular-nums">{inst.term_days}d{inst.maturity_date ? ` → ${inst.maturity_date.slice(5)}` : ''}</span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[hsl(var(--text-secondary))]">Net Annual Yield</span>
+                        <span className="font-semibold tabular-nums">{fmtMXN(group.totalPrincipal * netRate)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[hsl(var(--border))]">
+                      <TierBadge tier={inst.tier} />
+                      {inst.auto_renew && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-medium">Auto-renew</span>
+                      )}
+                    </div>
+                  </GlassCard>
+                )
+              })}
             </div>
           )}
         </div>
