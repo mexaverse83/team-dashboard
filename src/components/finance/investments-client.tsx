@@ -467,9 +467,6 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {/* ═══════════ PORTFOLIO TAB ═══════════ */}
       {activeTab === 'Portfolio' && (
         <div className="space-y-6">
-          {/* WEST Target Tracker — compact on Portfolio, full on Real Estate tab */}
-          <WestProjectionWithScenarios />
-
           {/* Net Worth Hero */}
           <GlassCard className="p-5 sm:p-6 relative overflow-hidden">
             <div className="absolute -top-20 -right-20 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl" />
@@ -567,6 +564,8 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
               ))}
             </div>
           </div>
+          {/* WEST Apartment Projection + Scenarios — bottom of Portfolio */}
+          <WestProjectionWithScenarios />
         </div>
       )}
 

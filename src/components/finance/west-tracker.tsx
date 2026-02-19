@@ -643,8 +643,8 @@ export function WestProjectionWithScenarios() {
       {/* ── PROJECTION CHART ── */}
       <GlassCard className="p-4 sm:p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">WEST Projection</h3>
-          <span className="text-xs text-[hsl(var(--text-tertiary))]">{data.months_to_delivery}mo to delivery · target {fmtMXN(target)}</span>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">Apartment Funding Projection</h3>
+          <span className="text-xs text-[hsl(var(--text-tertiary))]">All funding sources · {data.months_to_delivery}mo to delivery · target {fmtMXN(target)}</span>
         </div>
         <div className="h-56 sm:h-72">
           <ResponsiveContainer width="100%" height="100%">
