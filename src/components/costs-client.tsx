@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { DollarSign, Users, TrendingUp, Activity, Zap, RefreshCw } from 'lucide-react'
+import { DollarSign, Users, TrendingUp, Activity, Zap } from 'lucide-react'
 import { agentConfigs } from "@/lib/agents"
 import { supabase, type AgentCost } from "@/lib/supabase"
 import { GlassCard } from "@/components/ui/glass-card"
@@ -61,29 +61,6 @@ export default function CostsClient() {
   const [modelFilter, setModelFilter] = useState<ModelFilter>('all')
   const [activeAgents, setActiveAgents] = useState<string[]>(agentConfigs.map(a => a.id))
   const [loading, setLoading] = useState(true)
-
-  // Live Anthropic rate-window data
-  type RateWindow = {
-    tokensLimit: number; tokensRemaining: number; tokensUsed: number | null; usedPct: number | null
-    tokensReset: string | null; inputLimit: number; inputRemaining: number
-    outputLimit: number; outputRemaining: number; reqLimit: number; reqRemaining: number; reqReset: string | null
-  }
-  const [rateWindow, setRateWindow] = useState<RateWindow | null>(null)
-  const [rateLoading, setRateLoading] = useState(true)
-  const [rateRefreshing, setRateRefreshing] = useState(false)
-
-  const fetchRateWindow = async () => {
-    try {
-      const res = await fetch('/api/costs/anthropic-usage', { cache: 'no-store' })
-      if (res.ok) {
-        const d = await res.json()
-        if (d.rateWindow) setRateWindow(d.rateWindow)
-      }
-    } catch { /* silent */ }
-    finally { setRateLoading(false); setRateRefreshing(false) }
-  }
-
-  useEffect(() => { fetchRateWindow() }, [])
 
   useEffect(() => {
     supabase
@@ -291,96 +268,96 @@ export default function CostsClient() {
         </div>
       </div>
 
-      {/* ── ANTHROPIC LIVE RATE WINDOW ── */}
-      <GlassCard className="p-4 sm:p-5">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Zap className="h-4 w-4 text-amber-400" />
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">
-              Anthropic Token Window
-            </h3>
-          </div>
-          <button
-            onClick={() => { setRateRefreshing(true); fetchRateWindow() }}
-            disabled={rateRefreshing || rateLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-[hsl(var(--accent))] hover:bg-[hsl(var(--accent))]/80 transition-colors disabled:opacity-60"
-          >
-            <RefreshCw className={`h-3 w-3 ${rateRefreshing ? 'animate-spin' : ''}`} />
-            {rateRefreshing ? 'Refreshing…' : 'Refresh'}
-          </button>
-        </div>
+      {/* ── MONTHLY BUDGET TRACKER ── */}
+      {(() => {
+        const MONTHLY_BUDGET = 100
+        const now = new Date()
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        const daysInMonth = monthEnd.getDate()
+        const dayOfMonth = now.getDate()
+        const daysLeft = daysInMonth - dayOfMonth
 
-        {rateLoading ? (
-          <div className="h-20 flex items-center justify-center text-xs text-[hsl(var(--text-tertiary))] animate-pulse">
-            Pinging Anthropic API…
-          </div>
-        ) : !rateWindow || rateWindow.tokensLimit === 0 ? (
-          <p className="text-xs text-[hsl(var(--text-tertiary))]">
-            No rate limit data returned — headers may not be exposed for this account tier.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {/* Token bar */}
-            <div>
-              <div className="flex justify-between text-xs mb-1.5">
-                <span className="text-[hsl(var(--text-secondary))]">Tokens used this window</span>
-                <span className="tabular-nums font-mono">
-                  {rateWindow.tokensUsed != null
-                    ? `${(rateWindow.tokensUsed / 1000).toFixed(0)}K / ${(rateWindow.tokensLimit / 1000).toFixed(0)}K`
-                    : '—'}
-                </span>
+        const monthSpend = costs
+          .filter(c => new Date(c.timestamp) >= monthStart)
+          .reduce((s, c) => s + Number(c.cost_usd), 0)
+
+        const totalTokensIn = costs
+          .filter(c => new Date(c.timestamp) >= monthStart)
+          .reduce((s, c) => s + c.tokens_in, 0)
+        const totalTokensOut = costs
+          .filter(c => new Date(c.timestamp) >= monthStart)
+          .reduce((s, c) => s + c.tokens_out, 0)
+
+        const dailyBurnRate = dayOfMonth > 0 ? monthSpend / dayOfMonth : 0
+        const projectedMonthly = dailyBurnRate * daysInMonth
+        const remaining = MONTHLY_BUDGET - monthSpend
+        const usedPct = Math.min(Math.round((monthSpend / MONTHLY_BUDGET) * 100), 100)
+        const daysUntilBudgetHit = dailyBurnRate > 0 ? Math.floor(remaining / dailyBurnRate) : null
+
+        return (
+          <GlassCard className="p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-400" />
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">
+                  Monthly Budget
+                </h3>
+                <span className="text-xs text-[hsl(var(--text-tertiary))]">— $100 / month</span>
               </div>
-              <div className="h-2.5 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
+              <span className="text-xs text-[hsl(var(--text-tertiary))]">{daysLeft}d left in {now.toLocaleString('default', { month: 'long' })}</span>
+            </div>
+
+            {/* Budget bar */}
+            <div className="mb-4">
+              <div className="flex justify-between text-xs mb-1.5">
+                <span className="text-[hsl(var(--text-secondary))]">Spent this month</span>
+                <span className="tabular-nums font-mono font-semibold">${monthSpend.toFixed(2)} / $100.00</span>
+              </div>
+              <div className="h-3 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
                 <div
                   className={cn(
-                    "h-full rounded-full transition-all",
-                    (rateWindow.usedPct ?? 0) > 80 ? "bg-red-500" :
-                    (rateWindow.usedPct ?? 0) > 50 ? "bg-amber-500" : "bg-emerald-500"
+                    "h-full rounded-full transition-all duration-500",
+                    usedPct > 85 ? "bg-red-500" : usedPct > 60 ? "bg-amber-500" : "bg-emerald-500"
                   )}
-                  style={{ width: `${Math.min(rateWindow.usedPct ?? 0, 100)}%` }}
+                  style={{ width: `${usedPct}%` }}
                 />
               </div>
               <div className="flex justify-between text-[10px] mt-1 text-[hsl(var(--text-tertiary))]">
-                <span>{rateWindow.usedPct ?? 0}% used</span>
-                {rateWindow.tokensReset && (
-                  <span>Resets {new Date(rateWindow.tokensReset).toLocaleTimeString()}</span>
-                )}
+                <span>{usedPct}% used</span>
+                <span>${remaining.toFixed(2)} remaining</span>
               </div>
             </div>
 
             {/* Stat grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-[hsl(var(--border))]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-[hsl(var(--border))]">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Tokens Remaining</p>
-                <p className="text-lg font-bold tabular-nums text-emerald-400">
-                  {rateWindow.tokensRemaining > 0 ? `${(rateWindow.tokensRemaining / 1000).toFixed(0)}K` : '—'}
+                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Daily Burn</p>
+                <p className="text-lg font-bold tabular-nums">${dailyBurnRate.toFixed(3)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Projected Total</p>
+                <p className={cn("text-lg font-bold tabular-nums", projectedMonthly > MONTHLY_BUDGET ? "text-red-400" : "text-emerald-400")}>
+                  ${projectedMonthly.toFixed(2)}
                 </p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Input Remaining</p>
-                <p className="text-lg font-bold tabular-nums">
-                  {rateWindow.inputRemaining > 0 ? `${(rateWindow.inputRemaining / 1000).toFixed(0)}K` : '—'}
-                </p>
+                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Tokens This Month</p>
+                <p className="text-lg font-bold tabular-nums">{((totalTokensIn + totalTokensOut) / 1000).toFixed(0)}K</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Output Remaining</p>
-                <p className="text-lg font-bold tabular-nums">
-                  {rateWindow.outputRemaining > 0 ? `${(rateWindow.outputRemaining / 1000).toFixed(0)}K` : '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Requests Remaining</p>
-                <p className="text-lg font-bold tabular-nums">
-                  {rateWindow.reqRemaining > 0 ? rateWindow.reqRemaining.toLocaleString() : '—'}
+                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Budget Hit In</p>
+                <p className={cn("text-lg font-bold tabular-nums", daysUntilBudgetHit != null && daysUntilBudgetHit < 7 ? "text-red-400" : "text-emerald-400")}>
+                  {daysUntilBudgetHit != null ? `${daysUntilBudgetHit}d` : '—'}
                 </p>
               </div>
             </div>
-            <p className="text-[10px] text-[hsl(var(--text-tertiary))]">
-              ⚡ Rate window (per-minute/hour limits) — monthly cumulative requires session logging
+            <p className="text-[10px] text-[hsl(var(--text-tertiary))] mt-2">
+              📊 Powered by session logs — real data once agents start reporting via /api/costs/log
             </p>
-          </div>
-        )}
-      </GlassCard>
+          </GlassCard>
+        )
+      })()}
 
       {/* KPI Strip */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
