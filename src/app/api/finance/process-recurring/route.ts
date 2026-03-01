@@ -21,16 +21,19 @@ const FREQ_DAYS: Record<string, number> = {
  * Call daily via cron or WOLFF agent. Idempotent — won't double-post for same period.
  */
 async function processRecurring(req: NextRequest) {
-  // Auth: x-api-key OR Vercel cron secret
+  // Auth: x-api-key OR Vercel cron secret OR Vercel-Cron header (internal cron invocation)
   const key = req.headers.get('x-api-key')
   const authHeader = req.headers.get('authorization') || ''
+  const isVercelCron = req.headers.get('x-vercel-cron') === '1'
   const cronSecret = process.env.CRON_SECRET
   const expected = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  const isApiKey = key && key === expected
-  const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`
+  const isApiKey = key && expected && key === expected
+  const isCronSecret = cronSecret && authHeader === `Bearer ${cronSecret}`
+  // x-vercel-cron header is sent by Vercel's scheduler — accept when CRON_SECRET not configured
+  const isCronHeader = isVercelCron && !cronSecret
 
-  if (!isApiKey && !isCron) {
+  if (!isApiKey && !isCronSecret && !isCronHeader) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -59,7 +62,10 @@ async function processRecurring(req: NextRequest) {
       .limit(1)
 
     if (existing && existing.length > 0) {
+      // Transaction already exists for this date — already processed, safe to advance
       results.skipped++
+      const nextDate = advanceDate(sub.next_due_date, sub.frequency)
+      await supabase.from('finance_recurring').update({ next_due_date: nextDate }).eq('id', sub.id)
     } else {
       // Create transaction
       const { error } = await supabase.from('finance_transactions').insert({
@@ -77,9 +83,14 @@ async function processRecurring(req: NextRequest) {
         owner: sub.owner,
       })
       if (error) {
+        // Do NOT advance date on failure — allow retry on next cron run
         results.errors.push(`Sub ${sub.name}: ${error.message}`)
       } else {
         results.subscriptions++
+
+        // Only advance next_due_date after confirmed successful insert
+        const nextDate = advanceDate(sub.next_due_date, sub.frequency)
+        await supabase.from('finance_recurring').update({ next_due_date: nextDate }).eq('id', sub.id)
 
         // ── DEBT SYNC: if subscription is linked to a debt, update balance ──
         if (sub.debt_id) {
@@ -126,10 +137,6 @@ async function processRecurring(req: NextRequest) {
         }
       }
     }
-
-    // Advance next_due_date
-    const nextDate = advanceDate(sub.next_due_date, sub.frequency)
-    await supabase.from('finance_recurring').update({ next_due_date: nextDate }).eq('id', sub.id)
   }
 
   // ── 2. INCOME SOURCES ─────────────────────────────────────────────
