@@ -20,10 +20,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Pool } from 'pg'
 
-function getPool() {
+const POOLER_REGIONS = [
+  'aws-0-us-east-1', 'aws-0-us-east-2', 'aws-0-us-west-1', 'aws-0-us-west-2',
+  'aws-0-eu-west-1', 'aws-0-eu-west-2', 'aws-0-eu-central-1',
+  'aws-0-ap-southeast-1', 'aws-0-ap-northeast-1', 'aws-0-sa-east-1',
+]
+const PROJECT_REF = 'ebzvuszpqqtcvwewxcli'
+const DB_PASSWORD = process.env.SUPABASE_DB_PASSWORD || 'BE911529g@'
+
+async function getWorkingPool(): Promise<Pool> {
+  // Try primary DB URL first
   const dbUrl = process.env.SUPABASE_DB_URL
-  if (!dbUrl) throw new Error('SUPABASE_DB_URL env var not set')
-  return new Pool({ connectionString: dbUrl, ssl: { rejectUnauthorized: false }, max: 1 })
+  if (dbUrl) {
+    const p = new Pool({ connectionString: dbUrl, ssl: { rejectUnauthorized: false }, max: 1, connectionTimeoutMillis: 5000 })
+    try { await p.query('SELECT 1'); return p } catch { await p.end().catch(() => {}) }
+  }
+
+  // Try pooler across regions (Transaction Pooler port 6543)
+  for (const region of POOLER_REGIONS) {
+    const url = `postgresql://postgres.${PROJECT_REF}:${encodeURIComponent(DB_PASSWORD)}@${region}.pooler.supabase.com:6543/postgres`
+    const p = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false }, max: 1, connectionTimeoutMillis: 5000 })
+    try {
+      await p.query('SELECT 1')
+      console.log(`Migration: connected via ${region} pooler`)
+      return p
+    } catch { await p.end().catch(() => {}) }
+  }
+
+  throw new Error('Could not connect to database via any method. Check SUPABASE_DB_URL or SUPABASE_DB_PASSWORD env vars.')
 }
 
 // Named migrations — add new ones here as needed
@@ -223,9 +247,10 @@ export async function POST(req: NextRequest) {
     }, { status: 400 })
   }
 
-  const pool = getPool()
+  let pool: Pool | null = null
   const start = Date.now()
   try {
+    pool = await getWorkingPool()
     const result = await pool.query(query)
     const elapsed = Date.now() - start
     return NextResponse.json({
@@ -244,7 +269,7 @@ export async function POST(req: NextRequest) {
       error: (err as Error).message,
     }, { status: 500 })
   } finally {
-    await pool.end()
+    if (pool) await pool.end().catch(() => {})
   }
 }
 
