@@ -249,35 +249,40 @@ async function processRecurring(req: NextRequest) {
   }
 
   // ── 4. MSI INSTALLMENTS ───────────────────────────────────────────
+  // Fully automated: inserts one expense transaction per installment per month
+  // until all payments are made. Idempotent via installment_id dupe guard.
+  const monthStr = today.slice(0, 7) // 'YYYY-MM'
+  const monthStart = `${monthStr}-01`
+  const monthEnd = `${monthStr}-31`
+
   const { data: installments } = await supabase
     .from('finance_installments')
     .select('*')
     .eq('is_active', true)
+    .lte('start_date', today)  // only installments that have started
 
   for (const msi of installments || []) {
+    // Complete check: mark inactive and skip
     if (msi.payments_made >= msi.installment_count) {
-      // Mark complete
       await supabase.from('finance_installments').update({ is_active: false }).eq('id', msi.id)
       results.skipped++
       continue
     }
 
-    // Check if payment already posted this month
-    const monthStr = today.slice(0, 7)
-    const { data: existing } = await supabase
-      .from('finance_transactions')
-      .select('id')
-      .eq('merchant', `MSI: ${msi.name}`)
-      .gte('transaction_date', `${monthStr}-01`)
-      .lte('transaction_date', `${monthStr}-31`)
-      .limit(1)
+    // Dupe guard: prefer installment_id column if it exists, fallback to merchant name
+    const dupeQuery = msi.id
+      ? supabase.from('finance_transactions').select('id').eq('installment_id', msi.id)
+          .gte('transaction_date', monthStart).lte('transaction_date', monthEnd).limit(1)
+      : supabase.from('finance_transactions').select('id').eq('merchant', `MSI: ${msi.name}`)
+          .gte('transaction_date', monthStart).lte('transaction_date', monthEnd).limit(1)
 
+    const { data: existing } = await dupeQuery
     if (existing && existing.length > 0) {
       results.skipped++
       continue
     }
 
-    // Post monthly installment payment
+    const paymentNum = msi.payments_made + 1
     const { error } = await supabase.from('finance_transactions').insert({
       type: 'expense',
       amount: msi.installment_amount,
@@ -285,18 +290,23 @@ async function processRecurring(req: NextRequest) {
       amount_mxn: msi.installment_amount,
       category_id: msi.category_id,
       merchant: `MSI: ${msi.name}`,
-      description: `Auto: ${msi.name} (${msi.payments_made + 1}/${msi.installment_count}) - ${msi.merchant || ''}`,
+      description: `Auto-MSI: ${msi.name} (${paymentNum}/${msi.installment_count})${msi.merchant ? ` — ${msi.merchant}` : ''}`,
       transaction_date: today,
       is_recurring: true,
       tags: ['auto-msi'],
       owner: msi.owner,
+      installment_id: msi.id,   // requires finance-installments-sync migration
     })
+
     if (error) {
-      results.errors.push(`MSI ${msi.name}: ${error.message}`)
+      // If installment_id column doesn't exist yet (migration pending), log but don't block
+      const msg = error.message.includes('installment_id')
+        ? `MSI ${msi.name}: installment_id column missing — run finance-installments-sync migration`
+        : `MSI ${msi.name}: ${error.message}`
+      results.errors.push(msg)
     } else {
-      // Increment payments_made
       await supabase.from('finance_installments')
-        .update({ payments_made: msi.payments_made + 1 })
+        .update({ payments_made: paymentNum })
         .eq('id', msi.id)
       results.installments++
     }

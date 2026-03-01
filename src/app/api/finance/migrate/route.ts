@@ -162,6 +162,19 @@ const MIGRATIONS: Record<string, string> = {
     SELECT 'insights-cache migration complete' AS result;
   `,
 
+  'finance-installments-sync': `
+    -- Add installment_id to transactions for proper dupe-guarding
+    ALTER TABLE finance_transactions
+      ADD COLUMN IF NOT EXISTS installment_id UUID REFERENCES finance_installments(id) ON DELETE SET NULL;
+
+    -- Index for fast monthly dupe checks
+    CREATE INDEX IF NOT EXISTS idx_transactions_installment_id
+      ON finance_transactions(installment_id)
+      WHERE installment_id IS NOT NULL;
+
+    SELECT 'finance-installments-sync migration complete' AS result;
+  `,
+
   'goal-savings-sync': `
     -- 1. Monthly savings snapshot table — per-owner rows
     CREATE TABLE IF NOT EXISTS finance_monthly_savings (
