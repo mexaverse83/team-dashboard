@@ -17,8 +17,9 @@ function isAuthorized(req: NextRequest) {
 }
 
 // PUT /api/finance/recurring-income/:id — update entry
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!isAuthorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { id } = await params
 
   let body: Record<string, unknown>
   try {
@@ -43,7 +44,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const { data, error } = await getSupabase()
     .from('finance_recurring_income')
     .update(update)
-    .eq('id', params.id)
+    .eq('id', id)
     .select()
     .single()
 
@@ -54,8 +55,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 // DELETE /api/finance/recurring-income/:id — soft delete (set active=false)
 // Hard delete only if ?hard=true
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!isAuthorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { id } = await params
 
   const hard = req.nextUrl.searchParams.get('hard') === 'true'
 
@@ -63,7 +65,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const { error } = await getSupabase()
       .from('finance_recurring_income')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ deleted: true })
   }
@@ -72,7 +74,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const { data, error } = await getSupabase()
     .from('finance_recurring_income')
     .update({ active: false })
-    .eq('id', params.id)
+    .eq('id', id)
     .select()
     .single()
 
