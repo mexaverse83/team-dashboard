@@ -170,6 +170,17 @@ export interface FinanceGoal {
   scope: 'personal' | 'shared'
   goal_type: 'savings' | 'crypto'
   crypto_symbol: string | null
+  last_contribution_date?: string | null
+  last_contribution_amount?: number | null
   created_at: string
   updated_at: string
+}
+
+export interface FinanceMonthlySavings {
+  month: string          // YYYY-MM-01
+  gross_income: number
+  total_expenses: number
+  net_savings: number    // generated: gross - expenses
+  savings_rate: number   // generated: %
+  notes?: string | null
 }

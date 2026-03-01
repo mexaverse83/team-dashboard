@@ -12,7 +12,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { FinanceGoal } from '@/lib/finance-types'
 import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
 import { OwnerDot } from '@/components/finance/owner-dot'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar } from 'recharts'
+import type { FinanceMonthlySavings } from '@/lib/finance-types'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 const tooltipStyle = { contentStyle: { background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' } }
@@ -58,17 +59,20 @@ export default function GoalsClient() {
   const [form, setForm] = useState<GoalForm>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [monthlySavings, setMonthlySavings] = useState<FinanceMonthlySavings[]>([])
   const [scopeFilter, setScopeFilter] = useState<'all' | 'shared' | string>('all')
   const [defaultOwner, setDefaultOwner] = useState('')
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setDefaultOwner(getOwnerName(data.user?.email ?? undefined))) }, [])
 
   const fetchData = useCallback(async () => {
-    const [goalsRes, cryptoRes] = await Promise.all([
+    const [goalsRes, cryptoRes, savingsRes] = await Promise.all([
       supabase.from('finance_goals').select('*').order('priority'),
       fetch('/api/finance/crypto').then(r => r.text()).then(t => t ? JSON.parse(t) : { holdings: [], prices: null }).catch(() => ({ holdings: [], prices: null })),
+      fetch('/api/finance/monthly-savings?months=6').then(r => r.json()).catch(() => ({ data: [] })),
     ])
     setGoals(goalsRes.data || [])
     setCryptoData(cryptoRes)
+    setMonthlySavings(savingsRes.data || [])
     setLoading(false)
   }, [])
 
@@ -100,6 +104,17 @@ export default function GoalsClient() {
     const remaining = g.target_amount - g.current_amount
     return s + (months > 0 ? remaining / months : remaining)
   }, 0)
+
+  // Monthly savings KPIs — from snapshot table
+  const lastSavingsMonth = monthlySavings.length > 0 ? monthlySavings[monthlySavings.length - 1] : null
+  const avgNetSavings = monthlySavings.length > 0
+    ? monthlySavings.reduce((s, m) => s + m.net_savings, 0) / monthlySavings.length
+    : 0
+  const savingsChartData = monthlySavings.map(m => ({
+    month: new Date(m.month).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }),
+    net: Math.round(m.net_savings),
+    rate: m.savings_rate,
+  }))
 
   // Selected goal detail
   const goal = goals.find(g => g.id === selectedGoal)
@@ -203,7 +218,7 @@ export default function GoalsClient() {
       </div>
 
       {/* Hero KPIs */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Active Goals</span>
           <AnimatedNumber value={activeGoals.length} className="text-2xl sm:text-3xl font-bold mt-1" />
@@ -221,6 +236,37 @@ export default function GoalsClient() {
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Monthly Needed</span>
           <p className="text-2xl sm:text-3xl font-bold tabular-nums text-amber-400 mt-1">${Math.round(totalMonthlyNeeded).toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">across all goals</p>
+        </GlassCard>
+        <GlassCard>
+          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Last Month Net</span>
+          {lastSavingsMonth ? (
+            <>
+              <p className={cn("text-2xl sm:text-3xl font-bold tabular-nums mt-1",
+                lastSavingsMonth.net_savings >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                ${Math.abs(lastSavingsMonth.net_savings).toLocaleString()}
+              </p>
+              <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">
+                {new Date(lastSavingsMonth.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-[hsl(var(--text-tertiary))] mt-2">No data yet</p>
+          )}
+        </GlassCard>
+        <GlassCard>
+          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Savings Rate</span>
+          {lastSavingsMonth ? (
+            <>
+              <p className="text-2xl sm:text-3xl font-bold tabular-nums text-cyan-400 mt-1">
+                {lastSavingsMonth.savings_rate}%
+              </p>
+              <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">
+                avg {avgNetSavings > 0 ? `$${Math.round(avgNetSavings).toLocaleString()}` : '—'}/mo
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-[hsl(var(--text-tertiary))] mt-2">No data yet</p>
+          )}
         </GlassCard>
       </div>
 
@@ -325,6 +371,15 @@ export default function GoalsClient() {
                       <span className="text-xs text-[hsl(var(--text-tertiary))]">Needed</span>
                       <span className={cn("text-xs font-medium tabular-nums", isOnTrack ? "text-emerald-400" : "text-amber-400")}>${Math.round(needed).toLocaleString()}/mo</span>
                     </div>
+                    {g.last_contribution_date && (
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-xs text-[hsl(var(--text-tertiary))]">Last added</span>
+                        <span className="text-xs font-medium text-emerald-400 tabular-nums">
+                          {new Date(g.last_contribution_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
+                          {g.last_contribution_amount ? ` · +$${g.last_contribution_amount.toLocaleString()}` : ''}
+                        </span>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -426,6 +481,43 @@ export default function GoalsClient() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Monthly Savings Timeline */}
+      {savingsChartData.length > 0 && (
+        <GlassCard className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-semibold text-[hsl(var(--foreground))]">Monthly Net Savings</h3>
+              <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
+                Last {savingsChartData.length} month{savingsChartData.length !== 1 ? 's' : ''} · avg ${Math.round(avgNetSavings).toLocaleString()}/mo
+              </p>
+            </div>
+            {lastSavingsMonth && (
+              <div className="text-right">
+                <p className="text-lg font-bold text-emerald-400 tabular-nums">${Math.round(lastSavingsMonth.net_savings).toLocaleString()}</p>
+                <p className="text-xs text-[hsl(var(--text-tertiary))]">{lastSavingsMonth.savings_rate}% rate</p>
+              </div>
+            )}
+          </div>
+          <div className="h-40">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={savingsChartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 18%)" vertical={false} />
+                <XAxis dataKey="month" tick={{ fill: 'hsl(215, 16%, 50%)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'hsl(215, 16%, 50%)', fontSize: 11 }} axisLine={false} tickLine={false}
+                  tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
+                <Tooltip
+                  contentStyle={{ background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' }}
+                  formatter={(v: number | undefined) => [`$${(v ?? 0).toLocaleString()}`, 'Net Savings']}
+                />
+                <ReferenceLine y={avgNetSavings} stroke="hsl(38, 92%, 50%)" strokeDasharray="4 4" strokeWidth={1.5} />
+                <Bar dataKey="net" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-[10px] text-[hsl(var(--text-tertiary))] mt-1">Amber line = 6-month average · Auto-updated 1st of each month</p>
+        </GlassCard>
+      )}
 
       {/* Add/Edit Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit Goal' : 'New Savings Goal'}>

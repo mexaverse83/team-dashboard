@@ -162,6 +162,54 @@ const MIGRATIONS: Record<string, string> = {
     SELECT 'insights-cache migration complete' AS result;
   `,
 
+  'goal-savings-sync': `
+    -- 1. Monthly savings snapshot table
+    CREATE TABLE IF NOT EXISTS finance_monthly_savings (
+      id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      month          DATE        NOT NULL UNIQUE,
+      gross_income   NUMERIC(12,2) NOT NULL DEFAULT 0,
+      total_expenses NUMERIC(12,2) NOT NULL DEFAULT 0,
+      net_savings    NUMERIC(12,2) GENERATED ALWAYS AS (gross_income - total_expenses) STORED,
+      savings_rate   NUMERIC(5,2) GENERATED ALWAYS AS (
+        CASE WHEN gross_income > 0
+          THEN ROUND((gross_income - total_expenses) / gross_income * 100, 2)
+          ELSE 0 END
+      ) STORED,
+      notes          TEXT,
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    -- 2. Add last_contribution_date to finance_goals for display
+    ALTER TABLE finance_goals
+      ADD COLUMN IF NOT EXISTS last_contribution_date DATE DEFAULT NULL,
+      ADD COLUMN IF NOT EXISTS last_contribution_amount NUMERIC(12,2) DEFAULT NULL;
+
+    -- 3. Backfill February snapshot
+    INSERT INTO finance_monthly_savings (month, gross_income, total_expenses, notes)
+    VALUES ('2026-02-01', 197083.00, 115094.92, 'Manual backfill — Feb 2026 actuals')
+    ON CONFLICT (month) DO NOTHING;
+
+    -- 4. Backfill goal contributions (Bernardo $170K, Laura $75K)
+    UPDATE finance_goals SET
+      current_amount = 170000,
+      last_contribution_date = '2026-03-01',
+      last_contribution_amount = 70000,
+      updated_at = NOW()
+    WHERE id = '37d8092f-fd6a-4d58-b6f9-8c18d7e903b7'
+      AND goal_type = 'savings';
+
+    UPDATE finance_goals SET
+      current_amount = 75000,
+      last_contribution_date = '2026-03-01',
+      last_contribution_amount = 50000,
+      updated_at = NOW()
+    WHERE id = 'ff332012-a5c9-4f1a-aa49-67abf9a0c9b4'
+      AND goal_type = 'savings';
+
+    SELECT 'goal-savings-sync migration complete' AS result;
+  `,
+
   'backfill-feb28': `
     -- Backfill missing Feb 28 transactions for WEST and BBVA
     INSERT INTO finance_transactions (
