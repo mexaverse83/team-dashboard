@@ -60,6 +60,7 @@ export default function GoalsClient() {
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [monthlySavings, setMonthlySavings] = useState<FinanceMonthlySavings[]>([])
+  const [savingsChart, setSavingsChart] = useState<Record<string, number | string>[]>([])
   const [scopeFilter, setScopeFilter] = useState<'all' | 'shared' | string>('all')
   const [defaultOwner, setDefaultOwner] = useState('')
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setDefaultOwner(getOwnerName(data.user?.email ?? undefined))) }, [])
@@ -68,11 +69,12 @@ export default function GoalsClient() {
     const [goalsRes, cryptoRes, savingsRes] = await Promise.all([
       supabase.from('finance_goals').select('*').order('priority'),
       fetch('/api/finance/crypto').then(r => r.text()).then(t => t ? JSON.parse(t) : { holdings: [], prices: null }).catch(() => ({ holdings: [], prices: null })),
-      fetch('/api/finance/monthly-savings?months=6').then(r => r.json()).catch(() => ({ data: [] })),
+      fetch('/api/finance/monthly-savings?months=6&owner=all').then(r => r.json()).catch(() => ({ data: [], chart: [] })),
     ])
     setGoals(goalsRes.data || [])
     setCryptoData(cryptoRes)
     setMonthlySavings(savingsRes.data || [])
+    setSavingsChart(savingsRes.chart || [])
     setLoading(false)
   }, [])
 
@@ -105,16 +107,31 @@ export default function GoalsClient() {
     return s + (months > 0 ? remaining / months : remaining)
   }, 0)
 
-  // Monthly savings KPIs — from snapshot table
-  const lastSavingsMonth = monthlySavings.length > 0 ? monthlySavings[monthlySavings.length - 1] : null
-  const avgNetSavings = monthlySavings.length > 0
-    ? monthlySavings.reduce((s, m) => s + m.net_savings, 0) / monthlySavings.length
+  // Monthly savings KPIs — from per-owner snapshot table
+  const totalSnapshots = monthlySavings.filter(m => m.owner === 'total')
+  const lastTotal = totalSnapshots.length > 0 ? totalSnapshots[totalSnapshots.length - 1] : null
+  const avgNetSavings = totalSnapshots.length > 0
+    ? totalSnapshots.reduce((s, m) => s + m.net_savings, 0) / totalSnapshots.length
     : 0
-  const savingsChartData = monthlySavings.map(m => ({
-    month: new Date(m.month).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }),
-    net: Math.round(m.net_savings),
-    rate: m.savings_rate,
-  }))
+
+  // Helper: get last snapshot net_savings for a given owner
+  const getLastActual = (ownerName: string) => {
+    const ownerSnaps = monthlySavings.filter(m => m.owner === ownerName.toLowerCase())
+    return ownerSnaps.length > 0 ? ownerSnaps[ownerSnaps.length - 1].net_savings : null
+  }
+
+  // Goal status logic
+  const getGoalStatus = (g: FinanceGoal): 'on_track' | 'slightly_behind' | 'behind' | null => {
+    if (g.goal_type !== 'savings' || !g.owner) return null
+    const lastActual = getLastActual(g.owner)
+    if (lastActual === null) return null
+    const monthsLeft = monthsBetween(new Date(), new Date(g.target_date || '2027-01-01'))
+    const remaining = g.target_amount - g.current_amount
+    const required = monthsLeft > 0 ? remaining / monthsLeft : remaining
+    if (lastActual >= required) return 'on_track'
+    if (lastActual >= required * 0.8) return 'slightly_behind'
+    return 'behind'
+  }
 
   // Selected goal detail
   const goal = goals.find(g => g.id === selectedGoal)
@@ -218,7 +235,7 @@ export default function GoalsClient() {
       </div>
 
       {/* Hero KPIs */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4 xl:grid-cols-7">
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Active Goals</span>
           <AnimatedNumber value={activeGoals.length} className="text-2xl sm:text-3xl font-bold mt-1" />
@@ -239,14 +256,14 @@ export default function GoalsClient() {
         </GlassCard>
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Last Month Net</span>
-          {lastSavingsMonth ? (
+          {lastTotal ? (
             <>
               <p className={cn("text-2xl sm:text-3xl font-bold tabular-nums mt-1",
-                lastSavingsMonth.net_savings >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                ${Math.abs(lastSavingsMonth.net_savings).toLocaleString()}
+                lastTotal.net_savings >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                ${Math.abs(lastTotal.net_savings).toLocaleString()}
               </p>
               <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">
-                {new Date(lastSavingsMonth.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })}
+                {new Date(lastTotal.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })}
               </p>
             </>
           ) : (
@@ -255,13 +272,29 @@ export default function GoalsClient() {
         </GlassCard>
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Savings Rate</span>
-          {lastSavingsMonth ? (
+          {lastTotal ? (
             <>
               <p className="text-2xl sm:text-3xl font-bold tabular-nums text-cyan-400 mt-1">
-                {lastSavingsMonth.savings_rate}%
+                {lastTotal.savings_rate}%
               </p>
               <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">
                 avg {avgNetSavings > 0 ? `$${Math.round(avgNetSavings).toLocaleString()}` : '—'}/mo
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-[hsl(var(--text-tertiary))] mt-2">No data yet</p>
+          )}
+        </GlassCard>
+        <GlassCard>
+          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Variance vs Plan</span>
+          {lastTotal ? (
+            <>
+              <p className={cn("text-2xl sm:text-3xl font-bold tabular-nums mt-1",
+                lastTotal.variance >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                {lastTotal.variance >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(lastTotal.variance)).toLocaleString()}
+              </p>
+              <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">
+                plan ${Math.round(lastTotal.planned_contribution).toLocaleString()}
               </p>
             </>
           ) : (
@@ -281,6 +314,8 @@ export default function GoalsClient() {
           const remaining = g.target_amount - currentVal
           const needed = months > 0 ? remaining / months : remaining
           const isOnTrack = isCrypto ? pct >= ((Date.now() - new Date(g.created_at).getTime()) / (new Date(g.target_date || '2027-01-01').getTime() - new Date(g.created_at).getTime())) * 100 : (g.monthly_contribution || 0) >= needed
+          const goalStatus = !isCrypto ? getGoalStatus(g) : null
+          const lastActual = !isCrypto && g.owner ? getLastActual(g.owner) : null
           const cryptoMXN = isCrypto ? getCryptoMXN(g.crypto_symbol!) : 0
           const goalGradient = isCrypto ? (COIN_GRADIENTS[g.crypto_symbol!] || GRADIENTS[0]) : GRADIENTS[Math.min(i, 3)]
 
@@ -308,9 +343,21 @@ export default function GoalsClient() {
                   <OwnerDot owner={g.scope === 'shared' ? 'shared' : g.owner} size="md" showLabel />
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full",
-                    isOnTrack ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
-                  )}>{isOnTrack ? '✓ On track' : '⚡ Needs boost'}</span>
+                  {goalStatus ? (
+                    <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full",
+                      goalStatus === 'on_track' && "bg-emerald-500/15 text-emerald-400",
+                      goalStatus === 'slightly_behind' && "bg-amber-500/15 text-amber-400",
+                      goalStatus === 'behind' && "bg-rose-500/15 text-rose-400",
+                    )}>
+                      {goalStatus === 'on_track' && '✅ On Track'}
+                      {goalStatus === 'slightly_behind' && '⚠️ Slightly Behind'}
+                      {goalStatus === 'behind' && '🔴 Behind'}
+                    </span>
+                  ) : (
+                    <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full",
+                      isOnTrack ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
+                    )}>{isOnTrack ? '✓ On track' : '⚡ Needs boost'}</span>
+                  )}
                   <div className="flex sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button onClick={e => { e.stopPropagation(); openEdit(g) }} className="p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
                     <button onClick={e => { e.stopPropagation(); setDeleteConfirm(g.id) }} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-400" /></button>
@@ -363,20 +410,45 @@ export default function GoalsClient() {
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-[hsl(var(--text-tertiary))]">Contributing</span>
-                      <span className="text-xs font-medium tabular-nums">${(g.monthly_contribution || 0).toLocaleString()}/mo</span>
-                    </div>
+                    {/* Planned vs Actual row — only for savings goals with snapshot data */}
+                    {lastActual !== null && (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-[hsl(var(--text-tertiary))]">Planned</span>
+                          <span className="text-xs font-medium tabular-nums">${(g.monthly_contribution || 0).toLocaleString()}/mo</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-0.5">
+                          <span className="text-xs text-[hsl(var(--text-tertiary))]">Actual saved</span>
+                          <span className={cn("text-xs font-medium tabular-nums",
+                            lastActual >= (g.monthly_contribution || 0) ? "text-emerald-400" : "text-rose-400"
+                          )}>${Math.round(lastActual).toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-0.5">
+                          <span className="text-xs text-[hsl(var(--text-tertiary))]">Variance</span>
+                          <span className={cn("text-xs font-medium tabular-nums",
+                            lastActual - (g.monthly_contribution || 0) >= 0 ? "text-emerald-400" : "text-rose-400"
+                          )}>
+                            {lastActual - (g.monthly_contribution || 0) >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(lastActual - (g.monthly_contribution || 0))).toLocaleString()} {lastActual >= (g.monthly_contribution || 0) ? 'ahead' : 'short'}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    {lastActual === null && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[hsl(var(--text-tertiary))]">Contributing</span>
+                        <span className="text-xs font-medium tabular-nums">${(g.monthly_contribution || 0).toLocaleString()}/mo</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between mt-0.5">
                       <span className="text-xs text-[hsl(var(--text-tertiary))]">Needed</span>
                       <span className={cn("text-xs font-medium tabular-nums", isOnTrack ? "text-emerald-400" : "text-amber-400")}>${Math.round(needed).toLocaleString()}/mo</span>
                     </div>
                     {g.last_contribution_date && (
                       <div className="flex items-center justify-between mt-0.5">
-                        <span className="text-xs text-[hsl(var(--text-tertiary))]">Last added</span>
-                        <span className="text-xs font-medium text-emerald-400 tabular-nums">
+                        <span className="text-xs text-[hsl(var(--text-tertiary))]">Last applied</span>
+                        <span className="text-xs font-medium text-[hsl(var(--text-secondary))] tabular-nums">
                           {new Date(g.last_contribution_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
-                          {g.last_contribution_amount ? ` · +$${g.last_contribution_amount.toLocaleString()}` : ''}
+                          {g.last_contribution_amount ? ` · +$${Math.round(g.last_contribution_amount).toLocaleString()}` : ''}
                         </span>
                       </div>
                     )}
@@ -482,40 +554,48 @@ export default function GoalsClient() {
         )}
       </AnimatePresence>
 
-      {/* Monthly Savings Timeline */}
-      {savingsChartData.length > 0 && (
+      {/* Monthly Savings Timeline — Stacked Bernardo + Laura */}
+      {savingsChart.length > 0 && (
         <GlassCard className="p-4">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="text-sm font-semibold text-[hsl(var(--foreground))]">Monthly Net Savings</h3>
               <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
-                Last {savingsChartData.length} month{savingsChartData.length !== 1 ? 's' : ''} · avg ${Math.round(avgNetSavings).toLocaleString()}/mo
+                Last {savingsChart.length} month{savingsChart.length !== 1 ? 's' : ''} · avg ${Math.round(avgNetSavings).toLocaleString()}/mo
               </p>
             </div>
-            {lastSavingsMonth && (
+            {lastTotal && (
               <div className="text-right">
-                <p className="text-lg font-bold text-emerald-400 tabular-nums">${Math.round(lastSavingsMonth.net_savings).toLocaleString()}</p>
-                <p className="text-xs text-[hsl(var(--text-tertiary))]">{lastSavingsMonth.savings_rate}% rate</p>
+                <p className="text-lg font-bold text-emerald-400 tabular-nums">${Math.round(lastTotal.net_savings).toLocaleString()}</p>
+                <p className="text-xs text-[hsl(var(--text-tertiary))]">{lastTotal.savings_rate}% rate</p>
               </div>
             )}
           </div>
-          <div className="h-40">
+          {/* Legend */}
+          <div className="flex items-center gap-4 mb-2">
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" /><span className="text-xs text-[hsl(var(--text-secondary))]">Bernardo</span></div>
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /><span className="text-xs text-[hsl(var(--text-secondary))]">Laura</span></div>
+            <div className="flex items-center gap-1.5"><span className="w-3 h-0.5 border-t-2 border-dashed border-amber-400 inline-block" /><span className="text-xs text-[hsl(var(--text-secondary))]">Plan</span></div>
+          </div>
+          <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={savingsChartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <BarChart data={savingsChart} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 18%)" vertical={false} />
-                <XAxis dataKey="month" tick={{ fill: 'hsl(215, 16%, 50%)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="label" tick={{ fill: 'hsl(215, 16%, 50%)', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: 'hsl(215, 16%, 50%)', fontSize: 11 }} axisLine={false} tickLine={false}
                   tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                 <Tooltip
                   contentStyle={{ background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' }}
-                  formatter={(v: number | undefined) => [`$${(v ?? 0).toLocaleString()}`, 'Net Savings']}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  formatter={((v: number, name: string) => [`$${(v || 0).toLocaleString()}`, name === 'bernardo' ? 'Bernardo' : 'Laura']) as any}
                 />
-                <ReferenceLine y={avgNetSavings} stroke="hsl(38, 92%, 50%)" strokeDasharray="4 4" strokeWidth={1.5} />
-                <Bar dataKey="net" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} />
+                <ReferenceLine y={lastTotal?.planned_contribution ?? 120000} stroke="hsl(38, 92%, 50%)" strokeDasharray="4 4" strokeWidth={1.5} />
+                <Bar dataKey="bernardo" stackId="savings" fill="hsl(217, 91%, 60%)" />
+                <Bar dataKey="laura" stackId="savings" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <p className="text-[10px] text-[hsl(var(--text-tertiary))] mt-1">Amber line = 6-month average · Auto-updated 1st of each month</p>
+          <p className="text-[10px] text-[hsl(var(--text-tertiary))] mt-1">Amber line = monthly savings plan ($120K) · Bar below line = behind target · Auto-updated 1st of each month</p>
         </GlassCard>
       )}
 

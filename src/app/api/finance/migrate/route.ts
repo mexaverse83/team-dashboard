@@ -163,47 +163,58 @@ const MIGRATIONS: Record<string, string> = {
   `,
 
   'goal-savings-sync': `
-    -- 1. Monthly savings snapshot table
+    -- 1. Monthly savings snapshot table — per-owner rows
     CREATE TABLE IF NOT EXISTS finance_monthly_savings (
-      id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-      month          DATE        NOT NULL UNIQUE,
-      gross_income   NUMERIC(12,2) NOT NULL DEFAULT 0,
-      total_expenses NUMERIC(12,2) NOT NULL DEFAULT 0,
-      net_savings    NUMERIC(12,2) GENERATED ALWAYS AS (gross_income - total_expenses) STORED,
-      savings_rate   NUMERIC(5,2) GENERATED ALWAYS AS (
+      id                   UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+      month                DATE          NOT NULL,
+      owner                TEXT          NOT NULL,  -- 'bernardo' | 'laura' | 'total'
+      gross_income         NUMERIC(12,2) NOT NULL DEFAULT 0,
+      total_expenses       NUMERIC(12,2) NOT NULL DEFAULT 0,
+      net_savings          NUMERIC(12,2) GENERATED ALWAYS AS (gross_income - total_expenses) STORED,
+      savings_rate         NUMERIC(5,2)  GENERATED ALWAYS AS (
         CASE WHEN gross_income > 0
           THEN ROUND((gross_income - total_expenses) / gross_income * 100, 2)
           ELSE 0 END
       ) STORED,
-      notes          TEXT,
-      created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      planned_contribution NUMERIC(12,2) DEFAULT 0,
+      variance             NUMERIC(12,2) GENERATED ALWAYS AS
+                           (gross_income - total_expenses - planned_contribution) STORED,
+      notes                TEXT,
+      created_at           TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+      UNIQUE(month, owner)
     );
 
-    -- 2. Add last_contribution_date to finance_goals for display
+    -- 2. Add columns to finance_goals for display
     ALTER TABLE finance_goals
       ADD COLUMN IF NOT EXISTS last_contribution_date DATE DEFAULT NULL,
       ADD COLUMN IF NOT EXISTS last_contribution_amount NUMERIC(12,2) DEFAULT NULL;
 
-    -- 3. Backfill February snapshot
-    INSERT INTO finance_monthly_savings (month, gross_income, total_expenses, notes)
-    VALUES ('2026-02-01', 197083.00, 115094.92, 'Manual backfill — Feb 2026 actuals')
-    ON CONFLICT (month) DO NOTHING;
+    -- 3. Backfill February per-owner actuals
+    --    Bernardo: income $125K, expenses $56,245, net $68,755, planned $70K
+    --    Laura:    income $68K,  expenses $54,767, net $13,233, planned $50K
+    --    Total:    income $193K, expenses $111,012, net $81,988, planned $120K
+    INSERT INTO finance_monthly_savings
+      (month, owner, gross_income, total_expenses, planned_contribution, notes)
+    VALUES
+      ('2026-02-01', 'bernardo', 125000.00,  56244.92,  70000.00, 'Feb 2026 backfill'),
+      ('2026-02-01', 'laura',     68000.00,  54767.00,  50000.00, 'Feb 2026 backfill'),
+      ('2026-02-01', 'total',    193000.00, 111011.92, 120000.00, 'Feb 2026 backfill')
+    ON CONFLICT (month, owner) DO NOTHING;
 
-    -- 4. Backfill goal contributions (Bernardo $170K, Laura $75K)
+    -- 4. Apply Feb actual balances to goals (already applied via REST — idempotent)
     UPDATE finance_goals SET
-      current_amount = 170000,
-      last_contribution_date = '2026-03-01',
-      last_contribution_amount = 70000,
-      updated_at = NOW()
+      current_amount           = 168755.08,
+      last_contribution_date   = '2026-03-01',
+      last_contribution_amount = 68755.08,
+      updated_at               = NOW()
     WHERE id = '37d8092f-fd6a-4d58-b6f9-8c18d7e903b7'
       AND goal_type = 'savings';
 
     UPDATE finance_goals SET
-      current_amount = 75000,
-      last_contribution_date = '2026-03-01',
-      last_contribution_amount = 50000,
-      updated_at = NOW()
+      current_amount           = 38233.00,
+      last_contribution_date   = '2026-03-01',
+      last_contribution_amount = 13233.00,
+      updated_at               = NOW()
     WHERE id = 'ff332012-a5c9-4f1a-aa49-67abf9a0c9b4'
       AND goal_type = 'savings';
 

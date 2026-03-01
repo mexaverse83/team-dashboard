@@ -177,10 +177,13 @@ export interface FinanceGoal {
 }
 
 export interface FinanceMonthlySavings {
-  month: string          // YYYY-MM-01
+  month: string                          // YYYY-MM-01
+  owner: 'bernardo' | 'laura' | 'total'
   gross_income: number
   total_expenses: number
-  net_savings: number    // generated: gross - expenses
-  savings_rate: number   // generated: %
+  net_savings: number                    // generated: gross - expenses
+  savings_rate: number                   // generated: %
+  planned_contribution: number
+  variance: number                       // generated: net_savings - planned_contribution
   notes?: string | null
 }

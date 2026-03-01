@@ -349,73 +349,79 @@ async function processRecurring(req: NextRequest) {
     // If existingBudgets.length > 0: month already set up, skip silently
   }
 
-  // ── 6. MONTHLY SAVINGS SNAPSHOT + GOAL CONTRIBUTION ADVANCE ────────
-  // Runs on 1st of month only — captures previous month actuals and
-  // advances each active savings goal by its monthly_contribution.
+  // ── 6. MONTHLY SAVINGS SNAPSHOT + GOAL ADVANCE (1st of month only) ──
+  // Boss directive: advance goals by ACTUAL per-person net savings, not
+  // planned monthly_contribution. If someone falls behind, the goal shows it.
   if (todayDayOfMonth === 1) {
-    // Compute previous month date range
     const prevMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
-    const prevMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0)) // last day of prev month
+    const prevMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0))
     const prevMonthStr = prevMonthStart.toISOString().slice(0, 10)
     const prevMonthEndStr = prevMonthEnd.toISOString().slice(0, 10)
 
-    // Fetch all previous month transactions
+    // Fetch all previous month transactions with owner
     const { data: prevTxns } = await supabase
       .from('finance_transactions')
-      .select('type, amount_mxn')
+      .select('type, amount_mxn, owner')
       .gte('transaction_date', prevMonthStr)
       .lte('transaction_date', prevMonthEndStr)
 
-    if (prevTxns && prevTxns.length > 0) {
-      const grossIncome = prevTxns
-        .filter((t: { type: string; amount_mxn: number }) => t.type === 'income')
-        .reduce((s: number, t: { type: string; amount_mxn: number }) => s + t.amount_mxn, 0)
-      const totalExpenses = prevTxns
-        .filter((t: { type: string; amount_mxn: number }) => t.type === 'expense')
-        .reduce((s: number, t: { type: string; amount_mxn: number }) => s + t.amount_mxn, 0)
+    const txns = (prevTxns || []) as { type: string; amount_mxn: number; owner: string | null }[]
 
-      // Upsert monthly savings snapshot
+    // Per-owner pass: bernardo + laura
+    for (const ownerName of ['bernardo', 'laura']) {
+      const ownerTxns = txns.filter(t => t.owner?.toLowerCase() === ownerName)
+      const grossIncome = ownerTxns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount_mxn, 0)
+      const totalExpenses = ownerTxns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount_mxn, 0)
+      const actualNetSavings = grossIncome - totalExpenses
+
+      // Fetch this owner's active savings goals
+      const { data: ownerGoals } = await supabase
+        .from('finance_goals')
+        .select('id, current_amount, target_amount, monthly_contribution')
+        .eq('is_completed', false)
+        .eq('goal_type', 'savings')
+        .ilike('owner', ownerName)
+
+      const plannedContribution = (ownerGoals || []).reduce((s, g) => s + g.monthly_contribution, 0)
+
+      // Upsert per-owner snapshot
       const { error: snapErr } = await supabase
         .from('finance_monthly_savings')
         .upsert(
-          { month: prevMonthStr, gross_income: grossIncome, total_expenses: totalExpenses },
-          { onConflict: 'month' }
+          { month: prevMonthStr, owner: ownerName, gross_income: grossIncome, total_expenses: totalExpenses, planned_contribution: plannedContribution },
+          { onConflict: 'month,owner' }
         )
-      if (snapErr) results.errors.push(`Savings snapshot: ${snapErr.message}`)
-    }
+      if (snapErr) results.errors.push(`Savings snapshot (${ownerName}): ${snapErr.message}`)
 
-    // Advance savings goals by their monthly_contribution
-    const { data: savingsGoals } = await supabase
-      .from('finance_goals')
-      .select('id, current_amount, target_amount, monthly_contribution')
-      .eq('is_completed', false)
-      .eq('goal_type', 'savings')
-      .gt('monthly_contribution', 0)
-
-    for (const goal of savingsGoals || []) {
-      const newAmount = Math.min(
-        goal.current_amount + goal.monthly_contribution,
-        goal.target_amount
-      )
-      const isCompleted = newAmount >= goal.target_amount
-
-      const { error: goalErr } = await supabase
-        .from('finance_goals')
-        .update({
-          current_amount: newAmount,
-          is_completed: isCompleted,
-          last_contribution_date: today,
-          last_contribution_amount: goal.monthly_contribution,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', goal.id)
-
-      if (goalErr) {
-        results.errors.push(`Goal advance ${goal.id}: ${goalErr.message}`)
-      } else {
-        results.income++ // reuse income counter for goal advances
+      // Advance each savings goal by ACTUAL net savings (not planned)
+      for (const goal of ownerGoals || []) {
+        const newAmount = Math.min(goal.current_amount + actualNetSavings, goal.target_amount)
+        const isCompleted = newAmount >= goal.target_amount
+        const { error: goalErr } = await supabase
+          .from('finance_goals')
+          .update({
+            current_amount: newAmount,
+            is_completed: isCompleted,
+            last_contribution_date: today,
+            last_contribution_amount: Math.round(actualNetSavings * 100) / 100,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', goal.id)
+        if (goalErr) results.errors.push(`Goal advance ${goal.id}: ${goalErr.message}`)
+        else results.income++
       }
     }
+
+    // Upsert combined 'total' row
+    const totalIncome = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount_mxn, 0)
+    const totalExpenses = txns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount_mxn, 0)
+    const { data: allGoals } = await supabase
+      .from('finance_goals').select('monthly_contribution').eq('is_completed', false).eq('goal_type', 'savings')
+    const totalPlanned = (allGoals || []).reduce((s, g) => s + g.monthly_contribution, 0)
+    await supabase.from('finance_monthly_savings').upsert(
+      { month: prevMonthStr, owner: 'total', gross_income: totalIncome, total_expenses: totalExpenses, planned_contribution: totalPlanned },
+      { onConflict: 'month,owner' }
+    )
   }
 
   return NextResponse.json({
