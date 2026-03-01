@@ -159,10 +159,15 @@ export default function AuditClient() {
       const lra = (r as any).leak_reviewed_at
       if (ls === 'keep') return
       if (ls === 'later' && lra && (Date.now() - new Date(lra).getTime()) < 30 * 86400000) return
+      // Skip debt-linked subscriptions — these are auto-tracked debt payments, not discretionary
+      if ((r as any).debt_id) return
 
       const window = freqDays[r.frequency] || 30
       const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - window)
       const matching = transactions.filter(t => {
+        // Primary: recurring_id match (cron always stamps this — most reliable)
+        if (t.recurring_id && t.recurring_id === r.id && new Date(t.transaction_date) >= cutoff) return true
+        // Fallback: merchant/description text match
         const match = t.merchant?.toLowerCase() === r.merchant?.toLowerCase() || t.description?.toLowerCase().includes(r.name.toLowerCase())
         return match && new Date(t.transaction_date) >= cutoff
       })
