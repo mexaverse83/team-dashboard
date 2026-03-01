@@ -196,7 +196,59 @@ async function processRecurring(req: NextRequest) {
     }
   }
 
-  // ── 3. MSI INSTALLMENTS ───────────────────────────────────────────
+  // ── 3. RECURRING INCOME (finance_recurring_income) ───────────────
+  const todayDayOfMonth = now.getUTCDate()
+  const { data: recurringIncomes } = await supabase
+    .from('finance_recurring_income')
+    .select('*')
+    .eq('active', true)
+    .eq('day_of_month', todayDayOfMonth)
+
+  for (const ri of recurringIncomes || []) {
+    // Only process monthly for now (bimonthly/annual need custom cadence logic)
+    if (ri.recurrence !== 'monthly') {
+      results.skipped++
+      continue
+    }
+
+    // Duplicate guard: skip if already registered this month
+    const monthStr = today.slice(0, 7)
+    const { data: existing } = await supabase
+      .from('finance_transactions')
+      .select('id')
+      .eq('source', 'recurring_income')
+      .eq('merchant', ri.name)
+      .gte('transaction_date', `${monthStr}-01`)
+      .lte('transaction_date', `${monthStr}-31`)
+      .limit(1)
+
+    if (existing && existing.length > 0) {
+      results.skipped++
+      continue
+    }
+
+    const { error } = await supabase.from('finance_transactions').insert({
+      type: 'income',
+      amount: ri.amount,
+      currency: 'MXN',
+      amount_mxn: ri.amount,
+      category_id: incomeCatId,
+      merchant: ri.name,
+      description: `Auto: ${ri.name} (${ri.category})`,
+      transaction_date: today,
+      is_recurring: true,
+      tags: ['auto-income', 'recurring-income'],
+      source: 'recurring_income',
+      owner: ri.owner,
+    })
+    if (error) {
+      results.errors.push(`RecurringIncome ${ri.name}: ${error.message}`)
+    } else {
+      results.income++
+    }
+  }
+
+  // ── 4. MSI INSTALLMENTS ───────────────────────────────────────────
   const { data: installments } = await supabase
     .from('finance_installments')
     .select('*')

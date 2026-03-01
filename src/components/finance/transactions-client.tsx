@@ -424,7 +424,12 @@ export default function TransactionsClient() {
                     <tr key={tx.id} className="border-b border-[hsl(var(--border))] last:border-0 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors group">
                       <td className="py-3 px-4 text-sm text-[hsl(var(--text-secondary))]">{tx.transaction_date.slice(5)}</td>
                       <td className="py-3 px-4">
-                        <p className="text-sm font-medium">{tx.merchant || '—'}</p>
+                        <p className="text-sm font-medium flex items-center gap-1.5">
+                          {tx.merchant || '—'}
+                          {(tx.source === 'recurring_income' || tx.tags?.includes('auto-income')) && (
+                            <span title="Auto-registered recurring income" className="text-emerald-400 text-xs">🔁</span>
+                          )}
+                        </p>
                         {tx.description && <p className="text-xs text-[hsl(var(--text-tertiary))] truncate max-w-[200px]">{tx.description}</p>}
                       </td>
                       <td className="py-3 px-4">
@@ -473,7 +478,12 @@ export default function TransactionsClient() {
                   </div>
                   <div className="flex-1 min-w-0" onClick={() => openEdit(tx)}>
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium truncate">{tx.merchant || '—'}</p>
+                      <p className="text-sm font-medium truncate flex items-center gap-1">
+                        {tx.merchant || '—'}
+                        {(tx.source === 'recurring_income' || tx.tags?.includes('auto-income')) && (
+                          <span title="Auto-registered" className="text-emerald-400 text-xs">🔁</span>
+                        )}
+                      </p>
                       <span className={cn("text-sm font-semibold shrink-0 ml-2",
                         tx.type === 'income' ? "text-emerald-400" : "text-rose-400")}>
                         {tx.type === 'income' ? '+' : '-'}${tx.amount_mxn.toLocaleString()}

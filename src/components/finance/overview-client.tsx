@@ -16,7 +16,7 @@ import { motion } from 'framer-motion'
 import { OwnerBar } from '@/components/finance/owner-dot'
 import { WolffWidget } from '@/components/finance/wolff-widget'
 import { WestCompactWidget } from '@/components/finance/west-tracker'
-import type { FinanceCategory, FinanceTransaction, FinanceBudget } from '@/lib/finance-types'
+import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceRecurringIncome } from '@/lib/finance-types'
 import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -36,6 +36,7 @@ export default function FinanceOverviewClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
   const [budgets, setBudgets] = useState<FinanceBudget[]>([])
+  const [recurringIncome, setRecurringIncome] = useState<FinanceRecurringIncome[]>([])
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
@@ -47,13 +48,15 @@ export default function FinanceOverviewClient() {
       supabase.from('finance_categories').select('*').order('sort_order'),
       supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }),
       supabase.from('finance_budgets').select('*'),
-    ]).then(([catRes, txRes, budRes]) => {
+      supabase.from('finance_recurring_income').select('*').eq('active', true),
+    ]).then(([catRes, txRes, budRes, riRes]) => {
       const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
       const txs = txRes.data || []
       const buds = budRes.data || []
       setCategories(cats)
       setTransactions(enrichTransactions(txs, cats))
       setBudgets(enrichBudgets(buds, cats))
+      setRecurringIncome(riRes.data || [])
       setLoading(false)
     })
   }, [])
@@ -89,6 +92,11 @@ export default function FinanceOverviewClient() {
   const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && t.owner === 'Laura').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
   const bernardoIncome = useMemo(() => monthTxs.filter(t => t.type === 'income' && t.owner === 'Bernardo').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
   const lauraIncome = useMemo(() => monthTxs.filter(t => t.type === 'income' && t.owner === 'Laura').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const expectedMonthlyIncome = useMemo(
+    () => recurringIncome.filter(r => r.recurrence === 'monthly').reduce((s, r) => s + r.amount, 0),
+    [recurringIncome]
+  )
+  const incomeVariance = totalIncome - expectedMonthlyIncome
 
   const prevSpent = prevMonthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount_mxn, 0)
   const prevIncome = prevMonthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount_mxn, 0)
@@ -204,6 +212,22 @@ export default function FinanceOverviewClient() {
           </div>
           <p className="text-2xl sm:text-3xl font-bold text-emerald-400">${totalIncome.toLocaleString()}</p>
           <TrendBadge value={incomeDelta} suffix="% vs last month" />
+          {expectedMonthlyIncome > 0 && (
+            <div className="mt-2 flex items-center justify-between text-xs">
+              <span className="text-[hsl(var(--text-tertiary))]">Expected</span>
+              <span className={cn(
+                "font-medium",
+                incomeVariance >= 0 ? "text-emerald-400" : "text-amber-400"
+              )}>
+                ${expectedMonthlyIncome.toLocaleString()}
+                {incomeVariance !== 0 && (
+                  <span className="ml-1 opacity-70">
+                    ({incomeVariance >= 0 ? '+' : ''}{incomeVariance.toLocaleString()})
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
           <OwnerBar bernardo={bernardoIncome} laura={lauraIncome} className="mt-2" />
           <div className="mt-3 h-8"><SparklineChart data={dailyIncomeHistory} color="hsl(160, 60%, 45%)" /></div>
         </GlassCard>

@@ -27,10 +27,25 @@ export interface FinanceTransaction {
   coverage_start: string | null
   coverage_end: string | null
   owner: string | null
+  source?: string | null  // 'recurring_income' | 'recurring_expense' | null (manual)
   created_at: string
   updated_at: string
   // Joined
   category?: FinanceCategory
+}
+
+export interface FinanceRecurringIncome {
+  id: string
+  name: string
+  amount: number
+  owner: string
+  category: 'salary' | 'freelance' | 'passive' | 'bonus' | 'other'
+  recurrence: 'monthly' | 'bimonthly' | 'annual'
+  day_of_month: number
+  active: boolean
+  notes: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface FinanceBudget {
