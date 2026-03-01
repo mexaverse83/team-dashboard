@@ -87,6 +87,57 @@ const MIGRATIONS: Record<string, string> = {
     SELECT 'debt-sync migration complete' AS result;
   `,
 
+  'gbm-net-rate': `
+    -- Set net_annual_rate = annual_rate - commission_rate for all FI rows with a commission
+    UPDATE finance_fixed_income
+      SET net_annual_rate = annual_rate - commission_rate
+    WHERE commission_rate IS NOT NULL;
+
+    SELECT id, name, annual_rate, commission_rate, net_annual_rate
+    FROM finance_fixed_income WHERE commission_rate IS NOT NULL;
+  `,
+
+  'leak-triage': `
+    -- Add leak_status and leak_reviewed_at to finance_recurring
+    ALTER TABLE finance_recurring
+      ADD COLUMN IF NOT EXISTS leak_status TEXT DEFAULT NULL,
+      ADD COLUMN IF NOT EXISTS leak_reviewed_at TIMESTAMPTZ DEFAULT NULL;
+
+    SELECT column_name, data_type FROM information_schema.columns
+    WHERE table_name = 'finance_recurring'
+      AND column_name IN ('leak_status', 'leak_reviewed_at');
+  `,
+
+  'insights-cache': `
+    -- Finance insights cache table
+    CREATE TABLE IF NOT EXISTS finance_insights_cache (
+      id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      insights_json JSONB     NOT NULL DEFAULT '[]'::jsonb,
+      data_snapshot JSONB     DEFAULT '{}'::jsonb,
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    );
+
+    ALTER TABLE finance_insights_cache ENABLE ROW LEVEL SECURITY;
+
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename='finance_insights_cache' AND policyname='anon read insights'
+      ) THEN
+        CREATE POLICY "anon read insights" ON finance_insights_cache FOR SELECT USING (true);
+      END IF;
+    END $$;
+
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename='finance_insights_cache' AND policyname='service insert insights'
+      ) THEN
+        CREATE POLICY "service insert insights" ON finance_insights_cache FOR INSERT WITH CHECK (true);
+      END IF;
+    END $$;
+
+    SELECT 'insights-cache migration complete' AS result;
+  `,
+
   'backfill-feb28': `
     -- Backfill missing Feb 28 transactions for WEST and BBVA
     INSERT INTO finance_transactions (
