@@ -231,8 +231,8 @@ Return ONLY valid JSON array, no markdown, no explanation.`
 
     if (!anthropicRes.ok) {
       const err = await anthropicRes.text()
-      console.error('Anthropic API error:', err)
-      return NextResponse.json({ error: `AI analysis failed: ${err.slice(0, 200)}` }, { status: 500 })
+      console.error('Anthropic API error:', anthropicRes.status, err)
+      return NextResponse.json({ error: `AI analysis failed (${anthropicRes.status}): ${err.slice(0, 500)}` }, { status: 500 })
     }
 
     const anthropicData = await anthropicRes.json()
