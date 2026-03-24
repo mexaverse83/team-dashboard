@@ -219,12 +219,12 @@ Return ONLY valid JSON array, no markdown, no explanation.`
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
+          'anthropic-version': '2025-01-01',
         },
         body: JSON.stringify({
           model: ANTHROPIC_MODEL,
-          max_tokens: 4096,
-          temperature: 0.7,
+          max_tokens: 16000,
+          temperature: 1,
           messages: [{ role: 'user', content: prompt }],
         }),
       }
