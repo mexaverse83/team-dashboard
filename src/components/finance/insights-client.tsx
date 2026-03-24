@@ -815,7 +815,7 @@ export default function InsightsClient() {
               <GlassCard className="text-center py-8">
                 <span className="text-2xl block mb-2">🐺</span>
                 <p className="text-sm text-[hsl(var(--text-secondary))]">
-                  AI insights unavailable — check that GEMINI_API_KEY is configured.
+                  AI insights unavailable — check that ANTHROPIC_API_KEY is configured.
                 </p>
                 <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">
                   Budget vs actual data is still shown above from live data.
