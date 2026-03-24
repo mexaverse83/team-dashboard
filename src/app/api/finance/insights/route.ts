@@ -76,24 +76,22 @@ export async function GET(req: NextRequest) {
 
   // Debug mode: ?debug=true sends a minimal prompt to verify API key + model
   if (req.nextUrl.searchParams.get('debug') === 'true') {
-    const tests = [
-      { label: 'no-beta', headers: {}, body: { model: 'claude-opus-4-6', max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] } },
-      { label: 'with-beta-interop', headers: { 'anthropic-beta': 'interop-2025-01-24' }, body: { model: 'claude-opus-4-6', max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] } },
-      { label: 'with-beta-output128k', headers: { 'anthropic-beta': 'output-128k-2025-02-19' }, body: { model: 'claude-opus-4-6', max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] } },
-      { label: 'max-tokens-1024', headers: {}, body: { model: 'claude-opus-4-6', max_tokens: 1024, messages: [{ role: 'user', content: 'Say hello' }] } },
-      { label: 'with-temp-0', headers: {}, body: { model: 'claude-opus-4-6', max_tokens: 50, temperature: 0, messages: [{ role: 'user', content: 'Say hello' }] } },
-    ]
-    const results = []
-    for (const t of tests) {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', ...t.headers },
-        body: JSON.stringify(t.body),
-      })
-      const text = await res.text()
-      results.push({ test: t.label, status: res.status, response: text.slice(0, 300) })
-    }
-    return NextResponse.json({ results })
+    const baseHeaders: Record<string, string> = { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }
+    const body = JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 1024, messages: [{ role: 'user', content: 'Say hello in one word' }] })
+    // Test 1: plain
+    const r1 = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: baseHeaders, body })
+    const t1 = await r1.text()
+    // Test 2: with anthropic-beta
+    const r2 = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { ...baseHeaders, 'anthropic-beta': 'max-tokens-3-5-sonnet-2024-07-15,output-128k-2025-02-19' }, body })
+    const t2 = await r2.text()
+    // Test 3: with token-counting beta
+    const r3 = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { ...baseHeaders, 'anthropic-beta': 'token-counting-2024-11-01' }, body })
+    const t3 = await r3.text()
+    return NextResponse.json({ results: [
+      { test: 'plain', status: r1.status, body: t1.slice(0, 300) },
+      { test: 'beta-output128k', status: r2.status, body: t2.slice(0, 300) },
+      { test: 'beta-token-counting', status: r3.status, body: t3.slice(0, 300) },
+    ] })
   }
 
   // Build prompt with rich budget vs actual context
