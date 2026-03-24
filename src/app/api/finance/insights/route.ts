@@ -76,20 +76,16 @@ export async function GET(req: NextRequest) {
 
   // Debug mode: ?debug=true sends a minimal prompt to verify API key + model
   if (req.nextUrl.searchParams.get('debug') === 'true') {
-    const bodies = [
-      { model: ANTHROPIC_MODEL, max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] },
-      { model: 'claude-sonnet-4-5-20250514', max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] },
-      { model: 'claude-3-5-sonnet-20241022', max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] },
-    ]
+    const versions = ['2023-06-01', '2024-01-01', '2024-10-22']
     const results = []
-    for (const body of bodies) {
+    for (const ver of versions) {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': ver },
+        body: JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] }),
       })
       const text = await res.text()
-      results.push({ model: body.model, status: res.status, response: text.slice(0, 200) })
+      results.push({ version: ver, status: res.status, response: text.slice(0, 300) })
     }
     return NextResponse.json({ key_prefix: ANTHROPIC_API_KEY.slice(0, 12) + '...', results })
   }
