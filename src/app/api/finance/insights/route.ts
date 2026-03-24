@@ -224,7 +224,6 @@ Return ONLY valid JSON array, no markdown, no explanation.`
         body: JSON.stringify({
           model: ANTHROPIC_MODEL,
           max_tokens: 16000,
-          temperature: 1,
           messages: [{ role: 'user', content: prompt }],
         }),
       }
