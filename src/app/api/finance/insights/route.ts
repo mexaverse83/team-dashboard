@@ -74,6 +74,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
   }
 
+  // Debug mode: ?debug=true sends a minimal prompt to verify API key + model
+  if (req.nextUrl.searchParams.get('debug') === 'true') {
+    const debugRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 50, messages: [{ role: 'user', content: 'Say "hello" in JSON: {"greeting":"..."}' }] }),
+    })
+    const debugBody = await debugRes.text()
+    return NextResponse.json({ status: debugRes.status, model: ANTHROPIC_MODEL, key_prefix: ANTHROPIC_API_KEY.slice(0, 10) + '...', response: debugBody })
+  }
+
   // Build prompt with rich budget vs actual context
   const bva = data.current_month?.budget_vs_actual || []
   const bvaSection = bva.length > 0 ? `
