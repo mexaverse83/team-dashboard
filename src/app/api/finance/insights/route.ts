@@ -7,7 +7,7 @@ const supabase = createClient(
 )
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ''
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250514'
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-5-20250918'
 
 interface Insight {
   type: 'alert' | 'recommendation' | 'win' | 'forecast' | 'pattern' | 'saving'
