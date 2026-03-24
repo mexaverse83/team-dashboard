@@ -76,18 +76,24 @@ export async function GET(req: NextRequest) {
 
   // Debug mode: ?debug=true sends a minimal prompt to verify API key + model
   if (req.nextUrl.searchParams.get('debug') === 'true') {
-    const versions = ['2023-06-01', '2024-01-01', '2024-10-22']
+    const tests = [
+      { label: 'no-beta', headers: {}, body: { model: 'claude-opus-4-6', max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] } },
+      { label: 'with-beta-interop', headers: { 'anthropic-beta': 'interop-2025-01-24' }, body: { model: 'claude-opus-4-6', max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] } },
+      { label: 'with-beta-output128k', headers: { 'anthropic-beta': 'output-128k-2025-02-19' }, body: { model: 'claude-opus-4-6', max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] } },
+      { label: 'max-tokens-1024', headers: {}, body: { model: 'claude-opus-4-6', max_tokens: 1024, messages: [{ role: 'user', content: 'Say hello' }] } },
+      { label: 'with-temp-0', headers: {}, body: { model: 'claude-opus-4-6', max_tokens: 50, temperature: 0, messages: [{ role: 'user', content: 'Say hello' }] } },
+    ]
     const results = []
-    for (const ver of versions) {
+    for (const t of tests) {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': ver },
-        body: JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] }),
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', ...t.headers },
+        body: JSON.stringify(t.body),
       })
       const text = await res.text()
-      results.push({ version: ver, status: res.status, response: text.slice(0, 300) })
+      results.push({ test: t.label, status: res.status, response: text.slice(0, 300) })
     }
-    return NextResponse.json({ key_prefix: ANTHROPIC_API_KEY.slice(0, 12) + '...', results })
+    return NextResponse.json({ results })
   }
 
   // Build prompt with rich budget vs actual context
