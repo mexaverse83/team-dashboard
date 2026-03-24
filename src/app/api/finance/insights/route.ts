@@ -76,13 +76,22 @@ export async function GET(req: NextRequest) {
 
   // Debug mode: ?debug=true sends a minimal prompt to verify API key + model
   if (req.nextUrl.searchParams.get('debug') === 'true') {
-    const debugRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 50, messages: [{ role: 'user', content: 'Say "hello" in JSON: {"greeting":"..."}' }] }),
-    })
-    const debugBody = await debugRes.text()
-    return NextResponse.json({ status: debugRes.status, model: ANTHROPIC_MODEL, key_prefix: ANTHROPIC_API_KEY.slice(0, 10) + '...', response: debugBody })
+    const bodies = [
+      { model: ANTHROPIC_MODEL, max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] },
+      { model: 'claude-sonnet-4-5-20250514', max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] },
+      { model: 'claude-3-5-sonnet-20241022', max_tokens: 50, messages: [{ role: 'user', content: 'Say hello' }] },
+    ]
+    const results = []
+    for (const body of bodies) {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify(body),
+      })
+      const text = await res.text()
+      results.push({ model: body.model, status: res.status, response: text.slice(0, 200) })
+    }
+    return NextResponse.json({ key_prefix: ANTHROPIC_API_KEY.slice(0, 12) + '...', results })
   }
 
   // Build prompt with rich budget vs actual context
