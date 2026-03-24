@@ -23,6 +23,7 @@ export interface FinanceTransaction {
   transaction_date: string
   is_recurring: boolean
   recurring_id: string | null
+  installment_id: string | null
   tags: string[]
   coverage_start: string | null
   coverage_end: string | null

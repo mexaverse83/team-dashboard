@@ -135,19 +135,20 @@ export function InstallmentsClient() {
   }
 
   // Create a transaction entry for an MSI payment
-  const createMsiTransaction = async (inst: { name: string; merchant: string | null; installment_amount: number; category_id: string | null; id: string; credit_card: string | null }, paymentDate: string, paymentNum: number, totalPayments: number) => {
+  const createMsiTransaction = async (inst: { name: string; merchant: string | null; installment_amount: number; category_id: string | null; id: string; credit_card: string | null; owner?: string | null }, paymentDate: string, paymentNum: number, totalPayments: number) => {
     await supabase.from('finance_transactions').insert({
       type: 'expense',
       amount: inst.installment_amount,
       currency: 'MXN',
       amount_mxn: inst.installment_amount,
       category_id: inst.category_id || null,
-      merchant: inst.merchant || inst.name,
-      description: `MSI ${paymentNum}/${totalPayments} — ${inst.name}${inst.credit_card ? ` (${inst.credit_card})` : ''}`,
+      merchant: `MSI: ${inst.name}`,
+      description: `Auto-MSI: ${inst.name} (${paymentNum}/${totalPayments})${inst.merchant ? ` — ${inst.merchant}` : ''}${inst.credit_card ? ` (${inst.credit_card})` : ''}`,
       transaction_date: paymentDate,
       is_recurring: true,
-      recurring_id: inst.id,
-      tags: ['msi'],
+      installment_id: inst.id,
+      tags: ['auto-msi'],
+      owner: inst.owner || null,
     })
   }
 
@@ -193,7 +194,8 @@ export function InstallmentsClient() {
   }
 
   const handleDelete = async (id: string) => {
-    // Delete linked transactions too
+    // Delete linked transactions (covers both legacy recurring_id and current installment_id)
+    await supabase.from('finance_transactions').delete().eq('installment_id', id)
     await supabase.from('finance_transactions').delete().eq('recurring_id', id)
     await supabase.from('finance_installments').delete().eq('id', id)
     setDeleteConfirm(null)
