@@ -231,7 +231,7 @@ export default function SubscriptionsClient() {
   }
 
   const handleDelete = async (id: string) => {
-    const res = await fetch(`/api/finance/subscriptions/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/finance/subscriptions/${id}`, { method: 'DELETE', referrerPolicy: 'origin' })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
       console.error('Delete failed:', data.error || res.statusText)

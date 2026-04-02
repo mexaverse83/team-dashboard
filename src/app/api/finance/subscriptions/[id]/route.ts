@@ -12,7 +12,9 @@ function isAuthorized(req: NextRequest) {
   const key = req.headers.get('x-api-key')
   const expected = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
   const referer = req.headers.get('referer') || ''
-  const isSameOrigin = referer.includes(req.nextUrl.host)
+  const origin = req.headers.get('origin') || ''
+  const host = req.nextUrl.host
+  const isSameOrigin = (referer && referer.includes(host)) || (origin && origin.includes(host))
   return isSameOrigin || (!!key && key === expected)
 }
 
