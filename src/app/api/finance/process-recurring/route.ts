@@ -42,6 +42,10 @@ async function processRecurring(req: NextRequest) {
 
   const now = new Date()
   const today = now.toISOString().slice(0, 10)
+  const monthStr = today.slice(0, 7)
+  const monthStart = `${monthStr}-01`
+  const lastDay = new Date(now.getUTCFullYear(), now.getUTCMonth() + 1, 0).getDate()
+  const monthEnd = `${monthStr}-${String(lastDay).padStart(2, '0')}`
   const results = { subscriptions: 0, income: 0, installments: 0, debt_payments: 0, budget_rollovers: 0, skipped: 0, errors: [] as string[] }
 
   // ── 1. SUBSCRIPTIONS ──────────────────────────────────────────────
@@ -169,14 +173,13 @@ async function processRecurring(req: NextRequest) {
 
   for (const inc of incomes || []) {
     // Check if income already posted this month
-    const monthStr = today.slice(0, 7)
     const { data: existing } = await supabase
       .from('finance_transactions')
       .select('id')
       .eq('type', 'income')
       .eq('merchant', inc.name)
-      .gte('transaction_date', `${monthStr}-01`)
-      .lte('transaction_date', `${monthStr}-31`)
+      .gte('transaction_date', monthStart)
+      .lte('transaction_date', monthEnd)
       .limit(1)
 
     if (existing && existing.length > 0) {
@@ -227,14 +230,13 @@ async function processRecurring(req: NextRequest) {
     }
 
     // Duplicate guard: skip if already registered this month
-    const monthStr = today.slice(0, 7)
     const { data: existing } = await supabase
       .from('finance_transactions')
       .select('id')
       .eq('source', 'recurring_income')
       .eq('merchant', ri.name)
-      .gte('transaction_date', `${monthStr}-01`)
-      .lte('transaction_date', `${monthStr}-31`)
+      .gte('transaction_date', monthStart)
+      .lte('transaction_date', monthEnd)
       .limit(1)
 
     if (existing && existing.length > 0) {
@@ -266,9 +268,6 @@ async function processRecurring(req: NextRequest) {
   // ── 4. MSI INSTALLMENTS ───────────────────────────────────────────
   // Fully automated: inserts one expense transaction per installment per month
   // until all payments are made. Idempotent via installment_id dupe guard.
-  const monthStr = today.slice(0, 7) // 'YYYY-MM'
-  const monthStart = `${monthStr}-01`
-  const monthEnd = `${monthStr}-31`
 
   const { data: installments } = await supabase
     .from('finance_installments')
