@@ -231,7 +231,11 @@ export default function SubscriptionsClient() {
   }
 
   const handleDelete = async (id: string) => {
-    await supabase.from('finance_recurring').delete().eq('id', id)
+    const res = await fetch(`/api/finance/subscriptions/${id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      console.error('Delete failed:', data.error || res.statusText)
+    }
     setDeleteConfirm(null)
     fetchData()
   }
