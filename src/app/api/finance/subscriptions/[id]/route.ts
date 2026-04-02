@@ -21,8 +21,15 @@ function isAuthorized(req: NextRequest) {
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   if (!isAuthorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
+  const supabase = getSupabase()
 
-  const { error } = await getSupabase()
+  // Unlink transactions first (nullify FK, keep transaction history)
+  await supabase
+    .from('finance_transactions')
+    .update({ recurring_id: null })
+    .eq('recurring_id', id)
+
+  const { error } = await supabase
     .from('finance_recurring')
     .delete()
     .eq('id', id)
