@@ -318,7 +318,7 @@ export default function SubscriptionsClient() {
                       </button>
                     </td>
                     <td className="py-2 px-2">
-                      <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <div className={cn("flex items-center gap-1 transition-opacity", deleteConfirm === sub.id ? "" : "sm:opacity-0 sm:group-hover:opacity-100")}>
                         {loggedId === sub.id ? (
                           <span className="text-[10px] text-emerald-400 font-medium px-1">✓ Logged</span>
                         ) : (
