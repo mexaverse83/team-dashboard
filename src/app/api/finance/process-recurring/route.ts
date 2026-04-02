@@ -21,7 +21,7 @@ const FREQ_DAYS: Record<string, number> = {
  * Call daily via cron or WOLFF agent. Idempotent — won't double-post for same period.
  */
 async function processRecurring(req: NextRequest) {
-  // Auth: x-api-key OR Vercel cron secret OR Vercel-Cron header (internal cron invocation)
+  // Auth: x-api-key OR Vercel cron secret OR Vercel-Cron header OR same-origin (logged-in user)
   const key = req.headers.get('x-api-key')
   const authHeader = req.headers.get('authorization') || ''
   const isVercelCron = req.headers.get('x-vercel-cron') === '1'
@@ -32,8 +32,11 @@ async function processRecurring(req: NextRequest) {
   const isCronSecret = cronSecret && authHeader === `Bearer ${cronSecret}`
   // x-vercel-cron header is sent by Vercel's scheduler — accept when CRON_SECRET not configured
   const isCronHeader = isVercelCron && !cronSecret
+  // Allow same-origin POST from the dashboard UI (manual "Process Due" button)
+  const referer = req.headers.get('referer') || ''
+  const isSameOrigin = referer && req.nextUrl.host && new URL(referer).host === req.nextUrl.host
 
-  if (!isApiKey && !isCronSecret && !isCronHeader) {
+  if (!isApiKey && !isCronSecret && !isCronHeader && !isSameOrigin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -53,20 +56,26 @@ async function processRecurring(req: NextRequest) {
       continue
     }
 
-    // Check if transaction already exists for this recurring + date (idempotent)
-    const { data: existing } = await supabase
-      .from('finance_transactions')
-      .select('id')
-      .eq('recurring_id', sub.id)
-      .eq('transaction_date', sub.next_due_date)
-      .limit(1)
+    // Catch-up loop: process ALL missed periods (not just one) so that
+    // subscriptions don't fall behind if the cron missed a day or more.
+    let dueDate = sub.next_due_date
+    const MAX_CATCHUP = 12 // safety cap to prevent runaway loops
 
-    if (existing && existing.length > 0) {
-      // Transaction already exists for this date — already processed, safe to advance
-      results.skipped++
-      const nextDate = advanceDate(sub.next_due_date, sub.frequency)
-      await supabase.from('finance_recurring').update({ next_due_date: nextDate }).eq('id', sub.id)
-    } else {
+    for (let i = 0; i < MAX_CATCHUP && dueDate <= today; i++) {
+      // Check if transaction already exists for this recurring + date (idempotent)
+      const { data: existing } = await supabase
+        .from('finance_transactions')
+        .select('id')
+        .eq('recurring_id', sub.id)
+        .eq('transaction_date', dueDate)
+        .limit(1)
+
+      if (existing && existing.length > 0) {
+        // Transaction already exists for this date — skip to next period
+        dueDate = advanceDate(dueDate, sub.frequency)
+        continue
+      }
+
       // Create transaction
       const { error } = await supabase.from('finance_transactions').insert({
         type: 'expense',
@@ -76,7 +85,7 @@ async function processRecurring(req: NextRequest) {
         category_id: sub.category_id,
         merchant: sub.merchant || sub.name,
         description: `Auto: ${sub.name} (recurring)`,
-        transaction_date: sub.next_due_date,
+        transaction_date: dueDate,
         is_recurring: true,
         recurring_id: sub.id,
         tags: ['auto-recurring'],
@@ -85,57 +94,62 @@ async function processRecurring(req: NextRequest) {
       if (error) {
         // Do NOT advance date on failure — allow retry on next cron run
         results.errors.push(`Sub ${sub.name}: ${error.message}`)
-      } else {
-        results.subscriptions++
+        break
+      }
 
-        // Only advance next_due_date after confirmed successful insert
-        const nextDate = advanceDate(sub.next_due_date, sub.frequency)
-        await supabase.from('finance_recurring').update({ next_due_date: nextDate }).eq('id', sub.id)
+      results.subscriptions++
 
-        // ── DEBT SYNC: if subscription is linked to a debt, update balance ──
-        if (sub.debt_id) {
-          try {
-            const { data: debt } = await supabase
-              .from('finance_debts')
-              .select('*')
+      // ── DEBT SYNC: if subscription is linked to a debt, update balance ──
+      if (sub.debt_id) {
+        try {
+          const { data: debt } = await supabase
+            .from('finance_debts')
+            .select('*')
+            .eq('id', sub.debt_id)
+            .single()
+
+          if (debt && debt.balance > 0) {
+            const monthlyRate = (debt.interest_rate || 0) / 100 / 12
+            const interestPortion = Math.round(debt.balance * monthlyRate * 100) / 100
+            const principalPortion = Math.round((sub.amount - interestPortion) * 100) / 100
+            const newBalance = Math.max(0, Math.round((debt.balance - principalPortion) * 100) / 100)
+
+            // Log the payment split
+            await supabase.from('finance_debt_payments').insert({
+              debt_id: sub.debt_id,
+              payment_date: dueDate,
+              amount: sub.amount,
+              principal_portion: principalPortion,
+              interest_portion: interestPortion,
+              remaining_balance: newBalance,
+            })
+
+            // Update debt balance
+            await supabase.from('finance_debts')
+              .update({ balance: newBalance })
               .eq('id', sub.debt_id)
-              .single()
 
-            if (debt && debt.balance > 0) {
-              const monthlyRate = (debt.interest_rate || 0) / 100 / 12
-              const interestPortion = Math.round(debt.balance * monthlyRate * 100) / 100
-              const principalPortion = Math.round((sub.amount - interestPortion) * 100) / 100
-              const newBalance = Math.max(0, Math.round((debt.balance - principalPortion) * 100) / 100)
-
-              // Log the payment split
-              await supabase.from('finance_debt_payments').insert({
-                debt_id: sub.debt_id,
-                payment_date: sub.next_due_date,
-                amount: sub.amount,
-                principal_portion: principalPortion,
-                interest_portion: interestPortion,
-                remaining_balance: newBalance,
-              })
-
-              // Update debt balance
+            // Auto-deactivate debt if paid off
+            if (newBalance <= 0) {
               await supabase.from('finance_debts')
-                .update({ balance: newBalance })
+                .update({ is_active: false })
                 .eq('id', sub.debt_id)
-
-              // Auto-deactivate debt if paid off
-              if (newBalance <= 0) {
-                await supabase.from('finance_debts')
-                  .update({ is_active: false })
-                  .eq('id', sub.debt_id)
-              }
-
-              results.debt_payments++
             }
-          } catch (e) {
-            results.errors.push(`Debt sync ${sub.name}: ${(e as Error).message}`)
+
+            results.debt_payments++
           }
+        } catch (e) {
+          results.errors.push(`Debt sync ${sub.name}: ${(e as Error).message}`)
         }
       }
+
+      // Advance to next period for the loop
+      dueDate = advanceDate(dueDate, sub.frequency)
+    }
+
+    // Persist the final next_due_date (after all catch-up periods processed)
+    if (dueDate !== sub.next_due_date) {
+      await supabase.from('finance_recurring').update({ next_due_date: dueDate }).eq('id', sub.id)
     }
   }
 
@@ -197,12 +211,13 @@ async function processRecurring(req: NextRequest) {
   }
 
   // ── 3. RECURRING INCOME (finance_recurring_income) ───────────────
+  // Fetch ALL active recurring income — not filtered by day_of_month — so that
+  // catch-up works when the cron fires late or on a different day than expected.
   const todayDayOfMonth = now.getUTCDate()
   const { data: recurringIncomes } = await supabase
     .from('finance_recurring_income')
     .select('*')
     .eq('active', true)
-    .eq('day_of_month', todayDayOfMonth)
 
   for (const ri of recurringIncomes || []) {
     // Only process monthly for now (bimonthly/annual need custom cadence logic)
@@ -269,14 +284,19 @@ async function processRecurring(req: NextRequest) {
       continue
     }
 
-    // Dupe guard: prefer installment_id column if it exists, fallback to merchant name
+    // Dupe guard: check by installment_id first, fallback to merchant name
     const dupeQuery = msi.id
       ? supabase.from('finance_transactions').select('id').eq('installment_id', msi.id)
           .gte('transaction_date', monthStart).lte('transaction_date', monthEnd).limit(1)
       : supabase.from('finance_transactions').select('id').eq('merchant', `MSI: ${msi.name}`)
           .gte('transaction_date', monthStart).lte('transaction_date', monthEnd).limit(1)
 
-    const { data: existing } = await dupeQuery
+    const { data: existing, error: dupeErr } = await dupeQuery
+    if (dupeErr) {
+      // If dupe check fails, skip to be safe — never insert when we can't verify
+      results.errors.push(`MSI dupe check ${msi.name}: ${dupeErr.message}`)
+      continue
+    }
     if (existing && existing.length > 0) {
       results.skipped++
       continue

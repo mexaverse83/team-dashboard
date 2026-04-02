@@ -18,6 +18,18 @@ import { OwnerDot } from '@/components/finance/owner-dot'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 
+function advanceDate(dateStr: string, frequency: string): string {
+  const d = new Date(dateStr + 'T12:00:00Z')
+  switch (frequency) {
+    case 'weekly': d.setDate(d.getDate() + 7); break
+    case 'biweekly': d.setDate(d.getDate() + 14); break
+    case 'monthly': d.setMonth(d.getMonth() + 1); break
+    case 'quarterly': d.setMonth(d.getMonth() + 3); break
+    case 'yearly': d.setFullYear(d.getFullYear() + 1); break
+  }
+  return d.toISOString().slice(0, 10)
+}
+
 function monthlyEquivalent(amount: number, freq: string): number {
   switch (freq) {
     case 'weekly': return amount * 4.33
@@ -93,7 +105,9 @@ export default function SubscriptionsClient() {
 
   const openAdd = () => {
     setEditingId(null)
-    setForm({ ...emptyForm, owner: defaultOwner })
+    // Auto-populate next_due_date to today so the cron won't skip it
+    const todayStr = new Date().toISOString().slice(0, 10)
+    setForm({ ...emptyForm, owner: defaultOwner, next_due_date: todayStr })
     setModalOpen(true)
   }
 
@@ -116,18 +130,50 @@ export default function SubscriptionsClient() {
 
   const [logAlso, setLogAlso] = useState(true) // default: also log as expense
   const [loggedId, setLoggedId] = useState<string | null>(null)
+  const [processing, setProcessing] = useState(false)
+  const [processResult, setProcessResult] = useState<string | null>(null)
+
+  const processNow = async () => {
+    setProcessing(true)
+    setProcessResult(null)
+    try {
+      const res = await fetch('/api/finance/process-recurring', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setProcessResult(`Error: ${data.error || res.statusText}`)
+      } else {
+        const t = data.total_created || 0
+        setProcessResult(t > 0 ? `${t} transaction(s) created` : 'No due subscriptions found')
+        if (t > 0) fetchData()
+      }
+    } catch (e) {
+      setProcessResult(`Failed: ${(e as Error).message}`)
+    }
+    setProcessing(false)
+    setTimeout(() => setProcessResult(null), 5000)
+  }
 
   const handleSave = async () => {
-    if (!form.name || !form.amount || !form.category_id) return
+    if (!form.name || !form.amount || !form.category_id || !form.next_due_date) return
     setSaving(true)
     const amt = parseFloat(form.amount)
+
+    // Compute next_due_date for the record:
+    // If "log today's payment" is checked, advance to the NEXT period so the
+    // cron doesn't create a duplicate for the same period.
+    let nextDue = form.next_due_date
+    const todayStr = new Date().toISOString().slice(0, 10)
+    if (!editingId && logAlso && nextDue <= todayStr) {
+      nextDue = advanceDate(nextDue, form.frequency)
+    }
+
     const record = {
       name: form.name,
       amount: amt,
       currency: form.currency,
       category_id: form.category_id,
       frequency: form.frequency,
-      next_due_date: form.next_due_date || null,
+      next_due_date: nextDue,
       merchant: form.merchant || form.name,
       notes: form.notes || null,
       owner: form.owner || null,
@@ -150,7 +196,7 @@ export default function SubscriptionsClient() {
           category_id: form.category_id,
           merchant: form.merchant || form.name,
           description: `${form.name} (${form.frequency})`,
-          transaction_date: new Date().toISOString().slice(0, 10),
+          transaction_date: todayStr,
           is_recurring: true,
           recurring_id: data.id,
         })
@@ -200,11 +246,25 @@ export default function SubscriptionsClient() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Subscriptions</h1>
           <p className="text-[hsl(var(--text-secondary))]">Recurring charges and subscription tracking</p>
         </div>
-        <button onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
-          <Plus className="h-4 w-4" /> Add Subscription
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={processNow} disabled={processing}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
+            {processing ? 'Processing...' : 'Process Due'}
+          </button>
+          <button onClick={openAdd}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
+            <Plus className="h-4 w-4" /> Add Subscription
+          </button>
+        </div>
       </div>
+
+      {processResult && (
+        <div className={cn("px-4 py-2 rounded-lg text-sm font-medium",
+          processResult.startsWith('Error') || processResult.startsWith('Failed')
+            ? "bg-rose-500/10 text-rose-400"
+            : "bg-emerald-500/10 text-emerald-400"
+        )}>{processResult}</div>
+      )}
 
       {/* KPIs */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
@@ -388,8 +448,8 @@ export default function SubscriptionsClient() {
               </select>
             </div>
             <div className="flex-1">
-              <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Next Due</label>
-              <input type="date" value={form.next_due_date} onChange={e => updateForm({ next_due_date: e.target.value })} className={inputCls} />
+              <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Next Due *</label>
+              <input type="date" required value={form.next_due_date} onChange={e => updateForm({ next_due_date: e.target.value })} className={inputCls} />
             </div>
           </div>
           <div>
@@ -432,7 +492,7 @@ export default function SubscriptionsClient() {
               Also log today&apos;s payment as an expense
             </label>
           )}
-          <button type="submit" disabled={saving || !form.name || !form.amount || !form.category_id}
+          <button type="submit" disabled={saving || !form.name || !form.amount || !form.category_id || !form.next_due_date}
             className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
             {saving ? 'Saving...' : editingId ? 'Update Subscription' : 'Add Subscription'}
           </button>
