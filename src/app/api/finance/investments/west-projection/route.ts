@@ -147,11 +147,11 @@ export async function GET(req: NextRequest) {
         paidCumulative += target.lump_sum_amount || 0
       }
 
-      // Apartment sale proceeds land
-      if (!isCurrentMonth && saleRemainingDate &&
+      // Apartment sale proceeds land — include even in current month if date is still in the future
+      if (saleRemainingDate &&
         current.getFullYear() === saleRemainingDate.getFullYear() &&
-        current.getMonth() === saleRemainingDate.getMonth()) {
-        // Net proceeds = remaining sale price - debt payoffs
+        current.getMonth() === saleRemainingDate.getMonth() &&
+        saleRemainingDate > now) {
         const netProceeds = saleRemaining - debtPayoffTotal
         investmentBalance += Math.max(0, netProceeds)
       }
@@ -194,7 +194,7 @@ export async function GET(req: NextRequest) {
         const isCur = cur.getFullYear() === now.getFullYear() && cur.getMonth() === now.getMonth()
         if (!isCur && target.monthly_payment && (!monthlyPaymentEnd || cur <= monthlyPaymentEnd)) paid += target.monthly_payment
         if (!isCur && lumpSumDate && cur.getFullYear() === lumpSumDate.getFullYear() && cur.getMonth() === lumpSumDate.getMonth()) paid += target.lump_sum_amount || 0
-        if (!isCur && saleRemainingDate && cur.getFullYear() === saleRemainingDate.getFullYear() && cur.getMonth() === saleRemainingDate.getMonth()) {
+        if (saleRemainingDate && cur.getFullYear() === saleRemainingDate.getFullYear() && cur.getMonth() === saleRemainingDate.getMonth() && saleRemainingDate > now) {
           inv += Math.max(0, saleRemaining - debtPayoffTotal)
         }
         if (!isCur) {

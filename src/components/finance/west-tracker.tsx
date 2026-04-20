@@ -97,10 +97,11 @@ function recalcProjection(data: WestData, rate: number, appreciationPct: number,
   for (const mp of data.monthly_projection) {
     const isFirst = mp.month === data.monthly_projection[0].month
 
+    // Sale proceeds: apply even in current month — guaranteed event still 10 days out
+    if (mp.month === saleDate) inv += Math.max(0, saleRemaining - debtPayoff)
     if (!isFirst) {
       if (mp.month <= paymentEnd) paid += 10000
       if (mp.month === lumpDate) paid += 100000
-      if (mp.month === saleDate) inv += Math.max(0, saleRemaining - debtPayoff)
       inv *= (1 + monthlyRate)
       crypto *= (1 + monthlyCryptoGrowth)
       propVal *= (1 + monthlyAppreciation)
