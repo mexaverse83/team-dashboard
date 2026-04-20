@@ -517,8 +517,8 @@ export function WestTracker() {
 
           {/* Post-delivery: Nexaminds exit — speculative, dashed dot */}
           {(() => {
-            // Dynamic: 20000 shares × $10 target × live FX (approximated at 17.13)
-            const nexamindsAtTarget = 20000 * 10 * 17.13
+            // Dynamic: 30000 shares × $10 target × live FX (approximated at 17.13)
+            const nexamindsAtTarget = 30000 * 10 * 17.13
             return (
               <div className="relative opacity-70">
                 <div className="absolute -left-7 top-0.5 w-[14px] h-[14px] rounded-full border-2 border-dashed border-[hsl(var(--text-tertiary))] bg-[hsl(var(--background))] flex items-center justify-center">
