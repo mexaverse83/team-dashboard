@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Search, Plus, Pencil, Trash2, Upload, Download } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Upload, Download, Sparkles, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
@@ -14,6 +14,7 @@ import { enrichTransactions, DEFAULT_CATEGORIES, suggestCoveragePeriod, CYCLE_LA
 import { parseBBVAPdf, detectBankFormat, type ParsedTransaction } from '@/lib/pdf-parser'
 import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
 import { OwnerDot } from '@/components/finance/owner-dot'
+import { applyRules, detectDuplicates, type FinanceRule } from '@/lib/finance-rules'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 const labelCls = "text-xs text-[hsl(var(--text-secondary))] mb-1 block"
@@ -63,6 +64,11 @@ export default function TransactionsClient() {
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
+  // Auto-categorization rules + duplicate detection
+  const [rules, setRules] = useState<FinanceRule[]>([])
+  const [appliedRuleId, setAppliedRuleId] = useState<string | null>(null)
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false)
+
   // CSV Import
   const [importOpen, setImportOpen] = useState(false)
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([])
@@ -91,6 +97,45 @@ export default function TransactionsClient() {
   }, [])
 
   useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
+
+  // Fetch auto-categorization rules
+  useEffect(() => {
+    fetch('/api/finance/rules')
+      .then(r => r.ok ? r.json() : { rules: [] })
+      .then(d => setRules(d.rules || []))
+      .catch(() => setRules([]))
+  }, [])
+
+  // Auto-apply rule when merchant + amount are set and category is empty (or only when adding)
+  useEffect(() => {
+    if (!modalOpen || editingId) return
+    if (form.category_id) return
+    if (!form.merchant || !form.amount) return
+    const amt = parseFloat(form.amount)
+    if (!Number.isFinite(amt)) return
+    const match = applyRules(rules, { merchant: form.merchant, amount_mxn: amt, owner: form.owner })
+    if (match) {
+      setForm(f => ({ ...f, category_id: match.category_id }))
+      setAppliedRuleId(match.rule_id)
+    }
+  }, [form.merchant, form.amount, form.owner, rules, modalOpen, editingId, form.category_id])
+
+  // Reset applied rule when modal closes
+  useEffect(() => {
+    if (!modalOpen) { setAppliedRuleId(null); setConfirmDuplicate(false) }
+  }, [modalOpen])
+
+  // Duplicate detection — same merchant + amount within 3 days
+  const possibleDuplicates = useMemo(() => {
+    if (!modalOpen || editingId) return []
+    if (!form.merchant || !form.amount || !form.transaction_date) return []
+    const amt = parseFloat(form.amount)
+    if (!Number.isFinite(amt) || amt <= 0) return []
+    return detectDuplicates(
+      { transaction_date: form.transaction_date, merchant: form.merchant, amount_mxn: amt },
+      transactions.map(t => ({ id: t.id, transaction_date: t.transaction_date, merchant: t.merchant, amount_mxn: t.amount_mxn })),
+    )
+  }, [form.merchant, form.amount, form.transaction_date, transactions, modalOpen, editingId])
 
   // Merchant autocomplete
   const knownMerchants = useMemo(() => {
@@ -146,6 +191,10 @@ export default function TransactionsClient() {
   // Save (create or update)
   const handleSave = async () => {
     if (!form.amount || !form.category_id || !form.transaction_date) return
+    if (possibleDuplicates.length > 0 && !confirmDuplicate && !editingId) {
+      setConfirmDuplicate(true)
+      return
+    }
     setSaving(true)
 
     const amt = parseFloat(form.amount)
@@ -175,6 +224,17 @@ export default function TransactionsClient() {
     } else {
       const { error } = await supabase.from('finance_transactions').insert(record)
       if (error) { console.error('Insert error:', error); alert(`Save failed: ${error.message}`); setSaving(false); return }
+      // Increment match_count on the auto-applied rule (fire & forget)
+      if (appliedRuleId) {
+        const rule = rules.find(r => r.id === appliedRuleId)
+        if (rule) {
+          fetch('/api/finance/rules', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: appliedRuleId, match_count: rule.match_count + 1, last_matched_at: new Date().toISOString() }),
+          }).catch(() => {})
+        }
+      }
     }
 
     setModalOpen(false)
@@ -524,6 +584,42 @@ export default function TransactionsClient() {
       {/* Add/Edit Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit Transaction' : 'Add Transaction'}>
         <form onSubmit={e => { e.preventDefault(); handleSave() }} className="space-y-4">
+          {/* Duplicate warning */}
+          {possibleDuplicates.length > 0 && !editingId && (
+            <div className={cn(
+              "flex items-start gap-2 p-3 rounded-lg border text-xs",
+              confirmDuplicate
+                ? "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                : "bg-amber-500/5 border-amber-500/30 text-amber-300"
+            )}>
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold">
+                  {confirmDuplicate ? 'Save anyway?' : 'Possible duplicate'}
+                </p>
+                <p className="opacity-90 mt-0.5 leading-relaxed">
+                  {possibleDuplicates.length} matching transaction{possibleDuplicates.length > 1 ? 's' : ''} found:{' '}
+                  {possibleDuplicates.slice(0, 2).map((d, i) => (
+                    <span key={d.id}>
+                      {i > 0 && ', '}
+                      <strong>{d.merchant}</strong> ${d.amount_mxn.toLocaleString()} on {d.date}
+                    </span>
+                  ))}
+                  {possibleDuplicates.length > 2 && ` +${possibleDuplicates.length - 2} more`}.
+                  {confirmDuplicate && ' Click Save again to confirm.'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Auto-applied rule indicator */}
+          {appliedRuleId && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/5 border border-violet-500/20 text-xs text-violet-300">
+              <Sparkles className="h-3.5 w-3.5 shrink-0" />
+              <span>Category auto-applied from rule. <button type="button" onClick={() => { setAppliedRuleId(null); setForm(f => ({ ...f, category_id: '' })) }} className="underline hover:text-violet-200">Clear</button></span>
+            </div>
+          )}
+
           {/* Type Toggle */}
           <div className="flex p-1 rounded-lg bg-[hsl(var(--bg-elevated))]">
             <button type="button" onClick={() => updateForm({ type: 'expense', category_id: '' })}

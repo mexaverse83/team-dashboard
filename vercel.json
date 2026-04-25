@@ -3,6 +3,10 @@
     {
       "path": "/api/finance/process-recurring",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/finance/net-worth",
+      "schedule": "30 12 * * *"
     }
   ]
 }

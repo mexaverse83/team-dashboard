@@ -80,6 +80,19 @@ async function processRecurring(req: NextRequest) {
         continue
       }
 
+      // Price-change detection: compare against the most recent prior recurring tx
+      const flags: string[] = []
+      const { data: lastTxs } = await supabase
+        .from('finance_transactions')
+        .select('amount, transaction_date')
+        .eq('recurring_id', sub.id)
+        .order('transaction_date', { ascending: false })
+        .limit(1)
+      const lastTx = lastTxs?.[0]
+      if (lastTx && Math.abs(lastTx.amount - sub.amount) / Math.max(lastTx.amount, 1) > 0.05) {
+        flags.push('price_changed')
+      }
+
       // Create transaction
       const { error } = await supabase.from('finance_transactions').insert({
         type: 'expense',
@@ -88,11 +101,14 @@ async function processRecurring(req: NextRequest) {
         amount_mxn: sub.amount,
         category_id: sub.category_id,
         merchant: sub.merchant || sub.name,
-        description: `Auto: ${sub.name} (recurring)`,
+        description: flags.includes('price_changed') && lastTx
+          ? `Auto: ${sub.name} (price changed from $${lastTx.amount} → $${sub.amount})`
+          : `Auto: ${sub.name} (recurring)`,
         transaction_date: dueDate,
         is_recurring: true,
         recurring_id: sub.id,
         tags: ['auto-recurring'],
+        flags: flags.length > 0 ? flags : null,
         owner: sub.owner,
       })
       if (error) {

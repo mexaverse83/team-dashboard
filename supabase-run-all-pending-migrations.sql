@@ -137,5 +137,67 @@ WHERE id = 'ff332012-a5c9-4f1a-aa49-67abf9a0c9b4'
   AND goal_type = 'savings';
 
 
+-- ─── AUTO-CATEGORIZATION RULES + ANOMALY FLAGS + NET WORTH SNAPSHOTS ─────
+
+CREATE TABLE IF NOT EXISTS finance_rules (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  merchant_pattern text NOT NULL,
+  match_mode text NOT NULL DEFAULT 'contains' CHECK (match_mode IN ('contains', 'exact', 'starts_with')),
+  amount_min numeric,
+  amount_max numeric,
+  owner text,
+  category_id uuid REFERENCES finance_categories(id) ON DELETE SET NULL,
+  tags text[] DEFAULT '{}',
+  priority integer NOT NULL DEFAULT 100,
+  is_active boolean NOT NULL DEFAULT true,
+  learned boolean NOT NULL DEFAULT false,
+  match_count integer NOT NULL DEFAULT 0,
+  last_matched_at timestamptz,
+  notes text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_finance_rules_active ON finance_rules(is_active);
+CREATE INDEX IF NOT EXISTS idx_finance_rules_pattern ON finance_rules(merchant_pattern);
+
+ALTER TABLE finance_rules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "finance_rules_all" ON finance_rules;
+CREATE POLICY "finance_rules_all" ON finance_rules FOR ALL USING (true) WITH CHECK (true);
+
+-- Anomaly / price-change flags column on transactions
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'finance_transactions' AND column_name = 'flags') THEN
+    ALTER TABLE finance_transactions ADD COLUMN flags text[] DEFAULT '{}';
+  END IF;
+END$$;
+
+CREATE INDEX IF NOT EXISTS idx_finance_transactions_flags
+  ON finance_transactions USING gin(flags);
+
+-- Net worth snapshots
+CREATE TABLE IF NOT EXISTS finance_net_worth_snapshots (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  snapshot_date date NOT NULL UNIQUE,
+  total_assets numeric NOT NULL DEFAULT 0,
+  total_liabilities numeric NOT NULL DEFAULT 0,
+  net_worth numeric GENERATED ALWAYS AS (total_assets - total_liabilities) STORED,
+  cash_amount numeric DEFAULT 0,
+  crypto_amount numeric DEFAULT 0,
+  stocks_amount numeric DEFAULT 0,
+  fixed_income_amount numeric DEFAULT 0,
+  real_estate_amount numeric DEFAULT 0,
+  retirement_amount numeric DEFAULT 0,
+  notes text,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_nws_date ON finance_net_worth_snapshots(snapshot_date DESC);
+ALTER TABLE finance_net_worth_snapshots ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "finance_nws_all" ON finance_net_worth_snapshots;
+CREATE POLICY "finance_nws_all" ON finance_net_worth_snapshots FOR ALL USING (true) WITH CHECK (true);
+
 -- ─── DONE ─────────────────────────────────────────────────────
 SELECT 'All pending migrations applied successfully' AS result;
