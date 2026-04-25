@@ -349,13 +349,18 @@ export default function CommandCenterClient() {
     return Array.from({ length: today }, (_, i) => map[i + 1] || 0)
   }, [monthTxs])
 
-  // Net liquid (excluding RE/AFOREs — that's "investable" net worth not cash position)
-  const netLiquid = useMemo(() => {
-    if (!summary) return 0
-    const cryptoVal = summary.crypto?.total_value_mxn || 0
-    // Approximate: this month's accumulated savings + crypto position - debts
-    return cryptoVal - summary.debts.total_balance
-  }, [summary])
+  // Net assets snapshot — fetched lazily; falls back to component-derived sum
+  const [netWorth, setNetWorth] = useState<{ net_worth: number; total_assets: number; total_liabilities: number; date: string } | null>(null)
+  useEffect(() => {
+    fetch('/api/finance/net-worth?days=30')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.summary?.latest) {
+          setNetWorth({ net_worth: d.summary.latest.net_worth, total_assets: d.summary.latest.total_assets, total_liabilities: d.summary.latest.total_liabilities, date: d.summary.latest.date })
+        }
+      })
+      .catch(() => null)
+  }, [])
 
   const alerts = useMemo(
     () => buildAlerts(summary, forecast, transactions).filter(a => !dismissedAlerts.has(a.id)),
@@ -364,22 +369,41 @@ export default function CommandCenterClient() {
 
   const dismissAlert = (id: string) => setDismissedAlerts(s => new Set([...s, id]))
 
-  // Status banner copy
+  // Status banner copy — uses this month's actuals (transactions) and projects
+  // month-end by linearly scaling spend with month progress. Avoids the trap
+  // of dividing by an income figure that comes from sparsely-populated tables.
   const statusBanner = useMemo(() => {
     if (!summary) return null
     const m = summary.current_month
-    const overshootCats = m.budget_vs_actual.filter(c => !c.is_non_monthly && c.budget > 0 && c.projected_month_total > c.budget * 1.05)
-    const projectedSpend = m.budget_vs_actual.reduce((s, c) => s + (c.is_non_monthly ? c.spent : c.projected_month_total), 0)
-    const projectedSavings = summary.income.total_monthly - projectedSpend
-    const projectedRate = summary.income.total_monthly > 0 ? Math.round((projectedSavings / summary.income.total_monthly) * 100) : 0
-    if (overshootCats.length === 0 && projectedRate >= 20) {
-      return { tone: 'success' as const, msg: `On pace for a ${projectedRate}% savings rate this month — ${overshootCats.length === 0 ? 'every budget is on track' : ''}.` }
+    const monthProgress = m.day_of_month / Math.max(m.days_in_month, 1)
+
+    // Tighter overshoot detection: only flag if projected > 110% AND we're not
+    // already past day 28 (avoids noise late in the month from one-off charges).
+    const overshootCats = m.budget_vs_actual.filter(c =>
+      !c.is_non_monthly &&
+      c.budget > 0 &&
+      c.projected_month_total > c.budget * 1.10 &&
+      c.pct_used > 50  // ignore early-month single-tx noise
+    )
+
+    // Project month-end spend from actuals: scale linearly to full month
+    const projectedSpend = monthProgress > 0 ? totalSpent / monthProgress : totalSpent
+    const projectedNet = totalIncome - projectedSpend
+    const projectedRate = totalIncome > 0 ? Math.round((projectedNet / totalIncome) * 100) : null
+
+    if (totalIncome === 0) {
+      return { tone: 'info' as const, msg: `Day ${m.day_of_month} of ${m.days_in_month}. No income recorded yet — process recurring or add transactions.` }
+    }
+
+    if (overshootCats.length === 0 && projectedRate !== null && projectedRate >= 20) {
+      return { tone: 'success' as const, msg: `On pace for a ${projectedRate}% savings rate this month — every budget is on track.` }
     }
     if (overshootCats.length > 0) {
-      return { tone: 'warning' as const, msg: `${overshootCats.length} budget${overshootCats.length > 1 ? 's' : ''} projected to overshoot. Projected savings rate ${projectedRate}%.` }
+      const rateText = projectedRate !== null ? `Projected savings rate ${projectedRate}%.` : ''
+      return { tone: 'warning' as const, msg: `${overshootCats.length} budget${overshootCats.length > 1 ? 's' : ''} projected to overshoot. ${rateText}` }
     }
-    return { tone: 'info' as const, msg: `Projected savings rate ${projectedRate}% this month. ${m.day_of_month} of ${m.days_in_month} days elapsed.` }
-  }, [summary])
+    return { tone: 'info' as const, msg: `Projected savings rate ${projectedRate ?? 0}% this month. Day ${m.day_of_month} of ${m.days_in_month}.` }
+  }, [summary, totalIncome, totalSpent])
 
   if (loading) {
     return (
@@ -485,19 +509,35 @@ export default function CommandCenterClient() {
             accent={summary && summary.cash_flow.discretionary_available > 0 ? 'positive' : 'negative'}
           />
 
-          <KpiCard
-            label="Liquid net"
-            value={fmtMoney(netLiquid, { compact: true })}
-            sublabel={
-              summary ? (
+          {netWorth ? (
+            <KpiCard
+              label="Net worth"
+              value={fmtMoney(netWorth.net_worth, { compact: true })}
+              sublabel={
                 <span className="flex items-center justify-between">
-                  <span>Crypto {fmtMoney(summary.crypto?.total_value_mxn || 0, { compact: true })}</span>
-                  {summary.debts.total_balance > 0 && <span className="text-rose-400">Debt {fmtMoney(summary.debts.total_balance, { compact: true })}</span>}
+                  <span className="text-emerald-400">+{fmtMoney(netWorth.total_assets, { compact: true })}</span>
+                  <span className="text-rose-400">−{fmtMoney(netWorth.total_liabilities, { compact: true })}</span>
                 </span>
-              ) : '—'
-            }
-            accent={netLiquid >= 0 ? 'brand' : 'negative'}
-          />
+              }
+              accent={netWorth.net_worth >= 0 ? 'brand' : 'negative'}
+            />
+          ) : (
+            <KpiCard
+              label="Crypto position"
+              value={fmtMoney(summary?.crypto?.total_value_mxn || 0, { compact: true })}
+              sublabel={
+                summary?.crypto ? (
+                  <span className="flex items-center justify-between">
+                    <span className={cn('font-medium', summary.crypto.pnl_pct >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
+                      {summary.crypto.pnl_pct >= 0 ? '+' : ''}{summary.crypto.pnl_pct}% P&amp;L
+                    </span>
+                    <span className="text-[hsl(var(--text-tertiary))]">{fmtMoney(summary.crypto.pnl_mxn, { compact: true })}</span>
+                  </span>
+                ) : <span className="text-[hsl(var(--text-tertiary))]">No holdings</span>
+              }
+              accent={(summary?.crypto?.pnl_pct ?? 0) >= 0 ? 'brand' : 'negative'}
+            />
+          )}
         </div>
 
         {/* ── Smart Alerts ──────────────────────────────── */}

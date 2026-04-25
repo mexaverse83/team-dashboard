@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
     { data: emergencyFund },
     { data: goals },
     { data: incomeSources },
+    { data: recurringIncome },
     { data: cryptoHoldings },
   ] = await Promise.all([
     supabase.from('finance_transactions').select('*').gte('transaction_date', startStr).lte('transaction_date', endStr).eq('type', 'expense'),
@@ -45,18 +46,29 @@ export async function GET(req: NextRequest) {
     supabase.from('finance_emergency_fund').select('*').order('created_at', { ascending: false }).limit(1),
     supabase.from('finance_goals').select('*').eq('is_completed', false),
     supabase.from('finance_income_sources').select('*').eq('is_active', true),
+    supabase.from('finance_recurring_income').select('*').eq('active', true),
     supabase.from('finance_crypto_holdings').select('*'),
   ])
 
   const catMap = new Map((categories || []).map(c => [c.id, c]))
 
-  // Income
+  // Income — combine finance_income_sources (typed) and finance_recurring_income (per-owner)
   const incSources = (incomeSources || []).map(s => ({
     name: s.name,
     type: s.type,
     monthly_amount: Math.round(s.amount / (FREQ_DIVISOR[s.frequency] || 1)),
   }))
-  const totalMonthlyIncome = incSources.reduce((s, i) => s + i.monthly_amount, 0)
+  // Recurring income: monthly = amount, bimonthly = amount/2, annual = amount/12
+  const RI_DIVISOR: Record<string, number> = { monthly: 1, bimonthly: 2, annual: 12 }
+  const riSources = (recurringIncome || []).map(r => ({
+    name: r.name,
+    type: r.category || 'recurring_income',
+    owner: r.owner,
+    monthly_amount: Math.round(r.amount / (RI_DIVISOR[r.recurrence] || 1)),
+  }))
+  const totalMonthlyIncome =
+    incSources.reduce((s, i) => s + i.monthly_amount, 0) +
+    riSources.reduce((s, i) => s + i.monthly_amount, 0)
 
   // Spending by category
   const txs = transactions || []
@@ -318,7 +330,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     period: { start: startStr, end: endStr },
-    income: { sources: incSources, total_monthly: totalMonthlyIncome },
+    income: { sources: incSources, recurring: riSources, total_monthly: totalMonthlyIncome },
     spending: { by_category: spendByCategory, total_monthly_avg: monthlyAvgSpend, by_month: spendByMonth },
     budgets: {
       total_budgeted: budgetCategories.reduce((s, b) => s + b.budget, 0),
