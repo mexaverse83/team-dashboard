@@ -1,27 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { learnRulesFromHistory } from '@/lib/finance-rules'
+import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 )
 
-function authorize(req: NextRequest): { ok: true } | { ok: false; res: NextResponse } {
-  const key = req.headers.get('x-api-key')
-  const expected = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
-  const referer = req.headers.get('referer') || ''
-  const isSameOrigin = referer.includes(req.nextUrl.host)
-  if (!isSameOrigin && (!key || key !== expected)) {
-    return { ok: false, res: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  }
-  return { ok: true }
-}
-
 // GET: list all rules
 export async function GET(req: NextRequest) {
-  const auth = authorize(req)
-  if (!auth.ok) return auth.res
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
 
   const { data, error } = await supabase
     .from('finance_rules')
@@ -34,8 +24,8 @@ export async function GET(req: NextRequest) {
 
 // POST: create a rule (or run "learn from history" with action=learn)
 export async function POST(req: NextRequest) {
-  const auth = authorize(req)
-  if (!auth.ok) return auth.res
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
 
   const body = await req.json().catch(() => ({}))
   const action = body.action
@@ -135,8 +125,8 @@ export async function POST(req: NextRequest) {
 
 // PATCH: update a rule
 export async function PATCH(req: NextRequest) {
-  const auth = authorize(req)
-  if (!auth.ok) return auth.res
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
 
   const body = await req.json().catch(() => ({}))
   if (!body.id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
@@ -157,8 +147,8 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE: remove a rule
 export async function DELETE(req: NextRequest) {
-  const auth = authorize(req)
-  if (!auth.ok) return auth.res
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
 
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })

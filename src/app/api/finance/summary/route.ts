@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -9,14 +10,8 @@ const supabase = createClient(
 const FREQ_DIVISOR: Record<string, number> = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 }
 
 export async function GET(req: NextRequest) {
-  // Auth: API key for external calls, allow same-origin browser requests
-  const key = req.headers.get('x-api-key')
-  const expected = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
-  const referer = req.headers.get('referer') || ''
-  const isSameOrigin = referer.includes(req.nextUrl.host)
-  if (!isSameOrigin && (!key || key !== expected)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
 
   const months = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get('months') || '3'), 1), 12)
   const now = new Date()

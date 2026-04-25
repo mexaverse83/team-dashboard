@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 
 function getSupabase() {
   return createClient(
@@ -8,17 +9,10 @@ function getSupabase() {
   )
 }
 
-function isAuthorized(req: NextRequest) {
-  const key = req.headers.get('x-api-key')
-  const expected = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
-  const referer = req.headers.get('referer') || ''
-  const isSameOrigin = referer.includes(req.nextUrl.host)
-  return isSameOrigin || (!!key && key === expected)
-}
-
 // GET /api/finance/recurring-income — list all (active first, then inactive)
 export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
 
   const { data, error } = await getSupabase()
     .from('finance_recurring_income')
@@ -32,7 +26,8 @@ export async function GET(req: NextRequest) {
 
 // POST /api/finance/recurring-income — create new entry
 export async function POST(req: NextRequest) {
-  if (!isAuthorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
 
   let body: Record<string, unknown>
   try {

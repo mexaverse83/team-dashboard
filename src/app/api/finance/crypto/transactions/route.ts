@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -51,6 +52,9 @@ async function recalcHolding(holdingId: string) {
 
 // GET: list transactions, optionally filtered by holding_id
 export async function GET(req: NextRequest) {
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
+
   const holdingId = req.nextUrl.searchParams.get('holding_id')
   const sb = getSupabase()
 
@@ -84,6 +88,9 @@ export async function GET(req: NextRequest) {
 
 // POST: log a new transaction and recalculate holding
 export async function POST(req: NextRequest) {
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
+
   const body = await req.json()
   const { holding_id, type, quantity, price_per_coin_mxn, exchange, notes, transaction_date } = body
 
@@ -123,6 +130,9 @@ export async function POST(req: NextRequest) {
 
 // DELETE: remove a transaction and recalculate
 export async function DELETE(req: NextRequest) {
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
+
   const { id, holding_id } = await req.json()
   if (!id || !holding_id) return NextResponse.json({ error: 'Missing id/holding_id' }, { status: 400 })
 

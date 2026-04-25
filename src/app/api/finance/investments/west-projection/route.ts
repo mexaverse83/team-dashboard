@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -49,6 +50,9 @@ interface MonthProjection {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
+
   try {
     const supabase = getSupabase()
 

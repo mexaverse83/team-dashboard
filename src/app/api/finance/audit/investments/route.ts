@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   return createClient(url, key)
-}
-
-function authOk(req: NextRequest) {
-  const key = req.headers.get('x-api-key')
-  if (key === process.env.FINANCE_API_KEY || key === process.env.SUPABASE_SERVICE_ROLE_KEY) return true
-  const referer = req.headers.get('referer') || ''
-  const host = req.headers.get('host') || ''
-  return referer.includes(req.nextUrl.host) || host.includes('localhost') || host.includes('autonomis.co') || host.includes('vercel.app')
 }
 
 interface Finding {
@@ -374,7 +367,8 @@ function calcHealthScore(westGapPct: number, hasMultipleAssets: boolean, liquidM
 }
 
 export async function GET(req: NextRequest) {
-  if (!authOk(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
 
   try {
     const supabase = getSupabase()

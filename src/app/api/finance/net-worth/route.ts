@@ -1,30 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 )
 
-function authorize(req: NextRequest): { ok: true } | { ok: false; res: NextResponse } {
-  const key = req.headers.get('x-api-key')
-  const expected = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
-  const referer = req.headers.get('referer') || ''
-  const isSameOrigin = referer.includes(req.nextUrl.host)
-  const isVercelCron = req.headers.get('x-vercel-cron') === '1'
-  const cronSecret = process.env.CRON_SECRET
-  const authHeader = req.headers.get('authorization') || ''
-  const isCronSecret = cronSecret && authHeader === `Bearer ${cronSecret}`
-  if (!isSameOrigin && !isVercelCron && !isCronSecret && (!key || key !== expected)) {
-    return { ok: false, res: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  }
-  return { ok: true }
-}
-
 // GET: list snapshots; if called by Vercel cron OR with ?write=1, also writes today's snapshot first.
 export async function GET(req: NextRequest) {
-  const auth = authorize(req)
-  if (!auth.ok) return auth.res
+  const auth = await authorizeFinanceRequest(req, { allowCron: true })
+  if (!auth.ok) return auth.response
 
   const isVercelCron = req.headers.get('x-vercel-cron') === '1'
   const wantsWrite = req.nextUrl.searchParams.get('write') === '1'
@@ -64,8 +50,8 @@ export async function GET(req: NextRequest) {
 
 // POST: write a snapshot for today (idempotent — replaces today's row)
 export async function POST(req: NextRequest) {
-  const auth = authorize(req)
-  if (!auth.ok) return auth.res
+  const auth = await authorizeFinanceRequest(req, { allowCron: true })
+  if (!auth.ok) return auth.response
 
   const today = new Date().toISOString().slice(0, 10)
 

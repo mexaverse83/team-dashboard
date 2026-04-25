@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 
 function getSupabase() {
   return createClient(
@@ -8,18 +9,9 @@ function getSupabase() {
   )
 }
 
-function isAuthorized(req: NextRequest) {
-  const key = req.headers.get('x-api-key')
-  const expected = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
-  const referer = req.headers.get('referer') || ''
-  const origin = req.headers.get('origin') || ''
-  const host = req.nextUrl.host
-  const isSameOrigin = (referer && referer.includes(host)) || (origin && origin.includes(host))
-  return isSameOrigin || (!!key && key === expected)
-}
-
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  if (!isAuthorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
   const { id } = await params
   const supabase = getSupabase()
 

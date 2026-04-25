@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -21,24 +22,8 @@ const FREQ_DAYS: Record<string, number> = {
  * Call daily via cron or WOLFF agent. Idempotent — won't double-post for same period.
  */
 async function processRecurring(req: NextRequest) {
-  // Auth: x-api-key OR Vercel cron secret OR Vercel-Cron header OR same-origin (logged-in user)
-  const key = req.headers.get('x-api-key')
-  const authHeader = req.headers.get('authorization') || ''
-  const isVercelCron = req.headers.get('x-vercel-cron') === '1'
-  const cronSecret = process.env.CRON_SECRET
-  const expected = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  const isApiKey = key && expected && key === expected
-  const isCronSecret = cronSecret && authHeader === `Bearer ${cronSecret}`
-  // x-vercel-cron header is sent by Vercel's scheduler — accept when CRON_SECRET not configured
-  const isCronHeader = isVercelCron && !cronSecret
-  // Allow same-origin POST from the dashboard UI (manual "Process Due" button)
-  const referer = req.headers.get('referer') || ''
-  const isSameOrigin = referer && req.nextUrl.host && new URL(referer).host === req.nextUrl.host
-
-  if (!isApiKey && !isCronSecret && !isCronHeader && !isSameOrigin) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const auth = await authorizeFinanceRequest(req, { allowCron: true })
+  if (!auth.ok) return auth.response
 
   const now = new Date()
   const today = now.toISOString().slice(0, 10)

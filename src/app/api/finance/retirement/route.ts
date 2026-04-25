@@ -1,20 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !key) throw new Error('Missing Supabase env vars')
   return createClient(url, key)
-}
-
-function authOk(req: NextRequest) {
-  const apiKey = req.headers.get('x-api-key')
-  if (apiKey === process.env.FINANCE_API_KEY || apiKey === process.env.SUPABASE_SERVICE_ROLE_KEY) return true
-  const origin = req.headers.get('origin') || ''
-  const host = req.headers.get('host') || ''
-  return origin.includes('autonomis.co') || origin.includes('vercel.app') ||
-    host.includes('localhost') || host.includes('autonomis.co') || host.includes('vercel.app')
 }
 
 // Simple compound projection: balance × (1+rate)^years
@@ -24,7 +16,8 @@ function project(balance: number, annualRate: number, years: number) {
 }
 
 export async function GET(req: NextRequest) {
-  if (!authOk(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
 
   try {
     const supabase = getSupabase()
@@ -106,7 +99,8 @@ export async function GET(req: NextRequest) {
 
 // PATCH — update balance for a record
 export async function PATCH(req: NextRequest) {
-  if (!authOk(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
 
   try {
     const supabase = getSupabase()

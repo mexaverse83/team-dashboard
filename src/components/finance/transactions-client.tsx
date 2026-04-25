@@ -21,6 +21,63 @@ const labelCls = "text-xs text-[hsl(var(--text-secondary))] mb-1 block"
 
 function today() { return new Date().toISOString().slice(0, 10) }
 
+function parseCsvLine(line: string): string[] {
+  const values: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i]
+    const next = line[i + 1]
+
+    if (char === '"' && inQuotes && next === '"') {
+      current += '"'
+      i++
+    } else if (char === '"') {
+      inQuotes = !inQuotes
+    } else if (char === ',' && !inQuotes) {
+      values.push(current.trim())
+      current = ''
+    } else {
+      current += char
+    }
+  }
+
+  values.push(current.trim())
+  return values.map(v => v.replace(/^"|"$/g, ''))
+}
+
+function parseImportAmount(value: string): { amount: number; isExpense: boolean } {
+  const raw = value.trim()
+  const isParenthesized = raw.startsWith('(') && raw.endsWith(')')
+  const normalized = raw
+    .replace(/[,$\s]/g, '')
+    .replace(/[()]/g, '')
+  const parsed = parseFloat(normalized)
+  const amount = Math.abs(Number.isFinite(parsed) ? parsed : 0)
+  return { amount, isExpense: isParenthesized || raw.includes('-') || parsed < 0 }
+}
+
+function parseImportDate(value: string): string {
+  const raw = value.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  const parts = raw.split(/[/-]/).map(p => p.trim())
+  if (parts.length !== 3) return raw
+
+  if (parts[0].length === 4) {
+    const [y, m, d] = parts
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+  }
+
+  const [a, b, y] = parts
+  if (y.length !== 4) return raw
+  // Mexican bank exports are usually DD/MM/YYYY. If the first segment is >12,
+  // it is definitely a day; otherwise prefer DD/MM to avoid US-date drift.
+  const day = a
+  const month = b
+  return `${y}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+}
+
 interface TxForm {
   type: 'expense' | 'income'
   amount: string
@@ -75,7 +132,7 @@ export default function TransactionsClient() {
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [columnMap, setColumnMap] = useState<Record<string, string>>({})
   const [importing, setImporting] = useState(false)
-  const [importResult, setImportResult] = useState<{ success: number; errors: number } | null>(null)
+  const [importResult, setImportResult] = useState<{ success: number; errors: number; skipped: number } | null>(null)
   const [pdfRows, setPdfRows] = useState<ParsedTransaction[]>([])
   const [importMode, setImportMode] = useState<'csv' | 'pdf' | null>(null)
   const [pdfParsing, setPdfParsing] = useState(false)
@@ -288,14 +345,14 @@ export default function TransactionsClient() {
     reader.onload = (evt) => {
       const text = evt.target?.result as string
       if (!text) return
-      const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
       if (lines.length < 2) return
       // Parse headers
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
+      const headers = parseCsvLine(lines[0])
       setCsvHeaders(headers)
       // Parse rows
       const rows = lines.slice(1).map(line => {
-        const vals = line.match(/(".*?"|[^,]+)/g)?.map(v => v.trim().replace(/^"|"$/g, '')) || []
+        const vals = parseCsvLine(line)
         const row: Record<string, string> = {}
         headers.forEach((h, i) => { row[h] = vals[i] || '' })
         return row
@@ -316,31 +373,46 @@ export default function TransactionsClient() {
   const handleImport = async () => {
     if (!columnMap.date || !columnMap.amount || csvRows.length === 0) return
     setImporting(true)
-    let success = 0, errors = 0
+    let success = 0, errors = 0, skipped = 0
     const batch = csvRows.map(row => {
-      const rawAmt = parseFloat(row[columnMap.amount]?.replace(/[$,]/g, '') || '0')
-      const amt = Math.abs(rawAmt)
-      const isExpense = rawAmt < 0 || row[columnMap.amount]?.includes('-')
-      const dateStr = row[columnMap.date] || ''
-      // Try to parse date (YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY)
-      let txDate = dateStr
-      if (dateStr.includes('/')) {
-        const parts = dateStr.split('/')
-        if (parts[2]?.length === 4) txDate = `${parts[2]}-${parts[1]?.padStart(2, '0')}-${parts[0]?.padStart(2, '0')}`
-      }
+      const { amount, isExpense } = parseImportAmount(row[columnMap.amount] || '0')
+      const txDate = parseImportDate(row[columnMap.date] || '')
+      const merchant = columnMap.merchant ? (row[columnMap.merchant] || null) : null
+      const description = columnMap.description ? (row[columnMap.description] || null) : null
+      const ruleMatch = applyRules(rules, {
+        merchant: merchant || description,
+        amount_mxn: amount,
+        owner: defaultOwner,
+      })
+      const fallbackCategory = categories.find(c => c.name === (isExpense ? 'Other' : 'Other Income'))?.id || categories[0]?.id
       return {
         type: isExpense ? 'expense' : 'income',
-        amount: amt,
+        amount,
         currency: 'MXN',
-        amount_mxn: amt,
-        category_id: categories.find(c => c.name === 'Other' || c.name === 'Other Income')?.id || categories[0]?.id,
-        merchant: columnMap.merchant ? (row[columnMap.merchant] || null) : null,
-        description: columnMap.description ? (row[columnMap.description] || null) : null,
+        amount_mxn: amount,
+        category_id: ruleMatch?.category_id || fallbackCategory,
+        merchant,
+        description,
         transaction_date: txDate,
-        tags: [],
+        tags: ruleMatch?.tags || [],
         is_recurring: false,
+        owner: defaultOwner || null,
       }
-    }).filter(r => r.amount > 0 && r.transaction_date)
+    }).filter(r => {
+      if (r.amount <= 0 || !r.transaction_date) {
+        skipped++
+        return false
+      }
+      const duplicates = detectDuplicates(
+        { transaction_date: r.transaction_date, merchant: r.merchant || r.description, amount_mxn: r.amount_mxn },
+        transactions.map(t => ({ id: t.id, transaction_date: t.transaction_date, merchant: t.merchant || t.description, amount_mxn: t.amount_mxn })),
+      )
+      if (duplicates.length > 0) {
+        skipped++
+        return false
+      }
+      return true
+    })
 
     // Insert in batches of 50
     for (let i = 0; i < batch.length; i += 50) {
@@ -351,7 +423,7 @@ export default function TransactionsClient() {
     }
 
     setImporting(false)
-    setImportResult({ success, errors })
+    setImportResult({ success, errors, skipped })
     if (success > 0) fetchData()
   }
 
@@ -359,20 +431,39 @@ export default function TransactionsClient() {
   const handlePdfImport = async () => {
     if (pdfRows.length === 0) return
     setImporting(true)
-    let success = 0, errors = 0
+    let success = 0, errors = 0, skipped = 0
 
-    const batch = pdfRows.map(row => ({
-      type: row.type,
-      amount: row.amount,
-      currency: 'MXN',
-      amount_mxn: row.amount,
-      category_id: categories.find(c => c.name === 'Other' || c.name === 'Other Income')?.id || categories[0]?.id,
-      merchant: row.merchant,
-      description: row.description,
-      transaction_date: row.date,
-      tags: [],
-      is_recurring: false,
-    }))
+    const batch = pdfRows.map(row => {
+      const ruleMatch = applyRules(rules, {
+        merchant: row.merchant || row.description,
+        amount_mxn: row.amount,
+        owner: defaultOwner,
+      })
+      const fallbackCategory = categories.find(c => c.name === (row.type === 'expense' ? 'Other' : 'Other Income'))?.id || categories[0]?.id
+      return {
+        type: row.type,
+        amount: row.amount,
+        currency: 'MXN',
+        amount_mxn: row.amount,
+        category_id: ruleMatch?.category_id || fallbackCategory,
+        merchant: row.merchant,
+        description: row.description,
+        transaction_date: row.date,
+        tags: ruleMatch?.tags || [],
+        is_recurring: false,
+        owner: defaultOwner || null,
+      }
+    }).filter(r => {
+      const duplicates = detectDuplicates(
+        { transaction_date: r.transaction_date, merchant: r.merchant || r.description, amount_mxn: r.amount_mxn },
+        transactions.map(t => ({ id: t.id, transaction_date: t.transaction_date, merchant: t.merchant || t.description, amount_mxn: t.amount_mxn })),
+      )
+      if (duplicates.length > 0) {
+        skipped++
+        return false
+      }
+      return true
+    })
 
     for (let i = 0; i < batch.length; i += 50) {
       const chunk = batch.slice(i, i + 50)
@@ -382,7 +473,7 @@ export default function TransactionsClient() {
     }
 
     setImporting(false)
-    setImportResult({ success, errors })
+    setImportResult({ success, errors, skipped })
     if (success > 0) fetchData()
   }
 
@@ -795,6 +886,7 @@ export default function TransactionsClient() {
           <div className="space-y-4">
             <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
               <p className="text-sm font-medium text-emerald-400">✅ {importResult.success} transactions imported</p>
+              {importResult.skipped > 0 && <p className="text-sm text-amber-400 mt-1">↷ {importResult.skipped} skipped as duplicates or invalid rows</p>}
               {importResult.errors > 0 && <p className="text-sm text-rose-400 mt-1">⚠️ {importResult.errors} failed</p>}
             </div>
             <button onClick={() => setImportOpen(false)}

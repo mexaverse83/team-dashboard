@@ -17,10 +17,6 @@ interface WestSnapshot {
 interface NetWorthSnapshot {
   total: number; totalUSD: number; crypto: number; fixedIncome: number; realEstate: number; retirement: number
 }
-interface UpcomingEvent {
-  title: string; date: string; amount?: number; type: 'money_in' | 'payment' | 'milestone' | 'info'
-}
-
 interface Insight {
   type: 'alert' | 'recommendation' | 'win' | 'forecast' | 'pattern' | 'saving'
   icon: string
@@ -653,47 +649,23 @@ export default function InsightsClient() {
             )}
 
             {/* ── Upcoming Events ── */}
-            {(() => {
-              const upcomingEvents: UpcomingEvent[] = [
-                { title: 'Current apartment sale closes', date: 'April 2026', amount: 5530000, type: 'money_in' },
-                { title: 'BBVA + Infonavit paid off from proceeds', date: 'April 2026', amount: 1670000, type: 'payment' },
-                { title: 'GBM commission: 1.25% → 0.82% (+$27K/yr saved)', date: 'April 2026', type: 'milestone' },
-                { title: 'GBM capital gains — declaración anual deadline', date: 'April 30, 2026', type: 'info' },
-                { title: '$100K lump sum to WEST developer', date: 'December 2026', amount: 100000, type: 'payment' },
-                { title: 'Final $10K WEST monthly payment', date: 'March 2027', amount: 10000, type: 'payment' },
-                { title: 'WEST apartment delivery', date: 'December 2027', type: 'milestone' },
-              ]
-              return (
-                <section className="mb-8">
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">Coming Up</h2>
-                  <GlassCard className="p-4">
-                    <div className="relative pl-5 space-y-4">
-                      <div className="absolute left-2 top-1 bottom-1 w-px bg-[hsl(var(--border))]" />
-                      {upcomingEvents.map((ev, i) => (
-                        <div key={i} className="relative">
-                          <div className={cn(
-                            "absolute -left-5 top-1 w-[9px] h-[9px] rounded-full border-2 border-background",
-                            ev.type === 'money_in' ? 'bg-emerald-500' :
-                            ev.type === 'payment' ? 'bg-amber-500' :
-                            ev.type === 'milestone' ? 'bg-blue-500' : 'bg-[hsl(var(--text-tertiary))]'
-                          )} />
-                          <div className="flex items-baseline justify-between gap-3">
-                            <p className="text-sm font-medium leading-tight">{ev.title}</p>
-                            {ev.amount && (
-                              <span className={cn("text-xs font-semibold tabular-nums shrink-0",
-                                ev.type === 'money_in' ? 'text-emerald-400' : 'text-[hsl(var(--text-secondary))]')}>
-                                {ev.type === 'money_in' ? '+' : '-'}{fmtMXN(ev.amount)}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{ev.date}</p>
-                        </div>
-                      ))}
+            {westSnapshot?.nextMilestone && (
+              <section className="mb-8">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">Coming Up</h2>
+                <GlassCard className="p-4">
+                  <div className="relative pl-5">
+                    <div className="absolute left-2 top-1 bottom-1 w-px bg-[hsl(var(--border))]" />
+                    <div className="relative">
+                      <div className="absolute -left-5 top-1 w-[9px] h-[9px] rounded-full border-2 border-background bg-blue-500" />
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="text-sm font-medium leading-tight">{westSnapshot.nextMilestone.title}</p>
+                      </div>
+                      <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{westSnapshot.nextMilestone.date}</p>
                     </div>
-                  </GlassCard>
-                </section>
-              )
-            })()}
+                  </div>
+                </GlassCard>
+              </section>
+            )}
 
             {/* ══════════════════════════════════════════════════ */}
             {/* WOLFF'S COMMENTARY — Raw data behind the insights */}
