@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { buildFertilityCutRecommendations, FERTILITY_TREATMENT_PLAN, getRemainingTreatmentEvents, getTreatmentEventForMonth } from '@/lib/fertility-plan'
+import { defaultBudgetType } from '@/lib/finance-utils'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -100,12 +102,14 @@ export async function GET(req: NextRequest) {
   const budgetCategories = (budgets || []).map(b => {
     const cat = catMap.get(b.category_id)
     const spent = catSpend[b.category_id] || 0
+    const budgetType = b.budget_type || defaultBudgetType(cat?.name || '')
     return {
       category: cat?.name || 'Unknown',
+      icon: cat?.icon || '📦',
       budget: b.amount,
       spent: Math.round(spent / months),
       pct_used: b.amount > 0 ? Math.round((spent / months) / b.amount * 100) : 0,
-      budget_type: b.budget_type || 'needs',
+      budget_type: budgetType,
     }
   })
 
@@ -230,6 +234,20 @@ export async function GET(req: NextRequest) {
   const totalGoalMonthlyNeeded = activeGoals.reduce((s, g) => s + g.monthly_needed, 0)
   const discretionary = totalMonthlyIncome - fixedCommitments
   const goalFundingGap = totalGoalMonthlyNeeded - discretionary
+
+  // Fertility treatment stress plan: conservative 170k MXN total, May-July 2026.
+  const remainingTreatmentEvents = getRemainingTreatmentEvents(now)
+  const currentTreatmentEvent = getTreatmentEventForMonth(currentMonthStr) ?? remainingTreatmentEvents[0] ?? null
+  const treatmentMonthlyCommitment = currentTreatmentEvent?.amount ?? 0
+  const treatmentMonthlyGap = Math.max(0, totalGoalMonthlyNeeded + treatmentMonthlyCommitment - discretionary)
+  const monthsAfterTreatment = 5 // Aug-Dec 2026
+  const deferredCatchUpMonthly = Math.ceil((treatmentMonthlyGap * remainingTreatmentEvents.length) / monthsAfterTreatment)
+  const cutRecommendations = buildFertilityCutRecommendations(
+    budgetCategories
+      .filter(b => b.budget_type === 'wants')
+      .map(b => ({ category: b.category, icon: b.icon, budget: b.budget })),
+    treatmentMonthlyGap,
+  )
 
   // MSI payoff timeline
   const msiTimeline = inst.map(i => ({
@@ -360,6 +378,24 @@ export async function GET(req: NextRequest) {
       discretionary_available: discretionary,
       gap: goalFundingGap > 0 ? goalFundingGap : 0,
       fully_funded: goalFundingGap <= 0,
+    },
+    fertility_plan: {
+      name: FERTILITY_TREATMENT_PLAN.name,
+      range_min: FERTILITY_TREATMENT_PLAN.minTotal,
+      range_max: FERTILITY_TREATMENT_PLAN.maxTotal,
+      planning_total: FERTILITY_TREATMENT_PLAN.planningTotal,
+      start_month: FERTILITY_TREATMENT_PLAN.startMonth,
+      end_month: FERTILITY_TREATMENT_PLAN.endMonth,
+      monthly_events: FERTILITY_TREATMENT_PLAN.events,
+      remaining_events: remainingTreatmentEvents,
+      remaining_amount: remainingTreatmentEvents.reduce((s, event) => s + event.amount, 0),
+      current_month_commitment: treatmentMonthlyCommitment,
+      current_month_event: currentTreatmentEvent,
+      discretionary_after_treatment: discretionary - treatmentMonthlyCommitment,
+      monthly_gap_to_keep_goals: treatmentMonthlyGap,
+      fully_funded_with_goals: treatmentMonthlyGap <= 0,
+      deferred_catch_up_monthly: deferredCatchUpMonthly,
+      recommended_cuts: cutRecommendations,
     },
     msi_timeline: msiTimeline,
     crypto: cryptoSummary,

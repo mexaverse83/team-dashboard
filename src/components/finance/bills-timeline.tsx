@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 
 export type ForecastEvent = {
   date: string
-  type: 'income' | 'subscription' | 'msi' | 'debt' | 'recurring_income'
+  type: 'income' | 'subscription' | 'msi' | 'debt' | 'recurring_income' | 'planned_expense'
   amount_mxn: number
   name: string
   owner?: string | null
@@ -23,6 +23,7 @@ const TYPE_LABELS: Record<ForecastEvent['type'], string> = {
   subscription: 'Subscription',
   msi: 'MSI',
   debt: 'Debt',
+  planned_expense: 'Planned expense',
 }
 
 const TYPE_COLOR: Record<ForecastEvent['type'], string> = {
@@ -31,6 +32,7 @@ const TYPE_COLOR: Record<ForecastEvent['type'], string> = {
   subscription: 'hsl(263, 70%, 58%)',
   msi: 'hsl(38, 92%, 50%)',
   debt: 'hsl(0, 84%, 60%)',
+  planned_expense: 'hsl(186, 70%, 42%)',
 }
 
 function fmtDate(s: string) {

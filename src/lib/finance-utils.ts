@@ -1,5 +1,7 @@
 import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceRecurring, BillingCycle } from './finance-types'
 
+export type BudgetType = 'needs' | 'wants' | 'savings'
+
 // Billing cycle → months
 export const CYCLE_MONTHS: Record<BillingCycle, number> = {
   monthly: 1, bimonthly: 2, quarterly: 3, 'semi-annual': 6, annual: 12,
@@ -120,6 +122,15 @@ export function suggestCoveragePeriod(paymentDate: string, cycle: BillingCycle):
     start: coverageStart.toISOString().slice(0, 10),
     end: coverageEnd.toISOString().slice(0, 10),
   }
+}
+
+const NEEDS_CATS = ['Rent/Mortgage', 'Groceries', 'Utilities', 'Transport', 'Health', 'Maintenance']
+const SAVINGS_CATS = ['Investments']
+
+export function defaultBudgetType(catName: string): BudgetType {
+  if (NEEDS_CATS.includes(catName)) return 'needs'
+  if (SAVINGS_CATS.includes(catName)) return 'savings'
+  return 'wants'
 }
 
 // Default categories — always available even before SQL schema is run

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   Wallet, TrendingUp, TrendingDown, Calendar, Target, AlertCircle,
   ArrowRight, Plus, Activity, Sparkles, ShieldAlert, ChevronDown, ChevronUp,
+  HeartPulse, Scissors,
 } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { AlertCard, type AlertSeverity } from '@/components/ui/alert-card'
@@ -53,6 +54,51 @@ interface Summary {
   goals: { active: Array<{ name: string; target: number; current: number; pct: number; monthly_needed: number; on_track: boolean }> }
   cash_flow: { monthly_income: number; fixed_commitments: number; discretionary_available: number }
   goal_funding: { gap: number; fully_funded: boolean }
+  fertility_plan: {
+    name: string
+    range_min: number
+    range_max: number
+    planning_total: number
+    start_month: string
+    end_month: string
+    remaining_amount: number
+    current_month_commitment: number
+    discretionary_after_treatment: number
+    monthly_gap_to_keep_goals: number
+    fully_funded_with_goals: boolean
+    deferred_catch_up_monthly: number
+    current_month_event: {
+      date: string
+      month: string
+      amount: number
+      minAmount: number
+      maxAmount: number
+      label: string
+    } | null
+    monthly_events: Array<{
+      date: string
+      month: string
+      amount: number
+      minAmount: number
+      maxAmount: number
+      label: string
+    }>
+    remaining_events: Array<{
+      date: string
+      month: string
+      amount: number
+      minAmount: number
+      maxAmount: number
+      label: string
+    }>
+    recommended_cuts: Array<{
+      category: string
+      icon: string
+      current_budget: number
+      recommended_cap: number
+      cut_amount: number
+    }>
+  }
   msi_timeline: Array<{ name: string; merchant: string; monthly_payment: number; payments_remaining: number; end_date: string }>
   crypto: null | {
     total_value_mxn: number
@@ -131,6 +177,27 @@ function buildAlerts(summary: Summary | null, forecast: Forecast | null, recentT
       description: `Discretionary cash flow falls short of goal monthly contributions. Trim a budget or increase income to close it.`,
       action: { label: 'Review goals', href: '/finance/goals' },
       weight: 60,
+    })
+  }
+
+  // 2b. Fertility treatment stress plan
+  if (summary.fertility_plan?.monthly_gap_to_keep_goals > 0) {
+    alerts.push({
+      id: 'fertility-plan-gap',
+      severity: 'danger',
+      title: `Fertility treatment gap: ${fmtMoney(summary.fertility_plan.monthly_gap_to_keep_goals, { compact: true })}/mo`,
+      description: `The May-July plan uses ${fmtMoney(summary.fertility_plan.planning_total, { compact: true })}. Close this temporary gap to keep year goals on track.`,
+      action: { label: 'Review plan', href: '#fertility-plan' },
+      weight: 98,
+    })
+  } else if (summary.fertility_plan?.current_month_commitment > 0) {
+    alerts.push({
+      id: 'fertility-plan-covered',
+      severity: 'info',
+      title: `Fertility treatment planned: ${fmtMoney(summary.fertility_plan.current_month_commitment, { compact: true })} next`,
+      description: `This commitment is included in the forecast and goal funding check.`,
+      action: { label: 'Review plan', href: '#fertility-plan' },
+      weight: 45,
     })
   }
 
@@ -348,6 +415,138 @@ function BudgetRow({ cat }: { cat: BudgetCat }) {
 }
 
 type FilterMode = 'over' | 'all' | 'on_track'
+
+function fmtMonth(month: string) {
+  const d = new Date(`${month}-01T00:00:00Z`)
+  return d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' })
+}
+
+function FertilityPlanCard({ summary }: { summary: Summary | null }) {
+  const plan = summary?.fertility_plan
+  if (!plan) return null
+
+  const paid = plan.planning_total - plan.remaining_amount
+  const progress = plan.planning_total > 0 ? Math.round((paid / plan.planning_total) * 100) : 0
+  const next = plan.current_month_event ?? plan.remaining_events[0] ?? null
+  const gap = plan.monthly_gap_to_keep_goals
+  const hasGap = gap > 0
+
+  return (
+    <div id="fertility-plan">
+      <GlassCard className={cn(
+        'border-l-2',
+        hasGap ? 'border-l-rose-500' : 'border-l-emerald-500'
+      )}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <HeartPulse className={cn('h-5 w-5', hasGap ? 'text-rose-400' : 'text-emerald-400')} />
+              <h3 className="text-base font-semibold">Fertility treatment plan</h3>
+            </div>
+            <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
+              May-July 2026 · conservative plan {fmtMoney(plan.planning_total)} ({fmtMoney(plan.range_min)}-{fmtMoney(plan.range_max)})
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[520px]">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Remaining</p>
+              <p className="text-lg font-bold tabular-nums text-rose-400">{fmtMoney(plan.remaining_amount, { compact: true })}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Next payment</p>
+              <p className="text-lg font-bold tabular-nums">{next ? fmtMoney(next.amount, { compact: true }) : '-'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Goal gap</p>
+              <p className={cn('text-lg font-bold tabular-nums', hasGap ? 'text-rose-400' : 'text-emerald-400')}>
+                {hasGap ? fmtMoney(gap, { compact: true }) : '$0'}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">After treatment</p>
+              <p className={cn('text-lg font-bold tabular-nums', plan.discretionary_after_treatment >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
+                {fmtMoney(plan.discretionary_after_treatment, { compact: true })}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-5">
+          <div className="lg:col-span-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">Payment schedule</span>
+              <span className="text-xs tabular-nums text-[hsl(var(--text-tertiary))]">{progress}% paid</span>
+            </div>
+            <div className="h-2 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
+              <div className="h-full rounded-full bg-cyan-500" style={{ width: `${Math.min(progress, 100)}%` }} />
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {plan.monthly_events.map(event => {
+                const isPast = !plan.remaining_events.some(item => item.month === event.month)
+                return (
+                  <div key={event.month} className={cn(
+                    'rounded-lg border px-2 py-2',
+                    isPast ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30'
+                  )}>
+                    <p className="text-xs font-medium">{fmtMonth(event.month)}</p>
+                    <p className="text-sm font-bold tabular-nums">{fmtMoney(event.amount, { compact: true })}</p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="lg:col-span-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Scissors className="h-4 w-4 text-amber-400" />
+              <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">Temporary cuts to keep 2026 goals intact</span>
+            </div>
+            {hasGap ? (
+              plan.recommended_cuts.length > 0 ? (
+                <div className="space-y-2">
+                  {plan.recommended_cuts.slice(0, 4).map(cut => (
+                    <div key={cut.category} className="flex items-center gap-3">
+                      <span className="w-7 text-center">{cut.icon || '·'}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium truncate">{cut.category}</span>
+                          <span className="font-semibold tabular-nums text-emerald-400">+{fmtMoney(cut.cut_amount)}/mo</span>
+                        </div>
+                        <div className="mt-1 h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-amber-500"
+                            style={{ width: `${cut.current_budget > 0 ? Math.max(4, (cut.recommended_cap / cut.current_budget) * 100) : 0}%` }}
+                          />
+                        </div>
+                        <p className="mt-0.5 text-[10px] text-[hsl(var(--text-tertiary))]">
+                          Cap at {fmtMoney(cut.recommended_cap)} from {fmtMoney(cut.current_budget)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  {plan.deferred_catch_up_monthly > 0 && (
+                    <p className="text-[10px] text-[hsl(var(--text-tertiary))] pt-1">
+                      If not cut now, catch-up pressure after July is about {fmtMoney(plan.deferred_catch_up_monthly)}/mo through December.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-[hsl(var(--text-tertiary))]">
+                  Need {fmtMoney(gap)}/mo, but wants budgets are not configured enough to allocate cuts.
+                </p>
+              )
+            ) : (
+              <p className="text-sm text-emerald-400">
+                Current discretionary cash flow covers treatment plus active goals.
+              </p>
+            )}
+          </div>
+        </div>
+      </GlassCard>
+    </div>
+  )
+}
 
 function BudgetPaceCard({ summary }: { summary: Summary | null }) {
   const [filter, setFilter] = useState<FilterMode>('over')
@@ -614,6 +813,8 @@ export default function CommandCenterClient() {
             <p className="text-sm font-medium">{statusBanner.msg}</p>
           </div>
         )}
+
+        <FertilityPlanCard summary={summary} />
 
         {/* ── KPI Strip ──────────────────────────────────── */}
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">

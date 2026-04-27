@@ -9,7 +9,8 @@ import { PageTransition } from '@/components/page-transition'
 import { Modal } from '@/components/ui/modal'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
-import { DEFAULT_CATEGORIES, rollingMonthlyAverage } from '@/lib/finance-utils'
+import { DEFAULT_CATEGORIES, defaultBudgetType, rollingMonthlyAverage } from '@/lib/finance-utils'
+import { getNextTreatmentEvent, getTreatmentEventForMonth } from '@/lib/fertility-plan'
 import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceIncomeSource } from '@/lib/finance-types'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
@@ -25,15 +26,6 @@ function toMonthly(amount: number, freq: string): number {
     case 'yearly': return amount / 12
     default: return amount
   }
-}
-
-// Default budget type mapping
-const NEEDS_CATS = ['Rent/Mortgage', 'Groceries', 'Utilities', 'Transport', 'Health', 'Maintenance']
-const SAVINGS_CATS = ['Investments']
-function defaultBudgetType(catName: string): 'needs' | 'wants' | 'savings' {
-  if (NEEDS_CATS.includes(catName)) return 'needs'
-  if (SAVINGS_CATS.includes(catName)) return 'savings'
-  return 'wants'
 }
 
 interface IncomeForm { name: string; type: string; amount: string; frequency: string }
@@ -146,16 +138,26 @@ export default function BudgetBuilderClient() {
   const wantsPct = totalIncome > 0 ? Math.round((wantsTotal / totalIncome) * 100) : 0
   const savingsPct = totalIncome > 0 ? Math.round((savingsTotal / totalIncome) * 100) : 0
   const isHealthy = needsPct <= 55 && wantsPct <= 35 && savingsPct >= 15
+  const treatmentEvent = getTreatmentEventForMonth(monthStr) ?? getNextTreatmentEvent(now)
+  const treatmentReserve = treatmentEvent?.amount ?? 0
 
   // Action items (auto-generated)
   const actions = useMemo(() => {
     const items: { title: string; description: string; priority: 'high' | 'medium' | 'low'; monthlySavings: number }[] = []
+    if (treatmentReserve > 0) {
+      items.push({
+        title: `Reserve $${treatmentReserve.toLocaleString()} for fertility treatment`,
+        description: 'Temporary May-July commitment; protect active goal contributions first, then cut wants.',
+        priority: 'high',
+        monthlySavings: treatmentReserve,
+      })
+    }
     if (needsPct > 50) items.push({ title: `Reduce needs spending by ${needsPct - 50}%`, description: 'Look for housing, insurance, or utility savings', priority: 'high', monthlySavings: Math.round((needsTotal - totalIncome * 0.5)) })
     if (wantsPct > 30) items.push({ title: `Cut wants spending by ${wantsPct - 30}%`, description: 'Review dining, entertainment, and shopping', priority: 'medium', monthlySavings: Math.round((wantsTotal - totalIncome * 0.3)) })
     if (savingsPct < 20) items.push({ title: `Boost savings to 20%`, description: 'Set up auto-transfer on payday', priority: 'low', monthlySavings: Math.round(totalIncome * 0.2 - savingsTotal) })
     if (items.length === 0) items.push({ title: 'Budget looks healthy!', description: 'Keep it up — you\'re within the 50/30/20 targets', priority: 'low', monthlySavings: 0 })
     return items
-  }, [needsPct, wantsPct, savingsPct, needsTotal, wantsTotal, savingsTotal, totalIncome])
+  }, [needsPct, wantsPct, savingsPct, needsTotal, wantsTotal, savingsTotal, totalIncome, treatmentReserve])
 
   // Income CRUD
   const openAddIncome = () => { setEditingIncome(null); setIncomeForm(emptyIncomeForm); setIncomeModal(true) }

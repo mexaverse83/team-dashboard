@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { getRemainingTreatmentEvents } from '@/lib/fertility-plan'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -9,7 +10,7 @@ const supabase = createClient(
 
 type ForecastEvent = {
   date: string
-  type: 'income' | 'subscription' | 'msi' | 'debt' | 'recurring_income'
+  type: 'income' | 'subscription' | 'msi' | 'debt' | 'recurring_income' | 'planned_expense'
   amount_mxn: number
   name: string
   category_id?: string | null
@@ -206,6 +207,21 @@ export async function GET(req: NextRequest) {
       })
       cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1))
     }
+  }
+
+  // 6. Planned fertility treatment expense — one-time temporary commitment.
+  for (const treatmentEvent of getRemainingTreatmentEvents(today)) {
+    const due = new Date(treatmentEvent.date + 'T00:00:00Z')
+    if (due > horizon) continue
+    events.push({
+      date: treatmentEvent.date,
+      type: 'planned_expense',
+      amount_mxn: -Math.abs(treatmentEvent.amount),
+      name: treatmentEvent.label,
+      category_id: null,
+      owner: null,
+      source_id: 'fertility-treatment',
+    })
   }
 
   // Build daily series
