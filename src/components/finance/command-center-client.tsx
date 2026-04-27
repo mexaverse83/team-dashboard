@@ -54,6 +54,28 @@ interface Summary {
   goals: { active: Array<{ name: string; target: number; current: number; pct: number; monthly_needed: number; on_track: boolean }> }
   cash_flow: { monthly_income: number; fixed_commitments: number; discretionary_available: number }
   goal_funding: { total_monthly_needed: number; discretionary_available: number; gap: number; fully_funded: boolean }
+  year_end_goal_plan: {
+    target_amount: number
+    current_saved: number
+    goal_remaining: number
+    treatment_remaining: number
+    total_needed_by_december: number
+    months_remaining: number
+    monthly_free_cash: number
+    projected_free_cash_by_december: number
+    monthly_all_in_needed: number
+    shortfall_by_december: number
+    surplus_by_december: number
+    monthly_extra_needed: number
+    on_track: boolean
+    recommended_cuts: Array<{
+      category: string
+      icon: string
+      current_budget: number
+      recommended_cap: number
+      cut_amount: number
+    }>
+  }
   fertility_plan: {
     name: string
     range_min: number
@@ -183,6 +205,17 @@ function buildAlerts(summary: Summary | null, forecast: Forecast | null, recentT
   }
 
   // 2b. Fertility treatment stress plan
+  if (summary.year_end_goal_plan?.shortfall_by_december > 0) {
+    alerts.push({
+      id: 'december-target-gap',
+      severity: 'danger',
+      title: `December target gap: ${fmtMoney(summary.year_end_goal_plan.shortfall_by_december, { compact: true })}`,
+      description: `To still reach ${fmtMoney(summary.year_end_goal_plan.target_amount, { compact: true })} by December after treatment, you need ${fmtMoney(summary.year_end_goal_plan.monthly_extra_needed, { compact: true })}/mo more capacity.`,
+      action: { label: 'See plan', href: '#december-goal-plan' },
+      weight: 99,
+    })
+  }
+
   if (summary.fertility_plan?.monthly_gap_to_keep_goals > 0) {
     alerts.push({
       id: 'fertility-plan-gap',
@@ -421,6 +454,129 @@ type FilterMode = 'over' | 'all' | 'on_track'
 function fmtMonth(month: string) {
   const d = new Date(`${month}-01T00:00:00Z`)
   return d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' })
+}
+
+function DecemberGoalPlanCard({ summary }: { summary: Summary | null }) {
+  const plan = summary?.year_end_goal_plan
+  if (!plan) return null
+
+  const progress = plan.target_amount > 0 ? Math.round((plan.current_saved / plan.target_amount) * 100) : 0
+  const totalCuts = plan.recommended_cuts.reduce((s, cut) => s + cut.cut_amount, 0)
+  const remainingAfterCuts = Math.max(0, plan.monthly_extra_needed - totalCuts)
+
+  return (
+    <div id="december-goal-plan">
+      <GlassCard className={cn(
+        'border-l-2',
+        plan.on_track ? 'border-l-emerald-500' : 'border-l-rose-500'
+      )}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Target className={cn('h-5 w-5', plan.on_track ? 'text-emerald-400' : 'text-rose-400')} />
+              <h3 className="text-base font-semibold">December target plan</h3>
+            </div>
+            <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
+              What it takes from next month through December to still end 2026 with {fmtMoney(plan.target_amount)} saved.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[560px]">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Saved now</p>
+              <p className="text-lg font-bold tabular-nums text-emerald-400">{fmtMoney(plan.current_saved, { compact: true })}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Still to save</p>
+              <p className="text-lg font-bold tabular-nums">{fmtMoney(plan.goal_remaining, { compact: true })}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Plus treatment</p>
+              <p className="text-lg font-bold tabular-nums text-cyan-400">{fmtMoney(plan.treatment_remaining, { compact: true })}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly gap</p>
+              <p className={cn('text-lg font-bold tabular-nums', plan.on_track ? 'text-emerald-400' : 'text-rose-400')}>
+                {plan.on_track ? '$0' : fmtMoney(plan.monthly_extra_needed, { compact: true })}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">Goal progress</span>
+            <span className="text-xs tabular-nums text-[hsl(var(--text-tertiary))]">{progress}% of {fmtMoney(plan.target_amount)}</span>
+          </div>
+          <div className="h-2 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
+            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(progress, 100)}%` }} />
+          </div>
+        </div>
+
+        <div className={cn(
+          'mt-4 rounded-lg border px-3 py-2 text-xs',
+          plan.on_track ? 'border-emerald-500/25 bg-emerald-500/5' : 'border-rose-500/25 bg-rose-500/5'
+        )}>
+          <p className="font-medium">
+            Need {fmtMoney(plan.goal_remaining)} for goals + {fmtMoney(plan.treatment_remaining)} for treatment = {fmtMoney(plan.total_needed_by_december)} by December.
+          </p>
+          <p className="mt-1">
+            Current free cash pace: {fmtMoney(plan.monthly_free_cash)}/mo x {plan.months_remaining} months = {fmtMoney(plan.projected_free_cash_by_december)}.
+            {' '}
+            {plan.on_track ? (
+              <span className="text-emerald-400">Projected surplus: {fmtMoney(plan.surplus_by_december)}.</span>
+            ) : (
+              <span className="text-rose-400">Projected shortfall: {fmtMoney(plan.shortfall_by_december)}.</span>
+            )}
+          </p>
+        </div>
+
+        {!plan.on_track && (
+          <div className="mt-4 grid gap-4 lg:grid-cols-5">
+            <div className="lg:col-span-2">
+              <p className="text-xs font-medium text-[hsl(var(--text-secondary))]">Plain answer</p>
+              <p className="mt-1 text-sm">
+                You need about <span className="font-semibold text-rose-400">{fmtMoney(plan.monthly_all_in_needed)}/mo</span> available for goals plus treatment.
+                Current free cash is <span className="font-semibold">{fmtMoney(plan.monthly_free_cash)}/mo</span>, so the plan needs
+                {' '}<span className="font-semibold text-rose-400">{fmtMoney(plan.monthly_extra_needed)}/mo</span> more capacity.
+              </p>
+            </div>
+
+            <div className="lg:col-span-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Scissors className="h-4 w-4 text-amber-400" />
+                <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">Possible monthly cuts toward the gap</span>
+              </div>
+              {plan.recommended_cuts.length > 0 ? (
+                <div className="space-y-2">
+                  {plan.recommended_cuts.slice(0, 4).map(cut => (
+                    <div key={cut.category} className="flex items-center gap-3">
+                      <span className="w-7 text-center">{cut.icon || '·'}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium truncate">{cut.category}</span>
+                          <span className="font-semibold tabular-nums text-emerald-400">+{fmtMoney(cut.cut_amount)}/mo</span>
+                        </div>
+                        <p className="mt-0.5 text-[10px] text-[hsl(var(--text-tertiary))]">
+                          Cap at {fmtMoney(cut.recommended_cap)} from {fmtMoney(cut.current_budget)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-[hsl(var(--text-tertiary))] pt-1">
+                    These cuts cover {fmtMoney(totalCuts)} of the monthly gap.
+                    {remainingAfterCuts > 0 ? ` Remaining gap: ${fmtMoney(remainingAfterCuts)}/mo.` : ' Gap covered.'}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-[hsl(var(--text-tertiary))]">No wants budgets available to allocate cuts.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </GlassCard>
+    </div>
+  )
 }
 
 function FertilityPlanCard({ summary }: { summary: Summary | null }) {
@@ -837,6 +993,7 @@ export default function CommandCenterClient() {
           </div>
         )}
 
+        <DecemberGoalPlanCard summary={summary} />
         <FertilityPlanCard summary={summary} />
 
         {/* ── KPI Strip ──────────────────────────────────── */}

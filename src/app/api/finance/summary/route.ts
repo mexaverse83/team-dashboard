@@ -262,11 +262,22 @@ export async function GET(req: NextRequest) {
 
   // Fertility treatment stress plan: conservative 170k MXN total, May-July 2026.
   const remainingTreatmentEvents = getRemainingTreatmentEvents(now)
+  const remainingTreatmentAmount = remainingTreatmentEvents.reduce((s, event) => s + event.amount, 0)
   const currentTreatmentEvent = getTreatmentEventForMonth(currentMonthStr) ?? remainingTreatmentEvents[0] ?? null
   const treatmentMonthlyCommitment = currentTreatmentEvent?.amount ?? 0
   const treatmentMonthlyGap = Math.max(0, totalGoalMonthlyNeeded + treatmentMonthlyCommitment - discretionary)
   const monthsAfterTreatment = 5 // Aug-Dec 2026
   const deferredCatchUpMonthly = Math.ceil((treatmentMonthlyGap * remainingTreatmentEvents.length) / monthsAfterTreatment)
+  const monthsToDecember = Math.max(1, 11 - now.getMonth()) // next month through December
+  const totalGoalTarget = activeGoals.reduce((s, g) => s + (g.target || 0), 0)
+  const totalGoalSaved = activeGoals.reduce((s, g) => s + (g.current || 0), 0)
+  const totalGoalRemaining = Math.max(0, totalGoalTarget - totalGoalSaved)
+  const totalNeededByDecember = totalGoalRemaining + remainingTreatmentAmount
+  const projectedFreeCashByDecember = discretionary * monthsToDecember
+  const yearEndShortfall = Math.max(0, totalNeededByDecember - projectedFreeCashByDecember)
+  const yearEndSurplus = Math.max(0, projectedFreeCashByDecember - totalNeededByDecember)
+  const monthlyAllInNeeded = Math.ceil(totalNeededByDecember / monthsToDecember)
+  const monthlyExtraNeeded = Math.ceil(yearEndShortfall / monthsToDecember)
   const cutRecommendations = buildFertilityCutRecommendations(
     budgetCategories
       .filter(b => b.budget_type === 'wants')
@@ -404,6 +415,27 @@ export async function GET(req: NextRequest) {
       gap: goalFundingGap > 0 ? goalFundingGap : 0,
       fully_funded: goalFundingGap <= 0,
     },
+    year_end_goal_plan: {
+      target_amount: totalGoalTarget,
+      current_saved: totalGoalSaved,
+      goal_remaining: totalGoalRemaining,
+      treatment_remaining: remainingTreatmentAmount,
+      total_needed_by_december: totalNeededByDecember,
+      months_remaining: monthsToDecember,
+      monthly_free_cash: discretionary,
+      projected_free_cash_by_december: projectedFreeCashByDecember,
+      monthly_all_in_needed: monthlyAllInNeeded,
+      shortfall_by_december: yearEndShortfall,
+      surplus_by_december: yearEndSurplus,
+      monthly_extra_needed: monthlyExtraNeeded,
+      on_track: yearEndShortfall <= 0,
+      recommended_cuts: buildFertilityCutRecommendations(
+        budgetCategories
+          .filter(b => b.budget_type === 'wants')
+          .map(b => ({ category: b.category, icon: b.icon, budget: b.budget })),
+        monthlyExtraNeeded,
+      ),
+    },
     fertility_plan: {
       name: FERTILITY_TREATMENT_PLAN.name,
       range_min: FERTILITY_TREATMENT_PLAN.minTotal,
@@ -413,7 +445,7 @@ export async function GET(req: NextRequest) {
       end_month: FERTILITY_TREATMENT_PLAN.endMonth,
       monthly_events: FERTILITY_TREATMENT_PLAN.events,
       remaining_events: remainingTreatmentEvents,
-      remaining_amount: remainingTreatmentEvents.reduce((s, event) => s + event.amount, 0),
+      remaining_amount: remainingTreatmentAmount,
       current_month_commitment: treatmentMonthlyCommitment,
       current_month_event: currentTreatmentEvent,
       total_goal_monthly_needed: totalGoalMonthlyNeeded,
