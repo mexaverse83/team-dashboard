@@ -11,6 +11,13 @@ const supabase = createClient(
 
 const FREQ_DIVISOR: Record<string, number> = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 }
 
+type SummaryBudgetRow = {
+  category_id: string
+  month?: string | null
+  amount: number
+  budget_type?: string | null
+}
+
 export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
@@ -20,6 +27,7 @@ export async function GET(req: NextRequest) {
   const start = new Date(now.getFullYear(), now.getMonth() - months + 1, 1)
   const startStr = start.toISOString().slice(0, 10)
   const endStr = now.toISOString().slice(0, 10)
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   const [
     { data: transactions },
@@ -48,6 +56,24 @@ export async function GET(req: NextRequest) {
   ])
 
   const catMap = new Map((categories || []).map(c => [c.id, c]))
+  const budgetRows = (budgets || []) as SummaryBudgetRow[]
+  const activeBudgetRows = Object.values(
+    budgetRows.reduce((acc: Record<string, SummaryBudgetRow>, budget) => {
+      const categoryId = budget.category_id
+      if (!categoryId) return acc
+
+      const budgetMonth = String(budget.month || '').slice(0, 7)
+      const current = acc[categoryId]
+      const currentBudgetMonth = current ? String(current.month || '').slice(0, 7) : ''
+
+      // Use one active budget per category: prefer the latest budget at or before
+      // the current month; if only future budgets exist, use the latest of those.
+      const budgetRank = `${budgetMonth <= currentMonthStr ? '1' : '0'}-${budgetMonth}`
+      const currentRank = current ? `${currentBudgetMonth <= currentMonthStr ? '1' : '0'}-${currentBudgetMonth}` : ''
+      if (!current || budgetRank > currentRank) acc[categoryId] = budget
+      return acc
+    }, {})
+  )
 
   // Income — combine finance_income_sources (typed) and finance_recurring_income (per-owner)
   const incSources = (incomeSources || []).map(s => ({
@@ -79,7 +105,7 @@ export async function GET(req: NextRequest) {
 
   const spendByCategory = Object.entries(catSpend).map(([catId, total]) => {
     const cat = catMap.get(catId)
-    const bgt = (budgets || []).find(b => b.category_id === catId)
+    const bgt = activeBudgetRows.find(b => b.category_id === catId)
     return {
       category: cat?.name || 'Uncategorized',
       icon: cat?.icon || '📦',
@@ -99,7 +125,7 @@ export async function GET(req: NextRequest) {
   const spendByMonth = Object.entries(byMonth).sort().map(([month, total]) => ({ month, total: Math.round(total) }))
 
   // Budgets
-  const budgetCategories = (budgets || []).map(b => {
+  const budgetCategories = activeBudgetRows.map(b => {
     const cat = catMap.get(b.category_id)
     const spent = catSpend[b.category_id] || 0
     const budgetType = b.budget_type || defaultBudgetType(cat?.name || '')
@@ -166,7 +192,6 @@ export async function GET(req: NextRequest) {
   const fixedCommitments = totalBudgeted + instMonthly + debtItems.reduce((s, d) => s + d.minimum, 0)
 
   // Current month budget vs actual with pace
-  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const dayOfMonth = now.getDate()
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
   const monthProgress = dayOfMonth / daysInMonth
@@ -184,7 +209,7 @@ export async function GET(req: NextRequest) {
     currentMonthCatSpend[k] = (currentMonthCatSpend[k] || 0) + (t.amount_mxn || t.amount || 0)
   })
 
-  const budgetVsActual = (budgets || []).map(b => {
+  const budgetVsActual = activeBudgetRows.map(b => {
     const cat = catMap.get(b.category_id)
     const billingCycle = cat?.billing_cycle || 'monthly'
     const cycleMonths = CYCLE_MONTHS[billingCycle] || 1
@@ -391,6 +416,8 @@ export async function GET(req: NextRequest) {
       remaining_amount: remainingTreatmentEvents.reduce((s, event) => s + event.amount, 0),
       current_month_commitment: treatmentMonthlyCommitment,
       current_month_event: currentTreatmentEvent,
+      total_goal_monthly_needed: totalGoalMonthlyNeeded,
+      monthly_free_cash: discretionary,
       discretionary_after_treatment: discretionary - treatmentMonthlyCommitment,
       monthly_gap_to_keep_goals: treatmentMonthlyGap,
       fully_funded_with_goals: treatmentMonthlyGap <= 0,

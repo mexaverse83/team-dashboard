@@ -53,7 +53,7 @@ interface Summary {
   emergency_fund: { current: number; target: number; months_covered: number }
   goals: { active: Array<{ name: string; target: number; current: number; pct: number; monthly_needed: number; on_track: boolean }> }
   cash_flow: { monthly_income: number; fixed_commitments: number; discretionary_available: number }
-  goal_funding: { gap: number; fully_funded: boolean }
+  goal_funding: { total_monthly_needed: number; discretionary_available: number; gap: number; fully_funded: boolean }
   fertility_plan: {
     name: string
     range_min: number
@@ -63,6 +63,8 @@ interface Summary {
     end_month: string
     remaining_amount: number
     current_month_commitment: number
+    total_goal_monthly_needed: number
+    monthly_free_cash: number
     discretionary_after_treatment: number
     monthly_gap_to_keep_goals: number
     fully_funded_with_goals: boolean
@@ -185,8 +187,8 @@ function buildAlerts(summary: Summary | null, forecast: Forecast | null, recentT
     alerts.push({
       id: 'fertility-plan-gap',
       severity: 'danger',
-      title: `Fertility treatment gap: ${fmtMoney(summary.fertility_plan.monthly_gap_to_keep_goals, { compact: true })}/mo`,
-      description: `The May-July plan uses ${fmtMoney(summary.fertility_plan.planning_total, { compact: true })}. Close this temporary gap to keep year goals on track.`,
+      title: `Treatment shortfall: ${fmtMoney(summary.fertility_plan.monthly_gap_to_keep_goals, { compact: true })} for the next payment month`,
+      description: `Free cash minus treatment payment minus goal funding. Use the plan card to decide what to cut, delay, or cover from savings.`,
       action: { label: 'Review plan', href: '#fertility-plan' },
       weight: 98,
     })
@@ -428,8 +430,12 @@ function FertilityPlanCard({ summary }: { summary: Summary | null }) {
   const paid = plan.planning_total - plan.remaining_amount
   const progress = plan.planning_total > 0 ? Math.round((paid / plan.planning_total) * 100) : 0
   const next = plan.current_month_event ?? plan.remaining_events[0] ?? null
+  const nextPayment = next?.amount ?? plan.current_month_commitment
   const gap = plan.monthly_gap_to_keep_goals
   const hasGap = gap > 0
+  const totalRecommendedCuts = plan.recommended_cuts.reduce((s, cut) => s + cut.cut_amount, 0)
+  const remainingAfterCuts = Math.max(0, gap - totalRecommendedCuts)
+  const formulaResult = plan.monthly_free_cash - nextPayment - plan.total_goal_monthly_needed
 
   return (
     <div id="fertility-plan">
@@ -441,16 +447,16 @@ function FertilityPlanCard({ summary }: { summary: Summary | null }) {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <HeartPulse className={cn('h-5 w-5', hasGap ? 'text-rose-400' : 'text-emerald-400')} />
-              <h3 className="text-base font-semibold">Fertility treatment plan</h3>
+              <h3 className="text-base font-semibold">Fertility treatment reserve</h3>
             </div>
             <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
-              May-July 2026 · conservative plan {fmtMoney(plan.planning_total)} ({fmtMoney(plan.range_min)}-{fmtMoney(plan.range_max)})
+              May-July 2026 · planning with the high estimate {fmtMoney(plan.planning_total)} ({fmtMoney(plan.range_min)}-{fmtMoney(plan.range_max)})
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:min-w-[520px]">
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Remaining</p>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Unpaid total</p>
               <p className="text-lg font-bold tabular-nums text-rose-400">{fmtMoney(plan.remaining_amount, { compact: true })}</p>
             </div>
             <div>
@@ -458,18 +464,34 @@ function FertilityPlanCard({ summary }: { summary: Summary | null }) {
               <p className="text-lg font-bold tabular-nums">{next ? fmtMoney(next.amount, { compact: true }) : '-'}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Goal gap</p>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly shortfall</p>
               <p className={cn('text-lg font-bold tabular-nums', hasGap ? 'text-rose-400' : 'text-emerald-400')}>
                 {hasGap ? fmtMoney(gap, { compact: true }) : '$0'}
               </p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">After treatment</p>
+              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Free after payment</p>
               <p className={cn('text-lg font-bold tabular-nums', plan.discretionary_after_treatment >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
                 {fmtMoney(plan.discretionary_after_treatment, { compact: true })}
               </p>
             </div>
           </div>
+        </div>
+
+        <div className={cn(
+          'mt-4 rounded-lg border px-3 py-2 text-xs',
+          hasGap ? 'border-rose-500/25 bg-rose-500/5' : 'border-emerald-500/25 bg-emerald-500/5'
+        )}>
+          <p className="font-medium">
+            Free cash {fmtMoney(plan.monthly_free_cash)} - next treatment payment {fmtMoney(nextPayment)} - goals {fmtMoney(plan.total_goal_monthly_needed)}
+            {' = '}
+            <span className={cn(formulaResult >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
+              {formulaResult >= 0 ? `${fmtMoney(formulaResult)} available` : `${fmtMoney(Math.abs(formulaResult))} short`}
+            </span>
+          </p>
+          <p className="mt-1 text-[hsl(var(--text-tertiary))]">
+            This is a monthly cash-flow check, not the full treatment cost.
+          </p>
         </div>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-5">
@@ -500,7 +522,7 @@ function FertilityPlanCard({ summary }: { summary: Summary | null }) {
           <div className="lg:col-span-3">
             <div className="flex items-center gap-2 mb-2">
               <Scissors className="h-4 w-4 text-amber-400" />
-              <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">Temporary cuts to keep 2026 goals intact</span>
+              <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">Suggested temporary monthly cuts</span>
             </div>
             {hasGap ? (
               plan.recommended_cuts.length > 0 ? (
@@ -527,7 +549,8 @@ function FertilityPlanCard({ summary }: { summary: Summary | null }) {
                   ))}
                   {plan.deferred_catch_up_monthly > 0 && (
                     <p className="text-[10px] text-[hsl(var(--text-tertiary))] pt-1">
-                      If not cut now, catch-up pressure after July is about {fmtMoney(plan.deferred_catch_up_monthly)}/mo through December.
+                      These cuts cover {fmtMoney(totalRecommendedCuts)} of the shortfall.
+                      {remainingAfterCuts > 0 ? ` Remaining pressure: ${fmtMoney(remainingAfterCuts)}.` : ' Shortfall covered.'}
                     </p>
                   )}
                 </div>
