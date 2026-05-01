@@ -29,6 +29,9 @@ export async function GET(req: NextRequest) {
   const endStr = now.toISOString().slice(0, 10)
   const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
+  const currentMonthStart = `${currentMonthStr}-01`
+  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10)
+
   const [
     { data: transactions },
     { data: categories },
@@ -41,6 +44,7 @@ export async function GET(req: NextRequest) {
     { data: incomeSources },
     { data: recurringIncome },
     { data: cryptoHoldings },
+    { data: currentMonthIncomeTxs },
   ] = await Promise.all([
     supabase.from('finance_transactions').select('*').gte('transaction_date', startStr).lte('transaction_date', endStr).eq('type', 'expense'),
     supabase.from('finance_categories').select('*'),
@@ -53,6 +57,7 @@ export async function GET(req: NextRequest) {
     supabase.from('finance_income_sources').select('*').eq('is_active', true),
     supabase.from('finance_recurring_income').select('*').eq('active', true),
     supabase.from('finance_crypto_holdings').select('*'),
+    supabase.from('finance_transactions').select('amount_mxn,amount').gte('transaction_date', currentMonthStart).lte('transaction_date', currentMonthEnd).eq('type', 'income'),
   ])
 
   const catMap = new Map((categories || []).map(c => [c.id, c]))
@@ -285,8 +290,11 @@ export async function GET(req: NextRequest) {
   const totalGoalSaved = activeGoals.reduce((s, g) => s + (g.current || 0), 0)
   const totalGoalRemaining = Math.max(0, totalGoalTarget - totalGoalSaved)
   const totalNeededByDecember = totalGoalRemaining + remainingTreatmentAmount
-  // Month-by-month projection: adds future income sources as they kick in
-  let projectedFreeCashByDecember = 0
+  // Extra income already received this month beyond what's in the recurring base
+  const currentMonthActualIncome = (currentMonthIncomeTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
+  const currentMonthExtraIncome = Math.max(0, currentMonthActualIncome - totalMonthlyIncome)
+  // Month-by-month projection: starts with current month extra, then adds future months
+  let projectedFreeCashByDecember = currentMonthExtraIncome
   for (let m = 1; m <= monthsToDecember; m++) {
     const projDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + m, 1))
     const projDateStr = projDate.toISOString().slice(0, 10)
