@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
     { data: recurringIncome },
     { data: cryptoHoldings },
     { data: currentMonthIncomeTxs },
+    { data: fertilityPaidTxs },
   ] = await Promise.all([
     supabase.from('finance_transactions').select('*').gte('transaction_date', startStr).lte('transaction_date', endStr).eq('type', 'expense'),
     supabase.from('finance_categories').select('*'),
@@ -58,6 +59,7 @@ export async function GET(req: NextRequest) {
     supabase.from('finance_recurring_income').select('*').eq('active', true),
     supabase.from('finance_crypto_holdings').select('*'),
     supabase.from('finance_transactions').select('amount_mxn,amount').gte('transaction_date', currentMonthStart).lte('transaction_date', currentMonthEnd).eq('type', 'income'),
+    supabase.from('finance_transactions').select('amount_mxn,amount').contains('tags', ['fertility']).eq('type', 'expense'),
   ])
 
   const catMap = new Map((categories || []).map(c => [c.id, c]))
@@ -279,7 +281,8 @@ export async function GET(req: NextRequest) {
 
   // Fertility treatment stress plan: conservative 170k MXN total, May-July 2026.
   const remainingTreatmentEvents = getRemainingTreatmentEvents(now)
-  const remainingTreatmentAmount = remainingTreatmentEvents.reduce((s, event) => s + event.amount, 0)
+  const alreadyPaidFertility = (fertilityPaidTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
+  const remainingTreatmentAmount = Math.max(0, remainingTreatmentEvents.reduce((s, event) => s + event.amount, 0) - alreadyPaidFertility)
   const currentTreatmentEvent = getTreatmentEventForMonth(currentMonthStr) ?? remainingTreatmentEvents[0] ?? null
   const treatmentMonthlyCommitment = currentTreatmentEvent?.amount ?? 0
   const treatmentMonthlyGap = Math.max(0, totalGoalMonthlyNeeded + treatmentMonthlyCommitment - discretionary)
