@@ -909,22 +909,28 @@ export default function CommandCenterClient() {
     const m = summary.current_month
     const monthProgress = m.day_of_month / Math.max(m.days_in_month, 1)
 
-    // Tighter overshoot detection: only flag if projected > 110% AND we're not
-    // already past day 28 (avoids noise late in the month from one-off charges).
-    const overshootCats = m.budget_vs_actual.filter(c =>
+    // Pace projections are meaningless before day 7 — recurring bills (rent,
+    // utilities) all hit on day 1 and make linear extrapolation wildly wrong.
+    const enoughDaysElapsed = m.day_of_month >= 7
+
+    const overshootCats = enoughDaysElapsed ? m.budget_vs_actual.filter(c =>
       !c.is_non_monthly &&
       c.budget > 0 &&
       c.projected_month_total > c.budget * 1.10 &&
-      c.pct_used > 50  // ignore early-month single-tx noise
-    )
+      c.pct_used > 50
+    ) : []
 
     // Project month-end spend from actuals: scale linearly to full month
     const projectedSpend = monthProgress > 0 ? totalSpent / monthProgress : totalSpent
     const projectedNet = totalIncome - projectedSpend
-    const projectedRate = totalIncome > 0 ? Math.round((projectedNet / totalIncome) * 100) : null
+    const projectedRate = (totalIncome > 0 && enoughDaysElapsed) ? Math.round((projectedNet / totalIncome) * 100) : null
 
     if (totalIncome === 0) {
       return { tone: 'info' as const, msg: `Day ${m.day_of_month} of ${m.days_in_month}. No income recorded yet — process recurring or add transactions.` }
+    }
+
+    if (!enoughDaysElapsed) {
+      return { tone: 'info' as const, msg: `Day ${m.day_of_month} of ${m.days_in_month} — recurring bills just landed. Pace projections stabilize after day 7.` }
     }
 
     if (overshootCats.length === 0 && projectedRate !== null && projectedRate >= 20) {
