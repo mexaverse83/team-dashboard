@@ -83,11 +83,23 @@ export async function GET(req: NextRequest) {
   }))
   // Recurring income: monthly = amount, bimonthly = amount/2, annual = amount/12
   const RI_DIVISOR: Record<string, number> = { monthly: 1, bimonthly: 2, annual: 12 }
-  const riSources = (recurringIncome || []).map(r => ({
+  const todayStr = now.toISOString().slice(0, 10)
+  // Split: current (started already) vs future (start_date in the future)
+  const currentRI = (recurringIncome || []).filter(r => !r.start_date || r.start_date <= todayStr)
+  const futureRI = (recurringIncome || []).filter(r => r.start_date && r.start_date > todayStr)
+  const riSources = currentRI.map(r => ({
     name: r.name,
     type: r.category || 'recurring_income',
     owner: r.owner,
     monthly_amount: Math.round(r.amount / (RI_DIVISOR[r.recurrence] || 1)),
+    start_date: r.start_date ?? null,
+  }))
+  const futureRISources = futureRI.map(r => ({
+    name: r.name,
+    type: r.category || 'recurring_income',
+    owner: r.owner,
+    monthly_amount: Math.round(r.amount / (RI_DIVISOR[r.recurrence] || 1)),
+    start_date: r.start_date as string,
   }))
   const totalMonthlyIncome =
     incSources.reduce((s, i) => s + i.monthly_amount, 0) +
@@ -273,7 +285,16 @@ export async function GET(req: NextRequest) {
   const totalGoalSaved = activeGoals.reduce((s, g) => s + (g.current || 0), 0)
   const totalGoalRemaining = Math.max(0, totalGoalTarget - totalGoalSaved)
   const totalNeededByDecember = totalGoalRemaining + remainingTreatmentAmount
-  const projectedFreeCashByDecember = discretionary * monthsToDecember
+  // Month-by-month projection: adds future income sources as they kick in
+  let projectedFreeCashByDecember = 0
+  for (let m = 1; m <= monthsToDecember; m++) {
+    const projDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + m, 1))
+    const projDateStr = projDate.toISOString().slice(0, 10)
+    const additionalIncome = futureRISources
+      .filter(r => r.start_date <= projDateStr)
+      .reduce((s, r) => s + r.monthly_amount, 0)
+    projectedFreeCashByDecember += discretionary + additionalIncome
+  }
   const yearEndShortfall = Math.max(0, totalNeededByDecember - projectedFreeCashByDecember)
   const yearEndSurplus = Math.max(0, projectedFreeCashByDecember - totalNeededByDecember)
   const monthlyAllInNeeded = Math.ceil(totalNeededByDecember / monthsToDecember)
@@ -379,7 +400,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     period: { start: startStr, end: endStr },
-    income: { sources: incSources, recurring: riSources, total_monthly: totalMonthlyIncome },
+    income: { sources: incSources, recurring: riSources, future_recurring: futureRISources, total_monthly: totalMonthlyIncome },
     spending: { by_category: spendByCategory, total_monthly_avg: monthlyAvgSpend, by_month: spendByMonth },
     budgets: {
       total_budgeted: budgetCategories.reduce((s, b) => s + b.budget, 0),

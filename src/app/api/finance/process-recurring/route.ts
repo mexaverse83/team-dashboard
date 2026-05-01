@@ -229,6 +229,12 @@ async function processRecurring(req: NextRequest) {
       continue
     }
 
+    // Skip if start_date hasn't arrived yet
+    if (ri.start_date && ri.start_date > today) {
+      results.skipped++
+      continue
+    }
+
     // Duplicate guard: skip if already registered this month
     const { data: existing } = await supabase
       .from('finance_transactions')
