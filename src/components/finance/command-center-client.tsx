@@ -17,6 +17,7 @@ import { SkeletonKPI } from '@/components/ui/skeleton-card'
 import { ForecastChart } from '@/components/finance/forecast-chart'
 import { BillsTimeline, type ForecastEvent } from '@/components/finance/bills-timeline'
 import { WestCompactWidget } from '@/components/finance/west-tracker'
+import { WeekendBudgetCard } from '@/components/finance/weekend-budget'
 import { OwnerBar } from '@/components/finance/owner-dot'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
@@ -1080,6 +1081,9 @@ export default function CommandCenterClient() {
             />
           )}
         </div>
+
+        {/* ── Weekend Budget ──────────────────────────────── */}
+        <WeekendBudgetCard transactions={transactions} categories={categories} />
 
         {/* ── Smart Alerts ──────────────────────────────── */}
         {alerts.length > 0 && (
