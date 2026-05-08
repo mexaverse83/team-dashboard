@@ -258,7 +258,8 @@ export default function TransactionsClient() {
 
   // Save (create or update)
   const handleSave = async () => {
-    if (!form.amount || !form.category_id || !form.transaction_date) return
+    if (!form.amount || !form.transaction_date) return
+    if (!editingId && !form.category_id) return
     if (possibleDuplicates.length > 0 && !confirmDuplicate && !editingId) {
       setConfirmDuplicate(true)
       return
@@ -274,7 +275,7 @@ export default function TransactionsClient() {
       amount: amt,
       currency: form.currency,
       amount_mxn: amtMxn,
-      category_id: form.category_id,
+      category_id: form.category_id || null,
       merchant: form.merchant || null,
       description: form.description || null,
       transaction_date: form.transaction_date,
@@ -890,7 +891,7 @@ export default function TransactionsClient() {
             )
           })()}
 
-          <button type="submit" disabled={saving || !form.amount || !form.category_id}
+          <button type="submit" disabled={saving || !form.amount || (!editingId && !form.category_id)}
             className={cn("w-full py-2.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50",
               form.type === 'expense' ? "bg-rose-600 hover:bg-rose-500" : "bg-emerald-600 hover:bg-emerald-500"
             )}>
