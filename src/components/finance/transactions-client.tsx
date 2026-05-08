@@ -19,6 +19,17 @@ import { applyRules, detectDuplicates, type FinanceRule } from '@/lib/finance-ru
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 const labelCls = "text-xs text-[hsl(var(--text-secondary))] mb-1 block"
 
+const QUICK_TAGS: { value: string; label: string }[] = [
+  { value: 'fertility', label: '🧬 Fertility' },
+]
+
+function parseTagString(s: string): string[] {
+  return s.split(',').map(t => t.trim()).filter(Boolean)
+}
+function serializeTags(tags: string[]): string {
+  return tags.join(', ')
+}
+
 function today() { return new Date().toISOString().slice(0, 10) }
 
 function parseCsvLine(line: string): string[] {
@@ -798,14 +809,39 @@ export default function TransactionsClient() {
             </div>
           </div>
 
+          {/* Tags */}
+          <div>
+            <label className={labelCls}>Tags</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {QUICK_TAGS.map(({ value, label }) => {
+                const active = parseTagString(form.tags).includes(value)
+                return (
+                  <button key={value} type="button"
+                    onClick={() => {
+                      const current = parseTagString(form.tags)
+                      const next = active ? current.filter(t => t !== value) : [...current, value]
+                      updateForm({ tags: serializeTags(next) })
+                    }}
+                    className={cn("px-3 py-1 rounded-full text-xs font-medium border transition-all",
+                      active
+                        ? "border-blue-500 bg-blue-500/10 text-blue-400"
+                        : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))]"
+                    )}>
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+            <input placeholder="Other tags (comma-separated)" value={form.tags}
+              onChange={e => updateForm({ tags: e.target.value })} className={inputCls} />
+          </div>
+
           {/* More Options */}
           <details>
             <summary className="text-xs text-[hsl(var(--text-secondary))] cursor-pointer">More options</summary>
             <div className="mt-2 space-y-3">
               <textarea placeholder="Notes..." rows={2} value={form.description}
                 onChange={e => updateForm({ description: e.target.value })} className={inputCls} />
-              <input placeholder="Tags (comma-separated)" value={form.tags}
-                onChange={e => updateForm({ tags: e.target.value })} className={inputCls} />
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={form.is_recurring}
                   onChange={e => updateForm({ is_recurring: e.target.checked })} className="rounded" />
