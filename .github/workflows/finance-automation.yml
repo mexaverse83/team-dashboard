@@ -1,0 +1,89 @@
+name: Finance Automation
+
+# Reliable external trigger for the finance cron endpoints.
+# Replaces flaky Vercel Hobby crons. Everything the endpoints do is idempotent
+# (catch-up loops + dupe guards), so running this multiple times a day is safe
+# and gives redundancy against GitHub's own scheduler delays.
+
+on:
+  schedule:
+    - cron: '0 12 * * *'   # 12:00 UTC — primary daily run
+    - cron: '0 18 * * *'   # 18:00 UTC — backup run (idempotent, covers a missed/delayed primary)
+  workflow_dispatch: {}    # manual "Run workflow" button in the Actions tab
+
+concurrency:
+  group: finance-automation
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    env:
+      BASE_URL: ${{ vars.FINANCE_BASE_URL || 'https://finance.autonomis.co' }}
+      API_KEY: ${{ secrets.FINANCE_API_KEY }}
+    steps:
+      - name: Preflight — required secret present
+        run: |
+          if [ -z "$API_KEY" ]; then
+            echo "::error::FINANCE_API_KEY repository secret is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Process recurring transactions
+        run: |
+          set -euo pipefail
+          URL="$BASE_URL/api/finance/process-recurring"
+          attempt=0
+          max=5
+          while :; do
+            attempt=$((attempt+1))
+            echo "── Attempt $attempt/$max → POST $URL"
+            code=$(curl -sS -o resp.json -w '%{http_code}' -X POST "$URL" \
+              -H "x-api-key: $API_KEY" -H 'content-type: application/json' || echo 000)
+            echo "HTTP $code"; cat resp.json | jq . 2>/dev/null || cat resp.json; echo
+
+            if [ "$code" = "200" ]; then
+              # Fail the run if the processor itself reported per-item errors.
+              err_count=$(jq '(.results.errors // []) | length' resp.json 2>/dev/null || echo 0)
+              if [ "$err_count" -gt 0 ]; then
+                echo "::error::process-recurring returned $err_count error(s):"
+                jq -r '.results.errors[]' resp.json
+                exit 1
+              fi
+              created=$(jq -r '.total_created // 0' resp.json 2>/dev/null || echo 0)
+              echo "::notice::process-recurring OK — created $created transaction(s)."
+              break
+            fi
+
+            if [ "$attempt" -ge "$max" ]; then
+              echo "::error::process-recurring failed after $max attempts (last HTTP $code)."
+              exit 1
+            fi
+            sleep $((attempt*attempt*5))   # 5s, 20s, 45s, 80s backoff
+          done
+
+      - name: Snapshot net worth
+        if: always()   # run even if the step above failed, so the snapshot isn't skipped
+        run: |
+          set -euo pipefail
+          URL="$BASE_URL/api/finance/net-worth"
+          attempt=0
+          max=5
+          while :; do
+            attempt=$((attempt+1))
+            echo "── Attempt $attempt/$max → POST $URL"
+            code=$(curl -sS -o resp.json -w '%{http_code}' -X POST "$URL" \
+              -H "x-api-key: $API_KEY" -H 'content-type: application/json' || echo 000)
+            echo "HTTP $code"; cat resp.json | jq . 2>/dev/null || cat resp.json; echo
+
+            if [ "$code" = "200" ]; then
+              echo "::notice::net-worth snapshot OK."
+              break
+            fi
+
+            if [ "$attempt" -ge "$max" ]; then
+              echo "::error::net-worth failed after $max attempts (last HTTP $code)."
+              exit 1
+            fi
+            sleep $((attempt*attempt*5))
+          done
