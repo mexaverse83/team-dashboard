@@ -279,10 +279,11 @@ export async function GET(req: NextRequest) {
   const discretionary = totalMonthlyIncome - fixedCommitments
   const goalFundingGap = totalGoalMonthlyNeeded - discretionary
 
-  // Fertility treatment stress plan: conservative 170k MXN total, May-July 2026.
+  // Fertility treatment plan: 260k MXN all-in (clinic + meds + tests), May-Jul 2026.
+  // Remaining = total budget minus everything already spent (fertility-tagged txs).
   const remainingTreatmentEvents = getRemainingTreatmentEvents(now)
   const alreadyPaidFertility = (fertilityPaidTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
-  const remainingTreatmentAmount = Math.max(0, remainingTreatmentEvents.reduce((s, event) => s + event.amount, 0) - alreadyPaidFertility)
+  const remainingTreatmentAmount = Math.max(0, FERTILITY_TREATMENT_PLAN.planningTotal - alreadyPaidFertility)
   const currentTreatmentEvent = getTreatmentEventForMonth(currentMonthStr) ?? remainingTreatmentEvents[0] ?? null
   const treatmentMonthlyCommitment = currentTreatmentEvent?.amount ?? 0
   const treatmentMonthlyGap = Math.max(0, totalGoalMonthlyNeeded + treatmentMonthlyCommitment - discretionary)

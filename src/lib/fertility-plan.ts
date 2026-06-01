@@ -23,13 +23,13 @@ export type CutRecommendation = {
 
 export const FERTILITY_TREATMENT_PLAN = {
   name: 'Fertility treatment',
-  minTotal: 150000,
-  maxTotal: 150000,
-  planningTotal: 150000,
+  minTotal: 260000,
+  maxTotal: 260000,
+  planningTotal: 260000,
   startMonth: '2026-05',
   endMonth: '2026-07',
   events: [
-    { date: '2026-05-15', month: '2026-05', amount: 50000, minAmount: 50000, maxAmount: 50000, label: 'Treatment payment 1' },
+    { date: '2026-05-15', month: '2026-05', amount: 92000, minAmount: 92000, maxAmount: 92000, label: 'Treatment payment 1' },
     { date: '2026-06-15', month: '2026-06', amount: 50000, minAmount: 50000, maxAmount: 50000, label: 'Treatment payment 2' },
     { date: '2026-07-15', month: '2026-07', amount: 50000, minAmount: 50000, maxAmount: 50000, label: 'Treatment payment 3' },
   ] satisfies TreatmentEvent[],
