@@ -42,10 +42,22 @@
   --danger: 0 84% 60%;
   --info: 217 91% 60%;
 
-  /* Text */
+  /* Text — secondary/tertiary lightened to clear ~4.5:1 contrast at small sizes */
   --text-primary: 0 0% 95%;
-  --text-secondary: 222 15% 55%;
-  --text-tertiary: 222 15% 45%;
+  --text-secondary: 222 14% 62%;
+  --text-tertiary: 222 13% 52%;
+
+  /* Elevation ladder — surfaces step lighter as they rise toward the viewer.
+     These were referenced throughout the app but previously undefined, so any
+     style using them (progress tracks, insets, hover states) silently rendered
+     transparent. Defining them here wires up the whole system. */
+  --bg-base: 222 47% 3%;        /* page background tier */
+  --bg-surface: 222 44% 7%;     /* cards / panels */
+  --bg-elevated: 222 33% 13%;   /* raised insets: progress tracks, hover, chips */
+  --border-subtle: 222 18% 10%; /* fainter divider than --border */
+
+  /* Elevation shadow token */
+  --shadow-elevate: 0 1px 2px hsl(222 47% 1% / 0.5), 0 6px 20px -8px hsl(222 47% 0% / 0.55);
 }
 
 * {
@@ -141,10 +153,15 @@ select option:hover {
   background-color: hsl(222 47% 15%);
 }
 
-/* Glass card */
+/* Surface card (formerly heavy glass). On a near-flat dark page there is little
+   behind a card to blur, so the blanket 12px backdrop-filter cost GPU for almost
+   no visual payoff. This reads as a solid elevated surface: more opaque fill,
+   stronger border for separation, a light blur kept only for overlap with charts,
+   and a real shadow for depth. Reserve heavier glass for modals/overlays. */
 .glass {
-  background: hsl(222 47% 6% / 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid hsl(222 20% 18% / 0.5);
+  background: hsl(222 44% 8% / 0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid hsl(222 22% 20% / 0.7);
+  box-shadow: var(--shadow-elevate);
 }
