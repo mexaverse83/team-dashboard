@@ -24,6 +24,12 @@ export async function authorizeFinanceRequest(
   req: NextRequest,
   options: FinanceAuthOptions = {},
 ): Promise<AuthOk | AuthFail> {
+  // Local-only bypass, mirrors FinanceAuthGuard's: NODE_ENV is 'production'
+  // in every deployed build, so this branch cannot exist outside `npm run dev`.
+  if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_AUTH_BYPASS === '1') {
+    return { ok: true, method: 'user' }
+  }
+
   if (hasValidApiKey(req)) return { ok: true, method: 'api-key' }
 
   if (options.allowCron) {

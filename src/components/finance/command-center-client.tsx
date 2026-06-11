@@ -11,8 +11,6 @@ import { SkeletonKPI } from '@/components/ui/skeleton-card'
 import { ForecastChart } from '@/components/finance/forecast-chart'
 import { BillsTimeline } from '@/components/finance/bills-timeline'
 import { WestCompactWidget } from '@/components/finance/west-tracker'
-import { WeekendBudgetCard } from '@/components/finance/weekend-budget'
-import { OwnerBar } from '@/components/finance/owner-dot'
 import { supabase } from '@/lib/supabase'
 import { ownersEqual } from '@/lib/owners'
 import { cn } from '@/lib/utils'
@@ -23,6 +21,10 @@ import { buildAlerts } from './command-center/alerts'
 import { KpiCard, SectionHeader } from './command-center/ui'
 import { BudgetPaceCard } from './command-center/budget-pace'
 import { PlansSection } from './command-center/plans'
+
+// december-target-gap / fertility-plan-* restate the Plans cards below —
+// the alert strip links to plans instead of repeating their numbers
+const PLAN_OWNED_ALERTS = new Set(['december-target-gap', 'fertility-plan-gap', 'fertility-plan-covered'])
 
 export default function CommandCenterClient() {
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -83,9 +85,11 @@ export default function CommandCenterClient() {
   }, [monthTxs])
 
   const alerts = useMemo(
-    () => buildAlerts(summary, forecast, transactions).filter(a => !dismissedAlerts.has(a.id)),
+    () => buildAlerts(summary, forecast, transactions)
+      .filter(a => !dismissedAlerts.has(a.id) && !PLAN_OWNED_ALERTS.has(a.id)),
     [summary, forecast, transactions, dismissedAlerts]
   )
+  const [alertsExpanded, setAlertsExpanded] = useState(false)
 
   const dismissAlert = (id: string) => setDismissedAlerts(s => new Set([...s, id]))
 
@@ -189,6 +193,14 @@ export default function CommandCenterClient() {
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Spent</p>
                   <p className="text-lg font-bold tabular-nums text-rose-400">−{fmtMoney(totalSpent, { compact: true })}</p>
                 </div>
+                {forecast && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">60d low</p>
+                    <p className={cn('text-lg font-bold tabular-nums', forecast.summary.min_balance.balance >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
+                      {fmtMoney(forecast.summary.min_balance.balance, { compact: true })}
+                    </p>
+                  </div>
+                )}
                 {summary && (
                   <div className="min-w-[110px]">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">
@@ -253,7 +265,7 @@ export default function CommandCenterClient() {
             value={fmtMoney(totalSpent, { compact: true })}
             sublabel={
               <span className="flex items-center justify-between">
-                <span className="text-[hsl(var(--text-tertiary))]">Daily spend trend</span>
+                <span><span className="text-blue-400">B</span> {fmtMoney(bernardoSpent, { compact: true })} · <span className="text-pink-400">L</span> {fmtMoney(lauraSpent, { compact: true })}</span>
                 <span className="text-[hsl(var(--text-tertiary))]">{fmtMoney(totalIncome, { compact: true })} in</span>
               </span>
             }
@@ -305,7 +317,7 @@ export default function CommandCenterClient() {
               subtitle={`${alerts.length} ${alerts.length === 1 ? 'item' : 'items'} ranked by priority`}
             />
             <div className="grid gap-2 md:grid-cols-2">
-              {alerts.map(alert => (
+              {(alertsExpanded ? alerts : alerts.slice(0, 3)).map(alert => (
                 <AlertCard
                   key={alert.id}
                   severity={alert.severity}
@@ -316,6 +328,15 @@ export default function CommandCenterClient() {
                 />
               ))}
             </div>
+            {alerts.length > 3 && (
+              <button
+                type="button"
+                onClick={() => setAlertsExpanded(e => !e)}
+                className="mt-2 text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))] transition-colors"
+              >
+                {alertsExpanded ? 'Show less' : `Show ${alerts.length - 3} more`}
+              </button>
+            )}
           </div>
         )}
 
@@ -391,28 +412,6 @@ export default function CommandCenterClient() {
               )}
             </GlassCard>
 
-            <WeekendBudgetCard transactions={transactions} categories={categories} />
-
-            {(bernardoSpent > 0 || lauraSpent > 0) && (
-              <GlassCard>
-                <SectionHeader title="Spend by owner" subtitle="This month" />
-                <OwnerBar bernardo={bernardoSpent} laura={lauraSpent} />
-                <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="flex items-center gap-1.5 text-[hsl(var(--text-secondary))]">
-                      <span className="h-2 w-2 rounded-full bg-blue-500" /> Bernardo
-                    </span>
-                    <p className="text-sm font-bold tabular-nums mt-1">{fmtMoney(bernardoSpent, { compact: true })}</p>
-                  </div>
-                  <div>
-                    <span className="flex items-center gap-1.5 text-[hsl(var(--text-secondary))]">
-                      <span className="h-2 w-2 rounded-full bg-pink-500" /> Laura
-                    </span>
-                    <p className="text-sm font-bold tabular-nums mt-1">{fmtMoney(lauraSpent, { compact: true })}</p>
-                  </div>
-                </div>
-              </GlassCard>
-            )}
           </div>
         </div>
 
@@ -426,7 +425,7 @@ export default function CommandCenterClient() {
             />
             {summary && summary.goals.active.length > 0 ? (
               <div className="grid gap-3 sm:grid-cols-2">
-                {summary.goals.active.slice(0, 4).map(g => (
+                {summary.goals.active.filter(g => g.target >= 100).slice(0, 4).map(g => (
                   <div key={g.name} className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--muted))]/40 border border-[hsl(var(--border))]">
                     <RadialProgress
                       value={g.pct}
@@ -470,7 +469,7 @@ export default function CommandCenterClient() {
           />
           {monthTxs.length > 0 ? (
             <div className="space-y-1.5">
-              {monthTxs.slice(0, 8).map(tx => (
+              {monthTxs.slice(0, 6).map(tx => (
                 <div key={tx.id} className="flex items-center gap-3 py-2 px-2 rounded-md hover:bg-[hsl(var(--muted))]/30 transition-colors">
                   <div className="h-9 w-9 rounded-lg flex items-center justify-center text-base shrink-0"
                     style={{ background: `${tx.category?.color || '#6B7280'}20` }}>
