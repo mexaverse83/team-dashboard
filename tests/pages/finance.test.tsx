@@ -24,12 +24,15 @@ vi.mock('recharts', () => ({
   Area: () => null,
   LineChart: ({ children }: any) => <div data-testid="line-chart">{children}</div>,
   Line: () => null,
+  BarChart: ({ children }: any) => <div data-testid="bar-chart">{children}</div>,
+  Bar: () => null,
   XAxis: () => null,
   YAxis: () => null,
   CartesianGrid: () => null,
   ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
   Tooltip: () => null,
   Legend: () => null,
+  ReferenceLine: () => null,
 }))
 
 // Mock SparklineChart
@@ -57,6 +60,13 @@ vi.mock('lucide-react', () => {
     CreditCard: i('creditcard'), Calculator: i('calculator'),
     Landmark: i('landmark'), ShieldCheck: i('shieldcheck'), Target: i('target'),
     Menu: i('menu'), X: i('x'),
+    // Icons added by newer finance components (weekend budget, rules, insights, etc.)
+    AlertCircle: i('alertcircle'), AlertTriangle: i('alerttriangle'),
+    ArrowDownLeft: i('arrowdownleft'), ArrowRight: i('arrowright'), ArrowUpRight: i('arrowupright'),
+    Bitcoin: i('bitcoin'), CalendarDays: i('calendardays'), Check: i('check'),
+    CheckCircle2: i('checkcircle2'), ChevronDown: i('chevrondown'), ChevronUp: i('chevronup'),
+    Clock: i('clock'), HeartPulse: i('heartpulse'), Info: i('info'), Lightbulb: i('lightbulb'),
+    Scissors: i('scissors'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
   }
 })
 
@@ -71,33 +81,55 @@ vi.mock('@/lib/pdf-parser', () => ({
   detectBankFormat: vi.fn().mockReturnValue('unknown'),
 }))
 
-// Mock framer-motion (for budget bars / savings rate)
+// Mock framer-motion (for budget bars / savings rate / svg gauges)
 vi.mock('framer-motion', () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
+    p: ({ children, ...props }: any) => <p {...props}>{children}</p>,
+    circle: (props: any) => <circle />,
   },
   AnimatePresence: ({ children }: any) => children,
 }))
+
+// Components call fetch() against /api/finance/* — return a graceful "not ok"
+// so widgets that depend on those endpoints render their fallback/null states.
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(() =>
+    Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}), text: () => Promise.resolve('') })
+  ))
+})
+
+// Pages filter budgets/transactions by the currently displayed month, so pin
+// the seed budgets to this month (computed the same way the components do).
+const THIS_MONTH = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 7)
+const CURRENT_MONTH_BUDGETS = SEED_BUDGETS.map(b => ({ ...b, month: `${THIS_MONTH}-01` }))
+
+// Generic chainable query builder: every filter/modifier returns the chain,
+// awaiting it resolves the table's mock result.
+function makeChain(res: any) {
+  const chain: any = {
+    then: (onFulfilled: any, onRejected: any) => Promise.resolve(res).then(onFulfilled, onRejected),
+  }
+  for (const m of ['select', 'order', 'eq', 'neq', 'gte', 'lte', 'lt', 'gt', 'in', 'ilike', 'limit', 'single', 'range', 'is']) {
+    chain[m] = vi.fn(() => chain)
+  }
+  return chain
+}
 
 function setupSupabaseMock(overrides: Record<string, any> = {}) {
   const defaults: Record<string, any> = {
     finance_categories: { data: SEED_CATEGORIES, error: null },
     finance_transactions: { data: SEED_TRANSACTIONS, error: null },
-    finance_budgets: { data: SEED_BUDGETS, error: null },
+    finance_budgets: { data: CURRENT_MONTH_BUDGETS, error: null },
     finance_recurring: { data: SEED_RECURRING, error: null },
   }
   const merged = { ...defaults, ...overrides }
 
   vi.mocked(supabase.from).mockImplementation((table: string) => {
     const res = merged[table] || { data: [], error: null }
-    const result = Promise.resolve(res)
     return {
-      select: vi.fn().mockReturnValue(
-        Object.assign(result, {
-          order: vi.fn().mockReturnValue(Object.assign(Promise.resolve(res), { eq: vi.fn().mockReturnValue(result) })),
-          eq: vi.fn().mockReturnValue(Object.assign(Promise.resolve(res), { order: vi.fn().mockReturnValue(result) })),
-        })
-      ),
+      select: vi.fn(() => makeChain(res)),
       insert: vi.fn().mockReturnValue(Promise.resolve({ data: [{}], error: null })),
       update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(Promise.resolve({ error: null })) }),
       delete: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(Promise.resolve({ error: null })) }),
@@ -180,8 +212,9 @@ describe('Finance Overview', () => {
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getByText('Recent Transactions')).toBeInTheDocument()
-      const link = screen.getByText('View all →')
-      expect(link.closest('a')).toHaveAttribute('href', '/finance/transactions')
+      // Several widgets render a "View all →" link — find the transactions one
+      const links = screen.getAllByText('View all →').map(el => el.closest('a'))
+      expect(links.some(a => a?.getAttribute('href') === '/finance/transactions')).toBe(true)
     })
   })
 
@@ -194,9 +227,14 @@ describe('Finance Overview', () => {
   })
 
   it('shows loading skeleton initially', async () => {
-    vi.mocked(supabase.from).mockImplementation(() => ({
-      select: vi.fn().mockReturnValue({ order: vi.fn().mockReturnValue(new Promise(() => {})) }),
-    } as any))
+    // Chainable builder whose promise never settles — keeps the page in loading state
+    vi.mocked(supabase.from).mockImplementation(() => {
+      const pending: any = { then: () => {} }
+      for (const m of ['select', 'order', 'eq', 'neq', 'gte', 'lte', 'lt', 'in', 'ilike', 'limit', 'single', 'range']) {
+        pending[m] = vi.fn(() => pending)
+      }
+      return pending as any
+    })
     const Comp = (await import('@/components/finance/overview-client')).default
     const { container } = render(<Comp />)
     expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0)
@@ -234,7 +272,8 @@ describe('Transactions Page', () => {
     const Comp = (await import('@/components/finance/transactions-client')).default
     render(<Comp />)
     await waitFor(() => {
-      expect(screen.getByText('All')).toBeInTheDocument()
+      // "All" appears in both the type filter and the owner filter
+      expect(screen.getAllByText('All').length).toBeGreaterThanOrEqual(1)
       expect(screen.getByText('↓ Expenses')).toBeInTheDocument()
       expect(screen.getByText('↑ Income')).toBeInTheDocument()
     })

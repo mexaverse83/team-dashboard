@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { agentConfigs } from "@/lib/agents"
+import { agentConfigs, effectiveStatus } from "@/lib/agents"
 import { createSupabaseServer } from "@/lib/supabase-server"
 
 export const metadata: Metadata = {
@@ -26,8 +26,9 @@ export default async function AgentsPage() {
         {(agents || []).map((agent) => {
           const config = agentConfigs.find(a => a.id === agent.id)
           if (!config) return null
-          const statusColor = agent.status === 'online' ? 'bg-green-500' : agent.status === 'busy' ? 'bg-yellow-500' : 'bg-gray-500'
-          const statusLabel = agent.status.charAt(0).toUpperCase() + agent.status.slice(1)
+          const status = effectiveStatus(agent.status, agent.last_seen)
+          const statusColor = status === 'online' ? 'bg-green-500' : status === 'busy' ? 'bg-yellow-500' : 'bg-gray-500'
+          const statusLabel = status.charAt(0).toUpperCase() + status.slice(1)
 
           return (
             <Card key={agent.id} className="hover:shadow-lg hover:shadow-blue-500/5 hover:-translate-y-0.5 transition-all duration-200">

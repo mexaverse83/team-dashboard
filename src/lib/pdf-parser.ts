@@ -84,7 +84,7 @@ function extractTransactions(text: string): ParsedTransaction[] {
 /** Extract text from all pages of a PDF */
 async function extractPdfText(file: File): Promise<string> {
   // Dynamic import — works in browser with bundler
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const pdfjsLib = await import('pdfjs-dist') as any
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
 
@@ -95,7 +95,7 @@ async function extractPdfText(file: File): Promise<string> {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i)
     const content = await page.getTextContent()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const strings = content.items.map((item: any) => item.str || '')
     fullText += strings.join(' ') + '\n'
   }

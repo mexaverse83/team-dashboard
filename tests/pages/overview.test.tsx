@@ -58,12 +58,15 @@ vi.mock('lucide-react', () => {
   }
 })
 
+// Fresh last_seen — agents silent past the staleness window render as offline
+const NOW_ISO = new Date().toISOString()
+
 const mockAgents = [
-  { id: 'tars', name: 'TARS', role: 'Squad Lead', status: 'online', current_task: 'Coordinating', last_seen: '2026-02-08T17:00:00Z' },
-  { id: 'cooper', name: 'COOPER', role: 'Developer', status: 'busy', current_task: 'Building', last_seen: '2026-02-08T17:30:00Z' },
+  { id: 'tars', name: 'TARS', role: 'Squad Lead', status: 'online', current_task: 'Coordinating', last_seen: NOW_ISO },
+  { id: 'cooper', name: 'COOPER', role: 'Developer', status: 'busy', current_task: 'Building', last_seen: NOW_ISO },
   { id: 'murph', name: 'MURPH', role: 'Research', status: 'offline', current_task: null, last_seen: '2026-02-08T16:00:00Z' },
-  { id: 'brand', name: 'BRAND', role: 'Docs', status: 'online', current_task: 'Writing', last_seen: '2026-02-08T17:00:00Z' },
-  { id: 'mann', name: 'MANN', role: 'QA', status: 'online', current_task: 'Testing', last_seen: '2026-02-08T17:00:00Z' },
+  { id: 'brand', name: 'BRAND', role: 'Docs', status: 'online', current_task: 'Writing', last_seen: NOW_ISO },
+  { id: 'mann', name: 'MANN', role: 'QA', status: 'online', current_task: 'Testing', last_seen: NOW_ISO },
   { id: 'tom', name: 'TOM', role: 'Design', status: 'offline', current_task: null, last_seen: '2026-02-08T16:00:00Z' },
 ]
 
@@ -92,16 +95,13 @@ function setupMocks(agents = mockAgents, tickets = mockTickets, messages = mockM
   vi.mocked(supabase.removeChannel).mockReturnValue(undefined as any)
 
   vi.mocked(supabase.from).mockImplementation((table: string) => {
-    const getData = () => table === 'agents' ? agents : table === 'tickets' ? tickets : table === 'messages' ? messages : []
-    const result = Promise.resolve({ data: getData(), error: null })
-    // Make the promise also have .order().limit() chain for messages query
-    const selectResult = Object.assign(result, {
-      order: vi.fn().mockReturnValue(Object.assign(
-        Promise.resolve({ data: getData(), error: null }),
-        { limit: vi.fn().mockReturnValue(Promise.resolve({ data: getData(), error: null })) }
-      )),
-    })
-    return { select: vi.fn().mockReturnValue(selectResult) } as any
+    const rows = table === 'agents' ? agents : table === 'tickets' ? tickets : table === 'messages' ? messages : []
+    // Generic chainable query mock: any builder method returns the chain,
+    // awaiting it resolves with the table's rows (and a count).
+    const result = { data: rows, error: null, count: rows.length }
+    const chain: any = { then: (cb: any) => Promise.resolve(cb(result)) }
+    for (const m of ['order', 'limit', 'gte', 'lte', 'eq', 'in']) chain[m] = vi.fn(() => chain)
+    return { select: vi.fn(() => chain) } as any
   })
 
   return mockChannel
@@ -320,14 +320,12 @@ describe('Overview Page V2', () => {
 
   it('handles null supabase data', async () => {
     // Override mocks to return null data
-    vi.mocked(supabase.from).mockImplementation(() => ({
-      select: vi.fn().mockReturnValue({
-        order: vi.fn().mockReturnValue({
-          limit: vi.fn().mockReturnValue(Promise.resolve({ data: null, error: { message: 'fail' } })),
-        }),
-        then: vi.fn((cb: any) => cb({ data: null, error: { message: 'fail' } })),
-      }),
-    }) as any)
+    vi.mocked(supabase.from).mockImplementation(() => {
+      const result = { data: null, error: { message: 'fail' }, count: null }
+      const chain: any = { then: (cb: any) => Promise.resolve(cb(result)) }
+      for (const m of ['order', 'limit', 'gte', 'lte', 'eq', 'in']) chain[m] = vi.fn(() => chain)
+      return { select: vi.fn(() => chain) } as any
+    })
 
     const Page = (await import('@/app/page')).default
     render(<Page />)

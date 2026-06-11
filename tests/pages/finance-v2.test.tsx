@@ -52,6 +52,13 @@ vi.mock('@/lib/pdf-parser', () => ({
   detectBankFormat: vi.fn().mockReturnValue('unknown'),
 }))
 
+// Mock next/navigation (audit-client uses useRouter)
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/finance',
+  useSearchParams: () => new URLSearchParams(),
+}))
+
 // Mock lucide-react (exhaustive)
 vi.mock('lucide-react', () => {
   const i = (n: string) => ({ className, ...rest }: any) => <span data-testid={`icon-${n}`} className={className} />
@@ -72,6 +79,13 @@ vi.mock('lucide-react', () => {
     Landmark: i('landmark'), ShieldCheck: i('shieldcheck'), Target: i('target'),
     Menu: i('menu'), X: i('x'), CreditCard: i('creditcard'), Power: i('power'),
     Upload: i('upload'), Download: i('download'),
+    // Icons added by newer finance components
+    AlertCircle: i('alertcircle'), AlertTriangle: i('alerttriangle'),
+    ArrowDownLeft: i('arrowdownleft'), ArrowRight: i('arrowright'), ArrowUpRight: i('arrowupright'),
+    Bitcoin: i('bitcoin'), CalendarDays: i('calendardays'), Check: i('check'),
+    CheckCircle2: i('checkcircle2'), ChevronDown: i('chevrondown'), ChevronUp: i('chevronup'),
+    Clock: i('clock'), HeartPulse: i('heartpulse'), Info: i('info'), Lightbulb: i('lightbulb'),
+    Scissors: i('scissors'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
   }
 })
 
@@ -80,9 +94,19 @@ vi.mock('framer-motion', () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
+    p: ({ children, ...props }: any) => <p {...props}>{children}</p>,
+    circle: (props: any) => <circle />,
   },
   AnimatePresence: ({ children }: any) => children,
 }))
+
+// Components call fetch() against /api/finance/* — return a graceful "not ok"
+// so those code paths resolve and render their fallback states.
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(() =>
+    Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}), text: () => Promise.resolve('') })
+  ))
+})
 
 function setupSupabaseMock(overrides: Record<string, any> = {}) {
   const defaults: Record<string, any> = {
@@ -197,8 +221,10 @@ describe('Savings Goals', () => {
   it('renders page header', async () => {
     const Comp = (await import('@/components/finance/goals-client')).default
     render(<Comp />)
+    // Page was renamed from "Savings Goals" to "Goals" (now covers crypto targets too)
     await waitFor(() => {
-      expect(screen.getByText('Savings Goals')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Goals' })).toBeInTheDocument()
+      expect(screen.getByText('Track progress toward your financial & crypto targets')).toBeInTheDocument()
     })
   })
 

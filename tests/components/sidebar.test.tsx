@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { Sidebar } from '@/components/sidebar'
 
 // Mock next/navigation
@@ -9,10 +9,10 @@ vi.mock('next/navigation', () => ({
 }))
 
 describe('Sidebar', () => {
-  it('renders in collapsed state by default', () => {
+  it('renders expanded at fixed width (collapse feature removed)', () => {
     const { container } = render(<Sidebar />)
     const aside = container.querySelector('aside')!
-    expect(aside).toHaveClass('w-[52px]')
+    expect(aside).toHaveClass('w-60')
   })
 
   it('renders all nav links (main + finance)', () => {
@@ -50,40 +50,30 @@ describe('Sidebar', () => {
     expect(hrefs).toContain('/finance/reports')
   })
 
-  it('shows nav labels with title attribute when collapsed', () => {
+  it('shows visible nav labels', () => {
     render(<Sidebar />)
-    expect(screen.getAllByTitle('Overview').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByTitle('Mission Control')).toBeInTheDocument()
-    expect(screen.getByTitle('Agents')).toBeInTheDocument()
-    expect(screen.getByTitle('MSI Tracker')).toBeInTheDocument()
-    expect(screen.getByTitle('Debt Planner')).toBeInTheDocument()
-    expect(screen.getByTitle('Audit')).toBeInTheDocument()
+    expect(screen.getAllByText('Overview').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Mission Control').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Agents').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('MSI Tracker').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Debt Planner').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Audit').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('expands on toggle click', () => {
-    const { container } = render(<Sidebar />)
-    fireEvent.click(screen.getByLabelText('Toggle sidebar'))
-    const aside = container.querySelector('aside')!
-    expect(aside).toHaveClass('w-60')
+  it('shows finance section labels', () => {
+    render(<Sidebar />)
+    expect(screen.getAllByText('Track').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Plan').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Analyze').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('shows section labels when expanded', () => {
+  it('shows team name', () => {
     render(<Sidebar />)
-    fireEvent.click(screen.getByLabelText('Toggle sidebar'))
-    expect(screen.getByText('Track')).toBeInTheDocument()
-    expect(screen.getByText('Plan')).toBeInTheDocument()
-    expect(screen.getByText('Analyze')).toBeInTheDocument()
-  })
-
-  it('shows team name when expanded', () => {
-    render(<Sidebar />)
-    fireEvent.click(screen.getByLabelText('Toggle sidebar'))
     expect(screen.getByText('Interstellar Squad')).toBeInTheDocument()
   })
 
-  it('shows version when expanded', () => {
+  it('shows version', () => {
     render(<Sidebar />)
-    fireEvent.click(screen.getByLabelText('Toggle sidebar'))
     expect(screen.getByText('v2.0 · Nexaminds')).toBeInTheDocument()
   })
 
@@ -91,14 +81,6 @@ describe('Sidebar', () => {
     const { container } = render(<Sidebar />)
     const dot = container.querySelector('.bg-emerald-500.animate-pulse')
     expect(dot).toBeInTheDocument()
-  })
-
-  it('collapses back on second toggle', () => {
-    const { container } = render(<Sidebar />)
-    fireEvent.click(screen.getByLabelText('Toggle sidebar'))
-    fireEvent.click(screen.getByLabelText('Toggle sidebar'))
-    const aside = container.querySelector('aside')!
-    expect(aside).toHaveClass('w-[52px]')
   })
 
   it('mobile has top bar with hamburger', () => {

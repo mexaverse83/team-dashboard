@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { agentConfigs } from "@/lib/agents"
-import { Users, CheckSquare, MessageCircle, Activity, Clock, Trophy } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { agentConfigs, agentColor, effectiveStatus } from "@/lib/agents"
+import { Users, CheckSquare, MessageCircle, Activity, Trophy } from "lucide-react"
+import { supabase, type Agent, type Message, type Ticket } from "@/lib/supabase"
+import { dailyCounts, percentDelta } from "@/lib/utils"
+import { useLiveTables } from "@/hooks/use-live-tables"
 import { PageTransition } from "@/components/page-transition"
 import { SkeletonKPI, SkeletonGrid } from "@/components/ui/skeleton-card"
 import { AnimatedNumber } from "@/components/ui/animated-number"
@@ -16,54 +18,42 @@ import { GlassCard } from "@/components/ui/glass-card"
 import { StatusIndicator } from "@/components/ui/status-indicator"
 import { AgentAvatar } from "@/components/ui/agent-avatar"
 
-const AGENT_COLORS: Record<string, string> = {
-  tars: 'hsl(35, 92%, 50%)',
-  cooper: 'hsl(205, 84%, 50%)',
-  murph: 'hsl(263, 70%, 58%)',
-  brand: 'hsl(145, 63%, 42%)',
-  mann: 'hsl(350, 80%, 55%)',
-  tom: 'hsl(174, 60%, 47%)',
-}
-
-// Generate fake sparkline data (in production this would come from metrics table)
-function genSparkline(base: number, variance: number, points = 7): number[] {
-  return Array.from({ length: points }, () => base + Math.floor(Math.random() * variance - variance / 2))
+/** Week-over-week percent change derived from a 14-day timestamp window. */
+function weekOverWeek(dates: string[]): number | null {
+  const days = dailyCounts(dates, 14)
+  const previous = days.slice(0, 7).reduce((a, b) => a + b, 0)
+  const current = days.slice(7).reduce((a, b) => a + b, 0)
+  return percentDelta(current, previous)
 }
 
 export default function OverviewClient() {
-  const [agents, setAgents] = useState<any[]>([])
-  const [tickets, setTickets] = useState<any[]>([])
-  const [messages, setMessages] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  // Total message count and 14-day history come from the same fetch as the
+  // feed (the feed itself is capped at 10 rows).
+  const [messageCount, setMessageCount] = useState(0)
+  const [messageDates, setMessageDates] = useState<string[]>([])
 
-  useEffect(() => {
-    Promise.all([
-      supabase.from('agents').select('*'),
-      supabase.from('tickets').select('*'),
-      supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(10),
-    ]).then(([a, t, m]) => {
-      setAgents(a.data || [])
-      setTickets(t.data || [])
-      setMessages(m.data || [])
-      setLoading(false)
-    })
+  const { data, loading } = useLiveTables<{ agents: Agent; tickets: Ticket; messages: Message }>(
+    'overview-realtime',
+    {
+      agents: () => supabase.from('agents').select('*'),
+      tickets: () => supabase.from('tickets').select('*'),
+      messages: async () => {
+        const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
+        const [feed, history] = await Promise.all([
+          supabase.from('messages').select('*', { count: 'exact' })
+            .order('created_at', { ascending: false }).limit(10),
+          supabase.from('messages').select('created_at').gte('created_at', since).limit(2000),
+        ])
+        setMessageCount(feed.count ?? feed.data?.length ?? 0)
+        setMessageDates((history.data ?? []).map((r: { created_at: string }) => r.created_at))
+        return feed
+      },
+    },
+  )
+  const { tickets, messages } = data
 
-    // Real-time subscriptions
-    const sub = supabase.channel('overview-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => {
-        supabase.from('agents').select('*').then(({ data }) => data && setAgents(data))
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
-        supabase.from('tickets').select('*').then(({ data }) => data && setTickets(data))
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
-        supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(10)
-          .then(({ data }) => data && setMessages(data))
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(sub) }
-  }, [])
+  const now = Date.now()
+  const agents = data.agents.map(a => ({ ...a, status: effectiveStatus(a.status, a.last_seen, now) }))
 
   const onlineCount = agents.filter(a => a.status !== 'offline').length
   const doneTickets = tickets.filter(t => t.status === 'done')
@@ -79,12 +69,27 @@ export default function OverviewClient() {
     }))
     .sort((a, b) => b.done - a.done)
 
-  const kpis = [
-    { title: 'Agents Online', value: onlineCount, icon: Users, sparkline: genSparkline(onlineCount, 2), delta: 0, color: 'hsl(var(--brand))' },
-    { title: 'Open Tasks', value: openTickets.length, icon: CheckSquare, sparkline: genSparkline(openTickets.length, 3), delta: -8, color: 'hsl(var(--warning))' },
-    { title: 'Messages', value: messages.length, icon: MessageCircle, sparkline: genSparkline(messages.length, 5), delta: 12, color: 'hsl(var(--info))' },
-    { title: 'Completed', value: doneTickets.length, icon: Activity, sparkline: genSparkline(doneTickets.length, 4), delta: 15, color: 'hsl(var(--success))' },
-  ]
+  const recentTickets = useMemo(
+    () => [...tickets].sort((a, b) =>
+      new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()
+    ).slice(0, 6),
+    [tickets],
+  )
+
+  // Sparklines and deltas derived from real created_at/updated_at history —
+  // no fabricated data on a live dashboard.
+  const kpis = useMemo(() => {
+    const createdDates = tickets.map(t => t.created_at)
+    const doneDates = tickets.filter(t => t.status === 'done').map(t => t.updated_at || t.created_at)
+    const openCount = tickets.filter(t => t.status !== 'done').length
+    const doneCount = tickets.length - openCount
+    return [
+      { title: 'Agents Online', value: onlineCount, icon: Users, sparkline: null, delta: null, color: 'hsl(var(--brand))' },
+      { title: 'Open Tasks', value: openCount, icon: CheckSquare, sparkline: dailyCounts(createdDates), delta: weekOverWeek(createdDates), color: 'hsl(var(--warning))' },
+      { title: 'Messages', value: messageCount, icon: MessageCircle, sparkline: dailyCounts(messageDates), delta: weekOverWeek(messageDates), color: 'hsl(var(--info))' },
+      { title: 'Completed', value: doneCount, icon: Activity, sparkline: dailyCounts(doneDates), delta: weekOverWeek(doneDates), color: 'hsl(var(--success))' },
+    ]
+  }, [tickets, messageCount, messageDates, onlineCount])
 
   if (loading) {
     return (
@@ -120,11 +125,13 @@ export default function OverviewClient() {
               <div className="flex items-end justify-between">
                 <div>
                   <AnimatedNumber value={kpi.value} className="text-3xl font-bold" />
-                  <div className="mt-1">
-                    <TrendBadge value={kpi.delta} />
-                  </div>
+                  {kpi.delta !== null && (
+                    <div className="mt-1">
+                      <TrendBadge value={kpi.delta} />
+                    </div>
+                  )}
                 </div>
-                <SparklineChart data={kpi.sparkline} color={kpi.color} width={72} height={28} />
+                {kpi.sparkline && <SparklineChart data={kpi.sparkline} color={kpi.color} width={72} height={28} />}
               </div>
             </CardContent>
           </Card>
@@ -231,7 +238,7 @@ export default function OverviewClient() {
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            {tickets.slice(0, 6).map(ticket => {
+            {recentTickets.map(ticket => {
               const config = agentConfigs.find(a => a.id === ticket.assignee)
               const statusColors: Record<string, string> = {
                 'done': 'bg-emerald-500',
@@ -270,11 +277,11 @@ export default function OverviewClient() {
                 <div key={msg.id} className="flex items-start gap-2 p-2 rounded-lg hover:bg-[hsl(var(--accent))]/50 transition-colors">
                   <div
                     className="w-0.5 h-full min-h-[2rem] rounded-full shrink-0"
-                    style={{ backgroundColor: AGENT_COLORS[msg.sender] || 'hsl(var(--text-tertiary))' }}
+                    style={{ backgroundColor: agentColor(msg.sender) }}
                   />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold" style={{ color: AGENT_COLORS[msg.sender] }}>{msg.sender.toUpperCase()}</span>
+                      <span className="text-xs font-semibold" style={{ color: agentColor(msg.sender) }}>{msg.sender.toUpperCase()}</span>
                       <span className="text-xs text-[hsl(var(--text-tertiary))]">→ {msg.recipient === 'all' ? 'All' : msg.recipient.toUpperCase()}</span>
                     </div>
                     <p className="text-sm text-[hsl(var(--text-secondary))] truncate">{msg.content}</p>

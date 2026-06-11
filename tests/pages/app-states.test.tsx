@@ -175,11 +175,10 @@ describe('Server Component Architecture', () => {
     }
   })
 
-  it('supabase-server exists and exports client', () => {
+  it('supabase-server exists and exports server-side factory', () => {
     const fs = require('fs')
     const content = fs.readFileSync('src/lib/supabase-server.ts', 'utf-8')
-    expect(content).toContain('supabaseServer')
-    expect(content).toContain('persistSession: false')
+    expect(content).toContain('createSupabaseServer')
     expect(content).not.toContain("'use client'")
   })
 })

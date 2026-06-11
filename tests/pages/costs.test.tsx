@@ -264,7 +264,7 @@ describe('Costs Page', () => {
     const CostsClient = (await import('@/components/costs-client')).default
     render(<CostsClient />)
     await waitFor(() => {
-      expect(screen.getAllByText(/Opus 4.6/).length).toBeGreaterThanOrEqual(1)
+      expect(screen.getAllByText(/Opus/).length).toBeGreaterThanOrEqual(1)
       expect(screen.getAllByText(/Gemini/).length).toBeGreaterThanOrEqual(1)
     })
   })

@@ -115,3 +115,41 @@ export const agentConfigs: AgentConfig[] = [
 export function getAgentConfig(id: string): AgentConfig | undefined {
   return agentConfigs.find(a => a.id === id)
 }
+
+// Signature colors, single source of truth for charts/feeds/glows.
+// (Previously copy-pasted into four client components, drifting out of sync
+// and missing the newer agents.)
+export const AGENT_COLORS: Record<string, string> = {
+  tars: 'hsl(35, 92%, 50%)',
+  cooper: 'hsl(205, 84%, 50%)',
+  murph: 'hsl(263, 70%, 58%)',
+  brand: 'hsl(145, 63%, 42%)',
+  mann: 'hsl(350, 80%, 55%)',
+  tom: 'hsl(174, 60%, 47%)',
+  hashimoto: 'hsl(239, 70%, 62%)',
+  wolff: 'hsl(25, 90%, 52%)',
+}
+
+export const FALLBACK_AGENT_COLOR = 'hsl(var(--text-tertiary))'
+
+export function agentColor(id: string): string {
+  return AGENT_COLORS[id] || FALLBACK_AGENT_COLOR
+}
+
+// Agents report their own status and may die without flipping themselves to
+// offline; treat anything silent past this window as offline in the UI.
+export const STALE_AGENT_MS = 10 * 60 * 1000
+
+export type EffectiveStatus = 'online' | 'busy' | 'offline'
+
+export function effectiveStatus(
+  status: string,
+  lastSeen: string | null | undefined,
+  now: number = Date.now(),
+): EffectiveStatus {
+  if (status !== 'online' && status !== 'busy') return 'offline'
+  if (!lastSeen) return status
+  const seen = new Date(lastSeen).getTime()
+  if (!Number.isNaN(seen) && now - seen > STALE_AGENT_MS) return 'offline'
+  return status
+}

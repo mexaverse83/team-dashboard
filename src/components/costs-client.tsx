@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { DollarSign, Users, TrendingUp, Activity, Zap } from 'lucide-react'
-import { agentConfigs } from "@/lib/agents"
+import { agentConfigs, AGENT_COLORS } from "@/lib/agents"
 import { supabase, type AgentCost } from "@/lib/supabase"
 import { GlassCard } from "@/components/ui/glass-card"
 import { AnimatedNumber } from "@/components/ui/animated-number"
@@ -17,16 +17,6 @@ import {
   PieChart, Pie, Cell,
   BarChart, Bar,
 } from 'recharts'
-
-const AGENT_COLORS: Record<string, string> = {
-  tars: 'hsl(35, 92%, 50%)',
-  cooper: 'hsl(205, 84%, 50%)',
-  murph: 'hsl(263, 70%, 58%)',
-  brand: 'hsl(145, 63%, 42%)',
-  mann: 'hsl(350, 80%, 55%)',
-  tom: 'hsl(174, 60%, 47%)',
-  hashimoto: 'hsl(239, 84%, 67%)',
-}
 
 type DateRange = 'today' | '7d' | '30d'
 type ModelFilter = 'all' | 'anthropic' | 'gemini'

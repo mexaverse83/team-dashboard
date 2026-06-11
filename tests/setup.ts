@@ -15,31 +15,37 @@ vi.mock('framer-motion', async () => {
   }
 })
 
-// Mock Supabase client globally
+// Mock next/font (layout.tsx) — vitest doesn't run the Next.js font compiler
+vi.mock('next/font/google', () => ({
+  Inter: () => ({ className: 'font-inter', variable: '--font-inter', style: { fontFamily: 'Inter' } }),
+}))
+
+// Mock Supabase client globally.
+// Query builders are generically chainable (order/limit/gte/eq/...) and
+// thenable, so component queries of any shape resolve to empty data.
 vi.mock('@/lib/supabase', () => {
   const mockChannel = {
     on: vi.fn().mockReturnThis(),
     subscribe: vi.fn().mockReturnThis(),
   }
 
-  const mockFrom = (table: string) => ({
-    select: vi.fn().mockReturnValue({
-      order: vi.fn().mockReturnValue({
-        limit: vi.fn().mockReturnValue({
-          then: vi.fn((cb: any) => cb({ data: [], error: null })),
-        }),
-        then: vi.fn((cb: any) => cb({ data: [], error: null })),
-      }),
-      then: vi.fn((cb: any) => cb({ data: [], error: null })),
-    }),
-    insert: vi.fn().mockReturnValue({
-      then: vi.fn((cb: any) => cb({ data: null, error: null })),
-    }),
-    update: vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({
-        then: vi.fn((cb: any) => cb({ data: null, error: null })),
-      }),
-    }),
+  const queryResult = { data: [], error: null, count: 0 }
+  const makeChain = (result: any) => {
+    const chain: any = {
+      then: vi.fn((cb: any) => Promise.resolve(cb(result))),
+    }
+    for (const m of ['select', 'order', 'limit', 'gte', 'lte', 'eq', 'neq', 'in', 'ilike', 'single', 'range']) {
+      chain[m] = vi.fn(() => chain)
+    }
+    return chain
+  }
+
+  const mockFrom = () => ({
+    select: vi.fn(() => makeChain(queryResult)),
+    insert: vi.fn(() => makeChain({ data: null, error: null })),
+    update: vi.fn(() => makeChain({ data: null, error: null })),
+    delete: vi.fn(() => makeChain({ data: null, error: null })),
+    upsert: vi.fn(() => makeChain({ data: null, error: null })),
   })
 
   return {
@@ -47,6 +53,13 @@ vi.mock('@/lib/supabase', () => {
       from: vi.fn(mockFrom),
       channel: vi.fn(() => mockChannel),
       removeChannel: vi.fn(),
+      auth: {
+        getUser: vi.fn(() => Promise.resolve({ data: { user: null }, error: null })),
+        getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
+        onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
+        signInWithOtp: vi.fn(() => Promise.resolve({ data: {}, error: null })),
+        signOut: vi.fn(() => Promise.resolve({ error: null })),
+      },
     },
   }
 })

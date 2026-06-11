@@ -371,7 +371,7 @@ export function WestTracker() {
               <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={{ background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
                 formatter={(val: any, name: any) => [fmtMXN(Number(val) || 0), String(name)]}
                 labelFormatter={m => `Month: ${m}`}
               />
@@ -673,9 +673,9 @@ export function WestProjectionWithScenarios() {
               <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={{ background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
                 formatter={(val: any, name: any) => [fmtMXN(Number(val) || 0), String(name)]}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
                 labelFormatter={(m: any) => `Month: ${m}`}
               />
               <Area type="monotone" dataKey="paid" stackId="1" stroke="#10B981" strokeWidth={1.5} fill="url(#pcPaidGrad)" name="Direct Payments" />

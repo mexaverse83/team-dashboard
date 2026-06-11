@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { agentConfigs } from "@/lib/agents"
+import { agentConfigs, AGENT_COLORS, effectiveStatus } from "@/lib/agents"
 import { supabase, type Agent, type Message, type Ticket } from "@/lib/supabase"
+import { dailyCounts } from "@/lib/utils"
+import { useLiveTables } from "@/hooks/use-live-tables"
 import { Radio, CheckSquare, Zap, Clock, User } from "lucide-react"
 import { GlassCard } from "@/components/ui/glass-card"
 import { AgentAvatar } from "@/components/ui/agent-avatar"
@@ -15,59 +17,35 @@ import { motion, AnimatePresence } from "framer-motion"
 import { PageTransition } from "@/components/page-transition"
 import { SkeletonGrid } from "@/components/ui/skeleton-card"
 
-const AGENT_COLORS: Record<string, string> = {
-  tars: 'hsl(35, 92%, 50%)',
-  cooper: 'hsl(205, 84%, 50%)',
-  murph: 'hsl(263, 70%, 58%)',
-  brand: 'hsl(145, 63%, 42%)',
-  mann: 'hsl(350, 80%, 55%)',
-  tom: 'hsl(174, 60%, 47%)',
-}
-
-// Stub 7-day activity data per agent (replace with real data when available)
-const WEEKLY_STUB: Record<string, number[]> = {
-  tars: [8, 12, 10, 14, 9, 11, 13],
-  cooper: [5, 9, 12, 15, 18, 14, 16],
-  murph: [3, 6, 8, 5, 7, 10, 9],
-  brand: [10, 10, 12, 11, 13, 12, 14],
-  mann: [4, 7, 5, 8, 10, 6, 9],
-  tom: [2, 3, 5, 8, 6, 7, 10],
-}
-
 export default function MissionControlClient() {
-  const [agents, setAgents] = useState<Agent[]>([])
-  const [messages, setMessages] = useState<Message[]>([])
-  const [tickets, setTickets] = useState<Ticket[]>([])
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
   const feedRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    Promise.all([
-      supabase.from('agents').select('*'),
-      supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(50),
-      supabase.from('tickets').select('*'),
-    ]).then(([a, m, t]) => {
-      if (a.data) setAgents(a.data)
-      if (m.data) setMessages(m.data)
-      if (t.data) setTickets(t.data)
-      setLoading(false)
-    })
+  const { data, loading } = useLiveTables<{ agents: Agent; messages: Message; tickets: Ticket }>(
+    'mc-realtime',
+    {
+      agents: () => supabase.from('agents').select('*'),
+      messages: () => supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(50),
+      tickets: () => supabase.from('tickets').select('*'),
+    },
+  )
+  const { messages, tickets } = data
 
-    const sub = supabase.channel('mc-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => {
-        supabase.from('agents').select('*').then(({ data }) => data && setAgents(data))
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-        setMessages(prev => [payload.new as Message, ...prev].slice(0, 50))
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
-        supabase.from('tickets').select('*').then(({ data }) => data && setTickets(data))
-      })
-      .subscribe()
+  const now = Date.now()
+  const agents = data.agents.map(a => ({ ...a, status: effectiveStatus(a.status, a.last_seen, now) }))
 
-    return () => { supabase.removeChannel(sub) }
-  }, [])
+  // Real 7-day completion history per agent (replaces the old hardcoded stub)
+  const weeklyActivity = useMemo(() => {
+    const map: Record<string, number[]> = {}
+    for (const config of agentConfigs) {
+      map[config.id] = dailyCounts(
+        tickets
+          .filter(t => t.assignee === config.id && t.status === 'done')
+          .map(t => t.updated_at || t.created_at),
+      )
+    }
+    return map
+  }, [tickets])
 
   const onlineCount = agents.filter(a => a.status !== 'offline').length
   const activeTasks = tickets.filter(t => t.status === 'in-progress').length
@@ -423,7 +401,7 @@ export default function MissionControlClient() {
                     <p className="text-xs text-[hsl(var(--text-tertiary))] mb-2">7-Day Activity</p>
                     <div className="h-12">
                       <SparklineChart
-                        data={WEEKLY_STUB[selectedConfig.id] || []}
+                        data={weeklyActivity[selectedConfig.id] || []}
                         color={AGENT_COLORS[selectedConfig.id]}
                       />
                     </div>

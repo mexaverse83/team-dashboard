@@ -275,7 +275,7 @@ describe('Metrics Page V2', () => {
     const Page = (await import('@/app/metrics/page')).default
     render(<Page />)
     expect(supabase.channel).toHaveBeenCalledWith('metrics-realtime')
-    expect(mockChannel.on).toHaveBeenCalledTimes(2) // tickets + agents
+    expect(mockChannel.on).toHaveBeenCalledTimes(3) // agents + tickets + agent_metrics
     expect(mockChannel.subscribe).toHaveBeenCalled()
   })
 

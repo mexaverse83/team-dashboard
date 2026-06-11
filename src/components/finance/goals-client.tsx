@@ -586,7 +586,7 @@ export default function GoalsClient() {
                   tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                 <Tooltip
                   contentStyle={{ background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' }}
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
                   formatter={((v: number, name: string) => [`$${(v || 0).toLocaleString()}`, name === 'bernardo' ? 'Bernardo' : 'Laura']) as any}
                 />
                 <ReferenceLine y={lastTotal?.planned_contribution ?? 120000} stroke="hsl(38, 92%, 50%)" strokeDasharray="4 4" strokeWidth={1.5} />

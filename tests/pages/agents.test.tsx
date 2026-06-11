@@ -7,26 +7,34 @@ import { render, screen } from '@testing-library/react'
 
 // Mock supabase-server (used by the server component)
 vi.mock('@/lib/supabase-server', () => ({
-  supabaseServer: {
-    from: vi.fn(),
-  },
+  createSupabaseServer: vi.fn(),
 }))
 
-import { supabaseServer } from '@/lib/supabase-server'
+import { createSupabaseServer } from '@/lib/supabase-server'
+
+// Fresh last_seen for non-offline agents — anything silent past the staleness
+// window is rendered as offline by effectiveStatus()
+const NOW_ISO = new Date().toISOString()
 
 const mockAgents = [
-  { id: 'tars', name: 'TARS', role: 'Squad Lead & Coordinator', status: 'online', current_task: 'Coordinating', last_seen: '2026-02-08T17:00:00Z' },
-  { id: 'cooper', name: 'COOPER', role: 'Full-Stack Developer', status: 'busy', current_task: 'Building dashboard', last_seen: '2026-02-08T17:30:00Z' },
-  { id: 'murph', name: 'MURPH', role: 'Research & Analysis', status: 'online', current_task: null, last_seen: '2026-02-08T16:00:00Z' },
+  { id: 'tars', name: 'TARS', role: 'Squad Lead & Coordinator', status: 'online', current_task: 'Coordinating', last_seen: NOW_ISO },
+  { id: 'cooper', name: 'COOPER', role: 'Full-Stack Developer', status: 'busy', current_task: 'Building dashboard', last_seen: NOW_ISO },
+  { id: 'murph', name: 'MURPH', role: 'Research & Analysis', status: 'online', current_task: null, last_seen: NOW_ISO },
   { id: 'brand', name: 'BRAND', role: 'Email Classification', status: 'offline', current_task: null, last_seen: '2026-02-08T10:00:00Z' },
-  { id: 'mann', name: 'MANN', role: 'SDET / QA Engineer', status: 'online', current_task: 'Writing tests', last_seen: '2026-02-08T17:45:00Z' },
+  { id: 'mann', name: 'MANN', role: 'SDET / QA Engineer', status: 'online', current_task: 'Writing tests', last_seen: NOW_ISO },
 ]
+
+function mockServerAgents(data: unknown, error: { message: string } | null = null) {
+  vi.mocked(createSupabaseServer).mockResolvedValue({
+    from: vi.fn(() => ({
+      select: vi.fn().mockResolvedValue({ data, error }),
+    })),
+  } as any)
+}
 
 describe('Agents Page (server component)', () => {
   beforeEach(() => {
-    vi.mocked(supabaseServer.from).mockReturnValue({
-      select: vi.fn().mockResolvedValue({ data: mockAgents, error: null }),
-    } as any)
+    mockServerAgents(mockAgents)
   })
 
   it('renders page title', async () => {
@@ -76,9 +84,7 @@ describe('Agents Page (server component)', () => {
   })
 
   it('handles empty Supabase response gracefully', async () => {
-    vi.mocked(supabaseServer.from).mockReturnValue({
-      select: vi.fn().mockResolvedValue({ data: null, error: { message: 'Failed' } }),
-    } as any)
+    mockServerAgents(null, { message: 'Failed' })
     const AgentsPage = (await import('@/app/agents/page')).default
     const result = await AgentsPage()
     render(result)

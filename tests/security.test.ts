@@ -71,14 +71,12 @@ describe('Security Scan', () => {
     expect(gitignore).toContain('.env')
   })
 
-  it('should have empty/placeholder Supabase credentials in .env.local template', () => {
-    // The committed .env.local should NOT contain real keys
-    const envPath = path.join(PROJECT_ROOT, '.env.local')
-    if (fs.existsSync(envPath)) {
-      const content = fs.readFileSync(envPath, 'utf-8')
-      // Check it doesn't have real Supabase URLs
-      expect(content).not.toMatch(/https:\/\/[a-z]+\.supabase\.co/)
-    }
+  it('should never track .env.local in git (real credentials live there)', () => {
+    // .env.local legitimately holds real keys on dev machines; the security
+    // property is that git never tracks it, not that the file is empty.
+    const { execSync } = require('child_process')
+    const tracked = execSync('git ls-files .env.local .env', { cwd: PROJECT_ROOT }).toString().trim()
+    expect(tracked).toBe('')
   })
 
   it('should use NEXT_PUBLIC_ prefix for client-side env vars only', () => {

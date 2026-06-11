@@ -297,7 +297,7 @@ export function InstallmentsClient() {
                 <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11, fill: 'hsl(var(--text-secondary))' }} axisLine={false} tickLine={false} />
                 <Tooltip
                   {...tooltipStyle}
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
                   formatter={(value: any, name: any, props: any) => {
                     if (name === 'paid') return [`${value} months paid`, 'Paid']
                     return [`${value} months left (ends ${props?.payload?.endDate ?? ''})`, 'Remaining']

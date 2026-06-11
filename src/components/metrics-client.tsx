@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Badge } from "@/components/ui/badge"
-import { agentConfigs } from "@/lib/agents"
+import { agentConfigs, AGENT_COLORS, effectiveStatus } from "@/lib/agents"
 import { supabase, type Agent, type Ticket } from "@/lib/supabase"
+import { dailyCounts } from "@/lib/utils"
+import { useLiveTables } from "@/hooks/use-live-tables"
 import { GlassCard } from "@/components/ui/glass-card"
 import { AgentAvatar } from "@/components/ui/agent-avatar"
 import { AnimatedNumber } from "@/components/ui/animated-number"
@@ -20,26 +22,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
 
-const AGENT_COLORS: Record<string, string> = {
-  tars: 'hsl(35, 92%, 50%)',
-  cooper: 'hsl(205, 84%, 50%)',
-  murph: 'hsl(263, 70%, 58%)',
-  brand: 'hsl(145, 63%, 42%)',
-  mann: 'hsl(350, 80%, 55%)',
-  tom: 'hsl(174, 60%, 47%)',
-}
-
-// Stub 7-day activity per agent (tasks completed per day)
-const WEEKLY_ACTIVITY: Record<string, number[]> = {
-  tars: [3, 5, 4, 6, 3, 5, 4],
-  cooper: [2, 4, 6, 5, 7, 6, 8],
-  murph: [1, 3, 2, 4, 3, 5, 3],
-  brand: [4, 4, 5, 4, 6, 5, 5],
-  mann: [2, 3, 2, 4, 5, 3, 4],
-  tom: [1, 2, 3, 4, 3, 4, 5],
-}
-
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+// Trailing-7-day axis labels ending today (matches dailyCounts buckets)
+const DAY_FORMAT = new Intl.DateTimeFormat('en-US', { weekday: 'short' })
+const DAYS = Array.from({ length: 7 }, (_, i) =>
+  DAY_FORMAT.format(new Date(Date.now() - (6 - i) * 86_400_000)))
 
 // Radar chart dimensions per agent (stub data, 0-10 scale)
 const AGENT_SKILLS: Record<string, Record<string, number>> = {
@@ -60,35 +46,33 @@ type MetricRow = {
 }
 
 export default function MetricsClient() {
-  const [agents, setAgents] = useState<Agent[]>([])
-  const [tickets, setTickets] = useState<Ticket[]>([])
-  const [metrics, setMetrics] = useState<MetricRow[]>([])
   const [compareAgents, setCompareAgents] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    Promise.all([
-      supabase.from('agents').select('*'),
-      supabase.from('tickets').select('*'),
-      supabase.from('agent_metrics').select('*').order('created_at', { ascending: false }),
-    ]).then(([a, t, m]) => {
-      if (a.data) setAgents(a.data)
-      if (t.data) setTickets(t.data)
-      if (m.data) setMetrics(m.data as MetricRow[])
-      setLoading(false)
-    })
+  const { data, loading } = useLiveTables<{ agents: Agent; tickets: Ticket; agent_metrics: MetricRow }>(
+    'metrics-realtime',
+    {
+      agents: () => supabase.from('agents').select('*'),
+      tickets: () => supabase.from('tickets').select('*'),
+      agent_metrics: () => supabase.from('agent_metrics').select('*').order('created_at', { ascending: false }),
+    },
+  )
+  const { tickets, agent_metrics: metrics } = data
 
-    const sub = supabase.channel('metrics-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
-        supabase.from('tickets').select('*').then(({ data }) => data && setTickets(data))
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => {
-        supabase.from('agents').select('*').then(({ data }) => data && setAgents(data))
-      })
-      .subscribe()
+  const now = Date.now()
+  const agents = data.agents.map(a => ({ ...a, status: effectiveStatus(a.status, a.last_seen, now) }))
 
-    return () => { supabase.removeChannel(sub) }
-  }, [])
+  // Real 7-day completion history per agent (replaces the old hardcoded stub)
+  const weeklyActivity = useMemo(() => {
+    const map: Record<string, number[]> = {}
+    for (const config of agentConfigs) {
+      map[config.id] = dailyCounts(
+        tickets
+          .filter(t => t.assignee === config.id && t.status === 'done')
+          .map(t => t.updated_at || t.created_at),
+      )
+    }
+    return map
+  }, [tickets])
 
   // Computed stats
   const totalDone = tickets.filter(t => t.status === 'done').length
@@ -123,11 +107,11 @@ export default function MetricsClient() {
     return DAYS.map((day, i) => {
       const entry: Record<string, string | number> = { day }
       for (const id of (compareAgents.length > 0 ? compareAgents : agentConfigs.map(c => c.id))) {
-        entry[id] = WEEKLY_ACTIVITY[id]?.[i] || 0
+        entry[id] = weeklyActivity[id]?.[i] || 0
       }
       return entry
     })
-  }, [compareAgents])
+  }, [compareAgents, weeklyActivity])
 
   // Radar data for comparison
   const radarData = useMemo(() => {
@@ -299,7 +283,7 @@ export default function MetricsClient() {
                   {/* 7-day sparkline */}
                   <div className="h-8 mt-2">
                     <SparklineChart
-                      data={WEEKLY_ACTIVITY[config.id] || []}
+                      data={weeklyActivity[config.id] || []}
                       color={AGENT_COLORS[config.id]}
                     />
                   </div>

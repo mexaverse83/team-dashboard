@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { supabase, type Ticket, type Priority, type TicketStatus } from "@/lib/supabase"
+import { useLiveTables } from "@/hooks/use-live-tables"
 import { PageTransition } from "@/components/page-transition"
 import { EmptyState } from "@/components/ui/empty-state"
 
@@ -25,22 +25,10 @@ const priorityConfig: Record<Priority, { label: string; color: string }> = {
 }
 
 export default function TasksClient() {
-  const [tickets, setTickets] = useState<Ticket[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    supabase.from('tickets').select('*').order('updated_at', { ascending: false })
-      .then(({ data }) => { if (data) setTickets(data); setLoading(false) })
-
-    const sub = supabase.channel('tickets-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
-        supabase.from('tickets').select('*').order('updated_at', { ascending: false })
-          .then(({ data }) => { if (data) setTickets(data) })
-      })
-      .subscribe()
-
-    return () => { supabase.removeChannel(sub) }
-  }, [])
+  const { data, loading } = useLiveTables<{ tickets: Ticket }>('tickets-realtime', {
+    tickets: () => supabase.from('tickets').select('*').order('updated_at', { ascending: false }),
+  })
+  const tickets = data.tickets
 
   return (
     <PageTransition>
