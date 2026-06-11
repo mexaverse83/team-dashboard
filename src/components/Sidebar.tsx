@@ -1,30 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Zap, LayoutGrid, MessageCircle, Users, BarChart3, DollarSign, Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard, Sparkles, TrendingUp, Banknote, Wand2 } from 'lucide-react'
+import { Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard, Sparkles, TrendingUp, Banknote, Wand2 } from 'lucide-react'
 import { FinanceAuthBadge } from './finance-auth-badge'
-
-function useIsFinanceDomain() {
-  if (typeof window === 'undefined') return false
-  return window.location.hostname === 'finance.autonomis.co'
-}
-
-function useIsDashboardDomain() {
-  if (typeof window === 'undefined') return false
-  return window.location.hostname === 'dashboard.autonomis.co'
-}
-
-const navItems = [
-  { href: '/', icon: Home, label: 'Overview' },
-  { href: '/mission-control', icon: Zap, label: 'Mission Control' },
-  { href: '/tasks', icon: LayoutGrid, label: 'Tasks' },
-  { href: '/comms', icon: MessageCircle, label: 'Comms Log' },
-  { href: '/metrics', icon: BarChart3, label: 'Metrics' },
-  { href: '/costs', icon: DollarSign, label: 'Costs' },
-  { href: '/agents', icon: Users, label: 'Agents' },
-]
 
 const financeTrack = [
   { href: '/finance', icon: Wallet, label: 'Overview' },
@@ -50,27 +30,36 @@ const financeAnalyze = [
   { href: '/finance/rules', icon: Wand2, label: 'Auto Rules' },
 ]
 
+const navGroups = [
+  { label: 'Track', items: financeTrack },
+  { label: 'Plan', items: financePlan },
+  { label: 'Analyze', items: financeAnalyze },
+]
+
+const mobileQuickAccess = [
+  { href: '/finance', icon: Wallet, label: 'Overview' },
+  { href: '/finance/transactions', icon: ArrowLeftRight, label: 'Txns' },
+  { href: '/finance/budgets', icon: PiggyBank, label: 'Budgets' },
+  { href: '/finance/insights', icon: Sparkles, label: 'Insights' },
+  { href: '/finance/reports', icon: FileBarChart, label: 'Reports' },
+]
+
 export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = usePathname()
-  const isFinanceDomain = useIsFinanceDomain()
-  const isDashboardDomain = useIsDashboardDomain()
 
-  // On finance domain: hide agent nav. On dashboard domain: hide finance nav.
-  const showAgentNav = !isFinanceDomain
-  const showFinanceNav = !isDashboardDomain
-
-  const isActive = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href)
+  const isActive = (href: string) =>
+    href === '/finance' ? pathname === '/finance' : pathname.startsWith(href)
 
   return (
     <>
     {/* Mobile: top bar with hamburger */}
     <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 backdrop-blur-sm h-12 px-4">
       <div className="flex items-center gap-2">
-        <div className={`h-7 w-7 rounded-md bg-gradient-to-br ${isFinanceDomain ? 'from-emerald-500 to-teal-500' : 'from-blue-500 to-cyan-500'} flex items-center justify-center`}>
-          <span className="text-xs">{isFinanceDomain ? '💰' : '🚀'}</span>
+        <div className="h-7 w-7 rounded-md bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+          <span className="text-xs">💰</span>
         </div>
-        <span className="text-sm font-semibold">{isFinanceDomain ? 'Finance' : 'Squad Dashboard'}</span>
+        <span className="text-sm font-semibold">Finance</span>
       </div>
       <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-md hover:bg-[hsl(var(--accent))]">
         {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -83,26 +72,8 @@ export function Sidebar() {
         <div className="absolute inset-0 bg-black/50" />
         <nav className="absolute top-12 right-0 bottom-0 w-64 bg-[hsl(var(--background))] border-l border-[hsl(var(--border))] overflow-y-auto p-4 space-y-1"
           onClick={e => e.stopPropagation()}>
-          {showAgentNav && (
-            <>
-              <span className="px-2 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">Dashboard</span>
-              {navItems.map(item => (
-                <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                    isActive(item.href) ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--accent))]'
-                  }`}>
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  <span>{item.label}</span>
-                </Link>
-              ))}
-            </>
-          )}
-          {showFinanceNav && [
-            { label: 'Track', items: financeTrack },
-            { label: 'Plan', items: financePlan },
-            { label: 'Analyze', items: financeAnalyze },
-          ].map(group => (
-            <div key={group.label} className="pt-3 mt-3 border-t border-[hsl(var(--border))]">
+          {navGroups.map((group, i) => (
+            <div key={group.label} className={i > 0 ? 'pt-3 mt-3 border-t border-[hsl(var(--border))]' : ''}>
               <span className="px-2 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">{group.label}</span>
               <div className="mt-2 space-y-1">
                 {group.items.map(item => (
@@ -123,19 +94,10 @@ export function Sidebar() {
 
     {/* Mobile: bottom quick-access bar */}
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 backdrop-blur-sm h-14 px-1">
-      {(isFinanceDomain
-        ? [
-            { href: '/finance', icon: Wallet, label: 'Overview' },
-            { href: '/finance/transactions', icon: ArrowLeftRight, label: 'Txns' },
-            { href: '/finance/budgets', icon: PiggyBank, label: 'Budgets' },
-            { href: '/finance/insights', icon: Sparkles, label: 'Insights' },
-            { href: '/finance/reports', icon: FileBarChart, label: 'Reports' },
-          ]
-        : [navItems[0], { href: '/finance', icon: Wallet, label: 'Finance' }, { href: '/finance/transactions', icon: ArrowLeftRight, label: 'Add' }, navItems[4], navItems[6]]
-      ).map(item => (
+      {mobileQuickAccess.map(item => (
         <Link key={item.href} href={item.href}
           className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-md transition-colors ${
-            isActive(item.href) && (item.href !== '/' || pathname === '/') ? 'text-blue-400' : 'text-[hsl(var(--text-secondary))]'
+            isActive(item.href) ? 'text-emerald-400' : 'text-[hsl(var(--text-secondary))]'
           }`}>
           <item.icon className="h-5 w-5" />
           <span className="text-[10px]">{item.label.split(' ')[0]}</span>
@@ -147,64 +109,40 @@ export function Sidebar() {
     <aside className="hidden md:flex flex-col border-r border-[hsl(var(--border))] min-h-screen shrink-0 sticky top-0 h-screen w-60 p-4 overflow-y-auto">
       {/* Logo */}
       <div className="flex items-center gap-3 mb-6 px-2">
-        <div className={`flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br ${isFinanceDomain ? 'from-emerald-500 to-teal-500' : 'from-blue-500 to-cyan-500'} shrink-0`}>
-          <span className="text-base">{isFinanceDomain ? '💰' : '🚀'}</span>
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 shrink-0">
+          <span className="text-base">💰</span>
         </div>
         <div>
-          <h2 className="font-semibold text-sm">{isFinanceDomain ? 'Finance' : 'Interstellar Squad'}</h2>
-          <p className="text-[10px] text-[hsl(var(--text-secondary))]">{isFinanceDomain ? 'Personal Finance' : 'Dashboard v2'}</p>
+          <h2 className="font-semibold text-sm">Finance</h2>
+          <p className="text-[10px] text-[hsl(var(--text-secondary))]">Personal Finance</p>
         </div>
       </div>
 
       {/* Separator */}
       <div className="border-b border-[hsl(var(--border))] mb-4" />
 
-      {/* Agent Nav */}
-      {showAgentNav && (
-        <nav className="flex flex-col gap-1">
-          {navItems.map(item => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-2 rounded-md text-sm hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors px-3 py-2 ${
-                isActive(item.href) ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium' : 'text-[hsl(var(--text-secondary))]'
-              }`}
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </nav>
-      )}
-
-      {/* Finance Section */}
-      {showFinanceNav && (
-        <div className={showAgentNav ? "mt-6 pt-4 border-t border-[hsl(var(--border))]" : ""}>
-          {[
-            { label: 'Track', items: financeTrack },
-            { label: 'Plan', items: financePlan },
-            { label: 'Analyze', items: financeAnalyze },
-          ].map(group => (
-            <div key={group.label} className="mb-2">
-              <span className="px-3 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">{group.label}</span>
-              <div className="mt-1 flex flex-col gap-0.5">
-                {group.items.map(item => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center gap-2 rounded-md text-sm hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors px-3 py-1.5 ${
-                      pathname === item.href ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium' : 'text-[hsl(var(--text-secondary))]'
-                    }`}
-                  >
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="text-xs">{item.label}</span>
-                  </Link>
-                ))}
-              </div>
+      {/* Finance nav */}
+      <div>
+        {navGroups.map(group => (
+          <div key={group.label} className="mb-2">
+            <span className="px-3 text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--text-tertiary))]">{group.label}</span>
+            <div className="mt-1 flex flex-col gap-0.5">
+              {group.items.map(item => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-2 rounded-md text-sm hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors px-3 py-1.5 ${
+                    pathname === item.href ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium' : 'text-[hsl(var(--text-secondary))]'
+                  }`}
+                >
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  <span className="text-xs">{item.label}</span>
+                </Link>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
 
       {/* Footer */}
       <div className="mt-auto space-y-3">

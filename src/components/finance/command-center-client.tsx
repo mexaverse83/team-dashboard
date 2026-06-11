@@ -16,7 +16,7 @@ import { OwnerBar } from '@/components/finance/owner-dot'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import type { FinanceTransaction, FinanceCategory } from '@/lib/finance-types'
-import { enrichTransactions, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
+import { enrichTransactions, DEFAULT_CATEGORIES, monthKey } from '@/lib/finance-utils'
 import { type Summary, type Forecast, fmtMoney } from './command-center/types'
 import { buildAlerts } from './command-center/alerts'
 import { KpiCard, SectionHeader } from './command-center/ui'
@@ -48,7 +48,7 @@ export default function CommandCenterClient() {
   }, [])
 
   // Current month transactions
-  const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), [])
+  const currentMonthStr = useMemo(() => monthKey(new Date()), [])
   const monthTxs = useMemo(
     () => transactions.filter(t => t.transaction_date.startsWith(currentMonthStr)),
     [transactions, currentMonthStr]

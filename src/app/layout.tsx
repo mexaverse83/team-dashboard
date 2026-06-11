@@ -11,8 +11,8 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "Team Dashboard — Interstellar Squad",
-  description: "Mission control for our 6-agent AI team",
+  title: "Finance — Autonomis",
+  description: "Personal finance dashboard",
   icons: {
     icon: [
       { url: '/favicon-finance.svg', type: 'image/svg+xml' },
@@ -28,10 +28,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="md:hidden sticky top-0 z-50 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 backdrop-blur-sm">
           <div className="flex items-center justify-center px-4 h-12">
             <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500">
-                <span className="text-xs">🚀</span>
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500">
+                <span className="text-xs">💰</span>
               </div>
-              <span className="font-semibold text-sm">Interstellar Squad</span>
+              <span className="font-semibold text-sm">Finance</span>
             </div>
           </div>
         </header>

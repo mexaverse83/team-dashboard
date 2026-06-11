@@ -170,3 +170,12 @@ export function enrichRecurring(recs: FinanceRecurring[], cats: FinanceCategory[
   const catMap = Object.fromEntries(cats.map(c => [c.id, c]))
   return recs.map(r => ({ ...r, category: catMap[r.category_id] }))
 }
+
+/**
+ * YYYY-MM key in local time. Date#toISOString converts to UTC first, which
+ * shifts local-midnight dates to the previous month in timezones behind UTC
+ * (e.g. constructing June 1st in Mexico City stringifies as "2026-05").
+ */
+export function monthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}

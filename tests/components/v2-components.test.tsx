@@ -9,9 +9,7 @@ vi.mock('recharts', () => ({
 }))
 
 import { GlassCard } from '@/components/ui/glass-card'
-import { StatusIndicator } from '@/components/ui/status-indicator'
 import { TrendBadge } from '@/components/ui/trend-badge'
-import { AgentAvatar } from '@/components/ui/agent-avatar'
 import { RadialProgress } from '@/components/ui/radial-progress'
 import { SparklineChart } from '@/components/ui/sparkline-chart'
 import { AnimatedNumber } from '@/components/ui/animated-number'
@@ -47,61 +45,6 @@ describe('GlassCard', () => {
   })
 })
 
-// ── StatusIndicator ──
-describe('StatusIndicator', () => {
-  it('renders online status with pulse', () => {
-    const { container } = render(<StatusIndicator status="online" />)
-    const dot = container.querySelector('span span')!
-    expect(dot).toHaveClass('bg-emerald-500')
-    expect(dot).toHaveClass('status-online')
-  })
-
-  it('renders busy status with pulse', () => {
-    const { container } = render(<StatusIndicator status="busy" />)
-    const dot = container.querySelector('span span')!
-    expect(dot).toHaveClass('bg-yellow-500')
-    expect(dot).toHaveClass('status-online')
-  })
-
-  it('renders offline status without pulse', () => {
-    const { container } = render(<StatusIndicator status="offline" />)
-    const dot = container.querySelector('span span')!
-    expect(dot).toHaveClass('bg-gray-500')
-    expect(dot).not.toHaveClass('status-online')
-  })
-
-  it('shows label when label=true', () => {
-    render(<StatusIndicator status="online" label />)
-    expect(screen.getByText('Online')).toBeInTheDocument()
-  })
-
-  it('hides label by default', () => {
-    render(<StatusIndicator status="online" />)
-    expect(screen.queryByText('Online')).not.toBeInTheDocument()
-  })
-
-  it('shows correct label text for each status', () => {
-    const { rerender } = render(<StatusIndicator status="online" label />)
-    expect(screen.getByText('Online')).toBeInTheDocument()
-    rerender(<StatusIndicator status="busy" label />)
-    expect(screen.getByText('Busy')).toBeInTheDocument()
-    rerender(<StatusIndicator status="offline" label />)
-    expect(screen.getByText('Offline')).toBeInTheDocument()
-  })
-
-  it('renders sm size by default', () => {
-    const { container } = render(<StatusIndicator status="online" />)
-    const dot = container.querySelector('span span')!
-    expect(dot).toHaveClass('h-2', 'w-2')
-  })
-
-  it('renders md size', () => {
-    const { container } = render(<StatusIndicator status="online" size="md" />)
-    const dot = container.querySelector('span span')!
-    expect(dot).toHaveClass('h-2.5', 'w-2.5')
-  })
-})
-
 // ── TrendBadge ──
 describe('TrendBadge', () => {
   it('renders positive value with green color and +', () => {
@@ -132,47 +75,6 @@ describe('TrendBadge', () => {
   it('applies negative styling', () => {
     const { container } = render(<TrendBadge value={-10} />)
     expect(container.firstChild).toHaveClass('text-red-400')
-  })
-})
-
-// ── AgentAvatar ──
-describe('AgentAvatar', () => {
-  it('renders image with alt text', () => {
-    render(<AgentAvatar src="/test.png" name="TARS" />)
-    const img = screen.getByAltText('TARS')
-    expect(img).toBeInTheDocument()
-    expect(img).toHaveAttribute('src', '/test.png')
-  })
-
-  it('applies size classes', () => {
-    const { container, rerender } = render(<AgentAvatar src="/t.png" name="T" size="sm" />)
-    expect(container.firstChild).toHaveClass('h-8', 'w-8')
-    rerender(<AgentAvatar src="/t.png" name="T" size="md" />)
-    expect(container.firstChild).toHaveClass('h-14', 'w-14')
-    rerender(<AgentAvatar src="/t.png" name="T" size="lg" />)
-    expect(container.firstChild).toHaveClass('h-20', 'w-20')
-  })
-
-  it('shows status ring when status provided', () => {
-    const { container } = render(<AgentAvatar src="/t.png" name="T" status="online" />)
-    expect(container.firstChild).toHaveClass('ring-2', 'ring-emerald-500')
-  })
-
-  it('shows busy ring color', () => {
-    const { container } = render(<AgentAvatar src="/t.png" name="T" status="busy" />)
-    expect(container.firstChild).toHaveClass('ring-yellow-500')
-  })
-
-  it('applies glow only when online + glowColor', () => {
-    const { container } = render(<AgentAvatar src="/t.png" name="T" status="online" glowColor="blue" />)
-    const el = container.firstChild as HTMLElement
-    expect(el.style.getPropertyValue('--glow-color')).toBe('blue')
-  })
-
-  it('no glow when offline even with glowColor', () => {
-    const { container } = render(<AgentAvatar src="/t.png" name="T" status="offline" glowColor="blue" />)
-    const el = container.firstChild as HTMLElement
-    expect(el.style.animation).toBe('')
   })
 })
 

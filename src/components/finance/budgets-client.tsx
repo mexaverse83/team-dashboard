@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 
 import type { FinanceCategory, FinanceTransaction, FinanceBudget } from '@/lib/finance-types'
-import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES, cycleBudgetComparison, CYCLE_LABELS, allocatedMonthlySpend } from '@/lib/finance-utils'
+import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES, cycleBudgetComparison, CYCLE_LABELS, allocatedMonthlySpend, monthKey } from '@/lib/finance-utils'
 
 const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
 
@@ -46,7 +46,7 @@ export default function BudgetsClient() {
 
   useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
 
-  const monthStr = currentMonth.toISOString().slice(0, 7)
+  const monthStr = monthKey(currentMonth)
   const monthLabel = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
   const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))

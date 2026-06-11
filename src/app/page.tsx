@@ -1,11 +1,5 @@
-import type { Metadata } from 'next'
-import OverviewClient from '@/components/overview-client'
+import { redirect } from 'next/navigation'
 
-export const metadata: Metadata = {
-  title: 'Overview — Interstellar Squad',
-  description: 'Mission overview and team status',
-}
-
-export default function DashboardPage() {
-  return <OverviewClient />
+export default function RootPage() {
+  redirect('/finance')
 }

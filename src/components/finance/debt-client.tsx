@@ -63,6 +63,7 @@ function simulatePayoff(debts: FinanceDebt[], strategy: 'snowball' | 'avalanche'
 
 export default function DebtClient() {
   const [debts, setDebts] = useState<FinanceDebt[]>([])
+  const [paidPrincipal, setPaidPrincipal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [sortBy, setSortBy] = useState<'balance' | 'rate'>('rate')
   const [extraPayment, setExtraPayment] = useState(0)
@@ -75,8 +76,12 @@ export default function DebtClient() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
-    const { data } = await supabase.from('finance_debts').select('*').eq('is_active', true).order('balance')
+    const [{ data }, payments] = await Promise.all([
+      supabase.from('finance_debts').select('*').eq('is_active', true).order('balance'),
+      supabase.from('finance_debt_payments').select('principal_portion'),
+    ])
     setDebts(data || [])
+    setPaidPrincipal((payments.data || []).reduce((s, p) => s + Number(p.principal_portion || 0), 0))
     setLoading(false)
   }, [])
 
@@ -110,9 +115,8 @@ export default function DebtClient() {
     }))
   }, [snowball, avalanche])
 
-  // Progress
-  const totalPaid = debts.reduce((s, d) => s, 0) // We don't track original balance yet, use 0
-  const pctPaid = totalDebt > 0 ? 0 : 1 // Without original balances, show countdown only
+  // Progress: principal already paid off (recorded payments) vs original total
+  const pctPaid = totalDebt + paidPrincipal > 0 ? paidPrincipal / (totalDebt + paidPrincipal) : 0
 
   // CRUD
   const openAdd = () => { setEditingId(null); setForm(emptyForm); setModalOpen(true) }
@@ -293,9 +297,13 @@ export default function DebtClient() {
                   <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(222, 20%, 14%)" strokeWidth="6" />
                   <motion.circle cx="50" cy="50" r="42" fill="none" stroke="#10B981" strokeWidth="6" strokeLinecap="round"
                     strokeDasharray={`${2 * Math.PI * 42}`} initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
-                    animate={{ strokeDashoffset: 2 * Math.PI * 42 * 0.95 }} transition={{ duration: 1.2 }} />
+                    animate={{ strokeDashoffset: 2 * Math.PI * 42 * (1 - pctPaid) }} transition={{ duration: 1.2 }} />
                 </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-sm font-bold text-emerald-400 tabular-nums">{Math.round(pctPaid * 100)}%</span>
+                </div>
               </div>
+              <p className="text-xs text-[hsl(var(--text-tertiary))] mt-2">of original debt paid off</p>
             </motion.div>
           </GlassCard>
         </div>

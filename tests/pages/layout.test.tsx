@@ -1,5 +1,5 @@
 /**
- * Unit Tests — Root Layout
+ * Unit Tests — Root Layout (finance-only)
  */
 
 import { describe, it, expect, vi } from 'vitest'
@@ -11,14 +11,16 @@ vi.mock('next/link', () => ({
 }))
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/',
+  usePathname: () => '/finance',
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
 }))
 
 describe('Root Layout', () => {
-  it('renders sidebar with team branding', () => {
+  it('renders sidebar with Finance branding', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    expect(screen.getByText('Squad Dashboard')).toBeInTheDocument()
+    // Mobile header + sidebar logo/top bar all say "Finance"
+    expect(screen.getAllByText('Finance').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('Personal Finance')).toBeInTheDocument()
   })
 
   it('renders navigation links', () => {
@@ -27,15 +29,18 @@ describe('Root Layout', () => {
     expect(links.length).toBeGreaterThanOrEqual(20)
   })
 
-  it('navigation links include main and finance', () => {
+  it('navigation links are finance-only', () => {
     render(<RootLayout><div>content</div></RootLayout>)
     const hrefs = screen.getAllByRole('link').map(l => l.getAttribute('href'))
-    expect(hrefs).toContain('/')
-    expect(hrefs).toContain('/agents')
     expect(hrefs).toContain('/finance')
     expect(hrefs).toContain('/finance/transactions')
     expect(hrefs).toContain('/finance/debt')
     expect(hrefs).toContain('/finance/audit')
+    // No agent routes remain
+    expect(hrefs).not.toContain('/')
+    expect(hrefs).not.toContain('/agents')
+    expect(hrefs).not.toContain('/mission-control')
+    expect(hrefs).not.toContain('/tasks')
   })
 
   it('renders children in main area', () => {
@@ -44,8 +49,10 @@ describe('Root Layout', () => {
   })
 
   it('renders mobile header', () => {
-    render(<RootLayout><div>content</div></RootLayout>)
-    expect(screen.getByText('Squad Dashboard')).toBeInTheDocument()
+    const { container } = render(<RootLayout><div>content</div></RootLayout>)
+    const header = container.querySelector('header')
+    expect(header).toBeInTheDocument()
+    expect(header?.textContent).toContain('Finance')
   })
 
   it('uses dark mode', () => {

@@ -127,6 +127,10 @@ function setupSupabaseMock(overrides: Record<string, any> = {}) {
       { id: 'g2', name: 'Vacation Fund', target_amount: 30000, current_amount: 8000, target_date: '2026-08-01', is_completed: false, priority: 2, monthly_contribution: 3000, investment_vehicle: null, milestones_json: [], created_at: '2026-01-01', updated_at: '2026-01-01' },
     ], error: null },
     finance_emergency_fund: { data: [], error: null },
+    finance_debt_payments: { data: [
+      { principal_portion: 10000 },
+      { principal_portion: 20000 },
+    ], error: null },
   }
   const merged = { ...defaults, ...overrides }
 
@@ -335,6 +339,16 @@ describe('Debt Planner', () => {
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getAllByText(/36%|18%/).length).toBeGreaterThanOrEqual(1)
+    })
+  })
+
+  it('payoff gauge shows real principal paid pct from finance_debt_payments', async () => {
+    const Comp = (await import('@/components/finance/debt-client')).default
+    render(<Comp />)
+    await waitFor(() => {
+      // paid 30,000 principal vs 70,000 remaining → 30,000 / 100,000 = 30%
+      expect(screen.getByText('30%')).toBeInTheDocument()
+      expect(screen.getByText('of original debt paid off')).toBeInTheDocument()
     })
   })
 })

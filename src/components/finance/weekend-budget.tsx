@@ -5,6 +5,7 @@ import { CalendarDays } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { GlassCard } from '@/components/ui/glass-card'
 import { cn } from '@/lib/utils'
+import { monthKey } from '@/lib/finance-utils'
 import type {
   FinanceCategory,
   FinanceTransaction,
@@ -44,12 +45,10 @@ export function WeekendBudgetCard({ transactions, categories }: Props) {
     const today = new Date()
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-    const currentMonthStr = monthStart.toISOString().slice(0, 7)
+    const currentMonthStr = monthKey(monthStart)
 
-    const last3 = [1, 2, 3].map(i => {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
-      return d.toISOString().slice(0, 7)
-    })
+    const last3 = [1, 2, 3].map(i =>
+      monthKey(new Date(today.getFullYear(), today.getMonth() - i, 1)))
     const inLast3 = (date: string) => last3.some(s => date.startsWith(s))
 
     const discretionaryIds = new Set(

@@ -18,7 +18,7 @@ import { WolffWidget } from '@/components/finance/wolff-widget'
 import { WestCompactWidget } from '@/components/finance/west-tracker'
 import { WeekendBudgetCard } from '@/components/finance/weekend-budget'
 import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceRecurringIncome } from '@/lib/finance-types'
-import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
+import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES, monthKey } from '@/lib/finance-utils'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -62,7 +62,7 @@ export default function FinanceOverviewClient() {
     })
   }, [])
 
-  const monthStr = currentMonth.toISOString().slice(0, 7)
+  const monthStr = monthKey(currentMonth)
   const monthLabel = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 
   const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
@@ -76,7 +76,7 @@ export default function FinanceOverviewClient() {
 
   // Previous month for comparison
   const prevMonthDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
-  const prevMonthStr = prevMonthDate.toISOString().slice(0, 7)
+  const prevMonthStr = monthKey(prevMonthDate)
   const prevMonthTxs = useMemo(() =>
     transactions.filter(t => t.transaction_date.startsWith(prevMonthStr)),
     [transactions, prevMonthStr]

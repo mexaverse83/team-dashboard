@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
 import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '@/lib/seed-finance'
+import { monthKey } from '@/lib/finance-utils'
 
 // Mock recharts
 vi.mock('recharts', () => ({
@@ -101,8 +102,9 @@ beforeEach(() => {
 })
 
 // Pages filter budgets/transactions by the currently displayed month, so pin
-// the seed budgets to this month (computed the same way the components do).
-const THIS_MONTH = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 7)
+// the seed budgets to this month (computed the same way the components do —
+// monthKey uses local time, not toISOString/UTC).
+const THIS_MONTH = monthKey(new Date())
 const CURRENT_MONTH_BUDGETS = SEED_BUDGETS.map(b => ({ ...b, month: `${THIS_MONTH}-01` }))
 
 // Generic chainable query builder: every filter/modifier returns the chain,
