@@ -16,7 +16,7 @@ import { enrichRecurring, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
 import { OwnerDot } from '@/components/finance/owner-dot'
 
-const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
+import { inputCls } from '@/lib/form-style'
 
 function advanceDate(dateStr: string, frequency: string): string {
   const d = new Date(dateStr + 'T12:00:00Z')
@@ -330,7 +330,7 @@ export default function SubscriptionsClient() {
                             <CreditCard className="h-3.5 w-3.5 text-emerald-400" />
                           </button>
                         )}
-                        <button onClick={() => openEdit(sub)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
+                        <button aria-label="Edit" onClick={() => openEdit(sub)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
                           <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" />
                         </button>
                         {deleteConfirm === sub.id ? (
@@ -339,7 +339,7 @@ export default function SubscriptionsClient() {
                             <button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--bg-elevated))]">No</button>
                           </div>
                         ) : (
-                          <button onClick={() => setDeleteConfirm(sub.id)} className="p-1 rounded hover:bg-rose-500/10">
+                          <button aria-label="Delete" onClick={() => setDeleteConfirm(sub.id)} className="p-1 rounded hover:bg-rose-500/10">
                             <Trash2 className="h-3.5 w-3.5 text-rose-400" />
                           </button>
                         )}

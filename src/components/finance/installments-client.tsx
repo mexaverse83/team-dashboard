@@ -15,8 +15,8 @@ import { DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
 import { OwnerDot } from '@/components/finance/owner-dot'
 
-const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
-const tooltipStyle = { contentStyle: { background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' } }
+import { inputCls } from '@/lib/form-style'
+import { tooltipStyle } from '@/lib/chart-style'
 
 const MSI_PRESETS = [3, 6, 9, 12, 18, 24]
 
@@ -423,9 +423,9 @@ export function InstallmentsClient() {
                       <div className="flex items-center justify-between text-xs text-[hsl(var(--text-tertiary))]">
                         <span>{inst.credit_card ? `💳 ${inst.credit_card}` : ''} · Ends {new Date(inst.end_date).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })} ({remain}mo)</span>
                         <div className="flex gap-1">
-                          <button onClick={() => handleMarkPayment(inst)} className="p-1 text-emerald-400"><CheckCircle2 className="h-4 w-4" /></button>
-                          <button onClick={() => openEdit(inst)} className="p-1 text-blue-400"><Pencil className="h-4 w-4" /></button>
-                          <button onClick={() => setDeleteConfirm(inst.id)} className="p-1 text-red-400"><Trash2 className="h-4 w-4" /></button>
+                          <button aria-label="Mark as paid" onClick={() => handleMarkPayment(inst)} className="p-1 text-emerald-400"><CheckCircle2 className="h-4 w-4" /></button>
+                          <button aria-label="Edit" onClick={() => openEdit(inst)} className="p-1 text-blue-400"><Pencil className="h-4 w-4" /></button>
+                          <button aria-label="Delete" onClick={() => setDeleteConfirm(inst.id)} className="p-1 text-red-400"><Trash2 className="h-4 w-4" /></button>
                         </div>
                       </div>
                     </div>
@@ -450,7 +450,7 @@ export function InstallmentsClient() {
                   <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-tertiary))]">
                     <span>{fmt(inst.total_amount)}</span>
                     <span>✅ {inst.installment_count} payments</span>
-                    <button onClick={() => setDeleteConfirm(inst.id)} className="p-1 text-red-400 hover:bg-red-500/20 rounded">
+                    <button aria-label="Delete" onClick={() => setDeleteConfirm(inst.id)} className="p-1 text-red-400 hover:bg-red-500/20 rounded">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>

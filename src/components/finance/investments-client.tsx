@@ -14,6 +14,7 @@ import {
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, AreaChart, Area, XAxis, YAxis,
 } from 'recharts'
+import { CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
 
 // ─── Asset class colors ───
 const ASSET_COLORS: Record<string, string> = {
@@ -117,7 +118,7 @@ function TierBadge({ tier }: { tier: number }) {
 
 // ─── Tooltip style ───
 const tooltipStyle = {
-  contentStyle: { background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' },
+  contentStyle: CHART_TOOLTIP_STYLE,
   itemStyle: { color: 'hsl(var(--foreground))' },
 }
 
@@ -663,10 +664,10 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                             <td className="py-3 px-3 text-xs text-[hsl(var(--text-secondary))]">{s.broker}</td>
                             <td className="py-2 px-2">
                               <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => { setStockForm(s); setShowStockForm(true) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
+                                <button aria-label="Edit" onClick={() => { setStockForm(s); setShowStockForm(true) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
                                   <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                                 </button>
-                                <button onClick={() => deleteStock(s.id)} className="p-1 rounded hover:bg-rose-500/10">
+                                <button aria-label="Delete" onClick={() => deleteStock(s.id)} className="p-1 rounded hover:bg-rose-500/10">
                                   <Trash2 className="h-3.5 w-3.5 text-rose-400" />
                                 </button>
                               </div>
@@ -780,10 +781,10 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                         </button>
                       ) : (
                         <>
-                          <button onClick={() => { setFIForm(group.filtered[0]); setShowFIForm(true) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
+                          <button aria-label="Edit" onClick={() => { setFIForm(group.filtered[0]); setShowFIForm(true) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
                             <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                           </button>
-                          <button onClick={() => deleteFI(group.filtered[0].id)} className="p-1 rounded hover:bg-rose-500/10">
+                          <button aria-label="Delete" onClick={() => deleteFI(group.filtered[0].id)} className="p-1 rounded hover:bg-rose-500/10">
                             <Trash2 className="h-3.5 w-3.5 text-rose-400" />
                           </button>
                         </>
@@ -949,10 +950,10 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                 return (
                   <GlassCard key={prop.id} className="p-4 relative group border-l-2 border-violet-500">
                     <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => { setREForm(prop); setShowREForm(true) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
+                      <button aria-label="Edit" onClick={() => { setREForm(prop); setShowREForm(true) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
                         <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                       </button>
-                      <button onClick={() => deleteRE(prop.id)} className="p-1 rounded hover:bg-rose-500/10">
+                      <button aria-label="Delete" onClick={() => deleteRE(prop.id)} className="p-1 rounded hover:bg-rose-500/10">
                         <Trash2 className="h-3.5 w-3.5 text-rose-400" />
                       </button>
                     </div>
@@ -1038,7 +1039,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           <div className="w-full max-w-md bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{stockForm.id ? 'Edit Stock' : 'Add Stock'}</h2>
-              <button onClick={() => setShowStockForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
+              <button aria-label="Close" onClick={() => setShowStockForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -1123,7 +1124,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           <div className="w-full max-w-md bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{fiForm.id ? 'Edit Instrument' : 'Add Instrument'}</h2>
-              <button onClick={() => setShowFIForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
+              <button aria-label="Close" onClick={() => setShowFIForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -1258,7 +1259,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                   <h2 className="font-semibold text-sm">Edit Ownership Split</h2>
                   <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{inst.name.trim()} · {inst.institution}</p>
                 </div>
-                <button onClick={() => setShowFIGroupEdit(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
+                <button aria-label="Close" onClick={() => setShowFIGroupEdit(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
               </div>
 
               <p className="text-xs text-[hsl(var(--text-secondary))]">
@@ -1326,7 +1327,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                   <h2 className="font-semibold text-sm">Add Funds</h2>
                   <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{inst.name.trim()} · {inst.institution}</p>
                 </div>
-                <button onClick={() => setShowAddFunds(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
+                <button aria-label="Close" onClick={() => setShowAddFunds(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
               </div>
 
               {/* Owner selector */}
@@ -1406,7 +1407,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           <div className="w-full max-w-md bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{reForm.id ? 'Edit Property' : 'Add Property'}</h2>
-              <button onClick={() => setShowREForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
+              <button aria-label="Close" onClick={() => setShowREForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
             </div>
             <div className="space-y-3">
               <div>

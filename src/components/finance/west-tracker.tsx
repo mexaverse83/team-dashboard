@@ -7,6 +7,7 @@ import Link from 'next/link'
 import {
   ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from 'recharts'
+import { CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
 
 function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' ') }
 function fmt(n: number, d = 0) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n) }
@@ -370,7 +371,7 @@ export function WestTracker() {
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={m => m.slice(5)} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
               <Tooltip
-                contentStyle={{ background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' }}
+                contentStyle={CHART_TOOLTIP_STYLE}
 
                 formatter={(val: any, name: any) => [fmtMXN(Number(val) || 0), String(name)]}
                 labelFormatter={m => `Month: ${m}`}
@@ -672,7 +673,7 @@ export function WestProjectionWithScenarios() {
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={(m: string) => m.slice(5)} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
               <Tooltip
-                contentStyle={{ background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' }}
+                contentStyle={CHART_TOOLTIP_STYLE}
 
                 formatter={(val: any, name: any) => [fmtMXN(Number(val) || 0), String(name)]}
 

@@ -13,7 +13,8 @@ import type { FinanceRule } from '@/lib/finance-rules'
 import { DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import { OWNERS } from '@/lib/owners'
 
-const inputCls = 'w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors'
+import { inputCls } from '@/lib/form-style'
+
 const labelCls = 'text-xs text-[hsl(var(--text-secondary))] mb-1 block'
 
 interface RuleForm {

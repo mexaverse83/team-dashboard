@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { canonicalOwner } from '@/lib/owners'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -94,7 +95,7 @@ async function processRecurring(req: NextRequest) {
         recurring_id: sub.id,
         tags: ['auto-recurring'],
         flags: flags.length > 0 ? flags : null,
-        owner: sub.owner,
+        owner: canonicalOwner(sub.owner),
       })
       if (error) {
         // Do NOT advance date on failure — allow retry on next cron run
@@ -262,7 +263,7 @@ async function processRecurring(req: NextRequest) {
       is_recurring: true,
       tags: ['auto-income', 'recurring-income'],
       source: 'recurring_income',
-      owner: ri.owner,
+      owner: canonicalOwner(ri.owner),
     })
     if (error) {
       results.errors.push(`RecurringIncome ${ri.name}: ${error.message}`)
@@ -319,7 +320,7 @@ async function processRecurring(req: NextRequest) {
       transaction_date: today,
       is_recurring: true,
       tags: ['auto-msi'],
-      owner: msi.owner,
+      owner: canonicalOwner(msi.owner),
       installment_id: msi.id,   // requires finance-installments-sync migration
     })
 

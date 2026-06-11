@@ -12,8 +12,8 @@ import type { FinanceDebt } from '@/lib/finance-types'
 import { OwnerDot } from '@/components/finance/owner-dot'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 
-const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
-const tooltipStyle = { contentStyle: { background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' } }
+import { inputCls } from '@/lib/form-style'
+import { tooltipStyle } from '@/lib/chart-style'
 
 const DEBT_ICONS: Record<string, string> = { credit_card: '💳', auto_loan: '🚗', mortgage: '🏠', student_loan: '🎓', personal_loan: '📄', medical: '🏥', other: '📄' }
 
@@ -340,11 +340,11 @@ export default function DebtClient() {
                       <td className="py-2 px-2 w-16">
                         <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                           <button onClick={(e) => { e.stopPropagation(); setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }} className="p-1 rounded hover:bg-emerald-500/10" title="Log payment"><CreditCard className="h-3.5 w-3.5 text-emerald-400" /></button>
-                          <button onClick={() => openEdit(debt)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
+                          <button aria-label="Edit" onClick={() => openEdit(debt)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
                           {deleteConfirm === debt.id ? (
                             <div className="flex gap-0.5"><button onClick={() => handleDelete(debt.id)} className="px-1.5 py-0.5 rounded text-[10px] bg-rose-600 text-white">Del</button><button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--bg-elevated))]">No</button></div>
                           ) : (
-                            <button onClick={() => setDeleteConfirm(debt.id)} className="p-1 rounded hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-400" /></button>
+                            <button aria-label="Delete" onClick={() => setDeleteConfirm(debt.id)} className="p-1 rounded hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-400" /></button>
                           )}
                         </div>
                       </td>
@@ -364,8 +364,8 @@ export default function DebtClient() {
                     <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-tertiary))]"><span className={cn(debt.interest_rate >= 25 ? "text-rose-400" : debt.interest_rate >= 15 ? "text-amber-400" : "")}>{debt.interest_rate}% APR</span><span>Min: ${debt.minimum_payment.toLocaleString()}</span></div>
                     <div className="flex gap-1">
                       <button onClick={(e) => { e.stopPropagation(); setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }} className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-400" title="Log payment"><CreditCard className="h-3.5 w-3.5" /></button>
-                      <button onClick={() => openEdit(debt)} className="p-1.5 rounded-lg hover:bg-blue-500/10 text-blue-400"><Pencil className="h-3.5 w-3.5" /></button>
-                      <button onClick={() => setDeleteConfirm(debt.id)} className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400"><Trash2 className="h-3.5 w-3.5" /></button>
+                      <button aria-label="Edit" onClick={() => openEdit(debt)} className="p-1.5 rounded-lg hover:bg-blue-500/10 text-blue-400"><Pencil className="h-3.5 w-3.5" /></button>
+                      <button aria-label="Delete" onClick={() => setDeleteConfirm(debt.id)} className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400"><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
                   </div>
                 </div>

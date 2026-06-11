@@ -281,5 +281,5 @@ export async function GET(req: NextRequest) {
       next_7_days: { events: upcoming7.length, net: Math.round(next7Net) },
       next_30_days: { events: upcoming30.length, net: Math.round(next30Net) },
     },
-  })
+  }, { headers: { 'Cache-Control': 'private, max-age=1800' } })
 }

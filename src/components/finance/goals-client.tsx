@@ -15,8 +15,8 @@ import { OwnerDot } from '@/components/finance/owner-dot'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar } from 'recharts'
 import type { FinanceMonthlySavings } from '@/lib/finance-types'
 
-const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
-const tooltipStyle = { contentStyle: { background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' } }
+import { inputCls } from '@/lib/form-style'
+import { tooltipStyle, CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
 
 const GOAL_ICONS = ['🏠', '🚗', '✈️', '💻', '🎓', '💍', '🏖️', '🎯', '🛡️', '💰']
 const GRADIENTS = ['from-indigo-500/20 to-purple-500/20', 'from-blue-500/20 to-cyan-500/20', 'from-emerald-500/20 to-teal-500/20', 'from-amber-500/20 to-orange-500/20']
@@ -359,8 +359,8 @@ export default function GoalsClient() {
                     )}>{isOnTrack ? '✓ On track' : '⚡ Needs boost'}</span>
                   )}
                   <div className="flex sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button onClick={e => { e.stopPropagation(); openEdit(g) }} className="p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
-                    <button onClick={e => { e.stopPropagation(); setDeleteConfirm(g.id) }} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-400" /></button>
+                    <button aria-label="Edit" onClick={e => { e.stopPropagation(); openEdit(g) }} className="p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
+                    <button aria-label="Delete" onClick={e => { e.stopPropagation(); setDeleteConfirm(g.id) }} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-400" /></button>
                   </div>
                 </div>
               </div>
@@ -585,7 +585,7 @@ export default function GoalsClient() {
                 <YAxis tick={{ fill: 'hsl(215, 16%, 50%)', fontSize: 11 }} axisLine={false} tickLine={false}
                   tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                 <Tooltip
-                  contentStyle={{ background: 'hsl(222, 47%, 6%)', border: '1px solid hsl(222, 20%, 18%)', borderRadius: '8px', fontSize: '12px' }}
+                  contentStyle={CHART_TOOLTIP_STYLE}
 
                   formatter={((v: number, name: string) => [`$${(v || 0).toLocaleString()}`, name === 'bernardo' ? 'Bernardo' : 'Laura']) as any}
                 />

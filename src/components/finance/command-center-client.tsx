@@ -14,6 +14,7 @@ import { WestCompactWidget } from '@/components/finance/west-tracker'
 import { WeekendBudgetCard } from '@/components/finance/weekend-budget'
 import { OwnerBar } from '@/components/finance/owner-dot'
 import { supabase } from '@/lib/supabase'
+import { ownersEqual } from '@/lib/owners'
 import { cn } from '@/lib/utils'
 import type { FinanceTransaction, FinanceCategory } from '@/lib/finance-types'
 import { enrichTransactions, DEFAULT_CATEGORIES, monthKey } from '@/lib/finance-utils'
@@ -30,6 +31,9 @@ export default function CommandCenterClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
+  // Net assets snapshot — fetched with the initial batch; the KPI strip falls
+  // back to the crypto-position card when unavailable
+  const [netWorth, setNetWorth] = useState<{ net_worth: number; total_assets: number; total_liabilities: number; date: string } | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -37,12 +41,16 @@ export default function CommandCenterClient() {
       fetch('/api/finance/forecast?days=60').then(r => r.ok ? r.json() : null).catch(() => null),
       supabase.from('finance_categories').select('*').order('sort_order'),
       supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }).limit(200),
-    ]).then(([sum, fc, catRes, txRes]) => {
+      fetch('/api/finance/net-worth?days=30').then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([sum, fc, catRes, txRes, nw]) => {
       setSummary(sum)
       setForecast(fc)
       const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
       setCategories(cats)
       setTransactions(enrichTransactions(txRes.data || [], cats))
+      if (nw?.summary?.latest) {
+        setNetWorth({ net_worth: nw.summary.latest.net_worth, total_assets: nw.summary.latest.total_assets, total_liabilities: nw.summary.latest.total_liabilities, date: nw.summary.latest.date })
+      }
       setLoading(false)
     })
   }, [])
@@ -59,8 +67,8 @@ export default function CommandCenterClient() {
   const netSavings = totalIncome - totalSpent
   const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0
 
-  const bernardoSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && t.owner === 'Bernardo').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
-  const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && t.owner === 'Laura').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const bernardoSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, 'Bernardo')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, 'Laura')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
 
   // Daily spend sparkline
   const dailySpend = useMemo(() => {
@@ -73,19 +81,6 @@ export default function CommandCenterClient() {
     const today = new Date().getDate()
     return Array.from({ length: today }, (_, i) => map[i + 1] || 0)
   }, [monthTxs])
-
-  // Net assets snapshot — fetched lazily; falls back to component-derived sum
-  const [netWorth, setNetWorth] = useState<{ net_worth: number; total_assets: number; total_liabilities: number; date: string } | null>(null)
-  useEffect(() => {
-    fetch('/api/finance/net-worth?days=30')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d?.summary?.latest) {
-          setNetWorth({ net_worth: d.summary.latest.net_worth, total_assets: d.summary.latest.total_assets, total_liabilities: d.summary.latest.total_liabilities, date: d.summary.latest.date })
-        }
-      })
-      .catch(() => null)
-  }, [])
 
   const alerts = useMemo(
     () => buildAlerts(summary, forecast, transactions).filter(a => !dismissedAlerts.has(a.id)),

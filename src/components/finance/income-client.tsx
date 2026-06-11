@@ -221,13 +221,13 @@ export function IncomeClient() {
                       item.active ? "left-5" : "left-0.5"
                     )} />
                   </button>
-                  <button
+                  <button aria-label="Edit"
                     onClick={() => openEdit(item)}
                     className="p-1.5 rounded text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
-                  <button
+                  <button aria-label="Delete"
                     onClick={() => handleDelete(item.id)}
                     disabled={deleting === item.id}
                     className="p-1.5 rounded text-[hsl(var(--text-secondary))] hover:text-rose-400 hover:bg-rose-500/10 transition-colors"

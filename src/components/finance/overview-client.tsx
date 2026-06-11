@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { TrendingDown, TrendingUp, Wallet, Percent, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
+import { ownersEqual } from '@/lib/owners'
 import { GlassCard } from '@/components/ui/glass-card'
 import { AnimatedNumber } from '@/components/ui/animated-number'
 import { TrendBadge } from '@/components/ui/trend-badge'
@@ -24,14 +26,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
 
-const tooltipStyle = {
-  contentStyle: {
-    background: 'hsl(222, 47%, 6%)',
-    border: '1px solid hsl(222, 20%, 18%)',
-    borderRadius: '8px',
-    fontSize: '12px',
-  },
-}
+import { tooltipStyle } from '@/lib/chart-style'
 
 export default function FinanceOverviewClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
@@ -47,7 +42,7 @@ export default function FinanceOverviewClient() {
   useEffect(() => {
     Promise.all([
       supabase.from('finance_categories').select('*').order('sort_order'),
-      supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }),
+      fetchAllRows<FinanceTransaction>((from, to) => supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
       supabase.from('finance_budgets').select('*'),
       supabase.from('finance_recurring_income').select('*').eq('active', true),
     ]).then(([catRes, txRes, budRes, riRes]) => {
@@ -89,10 +84,10 @@ export default function FinanceOverviewClient() {
   const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0
 
   // Per-owner breakdowns
-  const bernardoSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && t.owner === 'Bernardo').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
-  const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && t.owner === 'Laura').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
-  const bernardoIncome = useMemo(() => monthTxs.filter(t => t.type === 'income' && t.owner === 'Bernardo').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
-  const lauraIncome = useMemo(() => monthTxs.filter(t => t.type === 'income' && t.owner === 'Laura').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const bernardoSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, 'Bernardo')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, 'Laura')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const bernardoIncome = useMemo(() => monthTxs.filter(t => t.type === 'income' && ownersEqual(t.owner, 'Bernardo')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const lauraIncome = useMemo(() => monthTxs.filter(t => t.type === 'income' && ownersEqual(t.owner, 'Laura')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
   const expectedMonthlyIncome = useMemo(
     () => recurringIncome.filter(r => r.recurrence === 'monthly').reduce((s, r) => s + r.amount, 0),
     [recurringIncome]
@@ -132,7 +127,7 @@ export default function FinanceOverviewClient() {
   }, [monthTxs])
 
   // Daily sparklines for KPI cards
-  const dailySpendHistory = dailyData.map(d => d.amount)
+  const dailySpendHistory = useMemo(() => dailyData.map(d => d.amount), [dailyData])
   const dailyIncomeHistory = useMemo(() => {
     const map: Record<string, number> = {}
     monthTxs.filter(t => t.type === 'income').forEach(t => {
@@ -183,11 +178,11 @@ export default function FinanceOverviewClient() {
           <p className="text-[hsl(var(--text-secondary))]">Personal spending and income overview</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={prevMonth} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))] transition-colors">
+          <button aria-label="Previous month" onClick={prevMonth} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))] transition-colors">
             <ChevronLeft className="h-4 w-4" />
           </button>
           <span className="text-sm font-medium min-w-[140px] text-center">{monthLabel}</span>
-          <button onClick={nextMonth} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))] transition-colors">
+          <button aria-label="Next month" onClick={nextMonth} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))] transition-colors">
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>

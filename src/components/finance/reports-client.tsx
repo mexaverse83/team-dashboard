@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
+import { ownersEqual } from '@/lib/owners'
 import { GlassCard } from '@/components/ui/glass-card'
 import { AnimatedNumber } from '@/components/ui/animated-number'
 import { TrendBadge } from '@/components/ui/trend-badge'
@@ -16,14 +18,7 @@ import {
 } from 'recharts'
 import { OwnerBar } from '@/components/finance/owner-dot'
 
-const tooltipStyle = {
-  contentStyle: {
-    background: 'hsl(222, 47%, 6%)',
-    border: '1px solid hsl(222, 20%, 18%)',
-    borderRadius: '8px',
-    fontSize: '12px',
-  },
-}
+import { tooltipStyle } from '@/lib/chart-style'
 
 export default function ReportsClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
@@ -38,7 +33,7 @@ export default function ReportsClient() {
   useEffect(() => {
     Promise.all([
       supabase.from('finance_categories').select('*').order('sort_order'),
-      supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: true }),
+      fetchAllRows<FinanceTransaction>((from, to) => supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: true }).range(from, to)).then(rows => ({ data: rows })),
     ]).then(([catRes, txRes]) => {
       const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
       const txs = txRes.data || []
@@ -73,8 +68,8 @@ export default function ReportsClient() {
     transactions.filter(t => t.type === 'expense').forEach(t => {
       const m = t.transaction_date.slice(0, 7)
       if (!map[m]) map[m] = { bernardo: 0, laura: 0 }
-      if (t.owner === 'Bernardo') map[m].bernardo += t.amount_mxn
-      else if (t.owner === 'Laura') map[m].laura += t.amount_mxn
+      if (ownersEqual(t.owner, 'Bernardo')) map[m].bernardo += t.amount_mxn
+      else if (ownersEqual(t.owner, 'Laura')) map[m].laura += t.amount_mxn
     })
     return Object.entries(map).map(([month, d]) => ({ month, ...d })).sort((a, b) => a.month.localeCompare(b.month)).slice(-6)
   }, [transactions])
@@ -86,8 +81,8 @@ export default function ReportsClient() {
       const catName = t.category?.name || 'Other'
       const catIcon = t.category?.icon || '📦'
       if (!map[catName]) map[catName] = { name: catName, bernardo: 0, laura: 0, icon: catIcon }
-      if (t.owner === 'Bernardo') map[catName].bernardo += t.amount_mxn
-      else if (t.owner === 'Laura') map[catName].laura += t.amount_mxn
+      if (ownersEqual(t.owner, 'Bernardo')) map[catName].bernardo += t.amount_mxn
+      else if (ownersEqual(t.owner, 'Laura')) map[catName].laura += t.amount_mxn
     })
     return Object.values(map).sort((a, b) => (b.bernardo + b.laura) - (a.bernardo + a.laura)).slice(0, 8)
   }, [transactions])

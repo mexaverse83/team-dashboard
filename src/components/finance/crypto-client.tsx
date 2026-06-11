@@ -568,10 +568,10 @@ export function CryptoClient() {
                   <button onClick={() => openTxForm(h.symbol, h.owner, h.id)} className="p-1.5 rounded-md hover:bg-emerald-500/20" title="Log transaction">
                     <Plus className="h-3.5 w-3.5 text-emerald-400" />
                   </button>
-                  <button onClick={() => editHolding(h)} className="p-1.5 rounded-md hover:bg-[hsl(var(--accent))]">
+                  <button aria-label="Edit" onClick={() => editHolding(h)} className="p-1.5 rounded-md hover:bg-[hsl(var(--accent))]">
                     <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                   </button>
-                  <button onClick={() => handleDeleteHolding(h.id)} className="p-1.5 rounded-md hover:bg-red-500/20">
+                  <button aria-label="Delete" onClick={() => handleDeleteHolding(h.id)} className="p-1.5 rounded-md hover:bg-red-500/20">
                     <Trash2 className="h-3.5 w-3.5 text-red-400" />
                   </button>
                 </div>
@@ -678,7 +678,7 @@ export function CryptoClient() {
                     <td className="py-3 px-2 text-xs text-[hsl(var(--text-secondary))]">{tx.exchange || '—'}</td>
                     <td className="py-3 px-2 text-center"><OwnerDot owner={tx.owner} size="sm" /></td>
                     <td className="py-3 px-2">
-                      <button onClick={() => handleDeleteTx(tx.id, tx.holding_id)}
+                      <button aria-label="Delete" onClick={() => handleDeleteTx(tx.id, tx.holding_id)}
                         className="p-1 rounded-md hover:bg-red-500/20 sm:opacity-0 sm:group-hover/row:opacity-100 transition-opacity">
                         <Trash2 className="h-3 w-3 text-red-400" />
                       </button>
@@ -703,7 +703,7 @@ export function CryptoClient() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold tabular-nums">{fmtMXN(tx.total_mxn)}</span>
-                    <button onClick={() => handleDeleteTx(tx.id, tx.holding_id)} className="p-1 rounded-md hover:bg-red-500/20">
+                    <button aria-label="Delete" onClick={() => handleDeleteTx(tx.id, tx.holding_id)} className="p-1 rounded-md hover:bg-red-500/20">
                       <Trash2 className="h-3 w-3 text-red-400" />
                     </button>
                   </div>
@@ -724,7 +724,7 @@ export function CryptoClient() {
           <div className="w-full max-w-md bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{holdingForm.id ? 'Edit Position' : 'Add Position'}</h2>
-              <button onClick={() => setShowHoldingForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
+              <button aria-label="Close" onClick={() => setShowHoldingForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -778,7 +778,7 @@ export function CryptoClient() {
           <div className="w-full max-w-md bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">Log Transaction</h2>
-              <button onClick={() => setShowTxForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
+              <button aria-label="Close" onClick={() => setShowTxForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
             </div>
             <div className="space-y-3">
               {/* Buy/Sell toggle */}

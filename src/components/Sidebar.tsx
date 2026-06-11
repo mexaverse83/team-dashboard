@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard, Sparkles, TrendingUp, Banknote, Wand2 } from 'lucide-react'
+import { Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard, Sparkles, TrendingUp, Banknote, Wand2, Bitcoin } from 'lucide-react'
 import { FinanceAuthBadge } from './finance-auth-badge'
 
 const financeTrack = [
@@ -13,6 +13,7 @@ const financeTrack = [
   { href: '/finance/subscriptions', icon: RefreshCw, label: 'Subscriptions' },
   { href: '/finance/income', icon: Banknote, label: 'Income' },
   { href: '/finance/investments', icon: TrendingUp, label: 'Investments' },
+  { href: '/finance/crypto', icon: Bitcoin, label: 'Crypto' },
 ]
 
 const financePlan = [
@@ -61,7 +62,7 @@ export function Sidebar() {
         </div>
         <span className="text-sm font-semibold">Finance</span>
       </div>
-      <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-md hover:bg-[hsl(var(--accent))]">
+      <button onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle navigation" className="p-2 rounded-md hover:bg-[hsl(var(--accent))]">
         {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>
     </div>

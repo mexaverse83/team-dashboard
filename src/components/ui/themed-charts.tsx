@@ -5,6 +5,7 @@ import {
   RadialBarChart, RadialBar,
   Tooltip,
 } from 'recharts'
+import { CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
 
 // Themed colors from CSS vars (resolved at render time)
 const CHART_COLORS = {
@@ -53,13 +54,7 @@ export function ThemedAreaChart({
         )}
         {showTooltip && (
           <Tooltip
-            contentStyle={{
-              background: 'hsl(222, 47%, 6%)',
-              border: '1px solid hsl(222, 20%, 18%)',
-              borderRadius: '8px',
-              fontSize: '12px',
-              color: 'hsl(0, 0%, 95%)',
-            }}
+            contentStyle={{ ...CHART_TOOLTIP_STYLE, color: 'hsl(0, 0%, 95%)' }}
           />
         )}
         <Area

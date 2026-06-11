@@ -61,7 +61,7 @@ function AforeCard({ record, onEdit }: { record: RetirementRecord; onEdit: (r: R
   return (
     <GlassCard className="p-4 relative group border-l-2 border-slate-600">
       <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-        <button onClick={() => onEdit(record)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
+        <button aria-label="Edit" onClick={() => onEdit(record)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
           <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
         </button>
       </div>
@@ -120,7 +120,7 @@ function InfonavitCard({ record, onEdit }: { record: RetirementRecord; onEdit: (
   return (
     <GlassCard className="p-4 relative group border-l-2 border-emerald-500">
       <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-        <button onClick={() => onEdit(record)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
+        <button aria-label="Edit" onClick={() => onEdit(record)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
           <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
         </button>
       </div>

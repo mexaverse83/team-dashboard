@@ -41,10 +41,10 @@
   --danger: 0 84% 60%;
   --info: 217 91% 60%;
 
-  /* Text — secondary/tertiary lightened to clear ~4.5:1 contrast at small sizes */
+  /* Text — secondary/tertiary lightened to clear WCAG AA (~4.5:1) contrast at small sizes */
   --text-primary: 0 0% 95%;
   --text-secondary: 222 14% 62%;
-  --text-tertiary: 222 13% 52%;
+  --text-tertiary: 222 13% 58%;
 
   /* Elevation ladder — surfaces step lighter as they rise toward the viewer.
      These were referenced throughout the app but previously undefined, so any

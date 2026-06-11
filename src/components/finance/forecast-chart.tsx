@@ -4,6 +4,7 @@ import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, Bar,
 } from 'recharts'
+import { CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
 
 type ForecastPoint = {
   date: string
@@ -21,13 +22,7 @@ interface ForecastChartProps {
 }
 
 const tooltipStyle = {
-  contentStyle: {
-    background: 'hsl(222, 47%, 6%)',
-    border: '1px solid hsl(222, 20%, 18%)',
-    borderRadius: '8px',
-    fontSize: '12px',
-    padding: '8px 12px',
-  },
+  contentStyle: { ...CHART_TOOLTIP_STYLE, padding: '8px 12px' },
   labelStyle: { color: 'hsl(222, 15%, 55%)', fontSize: 11 },
 }
 

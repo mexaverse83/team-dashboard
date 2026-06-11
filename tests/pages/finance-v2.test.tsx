@@ -142,7 +142,7 @@ function setupSupabaseMock(overrides: Record<string, any> = {}) {
         // Chainable mock — every method returns itself
         const chain: any = Object.assign(Promise.resolve(res), {})
         const addMethods = (obj: any) => {
-          for (const m of ['order', 'eq', 'gte', 'lt', 'lte', 'limit', 'single']) {
+          for (const m of ['order', 'eq', 'gte', 'lt', 'lte', 'limit', 'single', 'range']) {
             obj[m] = vi.fn().mockImplementation(() => {
               const next = Object.assign(Promise.resolve(res), {})
               addMethods(next)

@@ -32,6 +32,8 @@ Server Components fetch directly via Supabase service role (`createSupabaseServe
 - **Recurring processor**: `POST /api/finance/process-recurring` (Vercel cron, 12:00 UTC daily) auto-creates transactions for due subscriptions, income, and installments. Entry point for all scheduled finance automation.
 - **Summary endpoint**: `GET /api/finance/summary` is the main aggregation — income, spending, budgets, subscriptions, debts, emergency fund, goals, crypto, cash flow projection.
 - **Month keys**: use `monthKey(date)` from `finance-utils.ts` for `YYYY-MM` strings — never `toISOString().slice(0, 7)`, which shifts local midnights to the previous month in timezones behind UTC.
+- **Owner casing**: canonical owner values are capitalized display names (`'Bernardo'`, `'Laura'` — see `src/lib/owners.ts`), but legacy rows and the processor's source tables hold lowercase. Always compare with `ownersEqual()` and canonicalize inserts with `canonicalOwner()`. Exception: `finance_recurring_income` and `finance_monthly_savings` deliberately use lowercase owners.
+- **Big reads**: Supabase caps any single response at 1000 rows. For potentially-large tables (`finance_transactions`), fetch with `fetchAllRows()` from `src/lib/supabase-fetch-all.ts` — a bare `.select('*')` silently truncates.
 
 Finance types live in `src/lib/finance-types.ts`; calculation utilities in `src/lib/finance-utils.ts`.
 

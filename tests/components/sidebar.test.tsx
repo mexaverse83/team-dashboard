@@ -18,8 +18,8 @@ describe('Sidebar', () => {
   it('renders all nav links (finance only)', () => {
     render(<Sidebar />)
     const links = screen.getAllByRole('link')
-    // Mobile bottom (5) + desktop finance (15: 6 track + 5 plan + 4 analyze) = 20
-    expect(links.length).toBe(20)
+    // Mobile bottom (5) + desktop finance (16: 7 track + 5 plan + 4 analyze) = 21
+    expect(links.length).toBe(21)
   })
 
   it('has correct finance nav hrefs', () => {
@@ -31,6 +31,7 @@ describe('Sidebar', () => {
     expect(hrefs).toContain('/finance/subscriptions')
     expect(hrefs).toContain('/finance/income')
     expect(hrefs).toContain('/finance/investments')
+    expect(hrefs).toContain('/finance/crypto')
     expect(hrefs).toContain('/finance/budget-builder')
     expect(hrefs).toContain('/finance/installments')
     expect(hrefs).toContain('/finance/debt')

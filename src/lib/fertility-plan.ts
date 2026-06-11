@@ -47,8 +47,14 @@ const CUT_RATES: Record<string, number> = {
   Other: 0.2,
 }
 
+// Local time, not UTC: plan dates are local calendar dates, and toISOString /
+// getUTC* shift Mexico evenings into the next UTC day/month.
 function monthKey(date: Date): string {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+function dayKey(date: Date): string {
+  return `${monthKey(date)}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 export function getTreatmentEventForMonth(month: string): TreatmentEvent | null {
@@ -56,7 +62,7 @@ export function getTreatmentEventForMonth(month: string): TreatmentEvent | null 
 }
 
 export function getRemainingTreatmentEvents(asOf: Date = new Date()): TreatmentEvent[] {
-  const today = asOf.toISOString().slice(0, 10)
+  const today = dayKey(asOf)
   const currentMonth = monthKey(asOf)
 
   return FERTILITY_TREATMENT_PLAN.events.filter(event => {

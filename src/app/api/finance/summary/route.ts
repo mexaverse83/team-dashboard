@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { buildFertilityCutRecommendations, FERTILITY_TREATMENT_PLAN, getRemainingTreatmentEvents, getTreatmentEventForMonth } from '@/lib/fertility-plan'
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
     { data: currentMonthIncomeTxs },
     { data: fertilityPaidTxs },
   ] = await Promise.all([
-    supabase.from('finance_transactions').select('*').gte('transaction_date', startStr).lte('transaction_date', endStr).eq('type', 'expense'),
+    fetchAllRows((from, to) => supabase.from('finance_transactions').select('*').gte('transaction_date', startStr).lte('transaction_date', endStr).eq('type', 'expense').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
     supabase.from('finance_categories').select('*'),
     supabase.from('finance_budgets').select('*'),
     supabase.from('finance_recurring').select('*').eq('is_active', true),
@@ -491,6 +492,6 @@ export async function GET(req: NextRequest) {
     },
     msi_timeline: msiTimeline,
     crypto: cryptoSummary,
-  })
+  }, { headers: { 'Cache-Control': 'private, max-age=300' } })
 }
 // 1771253121

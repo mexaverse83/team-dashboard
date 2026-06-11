@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Search, Plus, Pencil, Trash2, Upload, Download, Sparkles, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -16,7 +17,8 @@ import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
 import { OwnerDot } from '@/components/finance/owner-dot'
 import { applyRules, detectDuplicates, type FinanceRule } from '@/lib/finance-rules'
 
-const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
+import { inputCls } from '@/lib/form-style'
+
 const labelCls = "text-xs text-[hsl(var(--text-secondary))] mb-1 block"
 
 const QUICK_TAGS: { value: string; label: string }[] = [
@@ -153,7 +155,7 @@ export default function TransactionsClient() {
   const fetchData = useCallback(async () => {
     const [catRes, txRes] = await Promise.all([
       supabase.from('finance_categories').select('*').order('sort_order'),
-      supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }),
+      fetchAllRows<FinanceTransaction>((from, to) => supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
     ])
     
     

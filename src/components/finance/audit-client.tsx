@@ -38,6 +38,8 @@ export default function AuditClient() {
   const [categories, setCategories] = useState<{ id: string; name: string; icon: string; color: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [flaggedSubs, setFlaggedSubs] = useState<Set<string>>(new Set())
+  // Stable per mount: keeps the 30-day snooze check from flickering mid-session
+  const [snoozeNow] = useState(() => Date.now())
   const [cryptoRisks, setCryptoRisks] = useState<{ type: string; title: string; detail: string; severity: 'high' | 'medium' | 'low' }[]>([])
   const [cryptoValue, setCryptoValue] = useState(0)
   const [investmentAudit, setInvestmentAudit] = useState<{
@@ -158,7 +160,7 @@ export default function AuditClient() {
       const ls = (r as any).leak_status
       const lra = (r as any).leak_reviewed_at
       if (ls === 'keep') return
-      if (ls === 'later' && lra && (Date.now() - new Date(lra).getTime()) < 30 * 86400000) return
+      if (ls === 'later' && lra && (snoozeNow - new Date(lra).getTime()) < 30 * 86400000) return
       // Skip debt-linked subscriptions — these are auto-tracked debt payments, not discretionary
       if ((r as any).debt_id) return
 
@@ -298,9 +300,9 @@ export default function AuditClient() {
           <p className="text-[hsl(var(--text-secondary))] text-sm">Forensic spending analysis for {monthLabel}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setMonthOffset(m => m - 1)} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronLeft className="h-4 w-4" /></button>
+          <button aria-label="Previous month" onClick={() => setMonthOffset(m => m - 1)} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronLeft className="h-4 w-4" /></button>
           <span className="text-sm font-medium min-w-[140px] text-center">{monthLabel}</span>
-          <button onClick={() => setMonthOffset(m => m + 1)} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronRight className="h-4 w-4" /></button>
+          <button aria-label="Next month" onClick={() => setMonthOffset(m => m + 1)} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronRight className="h-4 w-4" /></button>
         </div>
       </div>
 

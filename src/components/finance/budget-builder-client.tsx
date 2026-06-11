@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { GlassCard } from '@/components/ui/glass-card'
 import { TrendBadge } from '@/components/ui/trend-badge'
 import { PageTransition } from '@/components/page-transition'
@@ -13,7 +14,7 @@ import { DEFAULT_CATEGORIES, defaultBudgetType, rollingMonthlyAverage } from '@/
 import { getNextTreatmentEvent, getTreatmentEventForMonth } from '@/lib/fertility-plan'
 import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceIncomeSource } from '@/lib/finance-types'
 
-const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
+import { inputCls } from '@/lib/form-style'
 
 const INCOME_ICONS: Record<string, string> = { salary: '💼', freelance: '📱', passive: '💤', side_hustle: '🔨', investment: '📈', other: '💵' }
 
@@ -53,7 +54,7 @@ export default function BudgetBuilderClient() {
   const fetchData = useCallback(async () => {
     const [catRes, txRes, budRes, incRes, goalsRes, instRes] = await Promise.all([
       supabase.from('finance_categories').select('*').order('sort_order'),
-      supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }),
+      fetchAllRows<FinanceTransaction>((from, to) => supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
       supabase.from('finance_budgets').select('*'),
       supabase.from('finance_income_sources').select('*').order('created_at'),
       supabase.from('finance_goals').select('*'),
@@ -265,7 +266,7 @@ export default function BudgetBuilderClient() {
         <GlassCard>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-semibold">Income Sources</h3>
-            <button onClick={openAddIncome} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))] transition-colors"><Plus className="h-4 w-4" /></button>
+            <button aria-label="Add" onClick={openAddIncome} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))] transition-colors"><Plus className="h-4 w-4" /></button>
           </div>
           {incomeSources.length === 0 ? (
             <div className="text-center py-6">
@@ -283,14 +284,14 @@ export default function BudgetBuilderClient() {
                   </div>
                   <span className="text-sm font-semibold tabular-nums text-emerald-400">${Math.round(toMonthly(src.amount, src.frequency)).toLocaleString()}</span>
                   <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEditIncome(src)} className="p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
+                    <button aria-label="Edit" onClick={() => openEditIncome(src)} className="p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
                     {deleteConfirm === src.id ? (
                       <div className="flex gap-0.5">
                         <button onClick={() => handleDeleteIncome(src.id)} className="px-1.5 py-0.5 rounded text-[10px] bg-rose-600 text-white">Del</button>
                         <button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--bg-elevated))]">No</button>
                       </div>
                     ) : (
-                      <button onClick={() => setDeleteConfirm(src.id)} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-400" /></button>
+                      <button aria-label="Delete" onClick={() => setDeleteConfirm(src.id)} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-400" /></button>
                     )}
                   </div>
                 </div>

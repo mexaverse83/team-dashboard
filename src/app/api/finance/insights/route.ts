@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
   // Serve cache unless explicit refresh requested
   if (cached && cacheValid && !refresh) {
-    return NextResponse.json({ insights: cached.insights_json, cached: true, generated_at: cached.created_at })
+    return NextResponse.json({ insights: cached.insights_json, cached: true, generated_at: cached.created_at }, { headers: { 'Cache-Control': 'private, max-age=3600' } })
   }
 
   // If no refresh requested and cache is stale/missing, return empty — don't auto-generate

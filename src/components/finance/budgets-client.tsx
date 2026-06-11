@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
 import { Modal } from '@/components/ui/modal'
@@ -12,7 +13,7 @@ import { motion } from 'framer-motion'
 import type { FinanceCategory, FinanceTransaction, FinanceBudget } from '@/lib/finance-types'
 import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES, cycleBudgetComparison, CYCLE_LABELS, allocatedMonthlySpend, monthKey } from '@/lib/finance-utils'
 
-const inputCls = "w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm outline-none focus:border-blue-500 transition-colors"
+import { inputCls } from '@/lib/form-style'
 
 export default function BudgetsClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
@@ -32,7 +33,7 @@ export default function BudgetsClient() {
   const fetchData = useCallback(async () => {
     const [catRes, txRes, budRes] = await Promise.all([
       supabase.from('finance_categories').select('*').order('sort_order'),
-      supabase.from('finance_transactions').select('*'),
+      fetchAllRows<FinanceTransaction>((from, to) => supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
       supabase.from('finance_budgets').select('*'),
     ])
     const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
@@ -122,9 +123,9 @@ export default function BudgetsClient() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <button onClick={prevMonth} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronLeft className="h-4 w-4" /></button>
+            <button aria-label="Previous month" onClick={prevMonth} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronLeft className="h-4 w-4" /></button>
             <span className="text-sm font-medium min-w-[140px] text-center">{monthLabel}</span>
-            <button onClick={nextMonth} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronRight className="h-4 w-4" /></button>
+            <button aria-label="Next month" onClick={nextMonth} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronRight className="h-4 w-4" /></button>
           </div>
           <button onClick={openAdd}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
@@ -173,7 +174,7 @@ export default function BudgetsClient() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEdit(b)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
+                    <button aria-label="Edit" onClick={() => openEdit(b)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
                       <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" />
                     </button>
                     {deleteConfirm === b.id ? (
@@ -182,7 +183,7 @@ export default function BudgetsClient() {
                         <button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--bg-elevated))]">No</button>
                       </div>
                     ) : (
-                      <button onClick={() => setDeleteConfirm(b.id)} className="p-1 rounded hover:bg-rose-500/10">
+                      <button aria-label="Delete" onClick={() => setDeleteConfirm(b.id)} className="p-1 rounded hover:bg-rose-500/10">
                         <Trash2 className="h-3.5 w-3.5 text-rose-400" />
                       </button>
                     )}
