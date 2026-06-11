@@ -174,7 +174,7 @@ export default function FinanceOverviewClient() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Finance</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Finance</h1>
           <p className="text-[hsl(var(--text-secondary))]">Personal spending and income overview</p>
         </div>
         <div className="flex items-center gap-2">
@@ -269,7 +269,7 @@ export default function FinanceOverviewClient() {
         {/* Category Donut */}
         <GlassCard>
           <h3 className="text-base font-semibold mb-4">Spending by Category</h3>
-          <div className="h-44 sm:h-60">
+          <div className="relative h-44 sm:h-60">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={categoryData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="amount" animationDuration={800} strokeWidth={0}>
@@ -278,6 +278,12 @@ export default function FinanceOverviewClient() {
                 <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
               </PieChart>
             </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-sm font-bold">
+                {`$${new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(totalSpent)}`}
+              </span>
+              <span className="text-[10px] text-[hsl(var(--text-secondary))]">spent</span>
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mt-3">
             {categoryData.slice(0, 8).map(cat => (

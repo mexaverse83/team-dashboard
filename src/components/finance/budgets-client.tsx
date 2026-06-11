@@ -118,7 +118,7 @@ export default function BudgetsClient() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Budgets</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Budgets</h1>
           <p className="text-[hsl(var(--text-secondary))]">Monthly spending limits by category</p>
         </div>
         <div className="flex items-center gap-3">
@@ -128,7 +128,7 @@ export default function BudgetsClient() {
             <button aria-label="Next month" onClick={nextMonth} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronRight className="h-4 w-4" /></button>
           </div>
           <button onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
             <Plus className="h-4 w-4" /> Add Budget
           </button>
         </div>
@@ -222,7 +222,7 @@ export default function BudgetsClient() {
               onChange={e => setFormAmount(e.target.value)} className={cn(inputCls, "text-lg font-semibold")} />
           </div>
           <button type="submit" disabled={saving || !formAmount || !formCat}
-            className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
+            className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
             {saving ? 'Saving...' : editingId ? 'Update Budget' : 'Set Budget'}
           </button>
         </form>

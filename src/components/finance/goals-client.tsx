@@ -216,7 +216,7 @@ export default function GoalsClient() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Goals</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Goals</h1>
           <p className="text-[hsl(var(--text-secondary))]">Track progress toward your financial & crypto targets</p>
         </div>
       </div>

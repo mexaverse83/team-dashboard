@@ -336,6 +336,7 @@ export function CryptoClient() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
+            <span className="section-tick" aria-hidden />
             <Bitcoin className="h-5 w-5 text-orange-400" /> Crypto Portfolio
           </h1>
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">

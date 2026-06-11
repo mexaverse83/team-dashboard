@@ -80,7 +80,7 @@ export function Sidebar() {
                 {group.items.map(item => (
                   <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                      pathname === item.href ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--accent))]'
+                      pathname === item.href ? 'bg-emerald-500/10 text-emerald-300 font-medium' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--accent))]'
                     }`}>
                     <item.icon className="h-4 w-4 shrink-0" />
                     <span>{item.label}</span>
@@ -133,7 +133,7 @@ export function Sidebar() {
                   key={item.href}
                   href={item.href}
                   className={`flex items-center gap-2 rounded-md text-sm hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors px-3 py-1.5 ${
-                    pathname === item.href ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium' : 'text-[hsl(var(--text-secondary))]'
+                    pathname === item.href ? 'bg-emerald-500/10 text-emerald-300 font-medium' : 'text-[hsl(var(--text-secondary))]'
                   }`}
                 >
                   <item.icon className="h-4 w-4 shrink-0" />

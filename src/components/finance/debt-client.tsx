@@ -180,7 +180,7 @@ export default function DebtClient() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Debt Planner</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Debt Planner</h1>
           <p className="text-[hsl(var(--text-secondary))]">Snowball vs avalanche debt elimination</p>
         </div>
       </div>
@@ -313,7 +313,7 @@ export default function DebtClient() {
       <GlassCard>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <h3 className="text-base font-semibold">Debt Inventory</h3>
-          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
             <Plus className="h-4 w-4" /> Add Debt
           </button>
         </div>

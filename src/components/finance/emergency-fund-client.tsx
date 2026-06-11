@@ -155,7 +155,7 @@ export default function EmergencyFundClient() {
     <PageTransition>
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Emergency Fund</h1>
+        <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Emergency Fund</h1>
         <p className="text-[hsl(var(--text-secondary))]">Build your financial safety net</p>
       </div>
 

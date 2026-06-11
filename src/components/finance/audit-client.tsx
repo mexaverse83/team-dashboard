@@ -296,7 +296,7 @@ export default function AuditClient() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Expense Audit</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Expense Audit</h1>
           <p className="text-[hsl(var(--text-secondary))] text-sm">Forensic spending analysis for {monthLabel}</p>
         </div>
         <div className="flex items-center gap-2">

@@ -137,43 +137,81 @@ export default function CommandCenterClient() {
   return (
     <PageTransition>
       <div className="space-y-6" data-animate>
-        {/* ── Header ─────────────────────────────────────── */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{greeting}, Bernardo</h1>
-            <p className="text-sm text-[hsl(var(--text-secondary))]">
-              {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-            </p>
-          </div>
-          <Link
-            href="/finance/transactions"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 text-sm font-medium transition-colors self-start"
-          >
-            <Plus className="h-4 w-4" /> New transaction
-          </Link>
-        </div>
-
-        {/* ── Month status strip (one line) ───────────────── */}
-        {statusBanner && (
-          <div
-            className={cn(
-              'flex items-center gap-3 rounded-xl border px-4 py-2.5',
-              statusBanner.tone === 'success' && 'bg-emerald-500/5 border-emerald-500/20',
-              statusBanner.tone === 'warning' && 'bg-amber-500/5 border-amber-500/20',
-              statusBanner.tone === 'info' && 'bg-[hsl(var(--muted))]/30 border-[hsl(var(--border))]',
-            )}
-          >
-            <Activity
-              className={cn(
-                'h-4 w-4 shrink-0',
-                statusBanner.tone === 'success' && 'text-emerald-400',
-                statusBanner.tone === 'warning' && 'text-amber-400',
-                statusBanner.tone === 'info' && 'text-[hsl(var(--text-secondary))]',
+        {/* ── Hero: the monthly answer ─────────────────────
+            Leads with the one number that matters (net this month) instead of
+            a uniform card grid; the status banner is its subline. */}
+        <div className="relative overflow-hidden rounded-2xl border border-[hsl(222,22%,18%)] bg-gradient-to-br from-[hsl(222,44%,8%)] via-[hsl(220,42%,7%)] to-[hsl(200,45%,7%)] p-5 sm:p-7 shadow-[var(--shadow-elevate)]">
+          <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(50% 90% at 95% 0%, hsl(160 70% 42% / 0.10), transparent 60%)' }} />
+          <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--text-secondary))]">
+                {greeting}, Bernardo · {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </p>
+              <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                <span className={cn(
+                  'text-5xl sm:text-6xl font-black tabular-nums tracking-tight leading-none',
+                  netSavings >= 0 ? 'text-hero-gradient' : 'text-rose-400',
+                )}>
+                  {netSavings >= 0 ? '+' : '−'}{fmtMoney(Math.abs(netSavings), { compact: true })}
+                </span>
+                <span className="text-sm text-[hsl(var(--text-secondary))]">
+                  net this month
+                  <span className={cn(
+                    'ml-2 px-2 py-0.5 rounded-full text-xs font-semibold align-middle',
+                    savingsRate >= 20 ? 'bg-emerald-500/15 text-emerald-300'
+                      : savingsRate >= 10 ? 'bg-amber-500/15 text-amber-300'
+                      : 'bg-rose-500/15 text-rose-300',
+                  )}>
+                    {savingsRate}% rate
+                  </span>
+                </span>
+              </div>
+              {statusBanner && (
+                <p className={cn(
+                  'mt-3 flex items-center gap-2 text-sm font-medium',
+                  statusBanner.tone === 'success' && 'text-emerald-300',
+                  statusBanner.tone === 'warning' && 'text-amber-300',
+                  statusBanner.tone === 'info' && 'text-[hsl(var(--text-secondary))]',
+                )}>
+                  <Activity className="h-4 w-4 shrink-0" />
+                  {statusBanner.msg}
+                </p>
               )}
-            />
-            <p className="text-sm font-medium">{statusBanner.msg}</p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-start sm:items-center gap-4 sm:gap-6 shrink-0">
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Income</p>
+                  <p className="text-lg font-bold tabular-nums text-emerald-400">+{fmtMoney(totalIncome, { compact: true })}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Spent</p>
+                  <p className="text-lg font-bold tabular-nums text-rose-400">−{fmtMoney(totalSpent, { compact: true })}</p>
+                </div>
+                {summary && (
+                  <div className="min-w-[110px]">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">
+                      Day {summary.current_month.day_of_month} of {summary.current_month.days_in_month}
+                    </p>
+                    <div className="mt-1.5 h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500"
+                        style={{ width: `${Math.min(100, Math.round((summary.current_month.day_of_month / Math.max(summary.current_month.days_in_month, 1)) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+              <Link
+                href="/finance/transactions"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-emerald-900/30"
+              >
+                <Plus className="h-4 w-4" /> New transaction
+              </Link>
+            </div>
           </div>
-        )}
+        </div>
 
         {/* ── GLANCE: KPI strip ──────────────────────────── */}
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -208,17 +246,17 @@ export default function CommandCenterClient() {
           )}
 
           <KpiCard
-            label="This month savings"
-            value={fmtMoney(netSavings, { compact: true })}
+            label="Spent this month"
+            value={fmtMoney(totalSpent, { compact: true })}
             sublabel={
               <span className="flex items-center justify-between">
-                <span>Rate <span className={cn('font-semibold', savingsRate >= 20 ? 'text-emerald-400' : savingsRate >= 10 ? 'text-amber-400' : 'text-rose-400')}>{savingsRate}%</span></span>
-                <span className="text-[hsl(var(--text-tertiary))]">{fmtMoney(totalIncome, { compact: true })} − {fmtMoney(totalSpent, { compact: true })}</span>
+                <span className="text-[hsl(var(--text-tertiary))]">Daily spend trend</span>
+                <span className="text-[hsl(var(--text-tertiary))]">{fmtMoney(totalIncome, { compact: true })} in</span>
               </span>
             }
             sparkline={dailySpend}
-            sparklineColor={netSavings >= 0 ? 'hsl(142, 71%, 45%)' : 'hsl(0, 84%, 60%)'}
-            accent={netSavings >= 0 ? 'positive' : 'negative'}
+            sparklineColor="hsl(350, 80%, 55%)"
+            accent="neutral"
           />
 
           <KpiCard

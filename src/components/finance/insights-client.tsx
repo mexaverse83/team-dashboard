@@ -277,7 +277,7 @@ export default function InsightsClient() {
           <div>
             <div className="flex items-center gap-2.5">
               <span className="text-2xl">🐺</span>
-              <h1 className="text-2xl font-bold tracking-tight">Daily Brief</h1>
+              <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Daily Brief</h1>
             </div>
             <p className="text-sm text-[hsl(var(--text-secondary))] mt-1">
               {generatedAt ? formatTime(generatedAt) : 'No insights yet'} 

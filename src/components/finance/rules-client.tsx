@@ -215,7 +215,7 @@ export default function RulesClient() {
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Auto-categorization Rules</h1>
+            <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Auto-categorization Rules</h1>
             <p className="text-sm text-[hsl(var(--text-secondary))]">
               Automatically categorize transactions based on merchant patterns
             </p>
@@ -421,7 +421,7 @@ export default function RulesClient() {
               <button
                 onClick={save}
                 disabled={saving || !form.merchant_pattern || !form.category_id}
-                className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? 'Saving…' : editingId ? 'Save' : 'Create rule'}
               </button>

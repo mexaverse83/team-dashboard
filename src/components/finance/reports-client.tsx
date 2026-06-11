@@ -147,7 +147,7 @@ export default function ReportsClient() {
     <PageTransition>
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Reports</h1>
+        <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Reports</h1>
         <p className="text-[hsl(var(--text-secondary))]">Financial trends and analytics</p>
       </div>
 

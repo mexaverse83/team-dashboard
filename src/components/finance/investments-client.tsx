@@ -439,7 +439,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Investments</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Investments</h1>
           <p className="text-[hsl(var(--text-secondary))] text-sm">Portfolio overview and asset tracking</p>
         </div>
         <OwnerToggle value={ownerFilter} onChange={setOwnerFilter} />
@@ -614,7 +614,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Stock Holdings</h2>
             <button onClick={() => { setStockForm({ ticker: '', name: '', exchange: 'US', asset_type: 'stock', shares: 0, avg_cost_basis: 0, currency: 'MXN', broker: 'GBM', owner: 'Bernardo', notes: '' }); setShowStockForm(true) }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
               <Plus className="h-3.5 w-3.5" /> Add Stock
             </button>
           </div>
@@ -625,7 +625,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
               <p className="text-sm font-medium">No stock holdings yet</p>
               <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">Add stocks or ETFs you hold</p>
               <button onClick={() => { setStockForm({ ticker: '', name: '', exchange: 'US', asset_type: 'stock', shares: 0, avg_cost_basis: 0, currency: 'MXN', broker: 'GBM', owner: 'Bernardo' }); setShowStockForm(true) }}
-                className="mt-4 px-4 py-2 rounded-lg text-xs bg-blue-600 hover:bg-blue-500 text-white transition-colors">
+                className="mt-4 px-4 py-2 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
                 Add Stock
               </button>
             </GlassCard>
@@ -1110,7 +1110,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
             <div className="flex gap-2 pt-2">
               <button onClick={() => setShowStockForm(false)} className="flex-1 py-2 rounded-lg text-sm bg-[hsl(var(--accent))]">Cancel</button>
               <button onClick={saveStock} disabled={saving || !stockForm.ticker || !stockForm.name}
-                className="flex-1 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50">
+                className="flex-1 py-2 rounded-lg text-sm bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50">
                 {saving ? 'Saving...' : stockForm.id ? 'Update' : 'Add'}
               </button>
             </div>

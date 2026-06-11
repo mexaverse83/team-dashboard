@@ -130,7 +130,7 @@ export function IncomeClient() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[hsl(var(--foreground))]">Recurring Income</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl font-bold text-[hsl(var(--foreground))]"><span className="section-tick" aria-hidden />Recurring Income</h1>
           <p className="text-sm text-[hsl(var(--text-secondary))] mt-0.5">
             Auto-registered on the 1st of each month
           </p>

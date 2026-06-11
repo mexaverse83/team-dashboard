@@ -46,8 +46,11 @@ export function SectionHeader({ title, subtitle, action }: { title: string; subt
   return (
     <div className="flex items-end justify-between mb-3">
       <div>
-        <h3 className="text-base font-semibold leading-tight">{title}</h3>
-        {subtitle && <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{subtitle}</p>}
+        <h3 className="flex items-center gap-2 text-base font-semibold leading-tight">
+          <span className="section-tick" aria-hidden />
+          {title}
+        </h3>
+        {subtitle && <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5 ml-3">{subtitle}</p>}
       </div>
       {action && (
         <Link href={action.href} className="text-xs text-blue-400 hover:underline inline-flex items-center gap-1">

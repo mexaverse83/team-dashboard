@@ -234,10 +234,10 @@ export function InstallmentsClient() {
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold">MSI Installments</h1>
+            <h1 className="flex items-center gap-2.5 text-2xl font-bold"><span className="section-tick" aria-hidden />MSI Installments</h1>
             <p className="text-sm text-[hsl(var(--text-secondary))]">Meses Sin Intereses — interest-free installment plans</p>
           </div>
-          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
             <Plus className="h-4 w-4" /> Add MSI Plan
           </button>
         </div>
@@ -551,7 +551,7 @@ export function InstallmentsClient() {
           <div className="flex gap-3 pt-2">
             <button onClick={() => setModalOpen(false)} className="flex-1 px-4 py-2 rounded-lg border border-[hsl(var(--border))] text-sm hover:bg-[hsl(var(--bg-elevated))] transition-colors">Cancel</button>
             <button onClick={handleSave} disabled={saving || !form.name || !form.total_amount}
-              className="flex-1 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium transition-colors">
+              className="flex-1 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium transition-colors">
               {saving ? 'Saving…' : editId ? 'Update' : 'Add MSI Plan'}
             </button>
           </div>

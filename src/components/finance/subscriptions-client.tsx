@@ -247,7 +247,7 @@ export default function SubscriptionsClient() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Subscriptions</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Subscriptions</h1>
           <p className="text-[hsl(var(--text-secondary))]">Recurring charges and subscription tracking</p>
         </div>
         <div className="flex items-center gap-2">
@@ -256,7 +256,7 @@ export default function SubscriptionsClient() {
             {processing ? 'Processing...' : 'Process Due'}
           </button>
           <button onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
             <Plus className="h-4 w-4" /> Add Subscription
           </button>
         </div>
@@ -497,7 +497,7 @@ export default function SubscriptionsClient() {
             </label>
           )}
           <button type="submit" disabled={saving || !form.name || !form.amount || !form.category_id || !form.next_due_date}
-            className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
+            className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
             {saving ? 'Saving...' : editingId ? 'Update Subscription' : 'Add Subscription'}
           </button>
         </form>

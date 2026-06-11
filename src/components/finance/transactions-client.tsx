@@ -514,7 +514,7 @@ export default function TransactionsClient() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Transactions</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Transactions</h1>
           <p className="text-[hsl(var(--text-secondary))]">All income and expenses</p>
         </div>
         <div className="flex items-center gap-2">
@@ -527,7 +527,7 @@ export default function TransactionsClient() {
             <Download className="h-4 w-4" />
           </button>
           <button onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors">
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
             <Plus className="h-4 w-4" /> Add
           </button>
         </div>
@@ -929,7 +929,7 @@ export default function TransactionsClient() {
               {importResult.errors > 0 && <p className="text-sm text-rose-400 mt-1">⚠️ {importResult.errors} failed</p>}
             </div>
             <button onClick={() => setImportOpen(false)}
-              className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium">
+              className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium">
               Done
             </button>
           </div>
@@ -979,7 +979,7 @@ export default function TransactionsClient() {
                 Back
               </button>
               <button onClick={handlePdfImport} disabled={importing}
-                className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium disabled:opacity-50">
+                className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium disabled:opacity-50">
                 {importing ? 'Importing...' : `Import ${pdfRows.length} transactions`}
               </button>
             </div>
@@ -1029,7 +1029,7 @@ export default function TransactionsClient() {
                 Back
               </button>
               <button onClick={handleImport} disabled={importing || !columnMap.date || !columnMap.amount}
-                className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium disabled:opacity-50">
+                className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium disabled:opacity-50">
                 {importing ? 'Importing...' : `Import ${csvRows.length} rows`}
               </button>
             </div>

@@ -71,6 +71,38 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Ambient depth — two faint brand glows anchored to the viewport so the page
+   reads as a lit space instead of a flat slab. Fixed + non-interactive. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 45% at 88% -12%, hsl(160 70% 42% / 0.08), transparent 65%),
+    radial-gradient(45% 40% at -8% 18%, hsl(217 91% 60% / 0.05), transparent 60%);
+}
+
+/* Finance identity — emerald→teal gradient for hero numbers */
+.text-hero-gradient {
+  background: linear-gradient(120deg, #34d399 0%, #2dd4bf 55%, #38bdf8 110%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Section accent tick — pairs with section/page titles */
+.section-tick {
+  display: inline-block;
+  width: 4px;
+  height: 0.9em;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #34d399, #14b8a6);
+  flex-shrink: 0;
+}
+
 html {
   scroll-behavior: smooth;
 }
