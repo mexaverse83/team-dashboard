@@ -119,11 +119,11 @@ export function WeekendBudgetCard({ transactions, categories }: Props) {
     <GlassCard>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">
             <CalendarDays className="h-3.5 w-3.5" />
             <span>This weekend&apos;s budget</span>
           </div>
-          <p className={cn('text-3xl sm:text-4xl font-bold mt-1', headlineColor)}>
+          <p className={cn('num-metric text-3xl sm:text-4xl font-bold mt-1', headlineColor)}>
             {fmt(Math.max(0, m.weekendBudget))}
           </p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">
@@ -154,7 +154,7 @@ export function WeekendBudgetCard({ transactions, categories }: Props) {
 function Stat({ label, value, tone }: { label: string; value: string; tone?: 'rose' }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">{label}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">{label}</p>
       <p className={cn('font-semibold mt-0.5', tone === 'rose' ? 'text-rose-400' : '')}>{value}</p>
     </div>
   )

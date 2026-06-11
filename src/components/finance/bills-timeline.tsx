@@ -27,12 +27,12 @@ const TYPE_LABELS: Record<ForecastEvent['type'], string> = {
 }
 
 const TYPE_COLOR: Record<ForecastEvent['type'], string> = {
-  income: 'hsl(142, 71%, 45%)',
-  recurring_income: 'hsl(142, 71%, 45%)',
-  subscription: 'hsl(263, 70%, 58%)',
-  msi: 'hsl(38, 92%, 50%)',
-  debt: 'hsl(0, 84%, 60%)',
-  planned_expense: 'hsl(186, 70%, 42%)',
+  income: 'var(--chart-1)',
+  recurring_income: 'var(--chart-1)',
+  subscription: 'var(--chart-4)',
+  msi: 'var(--chart-5)',
+  debt: 'var(--chart-6)',
+  planned_expense: 'var(--chart-2)',
 }
 
 function fmtDate(s: string) {
@@ -97,9 +97,9 @@ export function BillsTimeline({ events, daysAhead = 30, maxItems = 12 }: BillsTi
                   >
                     <div
                       className="h-7 w-7 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: `${TYPE_COLOR[ev.type]}20` }}
+                      style={{ background: `hsl(${TYPE_COLOR[ev.type]} / 0.13)` }}
                     >
-                      <Icon className="h-3.5 w-3.5" style={{ color: TYPE_COLOR[ev.type] }} />
+                      <Icon className="h-3.5 w-3.5" style={{ color: `hsl(${TYPE_COLOR[ev.type]})` }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{ev.name}</p>

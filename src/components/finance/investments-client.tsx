@@ -472,8 +472,8 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           <GlassCard className="p-5 sm:p-6 relative overflow-hidden">
             <div className="absolute -top-20 -right-20 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl" />
             <div className="relative">
-              <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Net Worth</span>
-              <p className="text-3xl sm:text-4xl font-bold tabular-nums mt-1">{fmtMXN(totalPortfolio)}</p>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Net Worth</span>
+              <p className="num-metric text-3xl sm:text-4xl font-bold tabular-nums mt-1">{fmtMXN(totalPortfolio)}</p>
               {totalPL !== null && (
                 <div className={cn(
                   "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium mt-3",
@@ -489,11 +489,11 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                     <AreaChart data={snapshots}>
                       <defs>
                         <linearGradient id="portfolioGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#10B981" stopOpacity={0.2} />
-                          <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                          <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.2} />
+                          <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <Area type="monotone" dataKey="total" stroke="#10B981" strokeWidth={1.5} fill="url(#portfolioGrad)" />
+                      <Area type="monotone" dataKey="total" stroke="hsl(var(--chart-1))" strokeWidth={1.5} fill="url(#portfolioGrad)" />
                       <XAxis dataKey="date" hide />
                       <YAxis hide domain={['dataMin - 5000', 'dataMax + 5000']} />
                     </AreaChart>
@@ -542,7 +542,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center bg-gradient-to-br text-white", ac.gradient)}>
                         <ac.icon className="h-4 w-4" />
                       </div>
-                      <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">{ac.name}</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">{ac.name}</span>
                     </div>
                     <p className="text-lg font-bold tabular-nums">{fmtMXN(ac.totalMXN)}</p>
                     <div className="flex items-center justify-between mt-1">
@@ -733,18 +733,18 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           {/* KPIs */}
           <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
             <GlassCard>
-              <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Invested</span>
-              <p className="text-2xl sm:text-3xl font-bold text-emerald-400 mt-1 tabular-nums">{fmtMXN(fiTotal)}</p>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Invested</span>
+              <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-400 mt-1 tabular-nums">{fmtMXN(fiTotal)}</p>
             </GlassCard>
             <GlassCard>
-              <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Avg Yield</span>
-              <p className="text-2xl sm:text-3xl font-bold mt-1 tabular-nums">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Avg Yield</span>
+              <p className="num-metric text-2xl sm:text-3xl font-bold mt-1 tabular-nums">
                 {filteredFI.length > 0 ? `${(filteredFI.reduce((s, i) => s + i.annual_rate * i.principal, 0) / Math.max(fiTotal, 1) * 100).toFixed(2)}%` : '—'}
               </p>
             </GlassCard>
             <GlassCard className="col-span-2 sm:col-span-1">
-              <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Monthly Interest</span>
-              <p className="text-2xl sm:text-3xl font-bold text-emerald-400 mt-1 tabular-nums">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Interest</span>
+              <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-400 mt-1 tabular-nums">
                 {fmtMXN(filteredFI.reduce((s, i) => s + (i.principal * i.annual_rate) / 12, 0))}
               </p>
             </GlassCard>
@@ -977,7 +977,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
 
                     <div className="grid grid-cols-2 gap-4 mb-3">
                       <div>
-                        <span className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Current Value</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Current Value</span>
                         <p className="text-lg font-bold tabular-nums">{fmtMXN(prop.current_value)}</p>
                         {appreciation !== null && (
                           <span className={cn("text-xs font-medium", appreciation >= 0 ? "text-emerald-400" : "text-red-400")}>
@@ -986,7 +986,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                         )}
                       </div>
                       <div>
-                        <span className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">{equityLabelText}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">{equityLabelText}</span>
                         <p className="text-lg font-bold text-violet-400 tabular-nums">{fmtMXN(equity)}</p>
                       </div>
                     </div>

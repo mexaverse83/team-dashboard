@@ -137,12 +137,12 @@ export default function BudgetsClient() {
       {/* Summary */}
       <div className="grid gap-4 grid-cols-2">
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Budgeted</span>
-          <p className="text-2xl sm:text-3xl font-bold mt-1">${totalBudgeted.toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Budgeted</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold mt-1">${totalBudgeted.toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Spent</span>
-          <p className="text-2xl sm:text-3xl font-bold mt-1">${totalSpent.toLocaleString()} <span className="text-lg text-[hsl(var(--text-tertiary))]">({overallPct}%)</span></p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Spent</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold mt-1">${totalSpent.toLocaleString()} <span className="text-lg text-[hsl(var(--text-tertiary))]">({overallPct}%)</span></p>
         </GlassCard>
       </div>
 
@@ -152,7 +152,7 @@ export default function BudgetsClient() {
       ) : (
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {budgetCards.map(b => {
-            const barColor = b.pct < 60 ? 'bg-emerald-500' : b.pct < 80 ? 'bg-yellow-500' : b.pct < 100 ? 'bg-orange-500' : 'bg-rose-500'
+            const barColor = b.pct < 60 ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : b.pct < 80 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' : b.pct < 100 ? 'bg-gradient-to-r from-orange-400 to-orange-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
             return (
               <GlassCard key={b.id} className={cn("relative overflow-hidden group", b.pct >= 100 && "ring-1 ring-rose-500/30")}>
                 {b.pct >= 100 && <div className="absolute inset-0 bg-rose-500/5 pointer-events-none" />}

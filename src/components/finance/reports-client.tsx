@@ -154,20 +154,20 @@ export default function ReportsClient() {
       {/* KPIs */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Income</span>
-          <p className="text-2xl sm:text-3xl font-bold text-emerald-400 mt-1">${totalIncome.toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Income</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-400 mt-1">${totalIncome.toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Expenses</span>
-          <p className="text-2xl sm:text-3xl font-bold text-rose-400 mt-1">${totalExpenses.toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Expenses</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold text-rose-400 mt-1">${totalExpenses.toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Net</span>
-          <p className={cn("text-2xl sm:text-3xl font-bold mt-1", net >= 0 ? "text-emerald-400" : "text-rose-400")}>${Math.abs(net).toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Net</span>
+          <p className={cn("num-metric text-2xl sm:text-3xl font-bold mt-1", net >= 0 ? "text-emerald-400" : "text-rose-400")}>${Math.abs(net).toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Savings Rate</span>
-          <p className="text-2xl sm:text-3xl font-bold mt-1">{savingsRate}%</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Rate</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold mt-1">{savingsRate}%</p>
         </GlassCard>
       </div>
 
@@ -181,8 +181,8 @@ export default function ReportsClient() {
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(222, 15%, 55%)' }} />
               <YAxis tick={{ fontSize: 11, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
               <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
-              <Line type="monotone" dataKey="income" stroke="#10B981" strokeWidth={2} dot={false} name="Income" />
-              <Line type="monotone" dataKey="expenses" stroke="#F43F5E" strokeWidth={2} dot={false} name="Expenses" />
+              <Line type="monotone" dataKey="income" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} name="Income" />
+              <Line type="monotone" dataKey="expenses" stroke="hsl(var(--chart-6))" strokeWidth={2} dot={false} name="Expenses" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -226,7 +226,7 @@ export default function ReportsClient() {
                 <div className="flex-1">
                   <p className="text-sm font-medium">{m.merchant}</p>
                   <div className="h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] mt-1">
-                    <div className="h-1.5 rounded-full bg-rose-500/60"
+                    <div className="h-1.5 rounded-full bg-gradient-to-r from-rose-400/60 to-rose-600/60"
                       style={{ width: `${topMerchants[0] ? (m.total / topMerchants[0].total) * 100 : 0}%` }} />
                   </div>
                 </div>

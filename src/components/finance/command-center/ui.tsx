@@ -30,7 +30,7 @@ export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineCol
         <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">{label}</span>
         {trend !== undefined && <TrendBadge value={trend} />}
       </div>
-      <p className={cn('text-2xl sm:text-[28px] font-bold tabular-nums leading-none', accentClass)}>{value}</p>
+      <p className={cn('num-metric text-2xl sm:text-[28px] font-bold leading-none', accentClass)}>{value}</p>
       {sublabel && <div className="mt-1.5 text-xs text-[hsl(var(--text-secondary))]">{sublabel}</div>}
       {sparkline && sparkline.length > 0 && (
         <div className="mt-3 -mx-1">

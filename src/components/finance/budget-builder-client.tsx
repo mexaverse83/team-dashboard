@@ -200,23 +200,23 @@ export default function BudgetBuilderClient() {
       {/* Hero KPIs */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Monthly Income</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums mt-1">${Math.round(totalIncome).toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Income</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">${Math.round(totalIncome).toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">{incomeSources.filter(s => s.is_active).length} sources</p>
         </GlassCard>
         <GlassCard className="border-l-2 border-l-blue-500">
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Needs ({needsPct}%)</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-blue-400 mt-1">${needsTotal.toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Needs ({needsPct}%)</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-blue-400 mt-1">${needsTotal.toLocaleString()}</p>
           <TrendBadge value={(needsPct - 50) * -1} suffix="% vs ideal 50%" />
         </GlassCard>
         <GlassCard className="border-l-2 border-l-amber-500">
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Wants ({wantsPct}%)</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-amber-400 mt-1">${wantsTotal.toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Wants ({wantsPct}%)</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-400 mt-1">${wantsTotal.toLocaleString()}</p>
           <TrendBadge value={(wantsPct - 30) * -1} suffix="% vs ideal 30%" />
         </GlassCard>
         <GlassCard className="border-l-2 border-l-emerald-500">
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Savings ({savingsPct}%)</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">${savingsTotal.toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings ({savingsPct}%)</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">${savingsTotal.toLocaleString()}</p>
           <TrendBadge value={savingsPct - 20} suffix="% vs ideal 20%" />
         </GlassCard>
       </div>

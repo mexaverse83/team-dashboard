@@ -214,18 +214,18 @@ export function WestTracker() {
             </div>
             <div className="flex items-center gap-4 sm:gap-6">
               <div className="text-center">
-                <p className="text-2xl sm:text-3xl font-bold tabular-nums">{monthsRemaining}</p>
-                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Months</p>
+                <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums">{monthsRemaining}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Months</p>
               </div>
               <div className="h-8 w-px bg-[hsl(var(--border))]" />
               <div className="text-center">
-                <p className="text-2xl sm:text-3xl font-bold tabular-nums">{daysRemaining}</p>
-                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Days</p>
+                <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums">{daysRemaining}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Days</p>
               </div>
               <div className="h-8 w-px bg-[hsl(var(--border))]" />
               <div className="text-center">
-                <p className="text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400">{fundedPct.toFixed(1)}%</p>
-                <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Funded</p>
+                <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400">{fundedPct.toFixed(1)}%</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Funded</p>
               </div>
             </div>
           </div>
@@ -355,16 +355,16 @@ export function WestTracker() {
             <AreaChart data={projection.months}>
               <defs>
                 <linearGradient id="westPaidGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10B981" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#10B981" stopOpacity={0.1} />
+                  <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.4} />
+                  <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.1} />
                 </linearGradient>
                 <linearGradient id="westInvestGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.1} />
+                  <stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.4} />
+                  <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0.1} />
                 </linearGradient>
                 <linearGradient id="westCryptoGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#F59E0B" stopOpacity={0.05} />
+                  <stop offset="0%" stopColor="hsl(var(--chart-5))" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="hsl(var(--chart-5))" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
@@ -376,12 +376,12 @@ export function WestTracker() {
                 formatter={(val: any, name: any) => [fmtMXN(Number(val) || 0), String(name)]}
                 labelFormatter={m => `Month: ${m}`}
               />
-              <Area type="monotone" dataKey="paid" stackId="1" stroke="#10B981" strokeWidth={1.5} fill="url(#westPaidGrad)" name="Paid" />
-              <Area type="monotone" dataKey="investments" stackId="1" stroke="#3B82F6" strokeWidth={1.5} fill="url(#westInvestGrad)" name="Investments" />
-              <Area type="monotone" dataKey="crypto" stackId="1" stroke="#F59E0B" strokeWidth={1} fill="url(#westCryptoGrad)" name="Crypto" />
-              <Line type="monotone" dataKey="property_value" stroke="#10B981" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" />
-              <ReferenceLine y={target} stroke="#EF4444" strokeDasharray="6 4" strokeWidth={1.5}
-                label={{ value: 'Target $11.2M', position: 'right', fill: '#EF4444', fontSize: 11, fontWeight: 600 }} />
+              <Area type="monotone" dataKey="paid" stackId="1" stroke="hsl(var(--chart-1))" strokeWidth={1.5} fill="url(#westPaidGrad)" name="Paid" />
+              <Area type="monotone" dataKey="investments" stackId="1" stroke="hsl(var(--chart-3))" strokeWidth={1.5} fill="url(#westInvestGrad)" name="Investments" />
+              <Area type="monotone" dataKey="crypto" stackId="1" stroke="hsl(var(--chart-5))" strokeWidth={1} fill="url(#westCryptoGrad)" name="Crypto" />
+              <Line type="monotone" dataKey="property_value" stroke="hsl(var(--chart-1))" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" />
+              <ReferenceLine y={target} stroke="hsl(var(--chart-6))" strokeDasharray="6 4" strokeWidth={1.5}
+                label={{ value: 'Target $11.2M', position: 'right', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
               <ReferenceLine x="2026-04" stroke="hsl(222, 15%, 35%)" strokeDasharray="3 3"
                 label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(222, 15%, 55%)', fontSize: 10 }} />
             </AreaChart>
@@ -476,11 +476,11 @@ export function WestTracker() {
 
         <div className="grid grid-cols-2 gap-4 mt-4 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
           <div>
-            <span className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Projected Total</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Projected Total</span>
             <p className="text-lg font-bold tabular-nums text-emerald-400">{fmtMXN(projectedTotal)}</p>
           </div>
           <div>
-            <span className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Gap</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Gap</span>
             <p className={cn("text-lg font-bold tabular-nums", gap > 0 ? "text-red-400" : "text-emerald-400")}>
               {gap > 0 ? fmtMXN(gap) : '✅ Fully funded!'}
             </p>
@@ -549,12 +549,12 @@ export function WestTracker() {
           {/* Value progression */}
           <div className="flex items-center gap-2 flex-wrap mb-4">
             <div className="text-center px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
-              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Purchase</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Purchase</p>
               <p className="text-sm font-bold tabular-nums">{fmtShort(data.property.purchase_price)}</p>
             </div>
             <span className="text-[hsl(var(--text-tertiary))]">→</span>
             <div className="text-center px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
-              <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Current</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Current</p>
               <p className="text-sm font-bold tabular-nums">{fmtShort(data.property.current_market_value)}</p>
               <p className="text-[10px] text-emerald-400">+{(((data.property.current_market_value - data.property.purchase_price) / data.property.purchase_price) * 100).toFixed(1)}%</p>
             </div>
@@ -567,8 +567,8 @@ export function WestTracker() {
 
           {/* Equity hero */}
           <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 mb-4">
-            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-1">Equity at Delivery</p>
-            <p className="text-2xl sm:text-3xl font-bold text-emerald-400 tabular-nums">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-1">Equity at Delivery</p>
+            <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-400 tabular-nums">
               {fmtMXN(projection.equityAtDelivery)}
             </p>
             <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">
@@ -660,13 +660,13 @@ export function WestProjectionWithScenarios() {
             <AreaChart data={projection.months}>
               <defs>
                 <linearGradient id="pcPaidGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10B981" stopOpacity={0.4} /><stop offset="100%" stopColor="#10B981" stopOpacity={0.1} />
+                  <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.4} /><stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.1} />
                 </linearGradient>
                 <linearGradient id="pcInvestGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.4} /><stop offset="100%" stopColor="#3B82F6" stopOpacity={0.1} />
+                  <stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.4} /><stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0.1} />
                 </linearGradient>
                 <linearGradient id="pcCryptoGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.3} /><stop offset="100%" stopColor="#F59E0B" stopOpacity={0.05} />
+                  <stop offset="0%" stopColor="hsl(var(--chart-5))" stopOpacity={0.3} /><stop offset="100%" stopColor="hsl(var(--chart-5))" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
@@ -679,12 +679,12 @@ export function WestProjectionWithScenarios() {
 
                 labelFormatter={(m: any) => `Month: ${m}`}
               />
-              <Area type="monotone" dataKey="paid" stackId="1" stroke="#10B981" strokeWidth={1.5} fill="url(#pcPaidGrad)" name="Direct Payments" />
-              <Area type="monotone" dataKey="investments" stackId="1" stroke="#3B82F6" strokeWidth={1.5} fill="url(#pcInvestGrad)" name="Investments (GBM)" />
-              <Area type="monotone" dataKey="crypto" stackId="1" stroke="#F59E0B" strokeWidth={1} fill="url(#pcCryptoGrad)" name="Crypto" />
-              <Line type="monotone" dataKey="property_value" stroke="#10B981" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" />
-              <ReferenceLine y={target} stroke="#EF4444" strokeDasharray="6 4" strokeWidth={1.5}
-                label={{ value: 'Target $11.2M', position: 'right', fill: '#EF4444', fontSize: 11, fontWeight: 600 }} />
+              <Area type="monotone" dataKey="paid" stackId="1" stroke="hsl(var(--chart-1))" strokeWidth={1.5} fill="url(#pcPaidGrad)" name="Direct Payments" />
+              <Area type="monotone" dataKey="investments" stackId="1" stroke="hsl(var(--chart-3))" strokeWidth={1.5} fill="url(#pcInvestGrad)" name="Investments (GBM)" />
+              <Area type="monotone" dataKey="crypto" stackId="1" stroke="hsl(var(--chart-5))" strokeWidth={1} fill="url(#pcCryptoGrad)" name="Crypto" />
+              <Line type="monotone" dataKey="property_value" stroke="hsl(var(--chart-1))" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" />
+              <ReferenceLine y={target} stroke="hsl(var(--chart-6))" strokeDasharray="6 4" strokeWidth={1.5}
+                label={{ value: 'Target $11.2M', position: 'right', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
               <ReferenceLine x="2026-04" stroke="hsl(222, 15%, 35%)" strokeDasharray="3 3"
                 label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(222, 15%, 55%)', fontSize: 10 }} />
             </AreaChart>
@@ -756,11 +756,11 @@ export function WestProjectionWithScenarios() {
         </div>
         <div className="grid grid-cols-2 gap-4 mt-4 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
           <div>
-            <span className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Projected Total</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Projected Total</span>
             <p className="text-lg font-bold tabular-nums text-emerald-400">{fmtMXN(projectedTotal)}</p>
           </div>
           <div>
-            <span className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-secondary))]">Gap</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Gap</span>
             <p className={cn("text-lg font-bold tabular-nums", gap > 0 ? "text-red-400" : "text-emerald-400")}>
               {gap > 0 ? fmtMXN(gap) : '✅ Fully funded!'}
             </p>

@@ -334,7 +334,7 @@ export default function AuditClient() {
                       className="transition-all duration-700" />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold tabular-nums">{score}</span>
+                    <span className="num-metric text-2xl font-bold tabular-nums">{score}</span>
                     <span className="text-[10px] text-[hsl(var(--text-tertiary))]">/ 100</span>
                   </div>
                 </div>
@@ -353,8 +353,8 @@ export default function AuditClient() {
                         <span className="text-xs tabular-nums text-[hsl(var(--text-secondary))]">{val}/{cat.max}pts</span>
                       </div>
                       <div className="h-1.5 w-full rounded-full bg-[hsl(var(--bg-elevated))]">
-                        <div className={cn("h-1.5 rounded-full transition-all duration-500",
-                          pct >= 80 ? 'bg-emerald-500' : pct >= 60 ? 'bg-amber-500' : 'bg-red-500')}
+                        <div className={cn("h-1.5 rounded-full transition-all duration-500 bg-gradient-to-r",
+                          pct >= 80 ? 'from-emerald-400 to-teal-500' : pct >= 60 ? 'from-amber-400 to-amber-600' : 'from-red-400 to-red-600')}
                           style={{ width: `${pct}%` }} />
                       </div>
                     </div>
@@ -369,22 +369,22 @@ export default function AuditClient() {
       {/* Hero KPIs */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Monthly Spend</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-rose-400 mt-1">${monthlySpend.toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Spend</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-rose-400 mt-1">${monthlySpend.toLocaleString()}</p>
           <TrendBadge value={-spendDelta} suffix="% vs last month" />
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Leaks Found</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-rose-400 mt-1">{leaks.length}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Leaks Found</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-rose-400 mt-1">{leaks.length}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">${totalLeakAmount.toLocaleString()}/mo wasted</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Savings Potential</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">${totalSavings.toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Potential</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">${totalSavings.toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">/mo across all tiers</p>
         </GlassCard>
         <GlassCard className="relative overflow-hidden">
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Overall Grade</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Overall Grade</span>
           <motion.p className={cn("text-4xl sm:text-5xl font-black mt-1", gradeColor(overallGrade))}
             initial={{ rotateY: 90, opacity: 0 }} animate={{ rotateY: 0, opacity: 1 }} transition={{ duration: 0.5 }}>
             {transactions.length > 0 ? overallGrade : '—'}
@@ -606,7 +606,7 @@ export default function AuditClient() {
                   <span className={cn("text-sm font-bold w-6 text-center tabular-nums", i < 3 ? "text-amber-400" : "text-[hsl(var(--text-tertiary))]")}>{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2"><p className="text-sm font-medium truncate">{g.merchant}</p><span className="text-xs px-1.5 py-0.5 rounded-full bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))] shrink-0">×{g.count}</span></div>
-                    <div className="h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] mt-1"><div className="h-1.5 rounded-full bg-amber-500/50" style={{ width: `${(g.count / top10Frequent[0].count) * 100}%` }} /></div>
+                    <div className="h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] mt-1"><div className="h-1.5 rounded-full bg-gradient-to-r from-amber-400/50 to-amber-600/50" style={{ width: `${(g.count / top10Frequent[0].count) * 100}%` }} /></div>
                   </div>
                   <div className="text-right shrink-0"><span className="text-sm font-semibold tabular-nums">${g.total.toLocaleString()}</span><p className="text-[10px] text-[hsl(var(--text-tertiary))] tabular-nums">avg ${Math.round(g.total / g.count).toLocaleString()}</p></div>
                 </div>

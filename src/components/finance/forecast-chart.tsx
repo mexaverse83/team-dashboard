@@ -47,8 +47,8 @@ export function ForecastChart({ data, height = 240, showBalance = true, showFlow
         <ComposedChart data={data} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
           <defs>
             <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0} />
+              <stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
@@ -81,27 +81,27 @@ export function ForecastChart({ data, height = 240, showBalance = true, showFlow
             }}
           />
           {negativeZone && (
-            <ReferenceLine y={0} stroke="hsl(0, 84%, 60%)" strokeDasharray="4 4" strokeOpacity={0.5} />
+            <ReferenceLine y={0} stroke="hsl(var(--chart-6))" strokeDasharray="4 4" strokeOpacity={0.5} />
           )}
           {showFlows && (
             <>
-              <Bar dataKey="inflow" fill="hsl(142, 71%, 45%)" fillOpacity={0.6} radius={[2, 2, 0, 0]} maxBarSize={6} />
-              <Bar dataKey="outflow" fill="hsl(0, 84%, 60%)" fillOpacity={0.6} radius={[2, 2, 0, 0]} maxBarSize={6} />
+              <Bar dataKey="inflow" fill="hsl(var(--chart-1))" fillOpacity={0.6} radius={[2, 2, 0, 0]} maxBarSize={6} />
+              <Bar dataKey="outflow" fill="hsl(var(--chart-6))" fillOpacity={0.6} radius={[2, 2, 0, 0]} maxBarSize={6} />
             </>
           )}
           {showBalance && (
             <Area
               type="monotone"
               dataKey="running_balance"
-              stroke="hsl(217, 91%, 60%)"
+              stroke="hsl(var(--chart-3))"
               strokeWidth={2}
               fill="url(#balanceGrad)"
               dot={false}
-              activeDot={{ r: 4, fill: 'hsl(217, 91%, 60%)', stroke: 'hsl(222, 47%, 3%)', strokeWidth: 2 }}
+              activeDot={{ r: 4, fill: 'hsl(var(--chart-3))', stroke: 'hsl(222, 47%, 3%)', strokeWidth: 2 }}
             />
           )}
           {showFlows && !showBalance && (
-            <Line type="monotone" dataKey="net" stroke="hsl(217, 91%, 60%)" strokeWidth={1.5} dot={false} />
+            <Line type="monotone" dataKey="net" stroke="hsl(var(--chart-3))" strokeWidth={1.5} dot={false} />
           )}
         </ComposedChart>
       </ResponsiveContainer>

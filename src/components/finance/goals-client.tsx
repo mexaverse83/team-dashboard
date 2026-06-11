@@ -237,28 +237,28 @@ export default function GoalsClient() {
       {/* Hero KPIs */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4 xl:grid-cols-7">
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Active Goals</span>
-          <AnimatedNumber value={activeGoals.length} className="text-2xl sm:text-3xl font-bold mt-1" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Active Goals</span>
+          <AnimatedNumber value={activeGoals.length} className="num-metric text-2xl sm:text-3xl font-bold mt-1" />
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Target</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums mt-1">${totalTarget.toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Target</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">${totalTarget.toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Saved</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">${totalSaved.toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Saved</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">${totalSaved.toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{overallPct}% of all goals</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Monthly Needed</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-amber-400 mt-1">${Math.round(totalMonthlyNeeded).toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Needed</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-400 mt-1">${Math.round(totalMonthlyNeeded).toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">across all goals</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Last Month Net</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Last Month Net</span>
           {lastTotal ? (
             <>
-              <p className={cn("text-2xl sm:text-3xl font-bold tabular-nums mt-1",
+              <p className={cn("num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1",
                 lastTotal.net_savings >= 0 ? "text-emerald-400" : "text-rose-400")}>
                 ${Math.abs(lastTotal.net_savings).toLocaleString()}
               </p>
@@ -271,10 +271,10 @@ export default function GoalsClient() {
           )}
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Savings Rate</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Rate</span>
           {lastTotal ? (
             <>
-              <p className="text-2xl sm:text-3xl font-bold tabular-nums text-cyan-400 mt-1">
+              <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-cyan-400 mt-1">
                 {lastTotal.savings_rate}%
               </p>
               <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">
@@ -286,10 +286,10 @@ export default function GoalsClient() {
           )}
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Variance vs Plan</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Variance vs Plan</span>
           {lastTotal ? (
             <>
-              <p className={cn("text-2xl sm:text-3xl font-bold tabular-nums mt-1",
+              <p className={cn("num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1",
                 lastTotal.variance >= 0 ? "text-emerald-400" : "text-rose-400")}>
                 {lastTotal.variance >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(lastTotal.variance)).toLocaleString()}
               </p>
@@ -486,16 +486,16 @@ export default function GoalsClient() {
                       <AreaChart data={projectionData}>
                         <defs>
                           <linearGradient id="goalGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#6366F1" stopOpacity={0.3} />
-                            <stop offset="100%" stopColor="#6366F1" stopOpacity={0} />
+                            <stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.3} />
+                            <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
                         <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} />
                         <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                         <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
-                        <Area type="monotone" dataKey="projected" stroke="#6366F1" fill="url(#goalGrad)" strokeWidth={2} />
-                        <ReferenceLine y={goal.target_amount} stroke="#10B981" strokeDasharray="5 5" />
+                        <Area type="monotone" dataKey="projected" stroke="hsl(var(--chart-3))" fill="url(#goalGrad)" strokeWidth={2} />
+                        <ReferenceLine y={goal.target_amount} stroke="hsl(var(--chart-1))" strokeDasharray="5 5" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -589,7 +589,7 @@ export default function GoalsClient() {
 
                   formatter={((v: number, name: string) => [`$${(v || 0).toLocaleString()}`, name === 'bernardo' ? 'Bernardo' : 'Laura']) as any}
                 />
-                <ReferenceLine y={lastTotal?.planned_contribution ?? 120000} stroke="hsl(38, 92%, 50%)" strokeDasharray="4 4" strokeWidth={1.5} />
+                <ReferenceLine y={lastTotal?.planned_contribution ?? 120000} stroke="hsl(var(--chart-5))" strokeDasharray="4 4" strokeWidth={1.5} />
                 <Bar dataKey="bernardo" stackId="savings" fill="hsl(217, 91%, 60%)" />
                 <Bar dataKey="laura" stackId="savings" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} />
               </BarChart>

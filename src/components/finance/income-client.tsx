@@ -150,7 +150,7 @@ export function IncomeClient() {
             <TrendingUp className="w-4 h-4 text-emerald-400" />
             <span className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Monthly</span>
           </div>
-          <p className="text-2xl font-bold text-emerald-400">${totalActive.toLocaleString()}</p>
+          <p className="text-2xl font-bold num-metric tabular-nums text-emerald-400">${totalActive.toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">Active sources only</p>
         </GlassCard>
         {Object.entries(byOwner).map(([owner, amt]) => (
@@ -159,7 +159,7 @@ export function IncomeClient() {
               <DollarSign className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
               <span className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">{OWNER_LABELS[owner] || owner}</span>
             </div>
-            <p className="text-2xl font-bold text-[hsl(var(--foreground))]">${amt.toLocaleString()}</p>
+            <p className="text-2xl font-bold num-metric tabular-nums text-[hsl(var(--foreground))]">${amt.toLocaleString()}</p>
             <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">{Math.round((amt / totalActive) * 100)}% of household</p>
           </GlassCard>
         ))}
@@ -179,7 +179,7 @@ export function IncomeClient() {
         ) : (
           <div className="divide-y divide-[hsl(var(--border))]">
             {items.map(item => (
-              <div key={item.id} className={cn("flex items-center gap-4 px-5 py-4", !item.active && "opacity-50")}>
+              <div key={item.id} className={cn("flex items-center gap-4 px-4 py-2.5 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors", !item.active && "opacity-50")}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-[hsl(var(--foreground))] truncate">{item.name}</span>
@@ -190,21 +190,20 @@ export function IncomeClient() {
                       <span className="text-xs bg-zinc-500/20 text-zinc-400 px-2 py-0.5 rounded-full">Inactive</span>
                     )}
                   </div>
-                  <p className="text-sm text-[hsl(var(--text-secondary))] mt-0.5">
-                    {OWNER_LABELS[item.owner] || item.owner}
-                    {' · '}{CATEGORY_LABELS[item.category] || item.category}
-                    {' · '}{RECURRENCE_LABELS[item.recurrence] || item.recurrence}
-                    {' · '}Day {item.day_of_month}
+                  <p className="flex items-center gap-1.5 flex-wrap text-sm text-[hsl(var(--text-secondary))] mt-0.5">
+                    <span>{OWNER_LABELS[item.owner] || item.owner}</span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] bg-[hsl(var(--bg-elevated))]">{CATEGORY_LABELS[item.category] || item.category}</span>
+                    <span className="text-xs text-[hsl(var(--text-tertiary))]">{RECURRENCE_LABELS[item.recurrence] || item.recurrence}{' · '}Day {item.day_of_month}</span>
                   </p>
                   {item.notes && (
                     <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5 italic">{item.notes}</p>
                   )}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className={cn("text-lg font-bold", item.active ? "text-emerald-400" : "text-[hsl(var(--text-secondary))]")}>
-                    ${item.amount.toLocaleString()}
+                  <p className={cn("text-lg font-bold num-metric tabular-nums", item.active ? "text-emerald-400" : "text-[hsl(var(--text-secondary))]")}>
+                    +${item.amount.toLocaleString()}
                   </p>
-                  <p className="text-xs text-[hsl(var(--text-tertiary))]/mo">/mo</p>
+                  <p className="text-xs text-[hsl(var(--text-tertiary))]">/mo</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {/* Toggle active */}
@@ -242,7 +241,7 @@ export function IncomeClient() {
               <span className="text-sm font-medium text-[hsl(var(--text-secondary))]">
                 Total active monthly income
               </span>
-              <span className="text-lg font-bold text-emerald-400">${totalActive.toLocaleString()}</span>
+              <span className="text-lg font-bold num-metric tabular-nums text-emerald-400">+${totalActive.toLocaleString()}</span>
             </div>
           </div>
         )}

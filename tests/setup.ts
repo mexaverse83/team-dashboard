@@ -18,6 +18,7 @@ vi.mock('framer-motion', async () => {
 // Mock next/font (layout.tsx) — vitest doesn't run the Next.js font compiler
 vi.mock('next/font/google', () => ({
   Inter: () => ({ className: 'font-inter', variable: '--font-inter', style: { fontFamily: 'Inter' } }),
+  Space_Grotesk: () => ({ className: 'font-display', variable: '--font-display', style: { fontFamily: 'Space Grotesk' } }),
 }))
 
 // Mock Supabase client globally.

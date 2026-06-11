@@ -1,13 +1,22 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { Inter, Space_Grotesk } from "next/font/google"
 import "./globals.css"
 import { Sidebar } from "@/components/Sidebar"
+import { CommandPalette } from "@/components/command-palette"
 
 // Self-hosted via next/font: no render-blocking Google Fonts request chain.
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-inter",
+})
+
+// Display face for headings and hero numerals — gives the product a voice
+// beyond default Inter-everywhere.
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-display",
 })
 
 export const metadata: Metadata = {
@@ -22,8 +31,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`dark ${inter.variable}`}>
+    <html lang="en" className={`dark ${inter.variable} ${spaceGrotesk.variable}`}>
       <body className="min-h-screen">
+        <CommandPalette />
         {/* Mobile top bar */}
         <header className="md:hidden sticky top-0 z-50 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 backdrop-blur-sm">
           <div className="flex items-center justify-center px-4 h-12">

@@ -534,7 +534,7 @@ export default function TransactionsClient() {
       </div>
 
       {/* Filter Bar */}
-      <div className="flex flex-col gap-3 p-3 rounded-xl bg-[hsl(var(--bg-elevated))]/50 border border-[hsl(var(--border))]">
+      <div className="sticky top-0 z-10 flex flex-col gap-3 p-3 rounded-xl bg-[hsl(var(--background))]/90 backdrop-blur-sm border border-[hsl(var(--border))]">
         <select value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setPage(1) }}
           className="px-3 py-1.5 rounded-lg bg-[hsl(var(--bg-elevated))] text-xs border-none outline-none">
           <option value="">All Categories</option>
@@ -580,15 +580,15 @@ export default function TransactionsClient() {
                 <thead>
                   <tr className="border-b border-[hsl(var(--border))]">
                     {['Date', 'Merchant', 'Amount', 'Category', 'Owner', '', ''].map((h, i) => (
-                      <th key={i} className="text-left text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider py-3 px-4">{h}</th>
+                      <th key={i} className={cn("text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider py-2.5 px-4", h === 'Amount' ? "text-right" : "text-left")}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {paginated.map(tx => (
                     <tr key={tx.id} className="border-b border-[hsl(var(--border))] last:border-0 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors group">
-                      <td className="py-3 px-4 text-sm text-[hsl(var(--text-secondary))]">{tx.transaction_date.slice(5)}</td>
-                      <td className="py-3 px-4">
+                      <td className="py-2 px-4 text-sm text-[hsl(var(--text-secondary))] tabular-nums whitespace-nowrap">{tx.transaction_date.slice(5)}</td>
+                      <td className="py-2 px-4">
                         <p className="text-sm font-medium flex items-center gap-1.5">
                           {tx.merchant || '—'}
                           {(tx.source === 'recurring_income' || tx.tags?.includes('auto-income')) && (
@@ -597,18 +597,18 @@ export default function TransactionsClient() {
                         </p>
                         {tx.description && <p className="text-xs text-[hsl(var(--text-tertiary))] truncate max-w-[200px]">{tx.description}</p>}
                       </td>
-                      <td className="py-3 px-4">
-                        <span className={cn("text-sm font-semibold", tx.type === 'income' ? "text-emerald-400" : "text-rose-400")}>
+                      <td className="py-2 px-4 text-right">
+                        <span className={cn("text-sm font-semibold num-metric tabular-nums", tx.type === 'income' ? "text-emerald-400" : "text-rose-400")}>
                           {tx.type === 'income' ? '+' : '-'}${tx.amount_mxn.toLocaleString()}
                         </span>
                       </td>
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs"
+                      <td className="py-2 px-4">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px]"
                           style={{ background: `${tx.category?.color || '#6B7280'}20`, color: tx.category?.color }}>
                           {tx.category?.icon} {tx.category?.name}
                         </span>
                       </td>
-                      <td className="py-3 px-4"><OwnerDot owner={tx.owner} showLabel /></td>
+                      <td className="py-2 px-4"><OwnerDot owner={tx.owner} showLabel /></td>
                       <td className="py-2 px-2 w-8">
                         <button onClick={() => openEdit(tx)} className="p-1.5 rounded-md sm:opacity-0 sm:group-hover:opacity-100 hover:bg-[hsl(var(--bg-elevated))] transition-all" title="Edit">
                           <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" />
@@ -635,7 +635,7 @@ export default function TransactionsClient() {
             {/* Mobile card list */}
             <div className="sm:hidden space-y-2">
               {paginated.map(tx => (
-                <div key={tx.id} className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
+                <div key={tx.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors">
                   <div className="h-9 w-9 rounded-lg flex items-center justify-center text-sm shrink-0"
                     style={{ background: `${tx.category?.color || '#6B7280'}20` }}
                     onClick={() => openEdit(tx)}>
@@ -649,14 +649,14 @@ export default function TransactionsClient() {
                           <span title="Auto-registered" className="text-emerald-400 text-xs">🔁</span>
                         )}
                       </p>
-                      <span className={cn("text-sm font-semibold shrink-0 ml-2",
+                      <span className={cn("text-sm font-semibold num-metric tabular-nums shrink-0 ml-2 text-right",
                         tx.type === 'income' ? "text-emerald-400" : "text-rose-400")}>
                         {tx.type === 'income' ? '+' : '-'}${tx.amount_mxn.toLocaleString()}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-[hsl(var(--text-tertiary))]">{tx.transaction_date.slice(5)}</span>
-                      <span className="text-xs px-1.5 py-0.5 rounded-full"
+                      <span className="text-xs text-[hsl(var(--text-tertiary))] tabular-nums">{tx.transaction_date.slice(5)}</span>
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px]"
                         style={{ background: `${tx.category?.color}20`, color: tx.category?.color }}>
                         {tx.category?.name}
                       </span>

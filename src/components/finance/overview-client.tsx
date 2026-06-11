@@ -192,21 +192,21 @@ export default function FinanceOverviewClient() {
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <GlassCard>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Spent</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Spent</span>
             <TrendingDown className="h-4 w-4 text-rose-400" />
           </div>
-          <p className="text-2xl sm:text-3xl font-bold text-rose-400">${totalSpent.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold text-rose-400">${totalSpent.toLocaleString()}</p>
           <TrendBadge value={spentDelta * -1} suffix="% vs last month" />
           <OwnerBar bernardo={bernardoSpent} laura={lauraSpent} className="mt-2" />
-          <div className="mt-3 h-8"><SparklineChart data={dailySpendHistory} color="hsl(350, 80%, 55%)" /></div>
+          <div className="mt-3 h-8"><SparklineChart data={dailySpendHistory} color="hsl(var(--chart-6))" /></div>
         </GlassCard>
 
         <GlassCard>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Income</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Income</span>
             <TrendingUp className="h-4 w-4 text-emerald-400" />
           </div>
-          <p className="text-2xl sm:text-3xl font-bold text-emerald-400">${totalIncome.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-400">${totalIncome.toLocaleString()}</p>
           <TrendBadge value={incomeDelta} suffix="% vs last month" />
           {expectedMonthlyIncome > 0 && (
             <div className="mt-2 flex items-center justify-between text-xs">
@@ -225,15 +225,15 @@ export default function FinanceOverviewClient() {
             </div>
           )}
           <OwnerBar bernardo={bernardoIncome} laura={lauraIncome} className="mt-2" />
-          <div className="mt-3 h-8"><SparklineChart data={dailyIncomeHistory} color="hsl(160, 60%, 45%)" /></div>
+          <div className="mt-3 h-8"><SparklineChart data={dailyIncomeHistory} color="hsl(var(--chart-1))" /></div>
         </GlassCard>
 
         <GlassCard>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Net Savings</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Net Savings</span>
             <Wallet className="h-4 w-4 text-[hsl(var(--text-tertiary))]" />
           </div>
-          <p className={cn("text-2xl sm:text-3xl font-bold", netSavings >= 0 ? "text-emerald-400" : "text-rose-400")}>
+          <p className={cn("num-metric text-2xl sm:text-3xl font-bold", netSavings >= 0 ? "text-emerald-400" : "text-rose-400")}>
             ${Math.abs(netSavings).toLocaleString()}
           </p>
           <TrendBadge value={savingsDelta} suffix="% vs last month" />
@@ -241,14 +241,13 @@ export default function FinanceOverviewClient() {
 
         <GlassCard>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Savings Rate</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Rate</span>
             <Percent className="h-4 w-4 text-[hsl(var(--text-tertiary))]" />
           </div>
-          <p className="text-2xl sm:text-3xl font-bold">{savingsRate}%</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold">{savingsRate}%</p>
           <div className="mt-2 h-2 rounded-full bg-[hsl(var(--bg-elevated))]">
             <motion.div
-              className="h-2 rounded-full"
-              style={{ background: savingsRate >= 20 ? '#10B981' : savingsRate >= 10 ? '#F59E0B' : '#F43F5E' }}
+              className={cn("h-2 rounded-full bg-gradient-to-r", savingsRate >= 20 ? "from-emerald-400 to-teal-500" : savingsRate >= 10 ? "from-amber-400 to-amber-600" : "from-rose-400 to-rose-600")}
               initial={{ width: 0 }}
               animate={{ width: `${Math.min(Math.max(savingsRate, 0), 100)}%` }}
               transition={{ duration: 0.8, ease: 'easeOut' }}
@@ -304,15 +303,15 @@ export default function FinanceOverviewClient() {
               <AreaChart data={dailyData}>
                 <defs>
                   <linearGradient id="spendGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#F43F5E" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#F43F5E" stopOpacity={0} />
+                    <stop offset="0%" stopColor="hsl(var(--chart-6))" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="hsl(var(--chart-6))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
                 <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} />
                 <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
-                <Area type="monotone" dataKey="amount" stroke="#F43F5E" strokeWidth={2} fill="url(#spendGrad)" />
+                <Area type="monotone" dataKey="amount" stroke="hsl(var(--chart-6))" strokeWidth={2} fill="url(#spendGrad)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -330,7 +329,7 @@ export default function FinanceOverviewClient() {
             <div className="space-y-3">
               {budgetStatus.map(budget => {
                 const pct = budget.limit > 0 ? (budget.spent / budget.limit) * 100 : 0
-                const barColor = pct < 60 ? 'bg-emerald-500' : pct < 80 ? 'bg-yellow-500' : pct <= 100 ? 'bg-orange-500' : 'bg-rose-500'
+                const barColor = pct < 60 ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : pct < 80 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' : pct <= 100 ? 'bg-gradient-to-r from-orange-400 to-orange-600' : 'bg-gradient-to-r from-rose-400 to-rose-600'
                 return (
                   <div key={budget.id}>
                     <div className="flex items-center justify-between mb-1">

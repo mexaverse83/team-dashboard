@@ -369,19 +369,19 @@ export function CryptoClient() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total (MXN)</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total (MXN)</p>
             <p className="text-lg font-bold text-emerald-400 tabular-nums">{fmtMXN(totalMXN)}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total (USD)</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total (USD)</p>
             <p className="text-lg font-bold tabular-nums">{fmtUSD(totalUSD)}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">Cost Basis</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Cost Basis</p>
             <p className="text-lg font-bold text-[hsl(var(--text-secondary))] tabular-nums">{totalCostMXN > 0 ? fmtMXN(totalCostMXN) : '—'}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">P&L</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">P&L</p>
             {totalPL !== null ? (
               <p className={`text-lg font-bold flex items-center gap-1 tabular-nums whitespace-nowrap ${totalPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {totalPL >= 0 ? <TrendingUp className="h-4 w-4 shrink-0" /> : <TrendingDown className="h-4 w-4 shrink-0" />}
@@ -449,7 +449,7 @@ export function CryptoClient() {
                   )}
                 </div>
 
-                <p className="text-2xl font-bold tabular-nums mb-1">{fmtMXN(o.mxn)}</p>
+                <p className="num-metric text-2xl font-bold tabular-nums mb-1">{fmtMXN(o.mxn)}</p>
                 <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-secondary))] mb-3">
                   <span>Cost: {o.cost > 0 ? fmtMXN(o.cost) : '—'}</span>
                   {o.pl !== null && (

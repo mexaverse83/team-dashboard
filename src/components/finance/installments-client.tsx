@@ -260,7 +260,7 @@ export function InstallmentsClient() {
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           <GlassCard>
             <p className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Monthly MSI</p>
-            <div className="text-2xl sm:text-3xl font-bold mt-1">{fmt(totalMonthlyCommitment)}</div>
+            <div className="text-2xl sm:text-3xl font-bold num-metric tabular-nums mt-1">{fmt(totalMonthlyCommitment)}</div>
             <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">committed per month</p>
           </GlassCard>
           <GlassCard>
@@ -270,7 +270,7 @@ export function InstallmentsClient() {
           </GlassCard>
           <GlassCard>
             <p className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Remaining Balance</p>
-            <div className="text-2xl sm:text-3xl font-bold mt-1">{fmt(totalRemaining)}</div>
+            <div className="text-2xl sm:text-3xl font-bold num-metric tabular-nums mt-1">{fmt(totalRemaining)}</div>
             <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">left to pay</p>
           </GlassCard>
           <GlassCard>
@@ -333,8 +333,8 @@ export function InstallmentsClient() {
                   <thead>
                     <tr className="border-b border-[hsl(var(--border))]">
                       <th className="text-left py-2 px-3 text-xs font-medium text-[hsl(var(--text-secondary))]">Item</th>
-                      <th className="text-left py-2 px-3 text-xs font-medium text-[hsl(var(--text-secondary))]">Total</th>
-                      <th className="text-left py-2 px-3 text-xs font-medium text-[hsl(var(--text-secondary))]">Monthly</th>
+                      <th className="text-right py-2 px-3 text-xs font-medium text-[hsl(var(--text-secondary))]">Total</th>
+                      <th className="text-right py-2 px-3 text-xs font-medium text-[hsl(var(--text-secondary))]">Monthly</th>
                       <th className="text-left py-2 px-3 text-xs font-medium text-[hsl(var(--text-secondary))]">Progress</th>
                       <th className="text-left py-2 px-3 text-xs font-medium text-[hsl(var(--text-secondary))]">Card</th>
                       <th className="text-left py-2 px-3 text-xs font-medium text-[hsl(var(--text-secondary))]">Ends</th>
@@ -346,14 +346,14 @@ export function InstallmentsClient() {
                       const pct = (inst.payments_made / inst.installment_count) * 100
                       const remain = monthsRemaining(inst.end_date)
                       return (
-                        <tr key={inst.id} className="border-b border-[hsl(var(--border-subtle))] group hover:bg-[hsl(var(--bg-elevated))] transition-colors">
-                          <td className="py-3 px-3">
+                        <tr key={inst.id} className="border-b border-[hsl(var(--border-subtle))] group hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors">
+                          <td className="py-2 px-3">
                             <div className="font-medium flex items-center gap-2">{inst.name} <OwnerDot owner={inst.owner} /></div>
                             {inst.merchant && <div className="text-xs text-[hsl(var(--text-tertiary))]">{inst.merchant}</div>}
                           </td>
-                          <td className="py-3 px-3">{fmt(inst.total_amount)}</td>
-                          <td className="py-3 px-3 font-medium text-rose-400">{fmt(inst.installment_amount)}</td>
-                          <td className="py-3 px-3">
+                          <td className="py-2 px-3 text-right num-metric tabular-nums">{fmt(inst.total_amount)}</td>
+                          <td className="py-2 px-3 text-right num-metric tabular-nums font-medium text-rose-400">{fmt(inst.installment_amount)}</td>
+                          <td className="py-2 px-3">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-2 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden min-w-[80px]">
                                 <motion.div
@@ -366,18 +366,18 @@ export function InstallmentsClient() {
                               <span className="text-xs text-[hsl(var(--text-tertiary))] whitespace-nowrap">{inst.payments_made}/{inst.installment_count}</span>
                             </div>
                           </td>
-                          <td className="py-3 px-3">
+                          <td className="py-2 px-3">
                             {inst.credit_card ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-secondary))]">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-secondary))]">
                                 💳 {inst.credit_card}
                               </span>
                             ) : '—'}
                           </td>
-                          <td className="py-3 px-3">
-                            <span className="text-xs">{new Date(inst.end_date).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })}</span>
+                          <td className="py-2 px-3 whitespace-nowrap">
+                            <span className="text-xs tabular-nums">{new Date(inst.end_date).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })}</span>
                             <span className="text-xs text-[hsl(var(--text-tertiary))] ml-1">({remain}mo)</span>
                           </td>
-                          <td className="py-3 px-3 text-right">
+                          <td className="py-2 px-3 text-right">
                             <div className="flex items-center justify-end gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                               <button onClick={() => handleMarkPayment(inst)} title="Log payment"
                                 className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-emerald-400 transition-colors">
@@ -412,7 +412,7 @@ export function InstallmentsClient() {
                           <p className="font-medium text-sm">{inst.name}</p>
                           {inst.merchant && <p className="text-xs text-[hsl(var(--text-tertiary))]">{inst.merchant}</p>}
                         </div>
-                        <span className="text-sm font-bold text-rose-400">{fmt(inst.installment_amount)}/mo</span>
+                        <span className="text-sm font-bold num-metric tabular-nums text-rose-400">{fmt(inst.installment_amount)}/mo</span>
                       </div>
                       <div className="flex items-center gap-2 mb-2">
                         <div className="flex-1 h-2 rounded-full bg-[hsl(var(--bg-base))] overflow-hidden">
@@ -442,13 +442,13 @@ export function InstallmentsClient() {
             <h2 className="text-base font-semibold mb-4 text-[hsl(var(--text-secondary))]">Completed ({completed.length})</h2>
             <div className="space-y-2">
               {completed.map(inst => (
-                <div key={inst.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-[hsl(var(--bg-elevated))] opacity-60">
+                <div key={inst.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-[hsl(var(--bg-elevated))] opacity-60 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors">
                   <div>
                     <span className="text-sm">{inst.name}</span>
                     {inst.merchant && <span className="text-xs text-[hsl(var(--text-tertiary))] ml-2">{inst.merchant}</span>}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-tertiary))]">
-                    <span>{fmt(inst.total_amount)}</span>
+                    <span className="num-metric tabular-nums">{fmt(inst.total_amount)}</span>
                     <span>✅ {inst.installment_count} payments</span>
                     <button aria-label="Delete" onClick={() => setDeleteConfirm(inst.id)} className="p-1 text-red-400 hover:bg-red-500/20 rounded">
                       <Trash2 className="h-3.5 w-3.5" />

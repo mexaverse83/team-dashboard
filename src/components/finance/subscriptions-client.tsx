@@ -274,11 +274,11 @@ export default function SubscriptionsClient() {
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Monthly Burn</span>
-          <p className="text-2xl sm:text-3xl font-bold text-rose-400 mt-1">${Math.round(monthlyBurn).toLocaleString()}</p>
+          <p className="text-2xl sm:text-3xl font-bold num-metric tabular-nums text-rose-400 mt-1">${Math.round(monthlyBurn).toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Annual Projection</span>
-          <p className="text-2xl sm:text-3xl font-bold text-amber-400 mt-1">${Math.round(annualBurn).toLocaleString()}</p>
+          <p className="text-2xl sm:text-3xl font-bold num-metric tabular-nums text-amber-400 mt-1">${Math.round(annualBurn).toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Active</span>
@@ -298,24 +298,24 @@ export default function SubscriptionsClient() {
               <thead>
                 <tr className="border-b border-[hsl(var(--border))]">
                   {['', 'Name', 'Amount', 'Frequency', 'Next Due', 'Status', ''].map((h, i) => (
-                    <th key={i} className="text-left text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider py-3 px-4">{h}</th>
+                    <th key={i} className={cn("text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider py-2.5 px-4", h === 'Amount' ? "text-right" : "text-left")}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {recurring.map(sub => (
                   <tr key={sub.id} className="border-b border-[hsl(var(--border))] last:border-0 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors group">
-                    <td className="py-3 px-4 text-lg">{sub.category?.icon}</td>
-                    <td className="py-3 px-4">
+                    <td className="py-2 px-4 text-lg">{sub.category?.icon}</td>
+                    <td className="py-2 px-4">
                       <p className="text-sm font-medium flex items-center gap-2">{sub.name} <OwnerDot owner={sub.owner} /></p>
                       <p className="text-xs text-[hsl(var(--text-tertiary))]">{sub.merchant}</p>
                     </td>
-                    <td className="py-3 px-4 text-sm font-semibold">${sub.amount.toLocaleString()} <span className="text-[hsl(var(--text-tertiary))] font-normal">{sub.currency}</span></td>
-                    <td className="py-3 px-4">
+                    <td className="py-2 px-4 text-sm font-semibold text-right num-metric tabular-nums whitespace-nowrap">${sub.amount.toLocaleString()} <span className="text-[hsl(var(--text-tertiary))] font-normal">{sub.currency}</span></td>
+                    <td className="py-2 px-4">
                       <Badge variant="secondary" className="text-xs capitalize">{sub.frequency}</Badge>
                     </td>
-                    <td className="py-3 px-4 text-sm text-[hsl(var(--text-secondary))]">{sub.next_due_date?.slice(5) || '—'}</td>
-                    <td className="py-3 px-4">
+                    <td className="py-2 px-4 text-sm text-[hsl(var(--text-secondary))] tabular-nums">{sub.next_due_date?.slice(5) || '—'}</td>
+                    <td className="py-2 px-4">
                       <button onClick={() => toggleActive(sub)} className="inline-flex items-center gap-1.5 text-xs font-medium hover:opacity-80 transition-opacity" title="Toggle active">
                         <span className={cn("h-1.5 w-1.5 rounded-full", sub.is_active ? "bg-emerald-500" : "bg-gray-500")} />
                         {sub.is_active ? 'Active' : 'Paused'}
@@ -354,13 +354,13 @@ export default function SubscriptionsClient() {
           {/* Mobile card list */}
           <div className="sm:hidden space-y-2">
             {recurring.map(sub => (
-              <div key={sub.id} className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]"
+              <div key={sub.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors"
                 onClick={() => openEdit(sub)}>
                 <span className="text-lg shrink-0">{sub.category?.icon}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium truncate flex items-center gap-1.5">{sub.name} <OwnerDot owner={sub.owner} size="md" /></p>
-                    <span className="text-sm font-semibold shrink-0 ml-2">${sub.amount.toLocaleString()}</span>
+                    <span className="text-sm font-semibold num-metric tabular-nums shrink-0 ml-2">${sub.amount.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs capitalize text-[hsl(var(--text-tertiary))]">{sub.frequency}</span>
@@ -401,11 +401,11 @@ export default function SubscriptionsClient() {
         ) : (
           <div className="space-y-2">
             {upcoming.map(sub => (
-              <div key={sub.id} className="flex items-center gap-3 p-2 rounded-lg bg-[hsl(var(--bg-elevated))]">
+              <div key={sub.id} className="flex items-center gap-3 px-2 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors">
                 <span className="text-sm">{sub.category?.icon}</span>
                 <span className="text-sm font-medium flex-1">{sub.name}</span>
-                <span className="text-xs text-[hsl(var(--text-secondary))]">{sub.next_due_date?.slice(5)}</span>
-                <span className="text-sm font-semibold text-rose-400">${sub.amount.toLocaleString()}</span>
+                <span className="text-xs text-[hsl(var(--text-secondary))] tabular-nums">{sub.next_due_date?.slice(5)}</span>
+                <span className="text-sm font-semibold num-metric tabular-nums text-rose-400 text-right">${sub.amount.toLocaleString()}</span>
               </div>
             ))}
           </div>

@@ -149,7 +149,7 @@ export default function CommandCenterClient() {
               </p>
               <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <span className={cn(
-                  'text-5xl sm:text-6xl font-black tabular-nums tracking-tight leading-none',
+                  'num-metric text-5xl sm:text-6xl font-black tracking-tight leading-none',
                   netSavings >= 0 ? 'text-hero-gradient' : 'text-rose-400',
                 )}>
                   {netSavings >= 0 ? '+' : '−'}{fmtMoney(Math.abs(netSavings), { compact: true })}

@@ -171,10 +171,10 @@ export default function EmergencyFundClient() {
 
       {/* Hero KPIs */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
-        <GlassCard><span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Current Fund</span><p className="text-2xl sm:text-3xl font-bold tabular-nums text-indigo-400 mt-1">${currentFund.toLocaleString()}</p></GlassCard>
-        <GlassCard><span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Target ({recommendedMonths}mo)</span><p className="text-2xl sm:text-3xl font-bold tabular-nums mt-1">${targetAmount.toLocaleString()}</p></GlassCard>
-        <GlassCard><span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Months Covered</span><p className={cn("text-2xl sm:text-3xl font-bold tabular-nums mt-1", monthsCovered >= 6 ? "text-emerald-400" : monthsCovered >= 3 ? "text-amber-400" : "text-rose-400")}>{monthsCovered.toFixed(1)}</p><p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">of {recommendedMonths} month target</p></GlassCard>
-        <GlassCard><span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Risk Score</span><p className="text-2xl sm:text-3xl font-bold tabular-nums mt-1">{answeredAll ? `${riskScore}/20` : '—'}</p>{answeredAll && <span className={cn("text-xs font-medium", riskScore <= 8 ? "text-emerald-400" : riskScore <= 13 ? "text-amber-400" : "text-rose-400")}>{riskScore <= 8 ? 'Low risk' : riskScore <= 13 ? 'Moderate' : 'High risk'}</span>}</GlassCard>
+        <GlassCard><span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Current Fund</span><p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-indigo-400 mt-1">${currentFund.toLocaleString()}</p></GlassCard>
+        <GlassCard><span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Target ({recommendedMonths}mo)</span><p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">${targetAmount.toLocaleString()}</p></GlassCard>
+        <GlassCard><span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Months Covered</span><p className={cn("num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1", monthsCovered >= 6 ? "text-emerald-400" : monthsCovered >= 3 ? "text-amber-400" : "text-rose-400")}>{monthsCovered.toFixed(1)}</p><p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">of {recommendedMonths} month target</p></GlassCard>
+        <GlassCard><span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Risk Score</span><p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">{answeredAll ? `${riskScore}/20` : '—'}</p>{answeredAll && <span className={cn("text-xs font-medium", riskScore <= 8 ? "text-emerald-400" : riskScore <= 13 ? "text-amber-400" : "text-rose-400")}>{riskScore <= 8 ? 'Low risk' : riskScore <= 13 ? 'Moderate' : 'High risk'}</span>}</GlassCard>
       </div>
 
       {/* Thermometer + Risk Questionnaire */}
@@ -192,7 +192,7 @@ export default function EmergencyFundClient() {
               </div>
             ))}
           </div>
-          <p className="text-2xl font-bold tabular-nums mt-4">{Math.round(fundPct)}%</p>
+          <p className="num-metric text-2xl font-bold tabular-nums mt-4">{Math.round(fundPct)}%</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))]">${gap.toLocaleString()} to go</p>
         </GlassCard>
 
@@ -221,8 +221,8 @@ export default function EmergencyFundClient() {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               className="mt-4 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30">
               <div className="flex items-center justify-between">
-                <div><span className="text-xs text-indigo-400/70 uppercase tracking-wider">Risk Score</span><p className="text-2xl font-bold text-indigo-400">{riskScore}/20</p></div>
-                <div className="text-right"><span className="text-xs text-indigo-400/70 uppercase tracking-wider">Recommended Fund</span><p className="text-2xl font-bold tabular-nums">{recommendedMonths} months</p><p className="text-sm font-medium tabular-nums text-indigo-400">${targetAmount.toLocaleString()}</p></div>
+                <div><span className="text-xs text-indigo-400/70 uppercase tracking-wider">Risk Score</span><p className="num-metric text-2xl font-bold text-indigo-400">{riskScore}/20</p></div>
+                <div className="text-right"><span className="text-xs text-indigo-400/70 uppercase tracking-wider">Recommended Fund</span><p className="num-metric text-2xl font-bold tabular-nums">{recommendedMonths} months</p><p className="text-sm font-medium tabular-nums text-indigo-400">${targetAmount.toLocaleString()}</p></div>
               </div>
             </motion.div>
           )}
@@ -272,10 +272,10 @@ export default function EmergencyFundClient() {
                 <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} />
                 <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} />
-                <defs><linearGradient id="fundGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366F1" stopOpacity={0.3} /><stop offset="100%" stopColor="#6366F1" stopOpacity={0} /></linearGradient></defs>
-                <Area type="monotone" dataKey="balance" stroke="#6366F1" fill="url(#fundGrad)" strokeWidth={2} />
-                <ReferenceLine y={targetAmount} stroke="#10B981" strokeDasharray="5 5" label={{ value: `${recommendedMonths}mo target`, fill: '#10B981', fontSize: 10 }} />
-                <ReferenceLine y={monthlyEssentials * 3} stroke="#F59E0B" strokeDasharray="3 3" label={{ value: '3mo', fill: '#F59E0B', fontSize: 9 }} />
+                <defs><linearGradient id="fundGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.3} /><stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0} /></linearGradient></defs>
+                <Area type="monotone" dataKey="balance" stroke="hsl(var(--chart-3))" fill="url(#fundGrad)" strokeWidth={2} />
+                <ReferenceLine y={targetAmount} stroke="hsl(var(--chart-1))" strokeDasharray="5 5" label={{ value: `${recommendedMonths}mo target`, fill: 'hsl(var(--chart-1))', fontSize: 10 }} />
+                <ReferenceLine y={monthlyEssentials * 3} stroke="hsl(var(--chart-5))" strokeDasharray="3 3" label={{ value: '3mo', fill: 'hsl(var(--chart-5))', fontSize: 9 }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>

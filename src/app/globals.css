@@ -1,62 +1,60 @@
 @import "tailwindcss";
 
 :root {
-  /* Foundations — Deep space */
-  --background: 222 47% 3%;
-  --foreground: 0 0% 95%;
-  --card: 222 47% 6%;
-  --card-foreground: 0 0% 95%;
-  --popover: 222 47% 6%;
-  --popover-foreground: 0 0% 95%;
-  --primary: 0 0% 95%;
-  --primary-foreground: 222 47% 3%;
-  --secondary: 222 47% 9%;
-  --secondary-foreground: 0 0% 95%;
-  --muted: 222 47% 9%;
-  --muted-foreground: 222 15% 55%;
-  --accent: 222 47% 9%;
-  --accent-foreground: 0 0% 95%;
+  /* Foundations — premium fintech: teal-tinted deep navy instead of the
+     generic blue-gray dev theme. One hue family (206) for every surface. */
+  --background: 206 50% 4%;
+  --foreground: 200 20% 96%;
+  --card: 206 42% 7%;
+  --card-foreground: 200 20% 96%;
+  --popover: 206 42% 7%;
+  --popover-foreground: 200 20% 96%;
+  --primary: 200 20% 96%;
+  --primary-foreground: 206 50% 4%;
+  --secondary: 206 40% 10%;
+  --secondary-foreground: 200 20% 96%;
+  --muted: 206 40% 10%;
+  --muted-foreground: 206 16% 56%;
+  --accent: 206 38% 11%;
+  --accent-foreground: 200 20% 96%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 95%;
-  --border: 222 20% 14%;
-  --input: 222 20% 14%;
-  --ring: 217 91% 60%;
-  --radius: 0.5rem;
+  --border: 205 28% 15%;
+  --input: 205 28% 15%;
+  --ring: 160 84% 45%;
+  --radius: 0.625rem;
 
-  /* Brand */
-  --brand: 217 91% 60%;
-  --brand-glow: 217 91% 60%;
-
-  /* Agent signature colors */
-  --agent-tars: 35 92% 50%;
-  --agent-cooper: 205 84% 50%;
-  --agent-murph: 263 70% 58%;
-  --agent-brand: 145 63% 42%;
-  --agent-mann: 350 80% 55%;
-  --agent-tom: 174 60% 47%;
+  /* Brand — emerald is the identity; blue is demoted to informational */
+  --brand: 160 84% 45%;
+  --brand-glow: 168 76% 42%;
 
   /* Semantic */
-  --success: 142 71% 45%;
-  --warning: 38 92% 50%;
-  --danger: 0 84% 60%;
-  --info: 217 91% 60%;
+  --success: 156 72% 46%;
+  --warning: 38 92% 52%;
+  --danger: 350 80% 58%;
+  --info: 205 90% 62%;
 
-  /* Text — secondary/tertiary lightened to clear WCAG AA (~4.5:1) contrast at small sizes */
-  --text-primary: 0 0% 95%;
-  --text-secondary: 222 14% 62%;
-  --text-tertiary: 222 13% 58%;
+  /* Text — secondary/tertiary clear WCAG AA (~4.5:1) at small sizes */
+  --text-primary: 200 20% 96%;
+  --text-secondary: 205 16% 64%;
+  --text-tertiary: 205 14% 58%;
 
-  /* Elevation ladder — surfaces step lighter as they rise toward the viewer.
-     These were referenced throughout the app but previously undefined, so any
-     style using them (progress tracks, insets, hover states) silently rendered
-     transparent. Defining them here wires up the whole system. */
-  --bg-base: 222 47% 3%;        /* page background tier */
-  --bg-surface: 222 44% 7%;     /* cards / panels */
-  --bg-elevated: 222 33% 13%;   /* raised insets: progress tracks, hover, chips */
-  --border-subtle: 222 18% 10%; /* fainter divider than --border */
+  /* Elevation ladder — surfaces step lighter as they rise toward the viewer */
+  --bg-base: 206 50% 4%;        /* page background tier */
+  --bg-surface: 206 42% 7%;     /* cards / panels */
+  --bg-elevated: 205 32% 13%;   /* raised insets: progress tracks, hover, chips */
+  --border-subtle: 206 24% 10%; /* fainter divider than --border */
 
-  /* Elevation shadow token */
-  --shadow-elevate: 0 1px 2px hsl(222 47% 1% / 0.5), 0 6px 20px -8px hsl(222 47% 0% / 0.55);
+  /* Elevation shadow token — deeper drop + faint teal cast */
+  --shadow-elevate: 0 1px 2px hsl(206 50% 2% / 0.6), 0 8px 24px -10px hsl(190 60% 3% / 0.7);
+
+  /* Chart system — one cohesive palette, referenced everywhere */
+  --chart-1: 160 84% 45%;  /* emerald  — primary series / inflow   */
+  --chart-2: 187 80% 50%;  /* cyan     — secondary series          */
+  --chart-3: 217 91% 65%;  /* blue     — informational             */
+  --chart-4: 262 80% 66%;  /* violet   — comparison                */
+  --chart-5: 38 92% 55%;   /* amber    — caution                   */
+  --chart-6: 350 80% 60%;  /* rose     — outflow / over budget     */
 }
 
 * {
@@ -80,8 +78,21 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(55% 45% at 88% -12%, hsl(160 70% 42% / 0.08), transparent 65%),
-    radial-gradient(45% 40% at -8% 18%, hsl(217 91% 60% / 0.05), transparent 60%);
+    radial-gradient(55% 45% at 88% -12%, hsl(160 70% 42% / 0.10), transparent 65%),
+    radial-gradient(45% 40% at -8% 18%, hsl(190 80% 50% / 0.06), transparent 60%);
+}
+
+/* Headings and metric numerals speak in the display face */
+h1, h2, h3 {
+  font-family: var(--font-display, var(--font-inter, 'Inter')), system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Metric numerals — big money values share one treatment */
+.num-metric {
+  font-family: var(--font-display, var(--font-inter, 'Inter')), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
 /* Finance identity — emerald→teal gradient for hero numbers */
@@ -184,15 +195,15 @@ a, button {
 
 /* Dark theme select dropdowns */
 select, select option {
-  background-color: hsl(222 47% 6%);
-  color: hsl(0 0% 95%);
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
 }
 select option:checked {
-  background-color: hsl(217 91% 60%);
+  background-color: hsl(var(--brand));
   color: white;
 }
 select option:hover {
-  background-color: hsl(222 47% 15%);
+  background-color: hsl(var(--bg-elevated));
 }
 
 /* Surface card (formerly heavy glass). On a near-flat dark page there is little
@@ -201,10 +212,12 @@ select option:hover {
    stronger border for separation, a light blur kept only for overlap with charts,
    and a real shadow for depth. Reserve heavier glass for modals/overlays. */
 .glass {
-  background: hsl(222 44% 8% / 0.92);
+  background: linear-gradient(180deg, hsl(205 38% 9% / 0.92), hsl(207 45% 6.5% / 0.94));
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  border: 1px solid hsl(222 22% 20% / 0.7);
+  border: 1px solid hsl(204 28% 20% / 0.6);
+  /* light catch on the top edge sells the depth */
+  border-top-color: hsl(202 35% 30% / 0.55);
   box-shadow: var(--shadow-elevate);
 }
 

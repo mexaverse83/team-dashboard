@@ -188,23 +188,23 @@ export default function DebtClient() {
       {/* Hero KPIs */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Debt</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-rose-400 mt-1">${totalDebt.toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Debt</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-rose-400 mt-1">${totalDebt.toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{debts.length} accounts</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Monthly Minimum</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums mt-1">${totalMinimum.toLocaleString()}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Minimum</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">${totalMinimum.toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Avg Interest</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-amber-400 mt-1">{weightedAvgRate.toFixed(1)}%</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Avg Interest</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-400 mt-1">{weightedAvgRate.toFixed(1)}%</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">weighted by balance</p>
         </GlassCard>
         <GlassCard className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent pointer-events-none" />
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Debt-Free Date</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">{debts.length > 0 ? debtFreeDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}</p>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Debt-Free Date</span>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">{debts.length > 0 ? debtFreeDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{bestResult.months} months away</p>
         </GlassCard>
       </div>
@@ -220,8 +220,8 @@ export default function DebtClient() {
                 <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} label={{ value: 'Months', position: 'insideBottom', offset: -5, fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} />
                 <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
-                <Line type="monotone" dataKey="snowball" name="Snowball" stroke="#3B82F6" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="avalanche" name="Avalanche" stroke="#F59E0B" strokeWidth={2.5} dot={false} strokeDasharray="6 3" />
+                <Line type="monotone" dataKey="snowball" name="Snowball" stroke="hsl(var(--chart-3))" strokeWidth={2.5} dot={false} />
+                <Line type="monotone" dataKey="avalanche" name="Avalanche" stroke="hsl(var(--chart-5))" strokeWidth={2.5} dot={false} strokeDasharray="6 3" />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -289,8 +289,8 @@ export default function DebtClient() {
             <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-emerald-500/5 pointer-events-none" />
             <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.6 }}>
               <span className="text-5xl mb-3 block">🎯</span>
-              <p className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-1">Debt-Free Countdown</p>
-              <p className="text-4xl sm:text-5xl font-black tabular-nums text-emerald-400">{bestResult.months}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-1">Debt-Free Countdown</p>
+              <p className="num-metric text-4xl sm:text-5xl font-black tabular-nums text-emerald-400">{bestResult.months}</p>
               <p className="text-sm text-[hsl(var(--text-secondary))] mt-1">months to go</p>
               <div className="relative h-32 w-32 mx-auto mt-4">
                 <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
