@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, type LucideIcon } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { TrendBadge } from '@/components/ui/trend-badge'
 import { SparklineChart } from '@/components/ui/sparkline-chart'
@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 // Accent is reserved for STATUS only (positive / negative). 'brand' is a neutral
 // emphasis used sparingly for the headline metric (net worth). Everything else
 // stays in the default foreground colour so colour keeps its meaning.
-export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineColor, accent }: {
+export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineColor, accent, icon: Icon }: {
   label: string
   value: string
   sublabel?: React.ReactNode
@@ -19,22 +19,34 @@ export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineCol
   sparkline?: number[]
   sparklineColor?: string
   accent?: 'positive' | 'negative' | 'neutral' | 'brand'
+  icon?: LucideIcon
 }) {
   const accentClass = accent === 'positive' ? 'text-emerald-400'
     : accent === 'negative' ? 'text-rose-400'
-    : accent === 'brand' ? 'text-blue-400'
+    : accent === 'brand' ? 'text-teal-300'
     : 'text-[hsl(var(--foreground))]'
+  const chipClass = accent === 'positive' ? 'bg-emerald-500/10 text-emerald-300'
+    : accent === 'negative' ? 'bg-rose-500/10 text-rose-300'
+    : accent === 'brand' ? 'bg-teal-500/10 text-teal-300'
+    : 'bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-secondary))]'
   return (
     <GlassCard>
-      <div className="flex items-start justify-between mb-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">{label}</span>
-        {trend !== undefined && <TrendBadge value={trend} />}
+      <div className="flex items-start justify-between mb-2.5">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">{label}</span>
+        <span className="flex items-center gap-2">
+          {trend !== undefined && <TrendBadge value={trend} />}
+          {Icon && (
+            <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg -mt-1', chipClass)}>
+              <Icon className="h-3.5 w-3.5" />
+            </span>
+          )}
+        </span>
       </div>
       <p className={cn('num-metric text-2xl sm:text-[28px] font-bold leading-none', accentClass)}>{value}</p>
       {sublabel && <div className="mt-1.5 text-xs text-[hsl(var(--text-secondary))]">{sublabel}</div>}
       {sparkline && sparkline.length > 0 && (
         <div className="mt-3 -mx-1">
-          <SparklineChart data={sparkline} color={sparklineColor || 'hsl(217, 91%, 60%)'} width={200} height={28} />
+          <SparklineChart data={sparkline} color={sparklineColor || 'hsl(var(--chart-1))'} width={200} height={28} />
         </div>
       )}
     </GlassCard>

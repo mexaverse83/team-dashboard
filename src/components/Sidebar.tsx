@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Landmark, ShieldCheck, Target, CreditCard, Sparkles, TrendingUp, Banknote, Wand2, Bitcoin } from 'lucide-react'
+import { Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Search as SearchIcon, Landmark, ShieldCheck, Target, CreditCard, Sparkles, TrendingUp, Banknote, Wand2, Bitcoin } from 'lucide-react'
 import { FinanceAuthBadge } from './finance-auth-badge'
 
 const financeTrack = [
@@ -107,7 +107,7 @@ export function Sidebar() {
     </nav>
 
     {/* Desktop: always-visible sidebar */}
-    <aside className="hidden md:flex flex-col border-r border-[hsl(var(--border))] min-h-screen shrink-0 sticky top-0 h-screen w-60 p-4 overflow-y-auto">
+    <aside className="hidden md:flex flex-col border-r border-[hsl(204,28%,13%)] bg-[hsl(207,45%,3%)] min-h-screen shrink-0 sticky top-0 h-screen w-60 p-4 overflow-y-auto">
       {/* Logo */}
       <div className="flex items-center gap-3 mb-6 px-2">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 shrink-0">
@@ -119,8 +119,16 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Separator */}
-      <div className="border-b border-[hsl(var(--border))] mb-4" />
+      {/* Search — opens the command palette */}
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+        className="flex items-center gap-2 w-full mb-4 px-3 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))]/60 text-xs text-[hsl(var(--text-tertiary))] hover:border-emerald-500/40 hover:text-[hsl(var(--text-secondary))] transition-colors"
+      >
+        <SearchIcon className="h-3.5 w-3.5" />
+        <span>Search…</span>
+        <kbd className="ml-auto px-1.5 py-0.5 rounded border border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))] text-[10px] font-mono">⌘K</kbd>
+      </button>
 
       {/* Finance nav */}
       <div>
@@ -133,7 +141,7 @@ export function Sidebar() {
                   key={item.href}
                   href={item.href}
                   className={`flex items-center gap-2 rounded-md text-sm hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors px-3 py-1.5 ${
-                    pathname === item.href ? 'bg-emerald-500/10 text-emerald-300 font-medium' : 'text-[hsl(var(--text-secondary))]'
+                    pathname === item.href ? 'bg-emerald-500/10 text-emerald-300 font-medium shadow-[inset_2px_0_0_0_#34d399]' : 'text-[hsl(var(--text-secondary))]'
                   }`}
                 >
                   <item.icon className="h-4 w-4 shrink-0" />

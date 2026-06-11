@@ -5,22 +5,22 @@
      generic blue-gray dev theme. One hue family (206) for every surface. */
   --background: 206 50% 4%;
   --foreground: 200 20% 96%;
-  --card: 206 42% 7%;
+  --card: 206 36% 9.5%;
   --card-foreground: 200 20% 96%;
-  --popover: 206 42% 7%;
+  --popover: 206 36% 9.5%;
   --popover-foreground: 200 20% 96%;
   --primary: 200 20% 96%;
   --primary-foreground: 206 50% 4%;
-  --secondary: 206 40% 10%;
+  --secondary: 205 34% 12%;
   --secondary-foreground: 200 20% 96%;
-  --muted: 206 40% 10%;
+  --muted: 205 34% 12%;
   --muted-foreground: 206 16% 56%;
-  --accent: 206 38% 11%;
+  --accent: 204 32% 14%;
   --accent-foreground: 200 20% 96%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 95%;
-  --border: 205 28% 15%;
-  --input: 205 28% 15%;
+  --border: 204 30% 20%;
+  --input: 204 30% 20%;
   --ring: 160 84% 45%;
   --radius: 0.625rem;
 
@@ -41,9 +41,9 @@
 
   /* Elevation ladder — surfaces step lighter as they rise toward the viewer */
   --bg-base: 206 50% 4%;        /* page background tier */
-  --bg-surface: 206 42% 7%;     /* cards / panels */
-  --bg-elevated: 205 32% 13%;   /* raised insets: progress tracks, hover, chips */
-  --border-subtle: 206 24% 10%; /* fainter divider than --border */
+  --bg-surface: 206 36% 9.5%;     /* cards / panels */
+  --bg-elevated: 204 30% 17%;   /* raised insets: progress tracks, hover, chips */
+  --border-subtle: 205 26% 14%; /* fainter divider than --border */
 
   /* Elevation shadow token — deeper drop + faint teal cast */
   --shadow-elevate: 0 1px 2px hsl(206 50% 2% / 0.6), 0 8px 24px -10px hsl(190 60% 3% / 0.7);
@@ -212,12 +212,12 @@ select option:hover {
    stronger border for separation, a light blur kept only for overlap with charts,
    and a real shadow for depth. Reserve heavier glass for modals/overlays. */
 .glass {
-  background: linear-gradient(180deg, hsl(205 38% 9% / 0.92), hsl(207 45% 6.5% / 0.94));
+  background: linear-gradient(180deg, hsl(204 34% 11% / 0.95), hsl(206 40% 8.5% / 0.96));
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  border: 1px solid hsl(204 28% 20% / 0.6);
+  border: 1px solid hsl(203 32% 26% / 0.65);
   /* light catch on the top edge sells the depth */
-  border-top-color: hsl(202 35% 30% / 0.55);
+  border-top-color: hsl(200 38% 36% / 0.6);
   box-shadow: var(--shadow-elevate);
 }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Activity, Sparkles, Target } from 'lucide-react'
+import { Plus, Activity, Sparkles, Target, Landmark, Bitcoin, Receipt, Wallet, CalendarRange } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { AlertCard } from '@/components/ui/alert-card'
 import { RadialProgress } from '@/components/ui/radial-progress'
@@ -217,6 +217,7 @@ export default function CommandCenterClient() {
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           {netWorth ? (
             <KpiCard
+              icon={Landmark}
               label="Net worth"
               value={fmtMoney(netWorth.net_worth, { compact: true })}
               sublabel={
@@ -229,6 +230,7 @@ export default function CommandCenterClient() {
             />
           ) : (
             <KpiCard
+              icon={Bitcoin}
               label="Crypto position"
               value={fmtMoney(summary?.crypto?.total_value_mxn || 0, { compact: true })}
               sublabel={
@@ -246,6 +248,7 @@ export default function CommandCenterClient() {
           )}
 
           <KpiCard
+            icon={Receipt}
             label="Spent this month"
             value={fmtMoney(totalSpent, { compact: true })}
             sublabel={
@@ -260,6 +263,7 @@ export default function CommandCenterClient() {
           />
 
           <KpiCard
+            icon={Wallet}
             label="Discretionary"
             value={summary ? fmtMoney(summary.cash_flow.discretionary_available, { compact: true }) : '—'}
             sublabel={
@@ -276,6 +280,7 @@ export default function CommandCenterClient() {
           />
 
           <KpiCard
+            icon={CalendarRange}
             label="60-day forecast"
             value={forecast ? `${forecast.summary.net_delta >= 0 ? '+' : ''}${fmtMoney(forecast.summary.net_delta, { compact: true })}` : '—'}
             sublabel={

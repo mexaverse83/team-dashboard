@@ -6,12 +6,17 @@ import { supabase } from '@/lib/supabase'
 import { ALLOWED_EMAILS } from '@/lib/auth'
 import type { User } from '@supabase/supabase-js'
 
+// Local-only bypass for development/design iteration. NODE_ENV is 'production'
+// in every deployed build, so this branch cannot exist outside `npm run dev`.
+const DEV_BYPASS = process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_AUTH_BYPASS === '1'
+
 export function FinanceAuthGuard({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
+    if (DEV_BYPASS) return
     const check = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || !ALLOWED_EMAILS.includes(user.email?.toLowerCase() || '')) {
@@ -31,6 +36,8 @@ export function FinanceAuthGuard({ children }: { children: React.ReactNode }) {
 
     return () => subscription.unsubscribe()
   }, [router])
+
+  if (DEV_BYPASS) return <>{children}</>
 
   if (loading) {
     return (
