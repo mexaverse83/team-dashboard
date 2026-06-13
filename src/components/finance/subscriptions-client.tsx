@@ -281,8 +281,8 @@ export default function SubscriptionsClient() {
           <p className="text-2xl sm:text-3xl font-bold num-metric tabular-nums text-amber-400 mt-1">${Math.round(annualBurn).toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Active</span>
-          <AnimatedNumber value={active.length} className="text-2xl sm:text-3xl font-bold mt-1" />
+          <span className="block text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Active</span>
+          <AnimatedNumber value={active.length} className="num-metric block text-2xl sm:text-3xl font-bold mt-1" />
         </GlassCard>
       </div>
 

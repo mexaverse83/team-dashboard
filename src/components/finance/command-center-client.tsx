@@ -183,26 +183,26 @@ export default function CommandCenterClient() {
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-start sm:items-center gap-4 sm:gap-6 shrink-0">
-              <div className="flex items-center gap-6">
+            <div className="flex flex-col items-stretch sm:items-center lg:flex-col xl:flex-row gap-4 sm:gap-6 lg:shrink-0 w-full lg:w-auto">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:flex sm:items-center sm:gap-6">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Income</p>
-                  <p className="text-lg font-bold tabular-nums text-emerald-400">+{fmtMoney(totalIncome, { compact: true })}</p>
+                  <p className="num-metric text-lg font-bold tabular-nums text-emerald-400">+{fmtMoney(totalIncome, { compact: true })}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Spent</p>
-                  <p className="text-lg font-bold tabular-nums text-rose-400">−{fmtMoney(totalSpent, { compact: true })}</p>
+                  <p className="num-metric text-lg font-bold tabular-nums text-rose-400">−{fmtMoney(totalSpent, { compact: true })}</p>
                 </div>
                 {forecast && (
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">60d low</p>
-                    <p className={cn('text-lg font-bold tabular-nums', forecast.summary.min_balance.balance >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
+                    <p className={cn('num-metric text-lg font-bold tabular-nums', forecast.summary.min_balance.balance >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
                       {fmtMoney(forecast.summary.min_balance.balance, { compact: true })}
                     </p>
                   </div>
                 )}
                 {summary && (
-                  <div className="min-w-[110px]">
+                  <div className="sm:min-w-[110px]">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">
                       Day {summary.current_month.day_of_month} of {summary.current_month.days_in_month}
                     </p>
@@ -217,7 +217,7 @@ export default function CommandCenterClient() {
               </div>
               <Link
                 href="/finance/transactions"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-emerald-900/30"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-emerald-900/30"
               >
                 <Plus className="h-4 w-4" /> New transaction
               </Link>

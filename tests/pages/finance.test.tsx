@@ -270,14 +270,14 @@ describe('Transactions Page', () => {
     expect(screen.getByText('All income and expenses')).toBeInTheDocument()
   })
 
-  it('renders type filter (All/Expenses/Income)', async () => {
+  it('renders type filter (All/Out/In)', async () => {
     const Comp = (await import('@/components/finance/transactions-client')).default
     render(<Comp />)
     await waitFor(() => {
-      // "All" appears in both the type filter and the owner filter
+      // Compact mobile-friendly labels: "Out" (expenses) / "In" (income)
       expect(screen.getAllByText('All').length).toBeGreaterThanOrEqual(1)
-      expect(screen.getByText('↓ Expenses')).toBeInTheDocument()
-      expect(screen.getByText('↑ Income')).toBeInTheDocument()
+      expect(screen.getByText('↓ Out')).toBeInTheDocument()
+      expect(screen.getByText('↑ In')).toBeInTheDocument()
     })
   })
 
@@ -317,11 +317,11 @@ describe('Transactions Page', () => {
     })
   })
 
-  it('filters by type when clicking Expenses', async () => {
+  it('filters by type when clicking Out (expenses)', async () => {
     const Comp = (await import('@/components/finance/transactions-client')).default
     render(<Comp />)
-    await waitFor(() => expect(screen.getByText('↓ Expenses')).toBeInTheDocument())
-    fireEvent.click(screen.getByText('↓ Expenses'))
+    await waitFor(() => expect(screen.getByText('↓ Out')).toBeInTheDocument())
+    fireEvent.click(screen.getByText('↓ Out'))
     // All visible amounts should have minus sign (expenses)
     await waitFor(() => {
       const amounts = screen.getAllByText(/^[-+]\$/)

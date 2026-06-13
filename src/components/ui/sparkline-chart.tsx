@@ -13,7 +13,8 @@ export function SparklineChart({ data, color = 'hsl(217, 91%, 60%)', width = 80,
   const chartData = data.map((value, i) => ({ value, i }))
 
   return (
-    <div style={{ width, height }}>
+    // maxWidth:100% keeps a fixed `width` from overflowing a narrow card on mobile
+    <div style={{ width, height, maxWidth: '100%' }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={chartData}>
           <Line

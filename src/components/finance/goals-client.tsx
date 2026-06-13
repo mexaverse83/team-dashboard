@@ -237,8 +237,8 @@ export default function GoalsClient() {
       {/* Hero KPIs */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4 xl:grid-cols-7">
         <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Active Goals</span>
-          <AnimatedNumber value={activeGoals.length} className="num-metric text-2xl sm:text-3xl font-bold mt-1" />
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Active Goals</span>
+          <AnimatedNumber value={activeGoals.length} className="num-metric block text-2xl sm:text-3xl font-bold mt-1" />
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Target</span>

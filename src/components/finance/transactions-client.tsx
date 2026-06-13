@@ -231,11 +231,24 @@ export default function TransactionsClient() {
   const paginated = filtered.slice((page - 1) * perPage, page * perPage)
 
   // Open modal for add
-  const openAdd = () => {
+  const openAdd = useCallback(() => {
     setEditingId(null)
     setForm({ ...emptyForm, owner: defaultOwner })
     setModalOpen(true)
-  }
+  }, [defaultOwner])
+
+  // Auto-open the add sheet when arriving via the mobile FAB (?add=1),
+  // then strip the param so back/refresh doesn't reopen it.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('add') === '1') {
+      openAdd()
+      params.delete('add')
+      const qs = params.toString()
+      window.history.replaceState(null, '', `/finance/transactions${qs ? `?${qs}` : ''}`)
+    }
+  }, [openAdd])
 
   // Open modal for edit
   const openEdit = (tx: FinanceTransaction) => {
@@ -533,38 +546,40 @@ export default function TransactionsClient() {
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="sticky top-0 z-10 flex flex-col gap-3 p-3 rounded-xl bg-[hsl(var(--background))]/90 backdrop-blur-sm border border-[hsl(var(--border))]">
-        <select value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setPage(1) }}
-          className="px-3 py-1.5 rounded-lg bg-[hsl(var(--bg-elevated))] text-xs border-none outline-none">
-          <option value="">All Categories</option>
-          {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-        </select>
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-[hsl(var(--bg-elevated))]">
-          {['all', 'expense', 'income'].map(t => (
-            <button key={t} onClick={() => { setTypeFilter(t); setPage(1) }}
-              className={cn("px-2.5 py-1 rounded-md text-xs font-medium transition-all",
-                typeFilter === t ? "bg-blue-600 text-white" : "text-[hsl(var(--text-secondary))]"
-              )}>
-              {t === 'all' ? 'All' : t === 'expense' ? '↓ Expenses' : '↑ Income'}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-[hsl(var(--bg-elevated))]">
-          {['all', ...OWNERS].map(o => (
-            <button key={o} onClick={() => { setOwnerFilter(o); setPage(1) }}
-              className={cn("px-2.5 py-1 rounded-md text-xs font-medium transition-all",
-                ownerFilter === o ? "bg-blue-600 text-white" : "text-[hsl(var(--text-secondary))]"
-              )}>
-              {o === 'all' ? 'All' : o}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[hsl(var(--bg-elevated))] flex-1 min-w-[150px]">
-          <Search className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" />
+      {/* Filter Bar — search leads, controls wrap below (one row on desktop) */}
+      <div className="sticky top-0 z-10 flex flex-col gap-2 p-3 rounded-xl bg-[hsl(var(--background))]/90 backdrop-blur-sm border border-[hsl(var(--border))]">
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-[hsl(var(--bg-elevated))]">
+          <Search className="h-4 w-4 text-[hsl(var(--text-tertiary))] shrink-0" />
           <input placeholder="Search merchants, notes..." value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="bg-transparent text-xs flex-1 outline-none" />
+            className="bg-transparent text-base sm:text-sm flex-1 outline-none min-w-0" />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 p-1 rounded-lg bg-[hsl(var(--bg-elevated))]">
+            {['all', 'expense', 'income'].map(t => (
+              <button key={t} onClick={() => { setTypeFilter(t); setPage(1) }}
+                className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                  typeFilter === t ? "bg-blue-600 text-white" : "text-[hsl(var(--text-secondary))]"
+                )}>
+                {t === 'all' ? 'All' : t === 'expense' ? '↓ Out' : '↑ In'}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1 p-1 rounded-lg bg-[hsl(var(--bg-elevated))]">
+            {['all', ...OWNERS].map(o => (
+              <button key={o} onClick={() => { setOwnerFilter(o); setPage(1) }}
+                className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                  ownerFilter === o ? "bg-blue-600 text-white" : "text-[hsl(var(--text-secondary))]"
+                )}>
+                {o === 'all' ? 'Both' : o}
+              </button>
+            ))}
+          </div>
+          <select value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setPage(1) }}
+            className="px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] text-xs border-none outline-none flex-1 min-w-[130px]">
+            <option value="">All Categories</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+          </select>
         </div>
       </div>
 
@@ -687,8 +702,20 @@ export default function TransactionsClient() {
       </GlassCard>
 
       {/* Add/Edit Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit Transaction' : 'Add Transaction'}>
-        <form onSubmit={e => { e.preventDefault(); handleSave() }} className="space-y-4">
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingId ? 'Edit Transaction' : 'Add Transaction'}
+        footer={
+          <button type="submit" form="tx-form" disabled={saving || !form.amount || (!editingId && !form.category_id)}
+            className={cn("w-full py-3 rounded-xl text-base font-semibold text-white transition-colors disabled:opacity-50",
+              form.type === 'expense' ? "bg-rose-600 hover:bg-rose-500" : "bg-emerald-600 hover:bg-emerald-500"
+            )}>
+            {saving ? 'Saving…' : editingId ? 'Update Transaction' : form.type === 'expense' ? 'Log Expense' : 'Log Income'}
+          </button>
+        }
+      >
+        <form id="tx-form" onSubmit={e => { e.preventDefault(); handleSave() }} className="space-y-4">
           {/* Duplicate warning */}
           {possibleDuplicates.length > 0 && !editingId && (
             <div className={cn(
@@ -726,28 +753,32 @@ export default function TransactionsClient() {
           )}
 
           {/* Type Toggle */}
-          <div className="flex p-1 rounded-lg bg-[hsl(var(--bg-elevated))]">
+          <div className="flex p-1 rounded-xl bg-[hsl(var(--bg-elevated))]">
             <button type="button" onClick={() => updateForm({ type: 'expense', category_id: '' })}
-              className={cn("flex-1 py-2 rounded-md text-sm font-medium transition-all",
+              className={cn("flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all",
                 form.type === 'expense' ? "bg-rose-500/20 text-rose-400" : "text-[hsl(var(--text-secondary))]"
               )}>↓ Expense</button>
             <button type="button" onClick={() => updateForm({ type: 'income', category_id: '' })}
-              className={cn("flex-1 py-2 rounded-md text-sm font-medium transition-all",
+              className={cn("flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all",
                 form.type === 'income' ? "bg-emerald-500/20 text-emerald-400" : "text-[hsl(var(--text-secondary))]"
               )}>↑ Income</button>
           </div>
 
-          {/* Amount + Currency */}
-          <div className="flex gap-2">
+          {/* Amount + Currency — amount leads, big and keypad-ready */}
+          <div className="flex gap-2 items-end">
             <div className="flex-1">
               <label className={labelCls}>Amount *</label>
-              <input type="number" step="0.01" min="0" required placeholder="0.00" value={form.amount}
-                onChange={e => updateForm({ amount: e.target.value, amount_mxn: form.currency === 'MXN' ? e.target.value : form.amount_mxn })}
-                className={cn(inputCls, "text-lg font-semibold")} />
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg font-semibold text-[hsl(var(--text-tertiary))]">$</span>
+                <input type="number" inputMode="decimal" step="0.01" min="0" required placeholder="0.00" value={form.amount}
+                  autoFocus={!editingId}
+                  onChange={e => updateForm({ amount: e.target.value, amount_mxn: form.currency === 'MXN' ? e.target.value : form.amount_mxn })}
+                  className={cn(inputCls, "num-metric pl-7 text-2xl font-bold h-14")} />
+              </div>
             </div>
-            <div className="w-20">
+            <div className="w-24">
               <label className={labelCls}>Currency</label>
-              <select value={form.currency} onChange={e => updateForm({ currency: e.target.value })} className={inputCls}>
+              <select value={form.currency} onChange={e => updateForm({ currency: e.target.value })} className={cn(inputCls, "h-14")}>
                 <option>MXN</option><option>USD</option>
               </select>
             </div>
@@ -764,14 +795,14 @@ export default function TransactionsClient() {
           {/* Category Grid */}
           <div>
             <label className={labelCls}>Category *</label>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 sm:max-h-40 overflow-y-auto">
+            <div className="grid grid-cols-4 gap-2 max-h-56 sm:max-h-44 overflow-y-auto overscroll-contain">
               {filteredCats.map(cat => (
                 <button key={cat.id} type="button" onClick={() => updateForm({ category_id: cat.id })}
-                  className={cn("flex flex-col items-center gap-1 p-2 rounded-lg border text-xs transition-all",
-                    form.category_id === cat.id ? "border-blue-500 bg-blue-500/10" : "border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]"
+                  className={cn("flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl border text-[11px] leading-tight transition-all min-h-[64px]",
+                    form.category_id === cat.id ? "border-emerald-500 bg-emerald-500/10 text-emerald-300" : "border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]"
                   )}>
-                  <span className="text-lg">{cat.icon}</span>
-                  <span className="truncate w-full text-center">{cat.name}</span>
+                  <span className="text-xl">{cat.icon}</span>
+                  <span className="truncate w-full text-center px-0.5">{cat.name}</span>
                 </button>
               ))}
             </div>
@@ -800,7 +831,7 @@ export default function TransactionsClient() {
             <div className="flex gap-2">
               {OWNERS.map(name => (
                 <button key={name} type="button" onClick={() => updateForm({ owner: name })}
-                  className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
+                  className={cn("flex-1 py-2.5 rounded-lg text-sm font-medium transition-all border",
                     form.owner === name
                       ? "border-blue-500 bg-blue-500/10 text-blue-400"
                       : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))]"
@@ -893,12 +924,6 @@ export default function TransactionsClient() {
             )
           })()}
 
-          <button type="submit" disabled={saving || !form.amount || (!editingId && !form.category_id)}
-            className={cn("w-full py-2.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50",
-              form.type === 'expense' ? "bg-rose-600 hover:bg-rose-500" : "bg-emerald-600 hover:bg-emerald-500"
-            )}>
-            {saving ? 'Saving...' : editingId ? 'Update Transaction' : form.type === 'expense' ? 'Log Expense' : 'Log Income'}
-          </button>
         </form>
       </Modal>
       {/* CSV Import Modal */}
