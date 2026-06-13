@@ -37,6 +37,10 @@ export default function BudgetBuilderClient() {
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
   const [budgets, setBudgets] = useState<FinanceBudget[]>([])
   const [incomeSources, setIncomeSources] = useState<FinanceIncomeSource[]>([])
+  // Salaries live in finance_recurring_income (the income source of truth);
+  // finance_income_sources only holds extras. Income must combine both, or the
+  // 50/30/20 ratios divide by a tiny number and blow up to thousands of %.
+  const [recurringIncome, setRecurringIncome] = useState<{ amount: number; recurrence: string; active: boolean; start_date: string | null }[]>([])
   const [goals, setGoals] = useState<{ id: string; target_amount: number; current_amount: number; target_date: string | null; monthly_contribution?: number; is_active?: boolean; is_completed?: boolean }[]>([])
   const [msiCommitment, setMsiCommitment] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -52,18 +56,20 @@ export default function BudgetBuilderClient() {
   const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
   const fetchData = useCallback(async () => {
-    const [catRes, txRes, budRes, incRes, goalsRes, instRes] = await Promise.all([
+    const [catRes, txRes, budRes, incRes, goalsRes, instRes, riRes] = await Promise.all([
       supabase.from('finance_categories').select('*').order('sort_order'),
       fetchAllRows<FinanceTransaction>((from, to) => supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
       supabase.from('finance_budgets').select('*'),
       supabase.from('finance_income_sources').select('*').order('created_at'),
       supabase.from('finance_goals').select('*'),
       supabase.from('finance_installments').select('*').eq('is_active', true),
+      supabase.from('finance_recurring_income').select('amount, recurrence, active, start_date').eq('active', true),
     ])
     setCategories((catRes.data?.length ? catRes.data : DEFAULT_CATEGORIES))
     setTransactions(txRes.data || [])
     setBudgets(budRes.data || [])
     setIncomeSources(incRes.data || [])
+    setRecurringIncome(riRes.data || [])
     setGoals(goalsRes.data || [])
     setMsiCommitment((instRes.data || []).reduce((s: number, i: { installment_amount: number }) => s + i.installment_amount, 0))
     setLoading(false)
@@ -71,11 +77,38 @@ export default function BudgetBuilderClient() {
 
   useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
 
-  // Monthly income total
-  const totalIncome = useMemo(() =>
-    incomeSources.filter(s => s.is_active).reduce((sum, s) => sum + toMonthly(s.amount, s.frequency), 0),
-    [incomeSources]
-  )
+  // Monthly income for the 50/30/20 denominator.
+  // Salaries are logged as actual income transactions (not configured income
+  // sources), so the truest figure is the trailing average of real income.
+  // Fall back to configured sources + recurring income when no transactions
+  // exist yet. Using a tiny configured-only number blows the ratios up to
+  // thousands of percent.
+  const configuredIncome = useMemo(() => {
+    const RI_DIVISOR: Record<string, number> = { monthly: 1, bimonthly: 2, annual: 12 }
+    const todayStr = new Date().toISOString().slice(0, 10)
+    const sources = incomeSources.filter(s => s.is_active).reduce((sum, s) => sum + toMonthly(s.amount, s.frequency), 0)
+    const recurring = recurringIncome
+      .filter(r => r.active && (!r.start_date || r.start_date <= todayStr))
+      .reduce((sum, r) => sum + r.amount / (RI_DIVISOR[r.recurrence] || 1), 0)
+    return sources + recurring
+  }, [incomeSources, recurringIncome])
+
+  const actualMonthlyIncome = useMemo(() => {
+    const ref = new Date()
+    // Trailing 3 prior full months (exclude the current, possibly-partial month)
+    const months = [1, 2, 3].map(i => {
+      const d = new Date(ref.getFullYear(), ref.getMonth() - i, 1)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    })
+    const totals = months
+      .map(m => transactions.filter(t => t.type === 'income' && t.transaction_date.startsWith(m)).reduce((s, t) => s + t.amount_mxn, 0))
+      .filter(v => v > 0)
+    if (totals.length === 0) return 0
+    return totals.reduce((a, b) => a + b, 0) / totals.length
+  }, [transactions])
+
+  const totalIncome = actualMonthlyIncome > 0 ? actualMonthlyIncome : configuredIncome
+  const incomeIsActual = actualMonthlyIncome > 0
 
   // Current month expenses by category
   const monthTxs = useMemo(() =>
@@ -202,7 +235,7 @@ export default function BudgetBuilderClient() {
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Income</span>
           <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">${Math.round(totalIncome).toLocaleString()}</p>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">{incomeSources.filter(s => s.is_active).length} sources</p>
+          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">{incomeIsActual ? '3-mo avg actual' : `${incomeSources.filter(s => s.is_active).length} configured`}</p>
         </GlassCard>
         <GlassCard className="border-l-2 border-l-blue-500">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Needs ({needsPct}%)</span>
