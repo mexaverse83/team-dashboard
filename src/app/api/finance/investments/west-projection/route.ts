@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { accruedValue } from '@/lib/fixed-income'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -88,10 +89,12 @@ export async function GET(req: NextRequest) {
     // 3. Fetch live GBM balance from finance_fixed_income (sum all GBM debt funds)
     const { data: gbmRecords } = await supabase
       .from('finance_fixed_income')
-      .select('principal')
+      .select('principal, annual_rate, commission_rate, net_annual_rate, updated_at')
       .eq('institution', 'GBM')
+    // Start from the estimated current value (principal accrued since last
+    // confirmed), so the projection picks up where the live balance actually is.
     const liveGBMBalance = gbmRecords && gbmRecords.length > 0
-      ? gbmRecords.reduce((s: number, r: { principal: number }) => s + (r.principal || 0), 0)
+      ? gbmRecords.reduce((s: number, r) => s + accruedValue(r), 0)
       : (target.sale_deposit_received || 0)
 
     // 4. Fetch crypto total

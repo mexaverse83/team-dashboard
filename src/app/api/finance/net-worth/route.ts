@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { accruedValue } from '@/lib/fixed-income'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -116,8 +117,9 @@ export async function POST(req: NextRequest) {
     return s + value
   }, 0)
 
-  // Fixed income: principal + accrued (simple — just principal)
-  const fixedIncomeTotal = (fixedIncome || []).reduce((s: number, x: { principal?: number }) => s + (x.principal || 0), 0)
+  // Fixed income: estimated current value — principal accrued at the net rate
+  // (compounded monthly) since the balance was last confirmed.
+  const fixedIncomeTotal = (fixedIncome || []).reduce((s: number, x) => s + accruedValue(x), 0)
 
   // Real estate: equity = current_value - mortgage_balance
   const realEstateTotal = (realEstate || []).reduce((s: number, x: { current_value?: number; mortgage_balance?: number }) => {

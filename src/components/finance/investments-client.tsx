@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { accruedValue } from '@/lib/fixed-income'
 import { GlassCard } from '@/components/ui/glass-card'
 import { OwnerDot, OwnerBar } from '@/components/finance/owner-dot'
 import { CryptoClient } from '@/components/finance/crypto-client'
@@ -326,11 +327,15 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   // Portfolio totals
   const peTotal = privateEquityHoldings.reduce((s, h) => s + h.shares * (h.current_price_usd || 0) * fxRate, 0)
   const stocksTotal = filteredStocks.reduce((s, h) => s + h.shares * h.avg_cost_basis, 0) + peTotal
-  const fiTotal = filteredFI.reduce((s, i) => s + i.principal, 0)
+  // fiCost = confirmed principal (cost basis); fiTotal = estimated current
+  // value, accruing the net rate monthly since each balance was last confirmed.
+  const fiCost = filteredFI.reduce((s, i) => s + i.principal, 0)
+  const fiTotal = filteredFI.reduce((s, i) => s + accruedValue(i), 0)
+  const fiAccrued = fiTotal - fiCost
   const reTotal = filteredRE.reduce((s, p) => s + (p.current_value || 0) - (p.mortgage_balance || 0), 0)
   const cryptoMXN = cryptoTotal.mxn // TODO: filter by owner
   const totalPortfolio = cryptoMXN + stocksTotal + fiTotal + reTotal + retirementTotal
-  const totalCost = cryptoTotal.cost + filteredStocks.reduce((s, h) => s + h.shares * h.avg_cost_basis, 0) + fiTotal
+  const totalCost = cryptoTotal.cost + filteredStocks.reduce((s, h) => s + h.shares * h.avg_cost_basis, 0) + fiCost
   const totalPL = totalCost > 0 ? totalPortfolio - totalCost : null
   const totalPLPct = totalPL !== null && totalCost > 0 ? (totalPL / totalCost) * 100 : null
 
@@ -733,8 +738,11 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           {/* KPIs */}
           <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
             <GlassCard>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Invested</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Est. Value</span>
               <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-400 mt-1 tabular-nums">{fmtMXN(fiTotal)}</p>
+              <p className="text-[11px] text-[hsl(var(--text-tertiary))] mt-1">
+                {fiAccrued >= 1 ? `+${fmtMXN(fiAccrued)} accrued since confirmed` : `${fmtMXN(fiCost)} confirmed`}
+              </p>
             </GlassCard>
             <GlassCard>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Avg Yield</span>
