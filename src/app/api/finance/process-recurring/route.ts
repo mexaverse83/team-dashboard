@@ -218,10 +218,17 @@ async function processRecurring(req: NextRequest) {
   // ── 3. RECURRING INCOME (finance_recurring_income) ───────────────
   // Fetch ALL active recurring income — not filtered by day_of_month — so that
   // catch-up works when the cron fires late or on a different day than expected.
-  const { data: recurringIncomes } = await supabase
+  const { data: recurringIncomes, error: recurringIncomeErr } = await supabase
     .from('finance_recurring_income')
     .select('*')
     .eq('active', true)
+
+  // Surface a fetch failure instead of silently posting $0 income and still
+  // returning success — a swallowed error here is exactly how month-start
+  // payroll goes missing with no trace.
+  if (recurringIncomeErr) {
+    results.errors.push(`RecurringIncome fetch: ${recurringIncomeErr.message}`)
+  }
 
   for (const ri of recurringIncomes || []) {
     // Only process monthly for now (bimonthly/annual need custom cadence logic)

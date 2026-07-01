@@ -68,6 +68,11 @@ export default function CommandCenterClient() {
   const totalIncome = useMemo(() => monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
   const netSavings = totalIncome - totalSpent
   const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0
+  // Before any income lands (typically the first of the month, until payroll
+  // auto-posts) a "net savings / % rate" framing is meaningless — net is just
+  // −spend and the rate is undefined. Present it neutrally instead of a red
+  // negative headline. Reverts automatically the moment income posts.
+  const awaitingIncome = totalIncome === 0
 
   const bernardoSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, 'Bernardo')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
   const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, 'Laura')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
@@ -154,20 +159,27 @@ export default function CommandCenterClient() {
               <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <span className={cn(
                   'num-metric text-5xl sm:text-6xl font-black tracking-tight leading-none',
-                  netSavings >= 0 ? 'text-hero-gradient' : 'text-rose-400',
+                  awaitingIncome ? 'text-[hsl(var(--text-secondary))]'
+                    : netSavings >= 0 ? 'text-hero-gradient' : 'text-rose-400',
                 )}>
                   {netSavings >= 0 ? '+' : '−'}{fmtMoney(Math.abs(netSavings), { compact: true })}
                 </span>
                 <span className="text-sm text-[hsl(var(--text-secondary))]">
-                  net this month
-                  <span className={cn(
-                    'ml-2 px-2 py-0.5 rounded-full text-xs font-semibold align-middle',
-                    savingsRate >= 20 ? 'bg-emerald-500/15 text-emerald-300'
-                      : savingsRate >= 10 ? 'bg-amber-500/15 text-amber-300'
-                      : 'bg-rose-500/15 text-rose-300',
-                  )}>
-                    {savingsRate}% rate
-                  </span>
+                  {awaitingIncome ? 'spent so far' : 'net this month'}
+                  {awaitingIncome ? (
+                    <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-semibold align-middle bg-amber-500/15 text-amber-300">
+                      awaiting income
+                    </span>
+                  ) : (
+                    <span className={cn(
+                      'ml-2 px-2 py-0.5 rounded-full text-xs font-semibold align-middle',
+                      savingsRate >= 20 ? 'bg-emerald-500/15 text-emerald-300'
+                        : savingsRate >= 10 ? 'bg-amber-500/15 text-amber-300'
+                        : 'bg-rose-500/15 text-rose-300',
+                    )}>
+                      {savingsRate}% rate
+                    </span>
+                  )}
                 </span>
               </div>
               {statusBanner && (
