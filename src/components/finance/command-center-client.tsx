@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Plus, Activity, Sparkles, Target, Landmark, Bitcoin, Receipt, Wallet, CalendarRange } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
@@ -37,25 +37,34 @@ export default function CommandCenterClient() {
   // back to the crypto-position card when unavailable
   const [netWorth, setNetWorth] = useState<{ net_worth: number; total_assets: number; total_liabilities: number; date: string } | null>(null)
 
-  useEffect(() => {
-    Promise.all([
+  const fetchData = useCallback(async () => {
+    const [sum, fc, catRes, txRes, nw] = await Promise.all([
       fetch('/api/finance/summary').then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/finance/forecast?days=60').then(r => r.ok ? r.json() : null).catch(() => null),
       supabase.from('finance_categories').select('*').order('sort_order'),
       supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }).limit(200),
       fetch('/api/finance/net-worth?days=30').then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([sum, fc, catRes, txRes, nw]) => {
-      setSummary(sum)
-      setForecast(fc)
-      const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
-      setCategories(cats)
-      setTransactions(enrichTransactions(txRes.data || [], cats))
-      if (nw?.summary?.latest) {
-        setNetWorth({ net_worth: nw.summary.latest.net_worth, total_assets: nw.summary.latest.total_assets, total_liabilities: nw.summary.latest.total_liabilities, date: nw.summary.latest.date })
-      }
-      setLoading(false)
-    })
+    ])
+    setSummary(sum)
+    setForecast(fc)
+    const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
+    setCategories(cats)
+    setTransactions(enrichTransactions(txRes.data || [], cats))
+    if (nw?.summary?.latest) {
+      setNetWorth({ net_worth: nw.summary.latest.net_worth, total_assets: nw.summary.latest.total_assets, total_liabilities: nw.summary.latest.total_liabilities, date: nw.summary.latest.date })
+    }
+    setLoading(false)
   }, [])
+
+  // Re-fetch on mount and whenever the tab regains focus — so edits made
+  // elsewhere (e.g. tagging a transaction 'fertility') are reflected here
+  // without a hard reload, matching every other finance client.
+  useEffect(() => {
+    fetchData()
+    const h = () => { if (document.visibilityState === 'visible') fetchData() }
+    document.addEventListener('visibilitychange', h)
+    return () => document.removeEventListener('visibilitychange', h)
+  }, [fetchData])
 
   // Current month transactions
   const currentMonthStr = useMemo(() => monthKey(new Date()), [])
