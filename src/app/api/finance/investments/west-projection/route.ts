@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { accruedValue } from '@/lib/fixed-income'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
+import { FERTILITY_TREATMENT_PLAN, getTreatmentEventForMonth } from '@/lib/fertility-plan'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -229,10 +230,10 @@ export async function GET(req: NextRequest) {
     // that could flow into GBM and close the delivery gap.
     const historyStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 6, 1)).toISOString().slice(0, 10)
     const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    const savingsTxs = await fetchAllRows<{ transaction_date: string; type: string; amount_mxn: number }>(
+    const savingsTxs = await fetchAllRows<{ transaction_date: string; type: string; amount_mxn: number; tags: string[] | null }>(
       (from, to) => supabase
         .from('finance_transactions')
-        .select('transaction_date, type, amount_mxn')
+        .select('transaction_date, type, amount_mxn, tags')
         .gte('transaction_date', historyStart)
         .order('transaction_date')
         .range(from, to)
@@ -268,6 +269,75 @@ export async function GET(req: NextRequest) {
     const requiredMonthly = baseRun.gap > 0
       ? Math.ceil(baseRun.gap * monthlyRate / (Math.pow(1 + monthlyRate, monthsN) - 1))
       : 0
+
+    // 6c. Month-by-month savings plan. Each future month gets a saving
+    // capacity anchored on the historical average, adjusted for what we KNOW
+    // changes: MSI installments ending free their payment, aguinaldo months
+    // add yearly income, and the fertility drag inside the historical average
+    // is added back once treatment ends. Targets are capacity-proportional,
+    // scaled so their future value at delivery closes the base-case gap.
+    const [{ data: activeInstallments }, { data: yearlyIncome }] = await Promise.all([
+      supabase.from('finance_installments').select('name, installment_amount, end_date').eq('is_active', true),
+      supabase.from('finance_income_sources').select('name, amount').eq('is_active', true).eq('frequency', 'yearly'),
+    ])
+    const fertilityByMonth: Record<string, number> = {}
+    for (const t of savingsTxs) {
+      if (t.type !== 'expense' || !(t.tags || []).includes('fertility')) continue
+      const m = t.transaction_date.slice(0, 7)
+      if (m >= currentMonthKey) continue
+      fertilityByMonth[m] = (fertilityByMonth[m] || 0) + (t.amount_mxn || 0)
+    }
+    // Post-treatment saving capacity: average of months with NO fertility
+    // spending (empirical, not inferred). Fallback: add the average drag back
+    // to the overall mean when there aren't enough clean months.
+    const cleanNets = savingsHistory.filter(m => !(fertilityByMonth[m.month] > 0)).map(m => m.net)
+    const fertilityDragTotal = Object.values(fertilityByMonth).reduce((s, v) => s + v, 0)
+    const baseCapacity = cleanNets.length >= 2
+      ? cleanNets.reduce((s, v) => s + v, 0) / cleanNets.length
+      : avgNet + fertilityDragTotal / Math.max(1, savingsHistory.length)
+    const msiNow = (activeInstallments || []).reduce((s, i) => s + (i.installment_amount || 0), 0)
+    const yearlyBonusTotal = (yearlyIncome || []).reduce((s, i) => s + (i.amount || 0), 0)
+
+    const planMonths: Array<{ month: string; capacity: number; target: number; notes: string[] }> = []
+    const planCursor = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    // Start from what's already freed today so the first plan month annotates
+    // installments ending in the current month (e.g. the July IVF MSIs).
+    let prevFreed = (activeInstallments || [])
+      .filter(i => i.end_date && i.end_date.slice(0, 7) < currentMonthKey)
+      .reduce((s, i) => s + (i.installment_amount || 0), 0)
+    while (planCursor <= deliveryDate) {
+      const mKey = `${planCursor.getFullYear()}-${String(planCursor.getMonth() + 1).padStart(2, '0')}`
+      const notes: string[] = []
+      // MSI payments freed: installments whose end_date falls before this month
+      const endedInstallments = (activeInstallments || []).filter(i => i.end_date && i.end_date.slice(0, 7) < mKey)
+      const freed = endedInstallments.reduce((s, i) => s + (i.installment_amount || 0), 0)
+      if (prevFreed >= 0 && freed > prevFreed) {
+        notes.push(`+$${Math.round(freed - prevFreed).toLocaleString()}/mo freed (MSI ended)`)
+      }
+      prevFreed = freed
+      const treatmentEvent = getTreatmentEventForMonth(mKey)
+      if (treatmentEvent) notes.push(`−$${treatmentEvent.amount.toLocaleString()} ${treatmentEvent.label}`)
+      const isAguinaldoMonth = planCursor.getMonth() === 11 && yearlyBonusTotal > 0
+      if (isAguinaldoMonth) notes.push(`+$${Math.round(yearlyBonusTotal).toLocaleString()} aguinaldo`)
+      if (mKey === FERTILITY_TREATMENT_PLAN.endMonth) notes.push('last treatment month')
+      const capacity = Math.max(0, Math.round(
+        baseCapacity
+        + freed
+        + (isAguinaldoMonth ? yearlyBonusTotal : 0)
+        - (treatmentEvent ? treatmentEvent.amount : 0)
+      ))
+      planMonths.push({ month: mKey, capacity, target: 0, notes })
+      planCursor.setMonth(planCursor.getMonth() + 1)
+    }
+    // Scale capacity-proportional targets so their future value closes the gap
+    const fvWeight = (idx: number) => Math.pow(1 + monthlyRate, planMonths.length - idx)
+    const capacityFV = planMonths.reduce((s, m, idx) => s + m.capacity * fvWeight(idx), 0)
+    const stretchFactor = baseRun.gap > 0 && capacityFV > 0 ? baseRun.gap / capacityFV : 0
+    for (const m of planMonths) {
+      m.target = Math.round(m.capacity * stretchFactor)
+      if (m.capacity === 0 && baseRun.gap > 0) m.notes.push('no expected surplus — skip month')
+    }
+    const planTotalNominal = planMonths.reduce((s, m) => s + m.target, 0)
 
     // 7. Milestones
     const milestones = [
@@ -371,6 +441,20 @@ export async function GET(req: NextRequest) {
         projected_gap_at_delivery: behavioralRun.gap,
         fully_funded_month: behavioralRun.fully_funded_month,
         required_monthly_contribution: requiredMonthly,
+      },
+      savings_plan: {
+        goal: 'fully fund WEST at delivery (base-case return)',
+        gap_to_close: Math.max(0, baseRun.gap),
+        months: planMonths,
+        total_nominal: planTotalNominal,
+        // >1 means the plan asks for more than historical capacity every month
+        stretch_factor: Math.round(stretchFactor * 100) / 100,
+        assumptions: {
+          base_capacity: Math.round(baseCapacity),
+          clean_months_used: cleanNets.length,
+          msi_monthly_now: Math.round(msiNow),
+          aguinaldo_yearly: Math.round(yearlyBonusTotal),
+        },
       },
       milestones,
       property: {

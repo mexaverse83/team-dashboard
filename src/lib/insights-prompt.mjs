@@ -37,7 +37,9 @@ WEST APARTMENT (real-estate purchase) — READINESS DATA:
 ${(b.monthly_net_savings_history || []).map((m) => `  · ${m.month}: income $${Number(m.income).toLocaleString()} − spent $${Number(m.expenses).toLocaleString()} = net $${Number(m.net).toLocaleString()}`).join('\n')}
 - Average net savings: $${Number(b.avg_monthly_net_savings).toLocaleString()}/mo (recent 3-month: $${Number(b.recent_3mo_net_savings).toLocaleString()}/mo)
 - If that average surplus flows into GBM monthly: position at delivery $${Number(b.projected_total_at_delivery).toLocaleString()}, gap $${Number(b.projected_gap_at_delivery).toLocaleString()}${b.fully_funded_month ? `, FULLY FUNDED by ${b.fully_funded_month}` : ' (not fully funded by delivery)'}
-- Monthly contribution required to close the base gap by delivery: $${Number(b.required_monthly_contribution).toLocaleString()}/mo` : ''
+- Monthly contribution required to close the base gap by delivery: $${Number(b.required_monthly_contribution).toLocaleString()}/mo
+${west.savings_plan?.months?.length ? `- MONTH-BY-MONTH SAVINGS PLAN (seasonally weighted by real capacity; stretch factor ${west.savings_plan.stretch_factor}× of historical capacity):
+${west.savings_plan.months.map((m) => `  · ${m.month}: save $${Number(m.target).toLocaleString()}${m.notes.length ? ` (${m.notes.join('; ')})` : ''}`).join('\n')}` : ''}` : ''
 
   const goalSection = data.goal_funding ? `
 GOAL FUNDING GAP:
@@ -91,7 +93,7 @@ Rules:
 - Flag if unrealized crypto loss exceeds 20% — suggest DCA or holding strategy
 - Consider crypto value in overall financial health assessment
 - If long-term investment, net worth, real-estate, retirement, or tax data is missing, do not fabricate it. Prefer a recommendation to connect or refresh that data.
-- If WEST APARTMENT readiness data is present: include exactly 2 insights with category "WEST" — (1) a "forecast" giving the readiness verdict: most-likely position and gap at delivery given ACTUAL savings behavior vs the scheduled plan, and whether the household is on track to pay without financing; (2) a "recommendation" naming the specific monthly contribution to GBM that closes the gap, and where that money comes from given upcoming freed-up cash (ending MSIs, finished treatments). Use the behavioral numbers, not just the scheduled plan.
+- If WEST APARTMENT readiness data is present: include exactly 2 insights with category "WEST" — (1) a "forecast" giving the readiness verdict: most-likely position and gap at delivery given ACTUAL savings behavior vs the scheduled plan, and whether the household is on track to pay without financing; (2) a "recommendation" anchored on the MONTH-BY-MONTH SAVINGS PLAN if present: state THIS month's and NEXT month's plan targets, whether current-month savings are tracking toward this month's target, and the single biggest lever if behind. Use the behavioral numbers, not just the scheduled plan.
 
 CRITICAL — Bimonthly/non-monthly billing categories:
 - Categories marked [bimonthly billing] or [quarterly billing] etc are KNOWN recurring charges

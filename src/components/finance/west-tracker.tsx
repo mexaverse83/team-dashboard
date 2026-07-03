@@ -57,6 +57,70 @@ interface WestData {
     fully_funded_month: string | null
     required_monthly_contribution: number
   }
+  savings_plan?: {
+    gap_to_close: number
+    months: Array<{ month: string; capacity: number; target: number; notes: string[] }>
+    total_nominal: number
+    stretch_factor: number
+  }
+}
+
+// ─── Month-by-month savings plan to full payment at delivery ───
+function WestSavingsPlanCard({ data }: { data: WestData }) {
+  const plan = data.savings_plan
+  if (!plan || plan.months.length === 0 || plan.gap_to_close <= 0) return null
+
+  const maxTarget = Math.max(...plan.months.map(m => m.target), 1)
+  const stretched = plan.stretch_factor > 1
+
+  return (
+    <GlassCard>
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between mb-4">
+        <div>
+          <h3 className="text-base font-semibold">Savings plan — fully paid at delivery</h3>
+          <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
+            {fmtMXN(plan.gap_to_close)} gap · monthly targets weighted by your real capacity per month
+          </p>
+        </div>
+        <span className={cn(
+          'shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold',
+          stretched ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
+        )}>
+          {stretched
+            ? `needs ${Math.round(plan.stretch_factor * 100)}% of your historical capacity`
+            : `${Math.round(plan.stretch_factor * 100)}% of your capacity — achievable`}
+        </span>
+      </div>
+
+      <div className="space-y-1.5">
+        {plan.months.map(m => {
+          const [y, mo] = m.month.split('-')
+          const label = new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+          return (
+            <div key={m.month} className="flex items-center gap-3">
+              <span className="w-14 shrink-0 text-xs font-medium text-[hsl(var(--text-secondary))]">{label}</span>
+              <div className="flex-1 h-4 rounded bg-[hsl(var(--bg-elevated))] overflow-hidden">
+                <div
+                  className="h-full rounded bg-gradient-to-r from-violet-500/70 to-purple-500/70"
+                  style={{ width: `${Math.max(2, Math.round((m.target / maxTarget) * 100))}%` }}
+                />
+              </div>
+              <span className="w-20 shrink-0 text-right num-metric text-xs font-bold tabular-nums">
+                ${m.target.toLocaleString()}
+              </span>
+              <span className="hidden sm:block w-56 shrink-0 text-[10px] text-[hsl(var(--text-tertiary))] truncate">
+                {m.notes.join(' · ')}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="mt-3 pt-2 border-t border-[hsl(var(--border))] text-[11px] text-[hsl(var(--text-tertiary))]">
+        Total {fmtMXN(plan.total_nominal)} saved over {plan.months.length} months — grows to close the {fmtMXN(plan.gap_to_close)} gap at the base GBM return. Recomputed from live balances on every load.
+      </p>
+    </GlassCard>
+  )
 }
 
 // ─── Readiness: plan vs actual savings behavior + Wolff's WEST verdict ───
@@ -435,6 +499,9 @@ export function WestTracker() {
 
       {/* ── READINESS: plan vs actual behavior ── */}
       <WestReadinessCard data={data} />
+
+      {/* ── SAVINGS PLAN: month-by-month to full payment ── */}
+      <WestSavingsPlanCard data={data} />
 
       {/* ── PROJECTION CHART ── */}
       <GlassCard className="p-4 sm:p-5">
