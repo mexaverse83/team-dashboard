@@ -154,7 +154,7 @@ export default function InsightsClient() {
     setError(null)
     try {
       const [insightsRes, summaryRes, westRes, auditRes] = await Promise.all([
-        fetch(`/api/finance/insights${refresh ? '?refresh=true' : ''}`),
+        fetch(`/api/finance/insights${refresh ? '?refresh=true' : ''}`, { cache: 'no-store' }),
         fetch('/api/finance/summary?months=3'),
         fetch('/api/finance/investments/west-projection').catch(() => null),
         fetch('/api/finance/audit/investments').catch(() => null),
