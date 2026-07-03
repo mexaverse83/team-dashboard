@@ -34,6 +34,7 @@ export function WolffWidget() {
   useEffect(() => {
     fetch('/api/finance/insights', {
       headers: { 'x-api-key': process.env.NEXT_PUBLIC_FINANCE_API_KEY || '' },
+      cache: 'no-store',
     })
       .then(r => r.ok ? r.json() : null)
       .then(data => {

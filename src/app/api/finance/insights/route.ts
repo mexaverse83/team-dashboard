@@ -89,7 +89,9 @@ export async function GET(req: NextRequest) {
 
   // Serve cache unless explicit refresh requested
   if (cached && cacheValid && !refresh) {
-    return NextResponse.json({ insights: cached.insights_json, cached: true, generated_at: cached.generated_at }, { headers: { 'Cache-Control': 'private, max-age=3600' } })
+    // no-store: a stale brief once outlived a server-side purge by an hour in
+    // the browser's HTTP cache — this endpoint is one cheap Supabase read.
+    return NextResponse.json({ insights: cached.insights_json, cached: true, generated_at: cached.generated_at }, { headers: { 'Cache-Control': 'no-store' } })
   }
 
   // If no refresh requested and cache is stale/missing, return empty — don't auto-generate
