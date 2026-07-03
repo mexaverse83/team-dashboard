@@ -47,6 +47,92 @@ interface WestData {
     projected_value_at_delivery: number; equity_at_delivery: number
   }
   assumptions: { investment_return: number; appreciation_rate: number; debt_payoff_total: number }
+  behavioral?: {
+    monthly_net_savings_history: Array<{ month: string; income: number; expenses: number; net: number }>
+    avg_monthly_net_savings: number
+    recent_3mo_net_savings: number
+    assumed_monthly_contribution: number
+    projected_total_at_delivery: number
+    projected_gap_at_delivery: number
+    fully_funded_month: string | null
+    required_monthly_contribution: number
+  }
+}
+
+// ─── Readiness: plan vs actual savings behavior + Wolff's WEST verdict ───
+function WestReadinessCard({ data }: { data: WestData }) {
+  const [westInsights, setWestInsights] = useState<Array<{ icon: string; title: string; detail: string; type: string }>>([])
+
+  useEffect(() => {
+    fetch('/api/finance/insights', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        const all = d?.insights || []
+        setWestInsights(all.filter((i: { category?: string }) => (i.category || '').toUpperCase() === 'WEST'))
+      })
+      .catch(() => {})
+  }, [])
+
+  const b = data.behavioral
+  if (!b) return null
+  const planGap = data.projected_at_delivery?.gap ?? 0
+  const behaviorCloses = b.projected_gap_at_delivery <= 0
+
+  return (
+    <GlassCard>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-base font-semibold">Readiness — plan vs actual behavior</h3>
+          <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
+            What happens if your real monthly surplus ({fmtMXN(b.avg_monthly_net_savings)}/mo avg over {b.monthly_net_savings_history.length} months) flows into GBM
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Scheduled plan gap</p>
+          <p className={cn('num-metric text-xl font-bold', planGap > 0 ? 'text-amber-400' : 'text-emerald-400')}>
+            {planGap > 0 ? fmtShort(planGap) : 'Funded'}
+          </p>
+          <p className="text-[10px] text-[hsl(var(--text-tertiary))]">at delivery, no extra saving</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">At current behavior</p>
+          <p className={cn('num-metric text-xl font-bold', behaviorCloses ? 'text-emerald-400' : 'text-amber-400')}>
+            {behaviorCloses ? 'Funded' : fmtShort(b.projected_gap_at_delivery)}
+          </p>
+          <p className="text-[10px] text-[hsl(var(--text-tertiary))]">
+            {b.fully_funded_month ? `fully funded by ${b.fully_funded_month}` : 'gap remaining at delivery'}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Real savings run-rate</p>
+          <p className="num-metric text-xl font-bold">{fmtMXN(b.recent_3mo_net_savings)}</p>
+          <p className="text-[10px] text-[hsl(var(--text-tertiary))]">/mo, last 3 months</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Needed to close gap</p>
+          <p className="num-metric text-xl font-bold text-blue-400">{fmtMXN(b.required_monthly_contribution)}</p>
+          <p className="text-[10px] text-[hsl(var(--text-tertiary))]">/mo into GBM until delivery</p>
+        </div>
+      </div>
+
+      {westInsights.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-[hsl(var(--border))] space-y-2.5">
+          {westInsights.map((ins, i) => (
+            <div key={i} className="flex items-start gap-2.5">
+              <span className="text-xs mt-0.5">🐺</span>
+              <div className="min-w-0">
+                <p className="text-xs font-medium">{ins.icon} {ins.title}</p>
+                <p className="text-[11px] text-[hsl(var(--text-secondary))] leading-relaxed mt-0.5">{ins.detail}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </GlassCard>
+  )
 }
 
 // ─── Legend Item ───
@@ -346,6 +432,9 @@ export function WestTracker() {
           )}
         </div>
       </GlassCard>
+
+      {/* ── READINESS: plan vs actual behavior ── */}
+      <WestReadinessCard data={data} />
 
       {/* ── PROJECTION CHART ── */}
       <GlassCard className="p-4 sm:p-5">

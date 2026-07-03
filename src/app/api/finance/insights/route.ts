@@ -129,7 +129,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ provider, ok: true, response: result.text.slice(0, 300) })
   }
 
-  const prompt = buildInsightsPrompt(data)
+  // WEST readiness is enrichment — generation proceeds without it on failure
+  const west = await fetch(`${baseUrl}/api/finance/investments/west-projection`, {
+    headers: { 'x-api-key': authKey },
+  }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+
+  const prompt = buildInsightsPrompt(data, west)
 
 
   try {

@@ -2,7 +2,7 @@
 // Plain .mjs (no TS syntax) so it can be imported both by the Next.js route
 // and by scripts/generate-insights-codex.mjs running under bare Node.
 
-export function buildInsightsPrompt(data) {
+export function buildInsightsPrompt(data, west) {
   const bva = data.current_month?.budget_vs_actual || []
   const bvaSection = bva.length > 0 ? `
 BUDGET VS ACTUAL (Current Month - Day ${data.current_month?.day_of_month}/${data.current_month?.days_in_month}, ${data.current_month?.month_progress_pct}% through month):
@@ -26,6 +26,19 @@ ${data.crypto.risks?.concentration ? `- ⚠️ CONCENTRATION RISK: ${data.crypto
 ${data.crypto.risks?.large_loss ? `- ⚠️ LARGE UNREALIZED LOSS: ${data.crypto.risks.large_loss.pnl_pct}% unrealized loss` : ''}
 - Crypto as % of total finances: consider vs monthly income of $${Number(data.income?.total_monthly).toLocaleString()}/mo` : ''
 
+  const b = west?.behavioral
+  const westSection = west && b ? `
+WEST APARTMENT (real-estate purchase) — READINESS DATA:
+- Target: $${Number(west.target).toLocaleString()} MXN, delivery ${west.delivery_date} (${west.months_to_delivery} months away)
+- Paid so far: $${Number(west.current_status?.amount_paid).toLocaleString()} (${Math.round(west.current_status?.pct_paid || 0)}%)
+- Scheduled-plan projection at delivery (base ${Math.round((west.assumptions?.investment_return || 0) * 1000) / 10}% GBM return): $${Number(west.projected_at_delivery?.total_projected).toLocaleString()} → gap $${Number(west.projected_at_delivery?.gap).toLocaleString()}
+- Scenario gaps: conservative 8% → $${Number(west.scenarios?.conservative_8pct?.gap).toLocaleString()}, base → $${Number(west.scenarios?.base_9_5pct?.gap).toLocaleString()}, optimistic 11% → $${Number(west.scenarios?.optimistic_11pct?.gap).toLocaleString()}
+- ACTUAL household savings behavior (from real transactions, last ${b.monthly_net_savings_history?.length || 0} full months):
+${(b.monthly_net_savings_history || []).map((m) => `  · ${m.month}: income $${Number(m.income).toLocaleString()} − spent $${Number(m.expenses).toLocaleString()} = net $${Number(m.net).toLocaleString()}`).join('\n')}
+- Average net savings: $${Number(b.avg_monthly_net_savings).toLocaleString()}/mo (recent 3-month: $${Number(b.recent_3mo_net_savings).toLocaleString()}/mo)
+- If that average surplus flows into GBM monthly: position at delivery $${Number(b.projected_total_at_delivery).toLocaleString()}, gap $${Number(b.projected_gap_at_delivery).toLocaleString()}${b.fully_funded_month ? `, FULLY FUNDED by ${b.fully_funded_month}` : ' (not fully funded by delivery)'}
+- Monthly contribution required to close the base gap by delivery: $${Number(b.required_monthly_contribution).toLocaleString()}/mo` : ''
+
   const goalSection = data.goal_funding ? `
 GOAL FUNDING GAP:
 - Goals need: $${Number(data.goal_funding.total_monthly_needed).toLocaleString()}/mo
@@ -40,6 +53,7 @@ ${bvaSection}
 ${msiSection}
 ${goalSection}
 ${cryptoSection}
+${westSection}
 
 CONTEXT:
 - Currency is MXN (Mexican Pesos)
@@ -77,6 +91,7 @@ Rules:
 - Flag if unrealized crypto loss exceeds 20% — suggest DCA or holding strategy
 - Consider crypto value in overall financial health assessment
 - If long-term investment, net worth, real-estate, retirement, or tax data is missing, do not fabricate it. Prefer a recommendation to connect or refresh that data.
+- If WEST APARTMENT readiness data is present: include exactly 2 insights with category "WEST" — (1) a "forecast" giving the readiness verdict: most-likely position and gap at delivery given ACTUAL savings behavior vs the scheduled plan, and whether the household is on track to pay without financing; (2) a "recommendation" naming the specific monthly contribution to GBM that closes the gap, and where that money comes from given upcoming freed-up cash (ending MSIs, finished treatments). Use the behavioral numbers, not just the scheduled plan.
 
 CRITICAL — Bimonthly/non-monthly billing categories:
 - Categories marked [bimonthly billing] or [quarterly billing] etc are KNOWN recurring charges

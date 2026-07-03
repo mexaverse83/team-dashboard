@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { accruedValue } from '@/lib/fixed-income'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  // Anon fallback mirrors the summary route: lets local dev (no service key)
+  // serve the projection; production always has the service role.
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !key) throw new Error(`Missing env: URL=${!!url} KEY=${!!key}`)
   return createClient(url, key)
 }
@@ -189,12 +192,14 @@ export async function GET(req: NextRequest) {
 
     const lastMonth = monthly[monthly.length - 1]
 
-    // 6. Scenario calculations
-    const calcScenario = (rate: number) => {
+    // 6. Scenario calculations. `monthlyContribution` models extra household
+    // savings flowing into GBM each month on top of the scheduled plan.
+    const calcScenario = (rate: number, monthlyContribution = 0) => {
       const mr = Math.pow(1 + rate, 1 / 12) - 1
       let inv = liveGBMBalance
       let paid = target.amount_paid || 0
       let crypto = cryptoValue
+      let fullyFundedMonth: string | null = null
       const cur = new Date(startMonth)
 
       while (cur <= deliveryDate) {
@@ -205,14 +210,64 @@ export async function GET(req: NextRequest) {
           inv += Math.max(0, saleRemaining - debtPayoffTotal)
         }
         if (!isCur) {
+          inv += monthlyContribution
           inv *= (1 + mr)
           crypto *= (1 + cryptoMonthlyGrowth)
+        }
+        if (!fullyFundedMonth && paid + inv + crypto + lauraInfonvait >= targetAmount) {
+          fullyFundedMonth = cur.toISOString().slice(0, 7)
         }
         cur.setMonth(cur.getMonth() + 1)
       }
       const total = paid + inv + crypto + lauraInfonvait
-      return { total: Math.round(total), gap: Math.round(targetAmount - total) }
+      return { total: Math.round(total), gap: Math.round(targetAmount - total), fully_funded_month: fullyFundedMonth }
     }
+
+    // 6b. Behavioral layer — what the household ACTUALLY saves per month,
+    // from real transactions over the last 6 full months. This is the input
+    // the scheduled plan ignores: whether spending behavior leaves a surplus
+    // that could flow into GBM and close the delivery gap.
+    const historyStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 6, 1)).toISOString().slice(0, 10)
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const savingsTxs = await fetchAllRows<{ transaction_date: string; type: string; amount_mxn: number }>(
+      (from, to) => supabase
+        .from('finance_transactions')
+        .select('transaction_date, type, amount_mxn')
+        .gte('transaction_date', historyStart)
+        .order('transaction_date')
+        .range(from, to)
+    )
+    const byMonth: Record<string, { income: number; expenses: number }> = {}
+    for (const t of savingsTxs) {
+      const m = t.transaction_date.slice(0, 7)
+      if (m >= currentMonthKey) continue // exclude partial current month
+      byMonth[m] = byMonth[m] || { income: 0, expenses: 0 }
+      if (t.type === 'income') byMonth[m].income += t.amount_mxn || 0
+      else if (t.type === 'expense') byMonth[m].expenses += t.amount_mxn || 0
+    }
+    const savingsHistory = Object.entries(byMonth)
+      .map(([month, v]) => ({ month, income: Math.round(v.income), expenses: Math.round(v.expenses), net: Math.round(v.income - v.expenses) }))
+      // Zero-income months predate transaction tracking (app started Feb 2026)
+      // — they'd read as pure deficit and poison the run-rate.
+      .filter(m => m.income > 0)
+      .sort((a, b) => a.month.localeCompare(b.month))
+    const avgNet = savingsHistory.length > 0
+      ? savingsHistory.reduce((s, m) => s + m.net, 0) / savingsHistory.length
+      : 0
+    const last3 = savingsHistory.slice(-3)
+    const recentNet = last3.length > 0 ? last3.reduce((s, m) => s + m.net, 0) / last3.length : 0
+    // Contribution assumption: the average real surplus, floored at zero — a
+    // deficit household adds nothing (we don't model drawdowns here).
+    const assumedContribution = Math.round(Math.max(0, avgNet))
+    const behavioralRun = calcScenario(annualRate, assumedContribution)
+    const baseRun = calcScenario(annualRate)
+    // Monthly contribution that closes the base-case gap by delivery
+    // (future value of an annuity: C·((1+r)^N − 1)/r = gap).
+    const monthsN = Math.max(1,
+      (deliveryDate.getFullYear() - now.getFullYear()) * 12 + (deliveryDate.getMonth() - now.getMonth()))
+    const requiredMonthly = baseRun.gap > 0
+      ? Math.ceil(baseRun.gap * monthlyRate / (Math.pow(1 + monthlyRate, monthsN) - 1))
+      : 0
 
     // 7. Milestones
     const milestones = [
@@ -306,6 +361,16 @@ export async function GET(req: NextRequest) {
         conservative_8pct: calcScenario(0.08),   // 9.25% gross − 1.25%
         base_9_5pct: calcScenario(0.095),         // 10.75% gross − 1.25%
         optimistic_11pct: calcScenario(0.11),     // 12.25% gross − 1.25%
+      },
+      behavioral: {
+        monthly_net_savings_history: savingsHistory,
+        avg_monthly_net_savings: Math.round(avgNet),
+        recent_3mo_net_savings: Math.round(recentNet),
+        assumed_monthly_contribution: assumedContribution,
+        projected_total_at_delivery: behavioralRun.total,
+        projected_gap_at_delivery: behavioralRun.gap,
+        fully_funded_month: behavioralRun.fully_funded_month,
+        required_monthly_contribution: requiredMonthly,
       },
       milestones,
       property: {

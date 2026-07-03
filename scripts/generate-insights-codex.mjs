@@ -55,6 +55,17 @@ async function fetchSummary() {
   return res.json()
 }
 
+// WEST readiness data is enrichment — generation proceeds without it.
+async function fetchWestProjection() {
+  try {
+    const url = `${useProd ? PROD_URL : BASE_URL}/api/finance/investments/west-projection`
+    const res = await fetch(url, useProd ? { headers: { 'x-api-key': API_KEY } } : undefined)
+    return res.ok ? await res.json() : null
+  } catch {
+    return null
+  }
+}
+
 async function serverIsUp() {
   try {
     const res = await fetch(`${BASE_URL}/api/finance/summary?months=3`, { method: 'HEAD' })
@@ -83,7 +94,9 @@ async function main() {
     // 2. Fetch summary and build the WOLFF prompt
     console.log('Fetching finance summary ...')
     const data = await fetchSummary()
-    const prompt = buildInsightsPrompt(data)
+    const west = await fetchWestProjection()
+    console.log(west ? 'WEST projection included.' : 'WEST projection unavailable — continuing without it.')
+    const prompt = buildInsightsPrompt(data, west)
     console.log(`Prompt built (${prompt.length.toLocaleString()} chars). Running codex exec ...`)
 
     // 3. Run through Codex CLI — billed to the ChatGPT subscription
