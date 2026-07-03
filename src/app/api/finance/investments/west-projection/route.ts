@@ -298,8 +298,10 @@ export async function GET(req: NextRequest) {
     const msiNow = (activeInstallments || []).reduce((s, i) => s + (i.installment_amount || 0), 0)
     const yearlyBonusTotal = (yearlyIncome || []).reduce((s, i) => s + (i.amount || 0), 0)
 
+    // Plan starts with the CURRENT month — partially elapsed, but its target
+    // is still actionable (and its treatment payments still need planning).
     const planMonths: Array<{ month: string; capacity: number; target: number; notes: string[] }> = []
-    const planCursor = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+    const planCursor = new Date(now.getFullYear(), now.getMonth(), 1)
     // Start from what's already freed today so the first plan month annotates
     // installments ending in the current month (e.g. the July IVF MSIs).
     let prevFreed = (activeInstallments || [])
