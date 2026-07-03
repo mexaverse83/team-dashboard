@@ -49,7 +49,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=     # server-side admin ops
 FINANCE_API_KEY=               # external callers
 CRON_SECRET=                   # custom cron auth
-ANTHROPIC_API_KEY=             # /api/finance/insights
+OPENAI_API_KEY=                # /api/finance/insights (preferred provider; OPENAI_MODEL overrides gpt-4o default)
+ANTHROPIC_API_KEY=             # /api/finance/insights fallback when OPENAI_API_KEY is unset
 ```
 
 ### Testing

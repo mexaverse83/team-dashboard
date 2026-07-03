@@ -6,3 +6,6 @@ node_modules/
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+
+# Codex CLI state (stray marker file today; would hold OAuth tokens if codex ran with CODEX_HOME here)
+.codex
