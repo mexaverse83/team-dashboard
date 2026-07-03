@@ -19,6 +19,7 @@ import { OwnerBar } from '@/components/finance/owner-dot'
 import { WolffWidget } from '@/components/finance/wolff-widget'
 import { WestCompactWidget } from '@/components/finance/west-tracker'
 import { WeekendBudgetCard } from '@/components/finance/weekend-budget'
+import { SafeToSpendCard } from '@/components/finance/safe-to-spend'
 import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceRecurringIncome } from '@/lib/finance-types'
 import { enrichTransactions, enrichBudgets, DEFAULT_CATEGORIES, monthKey } from '@/lib/finance-utils'
 import {
@@ -256,8 +257,11 @@ export default function FinanceOverviewClient() {
         </GlassCard>
       </div>
 
-      {/* Weekend Budget */}
-      <WeekendBudgetCard transactions={transactions} categories={categories} />
+      {/* Safe to Spend + Weekend Budget */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SafeToSpendCard />
+        <WeekendBudgetCard transactions={transactions} categories={categories} />
+      </div>
 
       {/* WEST Target + Wolff Widget */}
       <WestCompactWidget />

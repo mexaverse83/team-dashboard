@@ -11,6 +11,8 @@ import { SkeletonKPI } from '@/components/ui/skeleton-card'
 import { ForecastChart } from '@/components/finance/forecast-chart'
 import { BillsTimeline } from '@/components/finance/bills-timeline'
 import { WestCompactWidget } from '@/components/finance/west-tracker'
+import { WolffWidget } from '@/components/finance/wolff-widget'
+import { SafeToSpendCard } from '@/components/finance/safe-to-spend'
 import { supabase } from '@/lib/supabase'
 import { ownersEqual } from '@/lib/owners'
 import { cn } from '@/lib/utils'
@@ -361,6 +363,9 @@ export default function CommandCenterClient() {
           </div>
         )}
 
+        {/* ── WOLFF: AI daily brief ──────────────────────── */}
+        <WolffWidget />
+
         {/* ── PLANS: compact, collapsible ────────────────── */}
         <PlansSection summary={summary} />
 
@@ -420,6 +425,7 @@ export default function CommandCenterClient() {
 
           {/* Right column - 1/3 */}
           <div className="space-y-4">
+            <SafeToSpendCard summary={summary} />
             <GlassCard>
               <SectionHeader
                 title="Next 30 days"

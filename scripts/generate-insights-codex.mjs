@@ -36,11 +36,21 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   process.exit(1)
 }
 
+// Prefer the production summary: it runs with the service role and sees
+// RLS-hidden tables (finance_recurring_income holds the salaries!). The local
+// dev server only has the anon key, which understates income by ~$195k/mo and
+// makes every cash-flow insight a false alarm. Requires FINANCE_API_KEY (or
+// SUPABASE_SERVICE_ROLE_KEY) in .env.local; falls back to localhost otherwise.
+const PROD_URL = env.INSIGHTS_SUMMARY_URL || 'https://finance.autonomis.co'
+const API_KEY = env.FINANCE_API_KEY || env.SUPABASE_SERVICE_ROLE_KEY || ''
+
 const baseUrlArg = process.argv.indexOf('--base-url')
 const BASE_URL = baseUrlArg > -1 ? process.argv[baseUrlArg + 1] : 'http://localhost:3000'
+const useProd = Boolean(API_KEY) && baseUrlArg === -1
 
 async function fetchSummary() {
-  const res = await fetch(`${BASE_URL}/api/finance/summary?months=3`)
+  const url = `${useProd ? PROD_URL : BASE_URL}/api/finance/summary?months=3`
+  const res = await fetch(url, useProd ? { headers: { 'x-api-key': API_KEY } } : undefined)
   if (!res.ok) throw new Error(`summary ${res.status}: ${(await res.text()).slice(0, 200)}`)
   return res.json()
 }
@@ -57,7 +67,9 @@ async function serverIsUp() {
 async function main() {
   // 1. Ensure a local server is available for the summary API
   let devServer = null
-  if (!(await serverIsUp())) {
+  if (useProd) {
+    console.log(`Using production summary at ${PROD_URL} (service-role numbers).`)
+  } else if (!(await serverIsUp())) {
     console.log(`No server at ${BASE_URL} — starting npm run dev ...`)
     devServer = spawn('npm', ['run', 'dev'], { cwd: repoRoot, detached: true, stdio: 'ignore' })
     const deadline = Date.now() + 120_000
