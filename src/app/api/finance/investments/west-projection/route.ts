@@ -270,6 +270,11 @@ export async function GET(req: NextRequest) {
       ? Math.ceil(baseRun.gap * monthlyRate / (Math.pow(1 + monthlyRate, monthsN) - 1))
       : 0
 
+    // Furnishing / fit-out budget needed at delivery ON TOP of the purchase
+    // price (added 2026-07-03 per Bernardo). The savings plan accumulates
+    // purchase gap + furnishing; readiness stats stay purchase-only.
+    const FURNISHING_BUDGET_MXN = 1_000_000
+
     // 6c. Month-by-month savings plan. Each future month gets a saving
     // capacity anchored on the historical average, adjusted for what we KNOW
     // changes: MSI installments ending free their payment, aguinaldo months
@@ -331,15 +336,21 @@ export async function GET(req: NextRequest) {
       planMonths.push({ month: mKey, capacity, target: 0, notes })
       planCursor.setMonth(planCursor.getMonth() + 1)
     }
-    // Scale capacity-proportional targets so their future value closes the gap
+    // Scale capacity-proportional targets so their future value closes the
+    // purchase gap PLUS the furnishing budget
+    const planGapToClose = Math.max(0, baseRun.gap) + FURNISHING_BUDGET_MXN
     const fvWeight = (idx: number) => Math.pow(1 + monthlyRate, planMonths.length - idx)
     const capacityFV = planMonths.reduce((s, m, idx) => s + m.capacity * fvWeight(idx), 0)
-    const stretchFactor = baseRun.gap > 0 && capacityFV > 0 ? baseRun.gap / capacityFV : 0
+    const stretchFactor = planGapToClose > 0 && capacityFV > 0 ? planGapToClose / capacityFV : 0
     for (const m of planMonths) {
       m.target = Math.round(m.capacity * stretchFactor)
-      if (m.capacity === 0 && baseRun.gap > 0) m.notes.push('no expected surplus — skip month')
+      if (m.capacity === 0 && planGapToClose > 0) m.notes.push('no expected surplus — skip month')
     }
     const planTotalNominal = planMonths.reduce((s, m) => s + m.target, 0)
+    // Flat monthly equivalent (annuity) for the same combined goal
+    const flatMonthlyEquivalent = planGapToClose > 0
+      ? Math.ceil(planGapToClose * monthlyRate / (Math.pow(1 + monthlyRate, planMonths.length) - 1))
+      : 0
 
     // 7. Milestones
     const milestones = [
@@ -445,8 +456,11 @@ export async function GET(req: NextRequest) {
         required_monthly_contribution: requiredMonthly,
       },
       savings_plan: {
-        goal: 'fully fund WEST at delivery (base-case return)',
-        gap_to_close: Math.max(0, baseRun.gap),
+        goal: 'fully fund WEST purchase + furnishing at delivery (base-case return)',
+        gap_to_close: planGapToClose,
+        purchase_gap: Math.max(0, baseRun.gap),
+        furnishing_budget: FURNISHING_BUDGET_MXN,
+        flat_monthly_equivalent: flatMonthlyEquivalent,
         months: planMonths,
         total_nominal: planTotalNominal,
         // >1 means the plan asks for more than historical capacity every month

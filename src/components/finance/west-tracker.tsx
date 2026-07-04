@@ -59,6 +59,9 @@ interface WestData {
   }
   savings_plan?: {
     gap_to_close: number
+    purchase_gap?: number
+    furnishing_budget?: number
+    flat_monthly_equivalent?: number
     months: Array<{ month: string; capacity: number; target: number; notes: string[] }>
     total_nominal: number
     stretch_factor: number
@@ -77,9 +80,10 @@ function WestSavingsPlanCard({ data }: { data: WestData }) {
     <GlassCard>
       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between mb-4">
         <div>
-          <h3 className="text-base font-semibold">Savings plan — fully paid at delivery</h3>
+          <h3 className="text-base font-semibold">Savings plan — fully paid + furnished at delivery</h3>
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
-            {fmtMXN(plan.gap_to_close)} gap · monthly targets weighted by your real capacity per month
+            {fmtMXN(plan.gap_to_close)} to build
+            {plan.furnishing_budget ? ` (${fmtMXN(plan.purchase_gap || 0)} purchase gap + ${fmtMXN(plan.furnishing_budget)} furnishing)` : ''} · targets weighted by your real capacity per month
           </p>
         </div>
         <span className={cn(

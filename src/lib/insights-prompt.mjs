@@ -38,7 +38,7 @@ ${(b.monthly_net_savings_history || []).map((m) => `  · ${m.month}: income $${N
 - Average net savings: $${Number(b.avg_monthly_net_savings).toLocaleString()}/mo (recent 3-month: $${Number(b.recent_3mo_net_savings).toLocaleString()}/mo)
 - If that average surplus flows into GBM monthly: position at delivery $${Number(b.projected_total_at_delivery).toLocaleString()}, gap $${Number(b.projected_gap_at_delivery).toLocaleString()}${b.fully_funded_month ? `, FULLY FUNDED by ${b.fully_funded_month}` : ' (not fully funded by delivery)'}
 - Monthly contribution required to close the base gap by delivery: $${Number(b.required_monthly_contribution).toLocaleString()}/mo
-${west.savings_plan?.months?.length ? `- MONTH-BY-MONTH SAVINGS PLAN (seasonally weighted by real capacity; stretch factor ${west.savings_plan.stretch_factor}× of historical capacity):
+${west.savings_plan?.months?.length ? `- MONTH-BY-MONTH SAVINGS PLAN — covers the purchase gap${west.savings_plan.furnishing_budget ? ` PLUS a $${Number(west.savings_plan.furnishing_budget).toLocaleString()} furnishing budget` : ''} (seasonally weighted by real capacity; stretch factor ${west.savings_plan.stretch_factor}× of historical capacity${west.savings_plan.flat_monthly_equivalent ? `; flat equivalent $${Number(west.savings_plan.flat_monthly_equivalent).toLocaleString()}/mo` : ''}):
 ${west.savings_plan.months.map((m) => `  · ${m.month}: save $${Number(m.target).toLocaleString()}${m.notes.length ? ` (${m.notes.join('; ')})` : ''}`).join('\n')}` : ''}` : ''
 
   const goalSection = data.goal_funding ? `
