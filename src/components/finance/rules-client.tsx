@@ -224,13 +224,13 @@ export default function RulesClient() {
             <button
               onClick={runLearn}
               disabled={learning}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-400 text-sm font-medium transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-600 text-sm font-medium transition-colors disabled:opacity-50"
             >
               <Wand2 className="h-4 w-4" /> {learning ? 'Analyzing…' : 'Learn from history'}
             </button>
             <button
               onClick={openCreate}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-600 text-sm font-medium transition-colors"
             >
               <Plus className="h-4 w-4" /> New rule
             </button>
@@ -264,7 +264,7 @@ export default function RulesClient() {
                     <p className="font-medium flex items-center gap-2">
                       <code className="px-1.5 py-0.5 rounded bg-[hsl(var(--muted))] text-xs font-mono">{rule.merchant_pattern}</code>
                       {rule.learned && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400">
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-600">
                           <Sparkles className="h-2.5 w-2.5" /> Learned
                         </span>
                       )}
@@ -319,7 +319,7 @@ export default function RulesClient() {
                     </button>
                     <button
                       onClick={() => remove(rule.id)}
-                      className="h-7 w-7 rounded hover:bg-rose-500/10 flex items-center justify-center text-rose-400"
+                      className="h-7 w-7 rounded hover:bg-rose-500/10 flex items-center justify-center text-rose-600"
                       aria-label="Delete"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

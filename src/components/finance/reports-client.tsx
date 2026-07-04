@@ -155,15 +155,15 @@ export default function ReportsClient() {
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Income</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-400 mt-1">${totalIncome.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-600 mt-1">${totalIncome.toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Expenses</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold text-rose-400 mt-1">${totalExpenses.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold text-rose-600 mt-1">${totalExpenses.toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Net</span>
-          <p className={cn("num-metric text-2xl sm:text-3xl font-bold mt-1", net >= 0 ? "text-emerald-400" : "text-rose-400")}>${Math.abs(net).toLocaleString()}</p>
+          <p className={cn("num-metric text-2xl sm:text-3xl font-bold mt-1", net >= 0 ? "text-emerald-600" : "text-rose-600")}>${Math.abs(net).toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Rate</span>
@@ -177,9 +177,9 @@ export default function ReportsClient() {
         <div className="h-52 sm:h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(222, 15%, 55%)' }} />
-              <YAxis tick={{ fontSize: 11, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(210, 12%, 42%)' }} />
+              <YAxis tick={{ fontSize: 11, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
               <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
               <Line type="monotone" dataKey="income" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} name="Income" />
               <Line type="monotone" dataKey="expenses" stroke="hsl(var(--chart-6))" strokeWidth={2} dot={false} name="Expenses" />
@@ -199,15 +199,15 @@ export default function ReportsClient() {
       </GlassCard>
 
       {/* Category Trends + Top Merchants */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <GlassCard>
           <h3 className="text-base font-semibold mb-4">Category Trends</h3>
           <div className="h-52 sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={categoryTrends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(222, 15%, 55%)' }} />
-                <YAxis tick={{ fontSize: 11, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(210, 12%, 42%)' }} />
+                <YAxis tick={{ fontSize: 11, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
                 {topCatNames.map(name => (
                   <Area key={name} type="monotone" dataKey={name} stackId="1" stroke={catColors[name] || '#6B7280'} fill={catColors[name] || '#6B7280'} fillOpacity={0.3} strokeWidth={1.5} />
@@ -290,7 +290,7 @@ export default function ReportsClient() {
             <GlassCard className="mb-4 p-4">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-semibold flex items-center gap-2">🏗️ WEST Apartment</h3>
-                <span className="text-xs text-emerald-400 tabular-nums font-semibold">91.2% funded</span>
+                <span className="text-xs text-emerald-600 tabular-nums font-semibold">91.2% funded</span>
               </div>
               <div className="flex h-2 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))] mb-2">
                 <div className="h-full bg-emerald-500" style={{ width: '22.4%' }} />
@@ -299,10 +299,10 @@ export default function ReportsClient() {
               </div>
               <div className="flex justify-between text-xs text-[hsl(var(--text-secondary))]">
                 <span>Projected $10,213,365 / $11,204,000</span>
-                <span className="text-red-400">Gap $990,635</span>
+                <span className="text-red-600">Gap $990,635</span>
               </div>
               <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">
-                Est. market value: <span className="text-emerald-400 font-medium">$16,753,803 MXN</span> · +$5,549,803 equity
+                Est. market value: <span className="text-emerald-600 font-medium">$16,753,803 MXN</span> · +$5,549,803 equity
               </p>
             </GlassCard>
 
@@ -333,7 +333,7 @@ export default function ReportsClient() {
                         <td className="py-2.5 px-3 text-right text-[hsl(var(--text-secondary))] text-xs">Manual</td>
                         <td className="py-2.5 px-3 text-right tabular-nums text-xs">
                           {row.ytdReturn !== null
-                            ? <span className={row.ytdReturn >= 0 ? 'text-emerald-400' : 'text-red-400'}>{row.ytdReturn >= 0 ? '+' : ''}{row.ytdReturn.toFixed(1)}%</span>
+                            ? <span className={row.ytdReturn >= 0 ? 'text-emerald-600' : 'text-red-600'}>{row.ytdReturn >= 0 ? '+' : ''}{row.ytdReturn.toFixed(1)}%</span>
                             : <span className="text-[hsl(var(--text-secondary))]">Est. {row.ytdEstimate}</span>}
                         </td>
                       </tr>
@@ -363,7 +363,7 @@ export default function ReportsClient() {
               <GlassCard className="mb-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold">Top Audit Findings</h3>
-                  <a href="/finance/audit" className="text-xs text-blue-400 hover:underline">View all →</a>
+                  <a href="/finance/audit" className="text-xs text-blue-600 hover:underline">View all →</a>
                 </div>
                 <div className="space-y-2">
                   {topFindings.map((f, i) => (
@@ -384,15 +384,15 @@ export default function ReportsClient() {
 
       {/* By Owner Section */}
       <h3 className="text-lg font-semibold mt-2">By Owner</h3>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <GlassCard>
           <h3 className="text-base font-semibold mb-4">Monthly Spending Comparison</h3>
           <div className="h-52 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={ownerMonthly}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 18%)" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(222, 10%, 50%)' }} />
-                <YAxis tick={{ fontSize: 11, fill: 'hsl(222, 10%, 50%)' }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 86%)" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(210, 12%, 42%)' }} />
+                <YAxis tick={{ fontSize: 11, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} formatter={(v: number | undefined) => [`$${(v ?? 0).toLocaleString()}`, '']} />
                 <Legend />
                 <Bar dataKey="bernardo" name="Bernardo" fill="#3B82F6" radius={[4,4,0,0]} />

@@ -20,25 +20,25 @@ const SEVERITY_STYLES: Record<AlertSeverity, { bg: string; border: string; icon:
     bg: 'bg-[hsl(217,91%,60%)/0.08]',
     border: 'border-[hsl(217,91%,60%)/0.25]',
     icon: Info,
-    iconColor: 'text-blue-400',
+    iconColor: 'text-blue-600',
   },
   success: {
     bg: 'bg-[hsl(142,71%,45%)/0.08]',
     border: 'border-[hsl(142,71%,45%)/0.25]',
     icon: CheckCircle2,
-    iconColor: 'text-emerald-400',
+    iconColor: 'text-emerald-600',
   },
   warning: {
     bg: 'bg-[hsl(38,92%,50%)/0.08]',
     border: 'border-[hsl(38,92%,50%)/0.3]',
     icon: AlertTriangle,
-    iconColor: 'text-amber-400',
+    iconColor: 'text-amber-600',
   },
   danger: {
     bg: 'bg-[hsl(0,84%,60%)/0.08]',
     border: 'border-[hsl(0,84%,60%)/0.3]',
     icon: AlertCircle,
-    iconColor: 'text-rose-400',
+    iconColor: 'text-rose-600',
   },
 }
 

@@ -246,12 +246,12 @@ export default function GoalsClient() {
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Saved</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">${totalSaved.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">${totalSaved.toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{overallPct}% of all goals</p>
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Needed</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-400 mt-1">${Math.round(totalMonthlyNeeded).toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-600 mt-1">${Math.round(totalMonthlyNeeded).toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">across all goals</p>
         </GlassCard>
         <GlassCard>
@@ -259,7 +259,7 @@ export default function GoalsClient() {
           {lastTotal ? (
             <>
               <p className={cn("num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1",
-                lastTotal.net_savings >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                lastTotal.net_savings >= 0 ? "text-emerald-600" : "text-rose-600")}>
                 ${Math.abs(lastTotal.net_savings).toLocaleString()}
               </p>
               <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">
@@ -274,7 +274,7 @@ export default function GoalsClient() {
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Rate</span>
           {lastTotal ? (
             <>
-              <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-cyan-400 mt-1">
+              <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-cyan-600 mt-1">
                 {lastTotal.savings_rate}%
               </p>
               <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">
@@ -290,7 +290,7 @@ export default function GoalsClient() {
           {lastTotal ? (
             <>
               <p className={cn("num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1",
-                lastTotal.variance >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                lastTotal.variance >= 0 ? "text-emerald-600" : "text-rose-600")}>
                 {lastTotal.variance >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(lastTotal.variance)).toLocaleString()}
               </p>
               <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">
@@ -330,9 +330,9 @@ export default function GoalsClient() {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full",
-                    i === 0 && "bg-indigo-500/20 text-indigo-400",
-                    i === 1 && "bg-blue-500/20 text-blue-400",
-                    i === 2 && "bg-emerald-500/20 text-emerald-400",
+                    i === 0 && "bg-indigo-500/20 text-indigo-600",
+                    i === 1 && "bg-blue-500/20 text-blue-600",
+                    i === 2 && "bg-emerald-500/20 text-emerald-600",
                     i > 2 && "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))]",
                   )}>#{g.priority || i + 1}</span>
                   {isCrypto ? (
@@ -345,9 +345,9 @@ export default function GoalsClient() {
                 <div className="flex items-center gap-1">
                   {goalStatus ? (
                     <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full",
-                      goalStatus === 'on_track' && "bg-emerald-500/15 text-emerald-400",
-                      goalStatus === 'slightly_behind' && "bg-amber-500/15 text-amber-400",
-                      goalStatus === 'behind' && "bg-rose-500/15 text-rose-400",
+                      goalStatus === 'on_track' && "bg-emerald-500/15 text-emerald-600",
+                      goalStatus === 'slightly_behind' && "bg-amber-500/15 text-amber-600",
+                      goalStatus === 'behind' && "bg-rose-500/15 text-rose-600",
                     )}>
                       {goalStatus === 'on_track' && '✅ On Track'}
                       {goalStatus === 'slightly_behind' && '⚠️ Slightly Behind'}
@@ -355,12 +355,12 @@ export default function GoalsClient() {
                     </span>
                   ) : (
                     <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full",
-                      isOnTrack ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
+                      isOnTrack ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600"
                     )}>{isOnTrack ? '✓ On track' : '⚡ Needs boost'}</span>
                   )}
                   <div className="flex sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button aria-label="Edit" onClick={e => { e.stopPropagation(); openEdit(g) }} className="p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
-                    <button aria-label="Delete" onClick={e => { e.stopPropagation(); setDeleteConfirm(g.id) }} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-400" /></button>
+                    <button aria-label="Delete" onClick={e => { e.stopPropagation(); setDeleteConfirm(g.id) }} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-600" /></button>
                   </div>
                 </div>
               </div>
@@ -404,7 +404,7 @@ export default function GoalsClient() {
                     {months > 0 && (
                       <div className="flex items-center justify-between mt-0.5">
                         <span className="text-xs text-[hsl(var(--text-tertiary))]">Needed/mo</span>
-                        <span className={cn("text-xs font-medium tabular-nums font-mono", isOnTrack ? "text-emerald-400" : "text-amber-400")}>{(Math.max(0, g.target_amount - cryptoQty) / months).toFixed(8).replace(/\.?0+$/, '')} {g.crypto_symbol}</span>
+                        <span className={cn("text-xs font-medium tabular-nums font-mono", isOnTrack ? "text-emerald-600" : "text-amber-600")}>{(Math.max(0, g.target_amount - cryptoQty) / months).toFixed(8).replace(/\.?0+$/, '')} {g.crypto_symbol}</span>
                       </div>
                     )}
                   </>
@@ -420,13 +420,13 @@ export default function GoalsClient() {
                         <div className="flex items-center justify-between mt-0.5">
                           <span className="text-xs text-[hsl(var(--text-tertiary))]">Actual saved</span>
                           <span className={cn("text-xs font-medium tabular-nums",
-                            lastActual >= (g.monthly_contribution || 0) ? "text-emerald-400" : "text-rose-400"
+                            lastActual >= (g.monthly_contribution || 0) ? "text-emerald-600" : "text-rose-600"
                           )}>${Math.round(lastActual).toLocaleString()}</span>
                         </div>
                         <div className="flex items-center justify-between mt-0.5">
                           <span className="text-xs text-[hsl(var(--text-tertiary))]">Variance</span>
                           <span className={cn("text-xs font-medium tabular-nums",
-                            lastActual - (g.monthly_contribution || 0) >= 0 ? "text-emerald-400" : "text-rose-400"
+                            lastActual - (g.monthly_contribution || 0) >= 0 ? "text-emerald-600" : "text-rose-600"
                           )}>
                             {lastActual - (g.monthly_contribution || 0) >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(lastActual - (g.monthly_contribution || 0))).toLocaleString()} {lastActual >= (g.monthly_contribution || 0) ? 'ahead' : 'short'}
                           </span>
@@ -441,7 +441,7 @@ export default function GoalsClient() {
                     )}
                     <div className="flex items-center justify-between mt-0.5">
                       <span className="text-xs text-[hsl(var(--text-tertiary))]">Needed</span>
-                      <span className={cn("text-xs font-medium tabular-nums", isOnTrack ? "text-emerald-400" : "text-amber-400")}>${Math.round(needed).toLocaleString()}/mo</span>
+                      <span className={cn("text-xs font-medium tabular-nums", isOnTrack ? "text-emerald-600" : "text-amber-600")}>${Math.round(needed).toLocaleString()}/mo</span>
                     </div>
                     {g.last_contribution_date && (
                       <div className="flex items-center justify-between mt-0.5">
@@ -490,9 +490,9 @@ export default function GoalsClient() {
                             <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
-                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} />
-                        <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
+                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} />
+                        <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                         <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
                         <Area type="monotone" dataKey="projected" stroke="hsl(var(--chart-3))" fill="url(#goalGrad)" strokeWidth={2} />
                         <ReferenceLine y={goal.target_amount} stroke="hsl(var(--chart-1))" strokeDasharray="5 5" />
@@ -510,7 +510,7 @@ export default function GoalsClient() {
                         value={whatIfAmount} onChange={e => setWhatIfAmount(Number(e.target.value))} className="w-full accent-indigo-500" />
                       <div className="flex items-center justify-between mt-1">
                         <span className="text-xs text-[hsl(var(--text-tertiary))]">$0</span>
-                        <span className="text-sm font-semibold tabular-nums text-indigo-400">${whatIfAmount.toLocaleString()}/mo</span>
+                        <span className="text-sm font-semibold tabular-nums text-indigo-600">${whatIfAmount.toLocaleString()}/mo</span>
                         <span className="text-xs text-[hsl(var(--text-tertiary))]">${Math.round(goal.target_amount / 6).toLocaleString()}</span>
                       </div>
                     </div>
@@ -528,9 +528,9 @@ export default function GoalsClient() {
                           return (
                             <div key={m} className="flex items-center gap-2">
                               <div className={cn("h-5 w-5 rounded-full flex items-center justify-center text-[10px]",
-                                reached ? "bg-emerald-500/20 text-emerald-400" : "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))]"
+                                reached ? "bg-emerald-500/20 text-emerald-600" : "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))]"
                               )}>{reached ? '✓' : m}</div>
-                              <span className={cn("text-xs", reached ? "text-emerald-400 line-through" : "text-[hsl(var(--text-secondary))]")}>
+                              <span className={cn("text-xs", reached ? "text-emerald-600 line-through" : "text-[hsl(var(--text-secondary))]")}>
                                 {m}% — ${((goal.target_amount * m) / 100).toLocaleString()}
                               </span>
                             </div>
@@ -566,7 +566,7 @@ export default function GoalsClient() {
             </div>
             {lastTotal && (
               <div className="text-right">
-                <p className="text-lg font-bold text-emerald-400 tabular-nums">${Math.round(lastTotal.net_savings).toLocaleString()}</p>
+                <p className="text-lg font-bold text-emerald-600 tabular-nums">${Math.round(lastTotal.net_savings).toLocaleString()}</p>
                 <p className="text-xs text-[hsl(var(--text-tertiary))]">{lastTotal.savings_rate}% rate</p>
               </div>
             )}
@@ -580,7 +580,7 @@ export default function GoalsClient() {
           <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={savingsChart} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 18%)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 86%)" vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: 'hsl(215, 16%, 50%)', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: 'hsl(215, 16%, 50%)', fontSize: 11 }} axisLine={false} tickLine={false}
                   tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
@@ -608,11 +608,11 @@ export default function GoalsClient() {
             <div className="flex gap-2">
               <button type="button" onClick={() => setForm(f => ({ ...f, goal_type: 'savings', crypto_symbol: '' }))}
                 className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
-                  form.goal_type === 'savings' ? "border-indigo-500 bg-indigo-500/10 text-indigo-400" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                  form.goal_type === 'savings' ? "border-indigo-500 bg-indigo-500/10 text-indigo-600" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
                 )}>💰 Savings</button>
               <button type="button" onClick={() => setForm(f => ({ ...f, goal_type: 'crypto', crypto_symbol: f.crypto_symbol || 'BTC' }))}
                 className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
-                  form.goal_type === 'crypto' ? "border-orange-500 bg-orange-500/10 text-orange-400" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                  form.goal_type === 'crypto' ? "border-orange-500 bg-orange-500/10 text-orange-600" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
                 )}>₿ Crypto</button>
             </div>
           </div>
@@ -645,13 +645,13 @@ export default function GoalsClient() {
             <div className="flex gap-2">
               <button type="button" onClick={() => setForm(f => ({ ...f, scope: 'shared', owner: '' }))}
                 className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
-                  form.scope === 'shared' ? "border-purple-500 bg-purple-500/10 text-purple-400" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                  form.scope === 'shared' ? "border-purple-500 bg-purple-500/10 text-purple-600" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
                 )}>🤝 Shared</button>
               {OWNERS.map(name => (
                 <button key={name} type="button" onClick={() => setForm(f => ({ ...f, scope: 'personal', owner: name }))}
                   className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
                     form.scope === 'personal' && form.owner === name
-                      ? "border-blue-500 bg-blue-500/10 text-blue-400"
+                      ? "border-blue-500 bg-blue-500/10 text-blue-600"
                       : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
                   )}>
                   <span className="inline-block h-2 w-2 rounded-full mr-1" style={{ background: getOwnerColor(name) }} />{name}
@@ -712,14 +712,14 @@ export default function GoalsClient() {
           {form.target_amount && form.target_date && form.goal_type !== 'crypto' && (
             <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))] text-center">
               <p className="text-xs text-[hsl(var(--text-secondary))]">You need to save</p>
-              <p className="text-xl font-bold tabular-nums text-indigo-400">${Math.round(formMonthlyNeeded).toLocaleString()}/mo</p>
+              <p className="text-xl font-bold tabular-nums text-indigo-600">${Math.round(formMonthlyNeeded).toLocaleString()}/mo</p>
               <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">or ${Math.round(formMonthlyNeeded / 30).toLocaleString()}/day • {formMonthsLeft} months</p>
             </div>
           )}
           {form.target_amount && form.target_date && form.goal_type === 'crypto' && form.crypto_symbol && (
             <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))] text-center">
               <p className="text-xs text-[hsl(var(--text-secondary))]">You need to accumulate</p>
-              <p className="text-xl font-bold tabular-nums text-orange-400 font-mono">
+              <p className="text-xl font-bold tabular-nums text-orange-600 font-mono">
                 {formMonthsLeft > 0 ? (Math.max(0, parseFloat(form.target_amount) - getCryptoQty(form.crypto_symbol)) / formMonthsLeft).toFixed(8).replace(/\.?0+$/, '') : '—'} {form.crypto_symbol}/mo
               </p>
               <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{formMonthsLeft} months • Currently {getCryptoQty(form.crypto_symbol).toFixed(4)} {form.crypto_symbol}</p>

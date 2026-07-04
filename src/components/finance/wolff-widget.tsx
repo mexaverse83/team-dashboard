@@ -23,8 +23,8 @@ const TYPE_RANK: Record<string, number> = { alert: 0, forecast: 1, recommendatio
 const WEEK_TYPE_RANK: Record<string, number> = { recommendation: 0, alert: 1, saving: 2 }
 
 const priorityChip: Record<string, string> = {
-  high: 'bg-rose-500/15 text-rose-400',
-  medium: 'bg-amber-500/15 text-amber-400',
+  high: 'bg-rose-500/15 text-rose-600',
+  medium: 'bg-amber-500/15 text-amber-600',
   low: 'bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))]',
 }
 
@@ -76,12 +76,12 @@ export function WolffWidget() {
           <span className="text-base">🐺</span>
           <span className="text-sm font-semibold">Wolff Says</span>
           {generatedLabel && (
-            <span className={stale ? 'text-[10px] text-amber-400' : 'text-[10px] text-[hsl(var(--text-tertiary))]'}>
+            <span className={stale ? 'text-[10px] text-amber-600' : 'text-[10px] text-[hsl(var(--text-tertiary))]'}>
               {stale ? `⏳ from ${generatedLabel}` : generatedLabel}
             </span>
           )}
         </div>
-        <Link href="/finance/insights" className="text-xs text-blue-400 hover:underline">
+        <Link href="/finance/insights" className="text-xs text-blue-600 hover:underline">
           View all →
         </Link>
       </div>
@@ -96,7 +96,7 @@ export function WolffWidget() {
         <div className="space-y-3">
           {weekly.length > 0 && (
             <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">📅 This week&apos;s money coach</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">📅 This week&apos;s money coach</p>
               {weekly.map((ins, i) => (
                 <div key={i} className="flex items-start gap-2.5">
                   <span className="text-xs mt-0.5">{ins.icon || typeIcons[ins.type] || '💡'}</span>

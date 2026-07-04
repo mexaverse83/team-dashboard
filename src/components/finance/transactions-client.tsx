@@ -607,13 +607,13 @@ export default function TransactionsClient() {
                         <p className="text-sm font-medium flex items-center gap-1.5">
                           {tx.merchant || '—'}
                           {(tx.source === 'recurring_income' || tx.tags?.includes('auto-income')) && (
-                            <span title="Auto-registered recurring income" className="text-emerald-400 text-xs">🔁</span>
+                            <span title="Auto-registered recurring income" className="text-emerald-600 text-xs">🔁</span>
                           )}
                         </p>
                         {tx.description && <p className="text-xs text-[hsl(var(--text-tertiary))] truncate max-w-[200px]">{tx.description}</p>}
                       </td>
                       <td className="py-2 px-4 text-right">
-                        <span className={cn("text-sm font-semibold num-metric tabular-nums", tx.type === 'income' ? "text-emerald-400" : "text-rose-400")}>
+                        <span className={cn("text-sm font-semibold num-metric tabular-nums", tx.type === 'income' ? "text-emerald-600" : "text-rose-600")}>
                           {tx.type === 'income' ? '+' : '-'}${tx.amount_mxn.toLocaleString()}
                         </span>
                       </td>
@@ -637,7 +637,7 @@ export default function TransactionsClient() {
                           </div>
                         ) : (
                           <button onClick={() => setDeleteConfirm(tx.id)} className="p-1.5 rounded-md sm:opacity-0 sm:group-hover:opacity-100 hover:bg-rose-500/10 transition-all" title="Delete">
-                            <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                            <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                           </button>
                         )}
                       </td>
@@ -661,11 +661,11 @@ export default function TransactionsClient() {
                       <p className="text-sm font-medium truncate flex items-center gap-1">
                         {tx.merchant || '—'}
                         {(tx.source === 'recurring_income' || tx.tags?.includes('auto-income')) && (
-                          <span title="Auto-registered" className="text-emerald-400 text-xs">🔁</span>
+                          <span title="Auto-registered" className="text-emerald-600 text-xs">🔁</span>
                         )}
                       </p>
                       <span className={cn("text-sm font-semibold num-metric tabular-nums shrink-0 ml-2 text-right",
-                        tx.type === 'income' ? "text-emerald-400" : "text-rose-400")}>
+                        tx.type === 'income' ? "text-emerald-600" : "text-rose-600")}>
                         {tx.type === 'income' ? '+' : '-'}${tx.amount_mxn.toLocaleString()}
                       </span>
                     </div>
@@ -679,10 +679,10 @@ export default function TransactionsClient() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-1 shrink-0">
-                    <button onClick={() => openEdit(tx)} className="p-2 rounded-lg hover:bg-blue-500/10 text-blue-400 transition-colors" title="Edit">
+                    <button onClick={() => openEdit(tx)} className="p-2 rounded-lg hover:bg-blue-500/10 text-blue-600 transition-colors" title="Edit">
                       <Pencil className="h-4 w-4" />
                     </button>
-                    <button onClick={() => setDeleteConfirm(tx.id)} className="p-2 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors" title="Delete">
+                    <button onClick={() => setDeleteConfirm(tx.id)} className="p-2 rounded-lg hover:bg-rose-500/10 text-rose-600 transition-colors" title="Delete">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
@@ -721,8 +721,8 @@ export default function TransactionsClient() {
             <div className={cn(
               "flex items-start gap-2 p-3 rounded-lg border text-xs",
               confirmDuplicate
-                ? "bg-rose-500/10 border-rose-500/30 text-rose-300"
-                : "bg-amber-500/5 border-amber-500/30 text-amber-300"
+                ? "bg-rose-500/10 border-rose-500/30 text-rose-700"
+                : "bg-amber-500/5 border-amber-500/30 text-amber-700"
             )}>
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
               <div className="flex-1">
@@ -746,7 +746,7 @@ export default function TransactionsClient() {
 
           {/* Auto-applied rule indicator */}
           {appliedRuleId && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/5 border border-violet-500/20 text-xs text-violet-300">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/5 border border-violet-500/20 text-xs text-violet-700">
               <Sparkles className="h-3.5 w-3.5 shrink-0" />
               <span>Category auto-applied from rule. <button type="button" onClick={() => { setAppliedRuleId(null); setForm(f => ({ ...f, category_id: '' })) }} className="underline hover:text-violet-200">Clear</button></span>
             </div>
@@ -756,11 +756,11 @@ export default function TransactionsClient() {
           <div className="flex p-1 rounded-xl bg-[hsl(var(--bg-elevated))]">
             <button type="button" onClick={() => updateForm({ type: 'expense', category_id: '' })}
               className={cn("flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all",
-                form.type === 'expense' ? "bg-rose-500/20 text-rose-400" : "text-[hsl(var(--text-secondary))]"
+                form.type === 'expense' ? "bg-rose-500/20 text-rose-600" : "text-[hsl(var(--text-secondary))]"
               )}>↓ Expense</button>
             <button type="button" onClick={() => updateForm({ type: 'income', category_id: '' })}
               className={cn("flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all",
-                form.type === 'income' ? "bg-emerald-500/20 text-emerald-400" : "text-[hsl(var(--text-secondary))]"
+                form.type === 'income' ? "bg-emerald-500/20 text-emerald-600" : "text-[hsl(var(--text-secondary))]"
               )}>↑ Income</button>
           </div>
 
@@ -799,7 +799,7 @@ export default function TransactionsClient() {
               {filteredCats.map(cat => (
                 <button key={cat.id} type="button" onClick={() => updateForm({ category_id: cat.id })}
                   className={cn("flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl border text-[11px] leading-tight transition-all min-h-[64px]",
-                    form.category_id === cat.id ? "border-emerald-500 bg-emerald-500/10 text-emerald-300" : "border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]"
+                    form.category_id === cat.id ? "border-emerald-500 bg-emerald-500/10 text-emerald-700" : "border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]"
                   )}>
                   <span className="text-xl">{cat.icon}</span>
                   <span className="truncate w-full text-center px-0.5">{cat.name}</span>
@@ -833,7 +833,7 @@ export default function TransactionsClient() {
                 <button key={name} type="button" onClick={() => updateForm({ owner: name })}
                   className={cn("flex-1 py-2.5 rounded-lg text-sm font-medium transition-all border",
                     form.owner === name
-                      ? "border-blue-500 bg-blue-500/10 text-blue-400"
+                      ? "border-blue-500 bg-blue-500/10 text-blue-600"
                       : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))]"
                   )}>
                   <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ background: getOwnerColor(name) }} />
@@ -858,7 +858,7 @@ export default function TransactionsClient() {
                     }}
                     className={cn("px-3 py-1 rounded-full text-xs font-medium border transition-all",
                       active
-                        ? "border-blue-500 bg-blue-500/10 text-blue-400"
+                        ? "border-blue-500 bg-blue-500/10 text-blue-600"
                         : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))]"
                     )}>
                     {label}
@@ -892,13 +892,13 @@ export default function TransactionsClient() {
             return (
               <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-blue-400">📅 Period Covered ({CYCLE_LABELS[cycle]})</span>
+                  <span className="text-xs font-medium text-blue-600">📅 Period Covered ({CYCLE_LABELS[cycle]})</span>
                   <button type="button" onClick={() => {
                     if (form.transaction_date) {
                       const suggestion = suggestCoveragePeriod(form.transaction_date, cycle)
                       updateForm({ coverage_start: suggestion.start, coverage_end: suggestion.end })
                     }
-                  }} className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors">
+                  }} className="text-[10px] text-blue-600 hover:text-blue-700 transition-colors">
                     Auto-suggest →
                   </button>
                 </div>
@@ -918,7 +918,7 @@ export default function TransactionsClient() {
                   const [ey, em] = form.coverage_end.split('-').map(Number)
                   const covMonths = Math.max(1, (ey - sy) * 12 + (em - sm) + 1)
                   const perMonth = parseFloat(form.amount) / covMonths
-                  return <p className="text-xs text-blue-400/70">→ ${perMonth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo across {covMonths} months</p>
+                  return <p className="text-xs text-blue-600/70">→ ${perMonth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo across {covMonths} months</p>
                 })()}
               </div>
             )
@@ -949,9 +949,9 @@ export default function TransactionsClient() {
         ) : importResult ? (
           <div className="space-y-4">
             <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-              <p className="text-sm font-medium text-emerald-400">✅ {importResult.success} transactions imported</p>
-              {importResult.skipped > 0 && <p className="text-sm text-amber-400 mt-1">↷ {importResult.skipped} skipped as duplicates or invalid rows</p>}
-              {importResult.errors > 0 && <p className="text-sm text-rose-400 mt-1">⚠️ {importResult.errors} failed</p>}
+              <p className="text-sm font-medium text-emerald-600">✅ {importResult.success} transactions imported</p>
+              {importResult.skipped > 0 && <p className="text-sm text-amber-600 mt-1">↷ {importResult.skipped} skipped as duplicates or invalid rows</p>}
+              {importResult.errors > 0 && <p className="text-sm text-rose-600 mt-1">⚠️ {importResult.errors} failed</p>}
             </div>
             <button onClick={() => setImportOpen(false)}
               className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium">
@@ -961,7 +961,7 @@ export default function TransactionsClient() {
         ) : importMode === 'pdf' ? (
           <div className="space-y-4">
             <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <span className="text-blue-400 text-sm font-medium">🏦 BBVA detected</span>
+              <span className="text-blue-600 text-sm font-medium">🏦 BBVA detected</span>
               <span className="text-xs text-[hsl(var(--text-secondary))]">— {pdfRows.length} transactions found</span>
             </div>
             {/* Preview */}
@@ -978,11 +978,11 @@ export default function TransactionsClient() {
                     <tr key={i} className="border-t border-[hsl(var(--border))]">
                       <td className="px-2 py-1">{row.date}</td>
                       <td className="px-2 py-1 max-w-[200px] truncate">{row.description}</td>
-                      <td className={cn("px-2 py-1 text-right font-mono", row.type === 'expense' ? 'text-rose-400' : 'text-emerald-400')}>
+                      <td className={cn("px-2 py-1 text-right font-mono", row.type === 'expense' ? 'text-rose-600' : 'text-emerald-600')}>
                         ${row.amount.toLocaleString('en', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-2 py-1 text-center">
-                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", row.type === 'expense' ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400')}>
+                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", row.type === 'expense' ? 'bg-rose-500/10 text-rose-600' : 'bg-emerald-500/10 text-emerald-600')}>
                           {row.type === 'expense' ? 'Cargo' : 'Abono'}
                         </span>
                       </td>

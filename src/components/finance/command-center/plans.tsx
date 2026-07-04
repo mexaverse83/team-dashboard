@@ -13,8 +13,8 @@ function MiniStat({ label, value, tone }: { label: string; value: string; tone?:
       <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">{label}</p>
       <p className={cn(
         'text-sm font-bold tabular-nums',
-        tone === 'good' && 'text-emerald-400',
-        tone === 'bad' && 'text-rose-400',
+        tone === 'good' && 'text-emerald-600',
+        tone === 'bad' && 'text-rose-600',
       )}>{value}</p>
     </div>
   )
@@ -48,7 +48,7 @@ function CutList({ cuts, total, gap }: {
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium truncate">{cut.category}</span>
-              <span className="font-semibold tabular-nums text-emerald-400">+{fmtMoney(cut.cut_amount)}/mo</span>
+              <span className="font-semibold tabular-nums text-emerald-600">+{fmtMoney(cut.cut_amount)}/mo</span>
             </div>
             <p className="mt-0.5 text-[10px] text-[hsl(var(--text-tertiary))]">
               Cap at {fmtMoney(cut.recommended_cap)} from {fmtMoney(cut.current_budget)}
@@ -73,13 +73,13 @@ function DecemberCard({ plan }: { plan: Summary['year_end_goal_plan'] }) {
   return (
     <GlassCard className={cn('border-l-2', plan.on_track ? 'border-l-emerald-500' : 'border-l-rose-500')}>
       <div className="flex items-center gap-2">
-        <Target className={cn('h-4 w-4', plan.on_track ? 'text-emerald-400' : 'text-rose-400')} />
+        <Target className={cn('h-4 w-4', plan.on_track ? 'text-emerald-600' : 'text-rose-600')} />
         <h4 className="text-sm font-semibold">December target</h4>
       </div>
 
       <div className="mt-3">
         <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly gap to stay on track</p>
-        <p className={cn('text-2xl font-bold tabular-nums leading-none', plan.on_track ? 'text-emerald-400' : 'text-rose-400')}>
+        <p className={cn('text-2xl font-bold tabular-nums leading-none', plan.on_track ? 'text-emerald-600' : 'text-rose-600')}>
           {plan.on_track ? 'On track' : `${fmtMoney(plan.monthly_extra_needed, { compact: true })}/mo`}
         </p>
       </div>
@@ -114,14 +114,14 @@ function DecemberCard({ plan }: { plan: Summary['year_end_goal_plan'] }) {
             <p className="mt-1">
               Free cash pace {fmtMoney(plan.monthly_free_cash)}/mo × {plan.months_remaining}mo = {fmtMoney(plan.projected_free_cash_by_december)}.{' '}
               {plan.on_track
-                ? <span className="text-emerald-400">Surplus: {fmtMoney(plan.surplus_by_december)}.</span>
-                : <span className="text-rose-400">Shortfall: {fmtMoney(plan.shortfall_by_december)}.</span>}
+                ? <span className="text-emerald-600">Surplus: {fmtMoney(plan.surplus_by_december)}.</span>
+                : <span className="text-rose-600">Shortfall: {fmtMoney(plan.shortfall_by_december)}.</span>}
             </p>
           </div>
           {!plan.on_track && (
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Scissors className="h-4 w-4 text-amber-400" />
+                <Scissors className="h-4 w-4 text-amber-600" />
                 <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">Possible monthly cuts</span>
               </div>
               <CutList cuts={plan.recommended_cuts} total={totalCuts} gap={plan.monthly_extra_needed} />
@@ -149,7 +149,7 @@ function FertilityCard({ plan }: { plan: Summary['fertility_plan'] }) {
   return (
     <GlassCard className={cn('border-l-2', hasGap ? 'border-l-rose-500' : 'border-l-emerald-500')}>
       <div className="flex items-center gap-2">
-        <HeartPulse className={cn('h-4 w-4', hasGap ? 'text-rose-400' : 'text-emerald-400')} />
+        <HeartPulse className={cn('h-4 w-4', hasGap ? 'text-rose-600' : 'text-emerald-600')} />
         <h4 className="text-sm font-semibold">Fertility treatment</h4>
       </div>
 
@@ -184,7 +184,7 @@ function FertilityCard({ plan }: { plan: Summary['fertility_plan'] }) {
           )}>
             <p className="font-medium">
               Free cash {fmtMoney(plan.monthly_free_cash)} − next payment {fmtMoney(nextPayment)} − goals {fmtMoney(plan.total_goal_monthly_needed)} ={' '}
-              <span className={cn(formulaResult >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
+              <span className={cn(formulaResult >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
                 {formulaResult >= 0 ? `${fmtMoney(formulaResult)} available` : `${fmtMoney(Math.abs(formulaResult))} short`}
               </span>
             </p>
@@ -212,7 +212,7 @@ function FertilityCard({ plan }: { plan: Summary['fertility_plan'] }) {
           {hasGap && (
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <Scissors className="h-4 w-4 text-amber-400" />
+                <Scissors className="h-4 w-4 text-amber-600" />
                 <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">Suggested temporary cuts</span>
               </div>
               <CutList cuts={plan.recommended_cuts} total={totalCuts} gap={gap} />
@@ -245,10 +245,10 @@ export function PlansSection({ summary }: { summary: Summary | null }) {
       <div className="flex items-end justify-between mb-3">
         <div>
           <h3 className="text-base font-semibold leading-tight">Plans</h3>
-          <p className={cn('text-xs mt-0.5', onTrack ? 'text-emerald-400' : 'text-rose-400')}>{headline}</p>
+          <p className={cn('text-xs mt-0.5', onTrack ? 'text-emerald-600' : 'text-rose-600')}>{headline}</p>
         </div>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {december && <DecemberCard plan={december} />}
         {fertility && <FertilityCard plan={fertility} />}
       </div>

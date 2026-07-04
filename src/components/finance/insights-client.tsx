@@ -346,7 +346,7 @@ export default function InsightsClient() {
                     <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500/20">
                       <Target className="h-4 w-4 text-amber-500" />
                     </div>
-                    <span className="text-xs font-semibold uppercase tracking-wider text-amber-400">Today&apos;s Priority</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-amber-600">Today&apos;s Priority</span>
                   </div>
                   <p className="text-lg font-semibold leading-relaxed">{insights[0].title}</p>
                   <p className="text-sm text-[hsl(var(--text-secondary))] mt-2 leading-relaxed">{insights[0].detail}</p>
@@ -397,7 +397,7 @@ export default function InsightsClient() {
                       <div className="col-span-2 text-right tabular-nums">${formatMXN(row.spent)}</div>
                       <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-secondary))]">
                         ${formatMXN(row.budget)}
-                        {row.is_non_monthly && <span className="text-xs text-blue-400 ml-0.5">({row.cycle_months}mo)</span>}
+                        {row.is_non_monthly && <span className="text-xs text-blue-600 ml-0.5">({row.cycle_months}mo)</span>}
                       </div>
                       <div className="col-span-1 text-center"><StatusBadge status={row.status} pct={row.pct_used} /></div>
                       <div className="col-span-2 text-right tabular-nums">
@@ -411,7 +411,7 @@ export default function InsightsClient() {
                       </div>
                       <div className="col-span-2 text-right">
                         {row.is_non_monthly
-                          ? <span className="text-xs font-medium text-blue-400">📅 {row.billing_cycle}</span>
+                          ? <span className="text-xs font-medium text-blue-600">📅 {row.billing_cycle}</span>
                           : <PaceBadge pct={row.pace_vs_budget_pct} />}
                       </div>
                     </div>
@@ -441,7 +441,7 @@ export default function InsightsClient() {
                         <div className="flex items-center gap-1.5">
                           <span className="text-sm">{row.icon}</span>
                           <span className="text-sm font-medium">{row.category}</span>
-                          {row.is_non_monthly && <span className="text-[10px] font-medium text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded">📅 {row.billing_cycle}</span>}
+                          {row.is_non_monthly && <span className="text-[10px] font-medium text-blue-600 bg-blue-400/10 px-1.5 py-0.5 rounded">📅 {row.billing_cycle}</span>}
                         </div>
                         <StatusBadge status={row.status} pct={row.pct_used} />
                       </div>
@@ -453,7 +453,7 @@ export default function InsightsClient() {
                         <div>
                           <span className="text-[hsl(var(--text-secondary))]">of </span>
                           <span className="tabular-nums text-[hsl(var(--text-secondary))]">${formatMXN(row.budget)}</span>
-                          {row.is_non_monthly && <span className="text-[10px] text-blue-400 ml-0.5">({row.cycle_months}mo)</span>}
+                          {row.is_non_monthly && <span className="text-[10px] text-blue-600 ml-0.5">({row.cycle_months}mo)</span>}
                         </div>
                       </div>
                       {!row.is_non_monthly && (
@@ -484,7 +484,7 @@ export default function InsightsClient() {
                       <span className="text-base">🏗️</span>
                       <span className="text-sm font-semibold">WEST Apartment</span>
                     </div>
-                    <Link href="/finance/investments" className="text-xs text-blue-400 hover:underline">Full tracker →</Link>
+                    <Link href="/finance/investments" className="text-xs text-blue-600 hover:underline">Full tracker →</Link>
                   </div>
                   <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))] mb-2">
                     <div className="h-full bg-emerald-500" style={{ width: `${Math.max(0, westSnapshot.paidPct)}%` }} />
@@ -498,10 +498,10 @@ export default function InsightsClient() {
                       <span className="text-[hsl(var(--text-secondary))]"> / {fmtMXN(westSnapshot.target)}</span>
                     </div>
                     <div className="text-right">
-                      <span className="font-semibold tabular-nums text-emerald-400">{westSnapshot.fundedPct.toFixed(0)}%</span>
+                      <span className="font-semibold tabular-nums text-emerald-600">{westSnapshot.fundedPct.toFixed(0)}%</span>
                       <span className="text-[hsl(var(--text-secondary))]"> funded</span>
                     </div>
-                    <div className="mt-1"><span className="text-red-400 tabular-nums">Gap: {fmtMXN(westSnapshot.gap)}</span></div>
+                    <div className="mt-1"><span className="text-red-600 tabular-nums">Gap: {fmtMXN(westSnapshot.gap)}</span></div>
                     <div className="text-right mt-1"><span className="text-[hsl(var(--text-secondary))]">{westSnapshot.monthsRemaining}mo to delivery</span></div>
                   </div>
                   {westSnapshot.nextMilestone && (
@@ -572,7 +572,7 @@ export default function InsightsClient() {
                   {recommendations.map((rec, i) => (
                     <div key={i} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))]/50 p-4">
                       <div className="flex items-start gap-3">
-                        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 shrink-0 mt-0.5">
+                        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-500/10 text-blue-600 shrink-0 mt-0.5">
                           <Lightbulb className="h-4 w-4" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -619,7 +619,7 @@ export default function InsightsClient() {
                 <div className="space-y-2">
                   {forecasts.map((f, i) => (
                     <div key={i} className="flex items-start gap-3 rounded-lg border border-[hsl(var(--border))] p-4">
-                      <TrendingUp className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                      <TrendingUp className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium">{f.title}</p>
                         <p className="text-sm text-[hsl(var(--text-secondary))] mt-0.5">{f.detail}</p>

@@ -239,17 +239,17 @@ export default function BudgetBuilderClient() {
         </GlassCard>
         <GlassCard className="border-l-2 border-l-blue-500">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Needs ({needsPct}%)</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-blue-400 mt-1">${needsTotal.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-blue-600 mt-1">${needsTotal.toLocaleString()}</p>
           <TrendBadge value={(needsPct - 50) * -1} suffix="% vs ideal 50%" />
         </GlassCard>
         <GlassCard className="border-l-2 border-l-amber-500">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Wants ({wantsPct}%)</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-400 mt-1">${wantsTotal.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-600 mt-1">${wantsTotal.toLocaleString()}</p>
           <TrendBadge value={(wantsPct - 30) * -1} suffix="% vs ideal 30%" />
         </GlassCard>
         <GlassCard className="border-l-2 border-l-emerald-500">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings ({savingsPct}%)</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">${savingsTotal.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">${savingsTotal.toLocaleString()}</p>
           <TrendBadge value={savingsPct - 20} suffix="% vs ideal 20%" />
         </GlassCard>
       </div>
@@ -289,7 +289,7 @@ export default function BudgetBuilderClient() {
             </div>
           </div>
         </div>
-        <div className={cn("mt-4 p-3 rounded-lg text-sm", isHealthy ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400")}>
+        <div className={cn("mt-4 p-3 rounded-lg text-sm", isHealthy ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600")}>
           {isHealthy ? "✅ Your budget is within healthy ranges" : `⚠️ ${needsPct > 50 ? 'Needs are ' + (needsPct - 50) + '% over target' : wantsPct > 30 ? 'Wants are ' + (wantsPct - 30) + '% over target' : 'Savings below 20% target'}`}
         </div>
       </GlassCard>
@@ -304,7 +304,7 @@ export default function BudgetBuilderClient() {
           {incomeSources.length === 0 ? (
             <div className="text-center py-6">
               <p className="text-sm text-[hsl(var(--text-tertiary))]">No income sources yet</p>
-              <button onClick={openAddIncome} className="text-xs text-blue-400 hover:underline mt-1">Add your first source</button>
+              <button onClick={openAddIncome} className="text-xs text-blue-600 hover:underline mt-1">Add your first source</button>
             </div>
           ) : (
             <div className="space-y-2">
@@ -315,7 +315,7 @@ export default function BudgetBuilderClient() {
                     <p className="text-sm font-medium truncate">{src.name}</p>
                     <p className="text-xs text-[hsl(var(--text-tertiary))] capitalize">{src.frequency}</p>
                   </div>
-                  <span className="text-sm font-semibold tabular-nums text-emerald-400">${Math.round(toMonthly(src.amount, src.frequency)).toLocaleString()}</span>
+                  <span className="text-sm font-semibold tabular-nums text-emerald-600">${Math.round(toMonthly(src.amount, src.frequency)).toLocaleString()}</span>
                   <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button aria-label="Edit" onClick={() => openEditIncome(src)} className="p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
                     {deleteConfirm === src.id ? (
@@ -324,7 +324,7 @@ export default function BudgetBuilderClient() {
                         <button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--bg-elevated))]">No</button>
                       </div>
                     ) : (
-                      <button aria-label="Delete" onClick={() => setDeleteConfirm(src.id)} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-400" /></button>
+                      <button aria-label="Delete" onClick={() => setDeleteConfirm(src.id)} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-600" /></button>
                     )}
                   </div>
                 </div>
@@ -354,9 +354,9 @@ export default function BudgetBuilderClient() {
                         <td className="py-2.5 px-3"><div className="flex items-center gap-2"><span>{row.icon}</span><span className="text-sm font-medium">{row.name}</span></div></td>
                         <td className="py-2.5 px-3">
                           <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize",
-                            row.budgetType === 'needs' && "bg-blue-500/15 text-blue-400",
-                            row.budgetType === 'wants' && "bg-amber-500/15 text-amber-400",
-                            row.budgetType === 'savings' && "bg-emerald-500/15 text-emerald-400",
+                            row.budgetType === 'needs' && "bg-blue-500/15 text-blue-600",
+                            row.budgetType === 'wants' && "bg-amber-500/15 text-amber-600",
+                            row.budgetType === 'savings' && "bg-emerald-500/15 text-emerald-600",
                           )}>{row.budgetType}</span>
                         </td>
                         <td className="py-2.5 px-3 text-right text-sm tabular-nums">${row.budget.toLocaleString()}</td>
@@ -364,7 +364,7 @@ export default function BudgetBuilderClient() {
                         <td className="py-2.5 px-3 text-right text-sm tabular-nums">{row.pctOfIncome}%</td>
                         <td className="py-2.5 px-3 text-right">
                           <span className={cn("text-sm font-medium tabular-nums",
-                            row.variance < 0 ? "text-emerald-400" : row.variance > 0 ? "text-rose-400" : "text-[hsl(var(--text-tertiary))]"
+                            row.variance < 0 ? "text-emerald-600" : row.variance > 0 ? "text-rose-600" : "text-[hsl(var(--text-tertiary))]"
                           )}>{row.variance > 0 ? '+' : ''}{row.variance.toLocaleString()}</span>
                         </td>
                       </tr>
@@ -380,14 +380,14 @@ export default function BudgetBuilderClient() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">{row.name}</span>
                         <span className={cn("text-sm font-semibold tabular-nums",
-                          row.variance < 0 ? "text-emerald-400" : row.variance > 0 ? "text-rose-400" : ""
+                          row.variance < 0 ? "text-emerald-600" : row.variance > 0 ? "text-rose-600" : ""
                         )}>${row.actual.toLocaleString()}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full capitalize",
-                          row.budgetType === 'needs' && "bg-blue-500/15 text-blue-400",
-                          row.budgetType === 'wants' && "bg-amber-500/15 text-amber-400",
-                          row.budgetType === 'savings' && "bg-emerald-500/15 text-emerald-400",
+                          row.budgetType === 'needs' && "bg-blue-500/15 text-blue-600",
+                          row.budgetType === 'wants' && "bg-amber-500/15 text-amber-600",
+                          row.budgetType === 'savings' && "bg-emerald-500/15 text-emerald-600",
                         )}>{row.budgetType}</span>
                         <span className="text-xs text-[hsl(var(--text-tertiary))]">Budget: ${row.budget.toLocaleString()}</span>
                       </div>
@@ -416,7 +416,7 @@ export default function BudgetBuilderClient() {
                 <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{action.description}</p>
               </div>
               {action.monthlySavings > 0 && (
-                <span className="text-sm font-semibold tabular-nums text-emerald-400 shrink-0">+${action.monthlySavings.toLocaleString()}/mo</span>
+                <span className="text-sm font-semibold tabular-nums text-emerald-600 shrink-0">+${action.monthlySavings.toLocaleString()}/mo</span>
               )}
             </div>
           ))}

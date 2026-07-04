@@ -248,7 +248,7 @@ export function InstallmentsClient() {
             className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
             <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-amber-400">High MSI Commitment</p>
+              <p className="text-sm font-medium text-amber-600">High MSI Commitment</p>
               <p className="text-xs text-[hsl(var(--text-secondary))]">
                 Your installments are {msiIncomeRatio.toFixed(0)}% of income ({fmt(totalMonthlyCommitment)}/mo). Consider pausing new MSI purchases.
               </p>
@@ -277,7 +277,7 @@ export function InstallmentsClient() {
             <p className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Next to Finish</p>
             <div className="text-sm font-bold mt-1 truncate">{nextToFinish?.name ?? '—'}</div>
             {nextToFinish && (
-              <p className="text-xs text-green-400 mt-1">
+              <p className="text-xs text-green-600 mt-1">
                 {new Date(nextToFinish.end_date).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })} · {monthsRemaining(nextToFinish.end_date)} months left
               </p>
             )}
@@ -352,7 +352,7 @@ export function InstallmentsClient() {
                             {inst.merchant && <div className="text-xs text-[hsl(var(--text-tertiary))]">{inst.merchant}</div>}
                           </td>
                           <td className="py-2 px-3 text-right num-metric tabular-nums">{fmt(inst.total_amount)}</td>
-                          <td className="py-2 px-3 text-right num-metric tabular-nums font-medium text-rose-400">{fmt(inst.installment_amount)}</td>
+                          <td className="py-2 px-3 text-right num-metric tabular-nums font-medium text-rose-600">{fmt(inst.installment_amount)}</td>
                           <td className="py-2 px-3">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-2 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden min-w-[80px]">
@@ -380,15 +380,15 @@ export function InstallmentsClient() {
                           <td className="py-2 px-3 text-right">
                             <div className="flex items-center justify-end gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                               <button onClick={() => handleMarkPayment(inst)} title="Log payment"
-                                className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-emerald-400 transition-colors">
+                                className="p-1.5 rounded-lg hover:bg-emerald-500/20 text-emerald-600 transition-colors">
                                 <CheckCircle2 className="h-4 w-4" />
                               </button>
                               <button onClick={() => openEdit(inst)} title="Edit"
-                                className="p-1.5 rounded-lg hover:bg-blue-500/20 text-blue-400 transition-colors">
+                                className="p-1.5 rounded-lg hover:bg-blue-500/20 text-blue-600 transition-colors">
                                 <Pencil className="h-4 w-4" />
                               </button>
                               <button onClick={() => setDeleteConfirm(inst.id)} title="Delete"
-                                className="p-1.5 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors">
+                                className="p-1.5 rounded-lg hover:bg-red-500/20 text-red-600 transition-colors">
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             </div>
@@ -412,7 +412,7 @@ export function InstallmentsClient() {
                           <p className="font-medium text-sm">{inst.name}</p>
                           {inst.merchant && <p className="text-xs text-[hsl(var(--text-tertiary))]">{inst.merchant}</p>}
                         </div>
-                        <span className="text-sm font-bold num-metric tabular-nums text-rose-400">{fmt(inst.installment_amount)}/mo</span>
+                        <span className="text-sm font-bold num-metric tabular-nums text-rose-600">{fmt(inst.installment_amount)}/mo</span>
                       </div>
                       <div className="flex items-center gap-2 mb-2">
                         <div className="flex-1 h-2 rounded-full bg-[hsl(var(--bg-base))] overflow-hidden">
@@ -423,9 +423,9 @@ export function InstallmentsClient() {
                       <div className="flex items-center justify-between text-xs text-[hsl(var(--text-tertiary))]">
                         <span>{inst.credit_card ? `💳 ${inst.credit_card}` : ''} · Ends {new Date(inst.end_date).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })} ({remain}mo)</span>
                         <div className="flex gap-1">
-                          <button aria-label="Mark as paid" onClick={() => handleMarkPayment(inst)} className="p-1 text-emerald-400"><CheckCircle2 className="h-4 w-4" /></button>
-                          <button aria-label="Edit" onClick={() => openEdit(inst)} className="p-1 text-blue-400"><Pencil className="h-4 w-4" /></button>
-                          <button aria-label="Delete" onClick={() => setDeleteConfirm(inst.id)} className="p-1 text-red-400"><Trash2 className="h-4 w-4" /></button>
+                          <button aria-label="Mark as paid" onClick={() => handleMarkPayment(inst)} className="p-1 text-emerald-600"><CheckCircle2 className="h-4 w-4" /></button>
+                          <button aria-label="Edit" onClick={() => openEdit(inst)} className="p-1 text-blue-600"><Pencil className="h-4 w-4" /></button>
+                          <button aria-label="Delete" onClick={() => setDeleteConfirm(inst.id)} className="p-1 text-red-600"><Trash2 className="h-4 w-4" /></button>
                         </div>
                       </div>
                     </div>
@@ -450,7 +450,7 @@ export function InstallmentsClient() {
                   <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-tertiary))]">
                     <span className="num-metric tabular-nums">{fmt(inst.total_amount)}</span>
                     <span>✅ {inst.installment_count} payments</span>
-                    <button aria-label="Delete" onClick={() => setDeleteConfirm(inst.id)} className="p-1 text-red-400 hover:bg-red-500/20 rounded">
+                    <button aria-label="Delete" onClick={() => setDeleteConfirm(inst.id)} className="p-1 text-red-600 hover:bg-red-500/20 rounded">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -513,7 +513,7 @@ export function InstallmentsClient() {
           </div>
           {form.total_amount && form.installment_count && (
             <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-sm">
-              Monthly payment: <strong className="text-blue-400">{fmt(parseFloat(form.total_amount) / parseInt(form.installment_count))}</strong> × {form.installment_count} months
+              Monthly payment: <strong className="text-blue-600">{fmt(parseFloat(form.total_amount) / parseInt(form.installment_count))}</strong> × {form.installment_count} months
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
@@ -537,7 +537,7 @@ export function InstallmentsClient() {
               {OWNERS.map(name => (
                 <button key={name} type="button" onClick={() => setForm(f => ({ ...f, owner: name }))}
                   className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
-                    form.owner === name ? "border-blue-500 bg-blue-500/10 text-blue-400" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                    form.owner === name ? "border-blue-500 bg-blue-500/10 text-blue-600" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
                   )}>
                   <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ background: getOwnerColor(name) }} />{name}
                 </button>

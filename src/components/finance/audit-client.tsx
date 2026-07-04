@@ -14,7 +14,7 @@ import type { FinanceTransaction, FinanceRecurring, FinanceBudget } from '@/lib/
 
 // ── Helpers ──────────────────────────────────────────
 function gradeColor(g: string) {
-  return g === 'A' ? 'text-emerald-400' : g === 'B' ? 'text-blue-400' : g === 'C' ? 'text-amber-400' : g === 'D' ? 'text-orange-400' : 'text-rose-400'
+  return g === 'A' ? 'text-emerald-600' : g === 'B' ? 'text-blue-600' : g === 'C' ? 'text-amber-600' : g === 'D' ? 'text-orange-600' : 'text-rose-600'
 }
 function gradeBg(g: string) {
   return g === 'A' ? 'bg-emerald-500' : g === 'B' ? 'bg-blue-500' : g === 'C' ? 'bg-amber-500' : g === 'D' ? 'bg-orange-500' : 'bg-rose-500'
@@ -311,7 +311,7 @@ export default function AuditClient() {
         const score = investmentAudit.score
         const ringColor = score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444'
         const scoreLabel = score >= 80 ? '✅ Good' : score >= 60 ? '⚠️ Fair' : '🔴 Needs Work'
-        const scoreLabelCls = score >= 80 ? 'bg-emerald-500/10 text-emerald-400' : score >= 60 ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400'
+        const scoreLabelCls = score >= 80 ? 'bg-emerald-500/10 text-emerald-600' : score >= 60 ? 'bg-amber-500/10 text-amber-600' : 'bg-red-500/10 text-red-600'
         const catConfig: { key: string; label: string; max: number }[] = [
           { key: 'west_readiness', label: 'WEST Readiness', max: 25 },
           { key: 'debt_health', label: 'Debt Health', max: 20 },
@@ -327,7 +327,7 @@ export default function AuditClient() {
               <div className="flex flex-col items-center sm:items-start shrink-0">
                 <div className="relative w-28 h-28">
                   <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(222, 47%, 9%)" strokeWidth="10" />
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(206, 26%, 92%)" strokeWidth="10" />
                     <circle cx="50" cy="50" r="40" fill="none"
                       stroke={ringColor} strokeWidth="10" strokeLinecap="round"
                       strokeDasharray={`${(score / 100) * 251.2} 251.2`}
@@ -370,17 +370,17 @@ export default function AuditClient() {
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Spend</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-rose-400 mt-1">${monthlySpend.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-rose-600 mt-1">${monthlySpend.toLocaleString()}</p>
           <TrendBadge value={-spendDelta} suffix="% vs last month" />
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Leaks Found</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-rose-400 mt-1">{leaks.length}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-rose-600 mt-1">{leaks.length}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">${totalLeakAmount.toLocaleString()}/mo wasted</p>
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Potential</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">${totalSavings.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">${totalSavings.toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">/mo across all tiers</p>
         </GlassCard>
         <GlassCard className="relative overflow-hidden">
@@ -410,7 +410,7 @@ export default function AuditClient() {
                   <span className="text-[10px] text-[hsl(var(--text-tertiary))] w-8 text-right shrink-0">{day}</span>
                   {heatmapData.grid[day].map((val, h) => (
                     <motion.div key={h} className="flex-1 h-6 sm:h-7 rounded-sm cursor-pointer"
-                      style={{ backgroundColor: val > 0 ? `rgba(244, 63, 94, ${0.15 + val * 0.75})` : 'hsl(222, 20%, 10%)' }}
+                      style={{ backgroundColor: val > 0 ? `rgba(244, 63, 94, ${0.15 + val * 0.75})` : 'hsl(206, 26%, 94%)' }}
                       whileHover={{ scale: 1.15, zIndex: 10 }}
                       title={`${day}: $${heatmapData.amounts[day][h].toLocaleString()}`} />
                   ))}
@@ -461,10 +461,10 @@ export default function AuditClient() {
       <GlassCard>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
           <div><h3 className="text-base font-semibold">🚨 Money Leaks Detected</h3><p className="text-xs text-[hsl(var(--text-tertiary))]">Fees, unused services, and avoidable charges</p></div>
-          <span className="text-sm font-bold tabular-nums text-rose-400">${totalLeakAmount.toLocaleString()}/mo wasted</span>
+          <span className="text-sm font-bold tabular-nums text-rose-600">${totalLeakAmount.toLocaleString()}/mo wasted</span>
         </div>
         {leaks.length === 0 ? (
-          <div className="text-center py-8"><span className="text-3xl block mb-2">✨</span><p className="text-sm text-emerald-400 font-medium">No leaks detected — nice!</p></div>
+          <div className="text-center py-8"><span className="text-3xl block mb-2">✨</span><p className="text-sm text-emerald-600 font-medium">No leaks detected — nice!</p></div>
         ) : (
           <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {leaks.map((leak, i) => (
@@ -476,20 +476,20 @@ export default function AuditClient() {
                     <h4 className="text-sm font-semibold">{leak.title}</h4>
                     <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{leak.description}</p>
                     <div className="flex items-center justify-between mt-2">
-                      <span className="text-sm font-bold tabular-nums text-rose-400">${leak.monthlyAmount.toLocaleString()}/mo</span>
+                      <span className="text-sm font-bold tabular-nums text-rose-600">${leak.monthlyAmount.toLocaleString()}/mo</span>
                       <span className="text-xs text-[hsl(var(--text-tertiary))] tabular-nums">${(leak.monthlyAmount * 12).toLocaleString()}/yr</span>
                     </div>
                     {leak.recurringId ? (
                       <div className="flex items-center gap-2 mt-2">
                         <button onClick={() => handleLeakTriage(leak.recurringId!, 'keep')}
-                          className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors">✅ Keep</button>
+                          className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-colors">✅ Keep</button>
                         <button onClick={() => handleLeakTriage(leak.recurringId!, 'cancel')}
-                          className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors">❌ Cancel</button>
+                          className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-colors">❌ Cancel</button>
                         <button onClick={() => handleLeakTriage(leak.recurringId!, 'later')}
-                          className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors">⏰ Later</button>
+                          className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-colors">⏰ Later</button>
                       </div>
                     ) : (
-                      <button onClick={() => router.push('/finance/subscriptions')} className="mt-2 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors">{leak.action} →</button>
+                      <button onClick={() => router.push('/finance/subscriptions')} className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors">{leak.action} →</button>
                     )}
                   </div>
                 </div>
@@ -504,10 +504,10 @@ export default function AuditClient() {
         <GlassCard>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
             <div><h3 className="text-base font-semibold">₿ Crypto Portfolio Audit</h3><p className="text-xs text-[hsl(var(--text-tertiary))]">Risk assessment for your crypto holdings</p></div>
-            <span className="text-sm font-bold tabular-nums text-orange-400">${cryptoValue.toLocaleString()} MXN</span>
+            <span className="text-sm font-bold tabular-nums text-orange-600">${cryptoValue.toLocaleString()} MXN</span>
           </div>
           {cryptoRisks.length === 0 ? (
-            <div className="text-center py-6"><span className="text-3xl block mb-2">✅</span><p className="text-sm text-emerald-400 font-medium">No crypto risks detected</p></div>
+            <div className="text-center py-6"><span className="text-3xl block mb-2">✅</span><p className="text-sm text-emerald-600 font-medium">No crypto risks detected</p></div>
           ) : (
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
               {cryptoRisks.map((risk, i) => (
@@ -562,7 +562,7 @@ export default function AuditClient() {
                             {f.suggestion && <p className="text-xs text-[hsl(var(--text-secondary))] mt-1.5 italic">{f.suggestion}</p>}
                           </div>
                           {f.action_url && (
-                            <a href={f.action_url} className="text-xs font-medium text-blue-400 hover:underline whitespace-nowrap shrink-0">
+                            <a href={f.action_url} className="text-xs font-medium text-blue-600 hover:underline whitespace-nowrap shrink-0">
                               Take Action →
                             </a>
                           )}
@@ -587,10 +587,10 @@ export default function AuditClient() {
                 const cat = categories.find(c => c.id === tx.category_id)
                 return (
                   <div key={tx.id} className="flex items-center gap-3">
-                    <span className={cn("text-sm font-bold w-6 text-center tabular-nums", i < 3 ? "text-rose-400" : "text-[hsl(var(--text-tertiary))]")}>{i + 1}</span>
+                    <span className={cn("text-sm font-bold w-6 text-center tabular-nums", i < 3 ? "text-rose-600" : "text-[hsl(var(--text-tertiary))]")}>{i + 1}</span>
                     <div className="h-8 w-8 rounded-lg flex items-center justify-center text-sm shrink-0" style={{ background: 'rgba(107,114,128,0.12)' }}>{cat?.icon || '📦'}</div>
                     <div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{tx.merchant || tx.description || '—'}</p><p className="text-xs text-[hsl(var(--text-tertiary))]">{tx.transaction_date.slice(5)} · {cat?.name || 'Other'}</p></div>
-                    <div className="text-right shrink-0"><span className="text-sm font-semibold tabular-nums text-rose-400">${tx.amount_mxn.toLocaleString()}</span>{monthlySpend > 0 && <p className="text-[10px] text-[hsl(var(--text-tertiary))] tabular-nums">{((tx.amount_mxn / monthlySpend) * 100).toFixed(1)}%</p>}</div>
+                    <div className="text-right shrink-0"><span className="text-sm font-semibold tabular-nums text-rose-600">${tx.amount_mxn.toLocaleString()}</span>{monthlySpend > 0 && <p className="text-[10px] text-[hsl(var(--text-tertiary))] tabular-nums">{((tx.amount_mxn / monthlySpend) * 100).toFixed(1)}%</p>}</div>
                   </div>
                 )
               })}
@@ -603,7 +603,7 @@ export default function AuditClient() {
             <div className="space-y-2">
               {top10Frequent.map((g, i) => (
                 <div key={g.merchant} className="flex items-center gap-3">
-                  <span className={cn("text-sm font-bold w-6 text-center tabular-nums", i < 3 ? "text-amber-400" : "text-[hsl(var(--text-tertiary))]")}>{i + 1}</span>
+                  <span className={cn("text-sm font-bold w-6 text-center tabular-nums", i < 3 ? "text-amber-600" : "text-[hsl(var(--text-tertiary))]")}>{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2"><p className="text-sm font-medium truncate">{g.merchant}</p><span className="text-xs px-1.5 py-0.5 rounded-full bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))] shrink-0">×{g.count}</span></div>
                     <div className="h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] mt-1"><div className="h-1.5 rounded-full bg-gradient-to-r from-amber-400/50 to-amber-600/50" style={{ width: `${(g.count / top10Frequent[0].count) * 100}%` }} /></div>
@@ -640,7 +640,7 @@ export default function AuditClient() {
                     <div key={m.name} className="flex items-center gap-1"><div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: `hsl(${(mi * 50 + 200) % 360}, 60%, 50%)` }} /><span className="text-[10px] text-[hsl(var(--text-secondary))]">{m.name} {m.pct}%</span></div>
                   ))}
                 </div>
-                {cat.merchants[0]?.pct >= 60 && !['Health','Rent/Mortgage','Utilities','Electricity','Insurance','Education'].includes(cat.name) && <p className="text-[10px] text-amber-400 mt-1">⚠️ {cat.merchants[0].name} accounts for {cat.merchants[0].pct}% — consider diversifying</p>}
+                {cat.merchants[0]?.pct >= 60 && !['Health','Rent/Mortgage','Utilities','Electricity','Insurance','Education'].includes(cat.name) && <p className="text-[10px] text-amber-600 mt-1">⚠️ {cat.merchants[0].name} accounts for {cat.merchants[0].pct}% — consider diversifying</p>}
               </div>
             ))}
           </div>
@@ -666,7 +666,7 @@ export default function AuditClient() {
                     <td className="py-3 px-3"><p className="text-sm font-medium">{sub.name}</p><p className="text-xs text-[hsl(var(--text-tertiary))]">{sub.merchant}</p></td>
                     <td className="py-3 px-3 text-right text-sm font-semibold tabular-nums">{(() => { const d = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 } as Record<string,number>; const mo = Math.round(sub.amount / (d[sub.frequency] || 1)); return `$${mo.toLocaleString()}/mo`; })()}{sub.frequency !== 'monthly' && <span className="text-xs text-[hsl(var(--text-tertiary))] ml-1">({sub.frequency})</span>}</td>
                     <td className="py-3 px-3 text-right text-sm tabular-nums text-[hsl(var(--text-secondary))]">{(() => { const d = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 } as Record<string,number>; const annual = Math.round(sub.amount / (d[sub.frequency] || 1) * 12); return `$${annual.toLocaleString()}`; })()}/yr</td>
-                    <td className="py-3 px-3"><button onClick={() => toggleFlag(sub.id)} className={cn("p-1.5 rounded-md transition-all", flaggedSubs.has(sub.id) ? "bg-rose-500/20 text-rose-400" : "text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-elevated))]")}>{flaggedSubs.has(sub.id) ? '🚩' : '⚑'}</button></td>
+                    <td className="py-3 px-3"><button onClick={() => toggleFlag(sub.id)} className={cn("p-1.5 rounded-md transition-all", flaggedSubs.has(sub.id) ? "bg-rose-500/20 text-rose-600" : "text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-elevated))]")}>{flaggedSubs.has(sub.id) ? '🚩' : '⚑'}</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -675,7 +675,7 @@ export default function AuditClient() {
           <div className="sm:hidden space-y-2">
             {recurring.map(sub => (
               <div key={sub.id} className={cn("p-3 rounded-lg border", flaggedSubs.has(sub.id) ? "border-rose-500/30 bg-rose-500/5" : "border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))]/30")}>
-                <div className="flex items-center justify-between"><span className="text-sm font-medium">{sub.name}</span><button onClick={() => toggleFlag(sub.id)} className={cn("p-1 rounded", flaggedSubs.has(sub.id) ? "text-rose-400" : "text-[hsl(var(--text-tertiary))]")}>{flaggedSubs.has(sub.id) ? '🚩' : '⚑'}</button></div>
+                <div className="flex items-center justify-between"><span className="text-sm font-medium">{sub.name}</span><button onClick={() => toggleFlag(sub.id)} className={cn("p-1 rounded", flaggedSubs.has(sub.id) ? "text-rose-600" : "text-[hsl(var(--text-tertiary))]")}>{flaggedSubs.has(sub.id) ? '🚩' : '⚑'}</button></div>
                 <div className="flex items-center justify-between mt-1"><span className="text-sm font-semibold tabular-nums">${sub.amount.toLocaleString()}/mo</span><span className="text-xs text-[hsl(var(--text-tertiary))]">{sub.merchant}</span></div>
               </div>
             ))}

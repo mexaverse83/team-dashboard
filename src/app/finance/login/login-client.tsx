@@ -84,8 +84,8 @@ export function LoginClient() {
 
           {error === 'unauthorized' && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 mb-4">
-              <ShieldAlert className="h-4 w-4 text-red-400 shrink-0" />
-              <p className="text-xs text-red-400">Access denied. Your email is not authorized.</p>
+              <ShieldAlert className="h-4 w-4 text-red-600 shrink-0" />
+              <p className="text-xs text-red-600">Access denied. Your email is not authorized.</p>
             </div>
           )}
 

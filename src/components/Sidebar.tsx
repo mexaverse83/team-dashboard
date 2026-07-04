@@ -80,7 +80,7 @@ export function Sidebar() {
                 {group.items.map(item => (
                   <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                      pathname === item.href ? 'bg-emerald-500/10 text-emerald-300 font-medium' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--accent))]'
+                      pathname === item.href ? 'bg-emerald-500/10 text-emerald-700 font-medium' : 'text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--accent))]'
                     }`}>
                     <item.icon className="h-4 w-4 shrink-0" />
                     <span>{item.label}</span>
@@ -98,7 +98,7 @@ export function Sidebar() {
       {mobileQuickAccess.map(item => (
         <Link key={item.href} href={item.href}
           className={`flex flex-col items-center gap-0.5 py-1 px-2 rounded-md transition-colors ${
-            isActive(item.href) ? 'text-emerald-400' : 'text-[hsl(var(--text-secondary))]'
+            isActive(item.href) ? 'text-emerald-600' : 'text-[hsl(var(--text-secondary))]'
           }`}>
           <item.icon className="h-5 w-5" />
           <span className="text-[10px]">{item.label.split(' ')[0]}</span>
@@ -107,7 +107,7 @@ export function Sidebar() {
     </nav>
 
     {/* Desktop: always-visible sidebar */}
-    <aside className="hidden md:flex flex-col border-r border-[hsl(204,28%,13%)] bg-[hsl(207,45%,3%)] min-h-screen shrink-0 sticky top-0 h-screen w-60 p-4 overflow-y-auto">
+    <aside className="hidden md:flex flex-col border-r border-[hsl(208,22%,89%)] bg-[hsl(0,0%,100%)] min-h-screen shrink-0 sticky top-0 h-screen w-60 p-4 overflow-y-auto">
       {/* Logo */}
       <div className="flex items-center gap-3 mb-6 px-2">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 shrink-0">
@@ -141,7 +141,7 @@ export function Sidebar() {
                   key={item.href}
                   href={item.href}
                   className={`flex items-center gap-2 rounded-md text-sm hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))] transition-colors px-3 py-1.5 ${
-                    pathname === item.href ? 'bg-emerald-500/10 text-emerald-300 font-medium shadow-[inset_2px_0_0_0_#34d399]' : 'text-[hsl(var(--text-secondary))]'
+                    pathname === item.href ? 'bg-emerald-500/10 text-emerald-700 font-medium shadow-[inset_2px_0_0_0_#34d399]' : 'text-[hsl(var(--text-secondary))]'
                   }`}
                 >
                   <item.icon className="h-4 w-4 shrink-0" />

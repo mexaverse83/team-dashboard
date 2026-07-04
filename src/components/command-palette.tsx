@@ -193,7 +193,7 @@ export function CommandPalette() {
                       onMouseEnter={() => setSelectedIndex(index)}
                       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                         selected
-                          ? 'bg-emerald-500/10 text-emerald-300'
+                          ? 'bg-emerald-500/10 text-emerald-700'
                           : 'text-[hsl(var(--foreground))]'
                       }`}
                     >

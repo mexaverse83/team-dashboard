@@ -58,10 +58,10 @@ export function PrivateEquityCard({ holding, fxRate }: Props) {
   const monthsToEnd = monthsBetween(now, new Date(holding.expected_exit_end))
 
   const presets = [
-    { label: 'Pessimistic', price: 1,  color: 'text-red-400 border-red-500/30 bg-red-500/5' },
+    { label: 'Pessimistic', price: 1,  color: 'text-red-600 border-red-500/30 bg-red-500/5' },
     { label: 'Current',     price: 2,  color: 'text-[hsl(var(--text-secondary))]' },
-    { label: 'Target',      price: 10, color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/5' },
-    { label: 'Stretch',     price: 15, color: 'text-blue-400 border-blue-500/30 bg-blue-500/5' },
+    { label: 'Target',      price: 10, color: 'text-emerald-600 border-emerald-500/30 bg-emerald-500/5' },
+    { label: 'Stretch',     price: 15, color: 'text-blue-600 border-blue-500/30 bg-blue-500/5' },
   ]
 
   return (
@@ -87,7 +87,7 @@ export function PrivateEquityCard({ holding, fxRate }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20 flex items-center gap-1">
               🔒 PRIVATE
             </span>
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-secondary))]">
@@ -106,11 +106,11 @@ export function PrivateEquityCard({ holding, fxRate }: Props) {
             </p>
           </div>
           <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-            <p className="text-[10px] uppercase tracking-wider text-emerald-400 mb-1">
+            <p className="text-[10px] uppercase tracking-wider text-emerald-600 mb-1">
               At Target (${holding.target_price_usd}/share) — Net
             </p>
-            <p className="text-xl font-bold text-emerald-400 tabular-nums">{fmtMXN(netTargetMXN)}</p>
-            <p className="text-xs text-emerald-400/70 tabular-nums mt-0.5">
+            <p className="text-xl font-bold text-emerald-600 tabular-nums">{fmtMXN(netTargetMXN)}</p>
+            <p className="text-xs text-emerald-600/70 tabular-nums mt-0.5">
               +{upsideMultiple}x · +{fmtMXN(upsideMXN)} upside · {fmtUSD(netTargetUSD)} net
             </p>
           </div>
@@ -170,14 +170,14 @@ export function PrivateEquityCard({ holding, fxRate }: Props) {
                 At ${scenarioPrice.toFixed(2)}/share (net)
               </p>
               <p className={cn("text-lg font-bold tabular-nums",
-                scenarioValueMXN >= 0 ? "text-emerald-400" : "text-red-400")}>
+                scenarioValueMXN >= 0 ? "text-emerald-600" : "text-red-600")}>
                 {fmtMXN(Math.abs(scenarioValueMXN))}
               </p>
             </div>
             <div className="text-right">
               <p className="text-[10px] text-[hsl(var(--text-secondary))]">vs current</p>
               <p className={cn("text-sm font-semibold tabular-nums",
-                scenarioValueMXN >= currentValueMXN ? "text-emerald-400" : "text-red-400")}>
+                scenarioValueMXN >= currentValueMXN ? "text-emerald-600" : "text-red-600")}>
                 {scenarioValueMXN >= currentValueMXN ? '+' : ''}{fmtMXN(scenarioValueMXN - currentValueMXN)}
               </p>
             </div>

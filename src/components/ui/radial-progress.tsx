@@ -17,7 +17,7 @@ export function RadialProgress({
   size = 120,
   strokeWidth = 8,
   color = 'hsl(217, 91%, 60%)',
-  trackColor = 'hsl(222, 47%, 9%)',
+  trackColor = 'hsl(206, 26%, 92%)',
   label,
   sublabel,
 }: RadialProgressProps) {

@@ -88,7 +88,7 @@ function WestSavingsPlanCard({ data }: { data: WestData }) {
         </div>
         <span className={cn(
           'shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold',
-          stretched ? 'bg-amber-500/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400'
+          stretched ? 'bg-amber-500/15 text-amber-600' : 'bg-emerald-500/15 text-emerald-600'
         )}>
           {stretched
             ? `needs ${Math.round(plan.stretch_factor * 100)}% of your historical capacity`
@@ -160,14 +160,14 @@ function WestReadinessCard({ data }: { data: WestData }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Scheduled plan gap</p>
-          <p className={cn('num-metric text-xl font-bold', planGap > 0 ? 'text-amber-400' : 'text-emerald-400')}>
+          <p className={cn('num-metric text-xl font-bold', planGap > 0 ? 'text-amber-600' : 'text-emerald-600')}>
             {planGap > 0 ? fmtShort(planGap) : 'Funded'}
           </p>
           <p className="text-[10px] text-[hsl(var(--text-tertiary))]">at delivery, no extra saving</p>
         </div>
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">At current behavior</p>
-          <p className={cn('num-metric text-xl font-bold', behaviorCloses ? 'text-emerald-400' : 'text-amber-400')}>
+          <p className={cn('num-metric text-xl font-bold', behaviorCloses ? 'text-emerald-600' : 'text-amber-600')}>
             {behaviorCloses ? 'Funded' : fmtShort(b.projected_gap_at_delivery)}
           </p>
           <p className="text-[10px] text-[hsl(var(--text-tertiary))]">
@@ -181,7 +181,7 @@ function WestReadinessCard({ data }: { data: WestData }) {
         </div>
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Needed to close gap</p>
-          <p className="num-metric text-xl font-bold text-blue-400">{fmtMXN(b.required_monthly_contribution)}</p>
+          <p className="num-metric text-xl font-bold text-blue-600">{fmtMXN(b.required_monthly_contribution)}</p>
           <p className="text-[10px] text-[hsl(var(--text-tertiary))]">/mo into GBM until delivery</p>
         </div>
       </div>
@@ -220,11 +220,11 @@ function LegendItem({ color, label, value, striped, border }: {
 // ─── Status Pill ───
 function StatusPill({ status }: { status: string }) {
   const config: Record<string, { label: string; cls: string }> = {
-    on_track: { label: 'On track', cls: 'bg-emerald-500/10 text-emerald-400' },
-    growing: { label: 'Growing', cls: 'bg-blue-500/10 text-blue-400' },
-    static: { label: 'Static', cls: 'bg-amber-500/10 text-amber-400' },
+    on_track: { label: 'On track', cls: 'bg-emerald-500/10 text-emerald-600' },
+    growing: { label: 'Growing', cls: 'bg-blue-500/10 text-blue-600' },
+    static: { label: 'Static', cls: 'bg-amber-500/10 text-amber-600' },
     not_set: { label: 'Not set', cls: 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]' },
-    gap: { label: 'Needs plan', cls: 'bg-red-500/10 text-red-400' },
+    gap: { label: 'Needs plan', cls: 'bg-red-500/10 text-red-600' },
   }
   const c = config[status] || config.not_set
   return <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full", c.cls)}>{c.label}</span>
@@ -378,7 +378,7 @@ export function WestTracker() {
               </div>
               <div className="h-8 w-px bg-[hsl(var(--border))]" />
               <div className="text-center">
-                <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400">{fundedPct.toFixed(1)}%</p>
+                <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600">{fundedPct.toFixed(1)}%</p>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Funded</p>
               </div>
             </div>
@@ -408,9 +408,9 @@ export function WestTracker() {
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
           <span className="text-2xl">🎯</span>
           <div>
-            <p className="text-sm font-bold text-emerald-400">Gap is under $1M!</p>
+            <p className="text-sm font-bold text-emerald-600">Gap is under $1M!</p>
             <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
-              Only <span className="font-semibold text-emerald-400">{fmtMXN(gap)}</span> remaining — within mortgage financing range.
+              Only <span className="font-semibold text-emerald-600">{fmtMXN(gap)}</span> remaining — within mortgage financing range.
             </p>
           </div>
         </div>
@@ -444,7 +444,7 @@ export function WestTracker() {
                     <span className="h-2 w-2 rounded-full bg-pink-500 shrink-0" title="Laura" />
                   </span>
                 ) : (
-                  <span className={cn("text-[10px] font-medium capitalize", src.owner === 'laura' ? 'text-pink-400' : 'text-blue-400')}>{src.owner}</span>
+                  <span className={cn("text-[10px] font-medium capitalize", src.owner === 'laura' ? 'text-pink-600' : 'text-blue-600')}>{src.owner}</span>
                 )}
               </div>
               <div className="col-span-2 text-center"><StatusPill status={src.status} /></div>
@@ -453,16 +453,16 @@ export function WestTracker() {
           <div className="grid grid-cols-12 gap-3 py-3 items-center text-sm font-bold bg-[hsl(var(--bg-elevated))]/50 rounded-lg px-2 mt-1">
             <div className="col-span-4">Total Projected</div>
             <div className="col-span-2 text-right tabular-nums">{fmtMXN(amountPaid + investmentValue + cryptoValue + infonavitValue)}</div>
-            <div className="col-span-3 text-right tabular-nums text-emerald-400">{fmtMXN(projectedTotal)}</div>
+            <div className="col-span-3 text-right tabular-nums text-emerald-600">{fmtMXN(projectedTotal)}</div>
             <div className="col-span-3" />
           </div>
           {gap > 0 && (
             <div className="grid grid-cols-12 gap-3 py-3 items-center text-sm font-bold px-2">
-              <div className={cn("col-span-4", subMillionGap ? "text-emerald-400" : "text-red-400")}>
+              <div className={cn("col-span-4", subMillionGap ? "text-emerald-600" : "text-red-600")}>
                 Gap (Financing Needed) {subMillionGap && '🎯'}
               </div>
               <div className="col-span-2" />
-              <div className={cn("col-span-3 text-right tabular-nums", subMillionGap ? "text-emerald-400" : "text-red-400")}>{fmtMXN(gap)}</div>
+              <div className={cn("col-span-3 text-right tabular-nums", subMillionGap ? "text-emerald-600" : "text-red-600")}>{fmtMXN(gap)}</div>
               <div className="col-span-3 text-center"><StatusPill status={subMillionGap ? 'on_track' : 'gap'} /></div>
             </div>
           )}
@@ -494,8 +494,8 @@ export function WestTracker() {
           ))}
           {gap > 0 && (
             <div className="flex items-center justify-between p-3 rounded-lg bg-red-500/5 border border-red-500/20">
-              <span className="text-sm font-bold text-red-400">Gap</span>
-              <span className="text-sm font-bold tabular-nums text-red-400">{fmtMXN(gap)}</span>
+              <span className="text-sm font-bold text-red-600">Gap</span>
+              <span className="text-sm font-bold tabular-nums text-red-600">{fmtMXN(gap)}</span>
             </div>
           )}
         </div>
@@ -527,9 +527,9 @@ export function WestTracker() {
                   <stop offset="100%" stopColor="hsl(var(--chart-5))" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={m => m.slice(5)} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={m => m.slice(5)} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
 
@@ -542,8 +542,8 @@ export function WestTracker() {
               <Line type="monotone" dataKey="property_value" stroke="hsl(var(--chart-1))" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" />
               <ReferenceLine y={target} stroke="hsl(var(--chart-6))" strokeDasharray="6 4" strokeWidth={1.5}
                 label={{ value: 'Target $11.2M', position: 'right', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
-              <ReferenceLine x="2026-04" stroke="hsl(222, 15%, 35%)" strokeDasharray="3 3"
-                label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(222, 15%, 55%)', fontSize: 10 }} />
+              <ReferenceLine x="2026-04" stroke="hsl(210, 14%, 60%)" strokeDasharray="3 3"
+                label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(210, 12%, 42%)', fontSize: 10 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -575,7 +575,7 @@ export function WestTracker() {
               className={cn(
                 "flex-1 py-2 rounded-lg text-xs font-medium transition-all border",
                 Math.abs(returnRate - preset.rate) < 0.1
-                  ? "border-blue-500 bg-blue-500/10 text-blue-400"
+                  ? "border-blue-500 bg-blue-500/10 text-blue-600"
                   : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]"
               )}>
               {preset.label} ({preset.rate}%)
@@ -604,7 +604,7 @@ export function WestTracker() {
         <div className="space-y-2 mt-4 pt-4 border-t border-[hsl(var(--border))]">
           <div className="flex items-center justify-between">
             <label className="text-xs text-[hsl(var(--text-secondary))]">Crypto Annual Growth</label>
-            <span className="text-sm font-bold tabular-nums text-amber-400">{cryptoGrowth.toFixed(0)}%</span>
+            <span className="text-sm font-bold tabular-nums text-amber-600">{cryptoGrowth.toFixed(0)}%</span>
           </div>
           <div className="flex gap-2 mb-2">
             {[
@@ -616,7 +616,7 @@ export function WestTracker() {
                 className={cn(
                   "flex-1 py-1.5 rounded-lg text-[10px] font-medium transition-all border",
                   Math.abs(cryptoGrowth - preset.rate) < 1
-                    ? "border-amber-500 bg-amber-500/10 text-amber-400"
+                    ? "border-amber-500 bg-amber-500/10 text-amber-600"
                     : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]"
                 )}>
                 {preset.label} ({preset.rate}%)
@@ -637,11 +637,11 @@ export function WestTracker() {
         <div className="grid grid-cols-2 gap-4 mt-4 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
           <div>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Projected Total</span>
-            <p className="text-lg font-bold tabular-nums text-emerald-400">{fmtMXN(projectedTotal)}</p>
+            <p className="text-lg font-bold tabular-nums text-emerald-600">{fmtMXN(projectedTotal)}</p>
           </div>
           <div>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Gap</span>
-            <p className={cn("text-lg font-bold tabular-nums", gap > 0 ? "text-red-400" : "text-emerald-400")}>
+            <p className={cn("text-lg font-bold tabular-nums", gap > 0 ? "text-red-600" : "text-emerald-600")}>
               {gap > 0 ? fmtMXN(gap) : '✅ Fully funded!'}
             </p>
           </div>
@@ -689,7 +689,7 @@ export function WestTracker() {
                 <div>
                   <span className="text-xs font-semibold text-[hsl(var(--text-secondary))]">2028–2029</span>
                   {' '}
-                  <span className="text-xs font-medium tabular-nums text-amber-400">Est. {fmtMXN(nexamindsAtTarget)}</span>
+                  <span className="text-xs font-medium tabular-nums text-amber-600">Est. {fmtMXN(nexamindsAtTarget)}</span>
                   <p className="text-sm font-medium mt-0.5">Nexaminds Exit Event</p>
                   <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5 leading-relaxed">
                     At $10/share target. Could eliminate WEST bridge financing within 12–24 months of delivery.
@@ -716,19 +716,19 @@ export function WestTracker() {
             <div className="text-center px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Current</p>
               <p className="text-sm font-bold tabular-nums">{fmtShort(data.property.current_market_value)}</p>
-              <p className="text-[10px] text-emerald-400">+{(((data.property.current_market_value - data.property.purchase_price) / data.property.purchase_price) * 100).toFixed(1)}%</p>
+              <p className="text-[10px] text-emerald-600">+{(((data.property.current_market_value - data.property.purchase_price) / data.property.purchase_price) * 100).toFixed(1)}%</p>
             </div>
             <span className="text-[hsl(var(--text-tertiary))]">→</span>
             <div className="text-center px-4 py-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-              <p className="text-[10px] uppercase tracking-wider text-emerald-400">Projected</p>
-              <p className="text-lg font-bold tabular-nums text-emerald-400">{fmtShort(projection.projectedPropertyValue)}</p>
+              <p className="text-[10px] uppercase tracking-wider text-emerald-600">Projected</p>
+              <p className="text-lg font-bold tabular-nums text-emerald-600">{fmtShort(projection.projectedPropertyValue)}</p>
             </div>
           </div>
 
           {/* Equity hero */}
           <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 mb-4">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-1">Equity at Delivery</p>
-            <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-400 tabular-nums">
+            <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-600 tabular-nums">
               {fmtMXN(projection.equityAtDelivery)}
             </p>
             <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">
@@ -748,7 +748,7 @@ export function WestTracker() {
                   className={cn(
                     "flex-1 py-2 rounded-lg text-xs font-medium transition-all border",
                     Math.abs(appreciationRate - preset.rate) < 0.1
-                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-400"
+                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-600"
                       : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]"
                   )}>
                   {preset.label} ({preset.rate}%)
@@ -829,9 +829,9 @@ export function WestProjectionWithScenarios() {
                   <stop offset="0%" stopColor="hsl(var(--chart-5))" stopOpacity={0.3} /><stop offset="100%" stopColor="hsl(var(--chart-5))" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={(m: string) => m.slice(5)} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={(m: string) => m.slice(5)} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
 
@@ -845,8 +845,8 @@ export function WestProjectionWithScenarios() {
               <Line type="monotone" dataKey="property_value" stroke="hsl(var(--chart-1))" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" />
               <ReferenceLine y={target} stroke="hsl(var(--chart-6))" strokeDasharray="6 4" strokeWidth={1.5}
                 label={{ value: 'Target $11.2M', position: 'right', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
-              <ReferenceLine x="2026-04" stroke="hsl(222, 15%, 35%)" strokeDasharray="3 3"
-                label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(222, 15%, 55%)', fontSize: 10 }} />
+              <ReferenceLine x="2026-04" stroke="hsl(210, 14%, 60%)" strokeDasharray="3 3"
+                label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(210, 12%, 42%)', fontSize: 10 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -873,7 +873,7 @@ export function WestProjectionWithScenarios() {
             <button key={p.label} onClick={() => setReturnRate(p.rate)}
               className={cn("flex-1 py-2 rounded-lg text-xs font-medium transition-all border",
                 Math.abs(returnRate - p.rate) < 0.1
-                  ? "border-blue-500 bg-blue-500/10 text-blue-400"
+                  ? "border-blue-500 bg-blue-500/10 text-blue-600"
                   : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]"
               )}>{p.label} ({p.rate}%)</button>
           ))}
@@ -895,14 +895,14 @@ export function WestProjectionWithScenarios() {
         <div className="space-y-2 mt-4 pt-4 border-t border-[hsl(var(--border))]">
           <div className="flex items-center justify-between">
             <label className="text-xs text-[hsl(var(--text-secondary))]">Crypto Annual Growth</label>
-            <span className="text-sm font-bold tabular-nums text-amber-400">{cryptoGrowth.toFixed(0)}%</span>
+            <span className="text-sm font-bold tabular-nums text-amber-600">{cryptoGrowth.toFixed(0)}%</span>
           </div>
           <div className="flex gap-2 mb-2">
             {[{ label: 'Bear (0%)', rate: 0 }, { label: 'Moderate (15%)', rate: 15 }, { label: 'Bull (40%)', rate: 40 }].map(p => (
               <button key={p.label} onClick={() => setCryptoGrowth(p.rate)}
                 className={cn("flex-1 py-1.5 rounded-lg text-[10px] font-medium transition-all border",
                   Math.abs(cryptoGrowth - p.rate) < 1
-                    ? "border-amber-500 bg-amber-500/10 text-amber-400"
+                    ? "border-amber-500 bg-amber-500/10 text-amber-600"
                     : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]"
                 )}>{p.label}</button>
             ))}
@@ -917,11 +917,11 @@ export function WestProjectionWithScenarios() {
         <div className="grid grid-cols-2 gap-4 mt-4 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
           <div>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Projected Total</span>
-            <p className="text-lg font-bold tabular-nums text-emerald-400">{fmtMXN(projectedTotal)}</p>
+            <p className="text-lg font-bold tabular-nums text-emerald-600">{fmtMXN(projectedTotal)}</p>
           </div>
           <div>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Gap</span>
-            <p className={cn("text-lg font-bold tabular-nums", gap > 0 ? "text-red-400" : "text-emerald-400")}>
+            <p className={cn("text-lg font-bold tabular-nums", gap > 0 ? "text-red-600" : "text-emerald-600")}>
               {gap > 0 ? fmtMXN(gap) : '✅ Fully funded!'}
             </p>
           </div>
@@ -958,7 +958,7 @@ export function WestCompactWidget() {
           <span className="text-base">🏗️</span>
           <span className="text-sm font-semibold">WEST Apartment</span>
         </div>
-        <Link href="/finance/investments" className="text-xs text-blue-400 hover:underline">Details →</Link>
+        <Link href="/finance/investments" className="text-xs text-blue-600 hover:underline">Details →</Link>
       </div>
       <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))]">
         <div className="h-full bg-emerald-500" style={{ width: `${paidPct}%` }} />
@@ -970,15 +970,15 @@ export function WestCompactWidget() {
           Projected: <span className="font-semibold text-[hsl(var(--foreground))] tabular-nums">{fmtMXN(proj.total_projected)}</span>
           <span className="text-[hsl(var(--text-tertiary))]"> / {fmtMXN(target)}</span>
         </span>
-        <span className="text-xs font-semibold tabular-nums text-emerald-400">{fundedPct.toFixed(0)}%</span>
+        <span className="text-xs font-semibold tabular-nums text-emerald-600">{fundedPct.toFixed(0)}%</span>
       </div>
       <div className="flex items-center justify-between mt-1">
-        <span className="text-xs text-red-400 tabular-nums">Gap: {fmtMXN(gap)}</span>
+        <span className="text-xs text-red-600 tabular-nums">Gap: {fmtMXN(gap)}</span>
         <span className="text-xs text-[hsl(var(--text-secondary))]">{data.months_to_delivery}mo to delivery</span>
       </div>
       {data.property && (
         <div className="flex items-center justify-between mt-1">
-          <span className="text-xs text-emerald-400 tabular-nums">
+          <span className="text-xs text-emerald-600 tabular-nums">
             Est. value: {fmtMXN(data.property.projected_value_at_delivery)} (+{fmtMXN(data.property.equity_at_delivery)} equity)
           </span>
         </div>

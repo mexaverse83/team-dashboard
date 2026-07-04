@@ -1,60 +1,63 @@
 @import "tailwindcss";
 
 :root {
-  /* Foundations — premium fintech: teal-tinted deep navy instead of the
-     generic blue-gray dev theme. One hue family (206) for every surface. */
-  --background: 206 50% 4%;
-  --foreground: 200 20% 96%;
-  --card: 206 36% 9.5%;
-  --card-foreground: 200 20% 96%;
-  --popover: 206 36% 9.5%;
-  --popover-foreground: 200 20% 96%;
-  --primary: 200 20% 96%;
-  --primary-foreground: 206 50% 4%;
-  --secondary: 205 34% 12%;
-  --secondary-foreground: 200 20% 96%;
-  --muted: 205 34% 12%;
-  --muted-foreground: 206 16% 56%;
-  --accent: 204 32% 14%;
-  --accent-foreground: 200 20% 96%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 0 0% 95%;
-  --border: 204 30% 20%;
-  --input: 204 30% 20%;
-  --ring: 160 84% 45%;
+  /* Foundations — light & airy fintech: near-white cool-neutral page, pure
+     white cards, emerald identity. Darker accent shades than the old dark
+     theme so everything clears WCAG AA on white. */
+  --background: 200 30% 98%;
+  --foreground: 210 28% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 210 28% 14%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 210 28% 14%;
+  --primary: 210 28% 14%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 206 28% 94%;
+  --secondary-foreground: 210 28% 14%;
+  --muted: 206 28% 94%;
+  --muted-foreground: 208 12% 42%;
+  --accent: 204 30% 93%;
+  --accent-foreground: 210 28% 14%;
+  --destructive: 0 74% 46%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 208 22% 87%;
+  --input: 208 22% 87%;
+  --ring: 160 84% 32%;
   --radius: 0.625rem;
 
   /* Brand — emerald is the identity; blue is demoted to informational */
-  --brand: 160 84% 45%;
-  --brand-glow: 168 76% 42%;
+  --brand: 160 84% 33%;
+  --brand-glow: 168 76% 36%;
 
   /* Semantic */
-  --success: 156 72% 46%;
-  --warning: 38 92% 52%;
-  --danger: 350 80% 58%;
-  --info: 205 90% 62%;
+  --success: 156 72% 30%;
+  --warning: 30 95% 38%;
+  --danger: 350 75% 42%;
+  --info: 210 90% 40%;
 
   /* Text — secondary/tertiary clear WCAG AA (~4.5:1) at small sizes */
-  --text-primary: 200 20% 96%;
-  --text-secondary: 205 16% 64%;
-  --text-tertiary: 205 14% 58%;
+  --text-primary: 210 28% 14%;
+  --text-secondary: 208 14% 38%;
+  --text-tertiary: 208 12% 47%;
 
-  /* Elevation ladder — surfaces step lighter as they rise toward the viewer */
-  --bg-base: 206 50% 4%;        /* page background tier */
-  --bg-surface: 206 36% 9.5%;     /* cards / panels */
-  --bg-elevated: 204 30% 17%;   /* raised insets: progress tracks, hover, chips */
-  --border-subtle: 205 26% 14%; /* fainter divider than --border */
+  /* Elevation ladder — on a light page, raised surfaces step toward pure
+     white; insets step slightly darker than the page */
+  --bg-base: 200 30% 98%;       /* page background tier */
+  --bg-surface: 0 0% 100%;      /* cards / panels */
+  --bg-elevated: 206 26% 92%;   /* raised insets: progress tracks, hover, chips */
+  --border-subtle: 208 20% 92%; /* fainter divider than --border */
 
-  /* Elevation shadow token — deeper drop + faint teal cast */
-  --shadow-elevate: 0 1px 2px hsl(206 50% 2% / 0.6), 0 8px 24px -10px hsl(190 60% 3% / 0.7);
+  /* Elevation shadow token — soft daylight drop, no heavy darkness */
+  --shadow-elevate: 0 1px 2px hsl(210 30% 50% / 0.08), 0 8px 24px -12px hsl(210 40% 40% / 0.14);
 
-  /* Chart system — one cohesive palette, referenced everywhere */
-  --chart-1: 160 84% 45%;  /* emerald  — primary series / inflow   */
-  --chart-2: 187 80% 50%;  /* cyan     — secondary series          */
-  --chart-3: 217 91% 65%;  /* blue     — informational             */
-  --chart-4: 262 80% 66%;  /* violet   — comparison                */
-  --chart-5: 38 92% 55%;   /* amber    — caution                   */
-  --chart-6: 350 80% 60%;  /* rose     — outflow / over budget     */
+  /* Chart system — one cohesive palette, referenced everywhere; darkened
+     for contrast against white surfaces */
+  --chart-1: 160 84% 32%;  /* emerald  — primary series / inflow   */
+  --chart-2: 187 80% 33%;  /* cyan     — secondary series          */
+  --chart-3: 217 85% 50%;  /* blue     — informational             */
+  --chart-4: 262 70% 54%;  /* violet   — comparison                */
+  --chart-5: 32 95% 42%;   /* amber    — caution                   */
+  --chart-6: 350 75% 48%;  /* rose     — outflow / over budget     */
 }
 
 * {
@@ -69,8 +72,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ambient depth — two faint brand glows anchored to the viewport so the page
-   reads as a lit space instead of a flat slab. Fixed + non-interactive. */
+/* Ambient depth — two faint brand washes anchored to the viewport so the
+   page reads as an airy lit space instead of flat white. Fixed + non-interactive. */
 body::before {
   content: '';
   position: fixed;
@@ -78,8 +81,8 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(55% 45% at 88% -12%, hsl(160 70% 42% / 0.10), transparent 65%),
-    radial-gradient(45% 40% at -8% 18%, hsl(190 80% 50% / 0.06), transparent 60%);
+    radial-gradient(55% 45% at 88% -12%, hsl(160 70% 45% / 0.07), transparent 65%),
+    radial-gradient(45% 40% at -8% 18%, hsl(200 85% 55% / 0.05), transparent 60%);
 }
 
 /* Headings and metric numerals speak in the display face */
@@ -95,9 +98,10 @@ h1, h2, h3 {
   letter-spacing: -0.02em;
 }
 
-/* Finance identity — emerald→teal gradient for hero numbers */
+/* Finance identity — emerald→teal gradient for hero numbers (dark shades
+   for contrast on light surfaces) */
 .text-hero-gradient {
-  background: linear-gradient(120deg, #34d399 0%, #2dd4bf 55%, #38bdf8 110%);
+  background: linear-gradient(120deg, #059669 0%, #0d9488 55%, #0284c7 110%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -110,7 +114,7 @@ h1, h2, h3 {
   width: 4px;
   height: 0.9em;
   border-radius: 9999px;
-  background: linear-gradient(180deg, #34d399, #14b8a6);
+  background: linear-gradient(180deg, #059669, #0d9488);
   flex-shrink: 0;
 }
 
@@ -193,7 +197,7 @@ a, button {
   transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Dark theme select dropdowns */
+/* Themed select dropdowns */
 select, select option {
   background-color: hsl(var(--card));
   color: hsl(var(--foreground));
@@ -206,18 +210,14 @@ select option:hover {
   background-color: hsl(var(--bg-elevated));
 }
 
-/* Surface card (formerly heavy glass). On a near-flat dark page there is little
-   behind a card to blur, so the blanket 12px backdrop-filter cost GPU for almost
-   no visual payoff. This reads as a solid elevated surface: more opaque fill,
-   stronger border for separation, a light blur kept only for overlap with charts,
-   and a real shadow for depth. Reserve heavier glass for modals/overlays. */
+/* Surface card — light theme: white card with a soft daylight shadow and a
+   hairline border. The old dark glass treatment is gone; depth comes from
+   shadow, not translucency. */
 .glass {
-  background: linear-gradient(180deg, hsl(204 34% 11% / 0.95), hsl(206 40% 8.5% / 0.96));
+  background: hsl(0 0% 100% / 0.94);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  border: 1px solid hsl(203 32% 26% / 0.65);
-  /* light catch on the top edge sells the depth */
-  border-top-color: hsl(200 38% 36% / 0.6);
+  border: 1px solid hsl(208 22% 89%);
   box-shadow: var(--shadow-elevate);
 }
 

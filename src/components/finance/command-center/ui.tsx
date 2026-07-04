@@ -21,13 +21,13 @@ export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineCol
   accent?: 'positive' | 'negative' | 'neutral' | 'brand'
   icon?: LucideIcon
 }) {
-  const accentClass = accent === 'positive' ? 'text-emerald-400'
-    : accent === 'negative' ? 'text-rose-400'
-    : accent === 'brand' ? 'text-teal-300'
+  const accentClass = accent === 'positive' ? 'text-emerald-600'
+    : accent === 'negative' ? 'text-rose-600'
+    : accent === 'brand' ? 'text-teal-700'
     : 'text-[hsl(var(--foreground))]'
-  const chipClass = accent === 'positive' ? 'bg-emerald-500/10 text-emerald-300'
-    : accent === 'negative' ? 'bg-rose-500/10 text-rose-300'
-    : accent === 'brand' ? 'bg-teal-500/10 text-teal-300'
+  const chipClass = accent === 'positive' ? 'bg-emerald-500/10 text-emerald-700'
+    : accent === 'negative' ? 'bg-rose-500/10 text-rose-700'
+    : accent === 'brand' ? 'bg-teal-500/10 text-teal-700'
     : 'bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-secondary))]'
   return (
     <GlassCard>
@@ -65,7 +65,7 @@ export function SectionHeader({ title, subtitle, action }: { title: string; subt
         {subtitle && <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5 ml-3">{subtitle}</p>}
       </div>
       {action && (
-        <Link href={action.href} className="text-xs text-blue-400 hover:underline inline-flex items-center gap-1">
+        <Link href={action.href} className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1">
           {action.label} <ArrowRight className="h-3 w-3" />
         </Link>
       )}

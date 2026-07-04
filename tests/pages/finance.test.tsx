@@ -170,8 +170,8 @@ describe('Finance Overview', () => {
     const Comp = (await import('@/components/finance/overview-client')).default
     const { container } = render(<Comp />)
     await waitFor(() => expect(screen.getByText('Spent')).toBeInTheDocument())
-    expect(container.querySelector('.text-rose-400')).toBeInTheDocument()
-    expect(container.querySelector('.text-emerald-400')).toBeInTheDocument()
+    expect(container.querySelector('.text-rose-600')).toBeInTheDocument()
+    expect(container.querySelector('.text-emerald-600')).toBeInTheDocument()
   })
 
   it('renders month navigation', async () => {
@@ -345,7 +345,7 @@ describe('Transactions Page', () => {
     const Comp = (await import('@/components/finance/transactions-client')).default
     const { container } = render(<Comp />)
     await waitFor(() => {
-      expect(container.querySelector('.text-rose-400')).toBeInTheDocument()
+      expect(container.querySelector('.text-rose-600')).toBeInTheDocument()
     })
   })
 })
@@ -495,7 +495,7 @@ describe('Subscriptions Page', () => {
     const Comp = (await import('@/components/finance/subscriptions-client')).default
     const { container } = render(<Comp />)
     await waitFor(() => {
-      expect(container.querySelector('.text-rose-400')).toBeInTheDocument()
+      expect(container.querySelector('.text-rose-600')).toBeInTheDocument()
     })
   })
 })
@@ -531,8 +531,8 @@ describe('Reports Page', () => {
     const Comp = (await import('@/components/finance/reports-client')).default
     const { container } = render(<Comp />)
     await waitFor(() => {
-      expect(container.querySelector('.text-emerald-400')).toBeInTheDocument()
-      expect(container.querySelector('.text-rose-400')).toBeInTheDocument()
+      expect(container.querySelector('.text-emerald-600')).toBeInTheDocument()
+      expect(container.querySelector('.text-rose-600')).toBeInTheDocument()
     })
   })
 

@@ -265,8 +265,8 @@ export default function SubscriptionsClient() {
       {processResult && (
         <div className={cn("px-4 py-2 rounded-lg text-sm font-medium",
           processResult.startsWith('Error') || processResult.startsWith('Failed')
-            ? "bg-rose-500/10 text-rose-400"
-            : "bg-emerald-500/10 text-emerald-400"
+            ? "bg-rose-500/10 text-rose-600"
+            : "bg-emerald-500/10 text-emerald-600"
         )}>{processResult}</div>
       )}
 
@@ -274,11 +274,11 @@ export default function SubscriptionsClient() {
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Monthly Burn</span>
-          <p className="text-2xl sm:text-3xl font-bold num-metric tabular-nums text-rose-400 mt-1">${Math.round(monthlyBurn).toLocaleString()}</p>
+          <p className="text-2xl sm:text-3xl font-bold num-metric tabular-nums text-rose-600 mt-1">${Math.round(monthlyBurn).toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Annual Projection</span>
-          <p className="text-2xl sm:text-3xl font-bold num-metric tabular-nums text-amber-400 mt-1">${Math.round(annualBurn).toLocaleString()}</p>
+          <p className="text-2xl sm:text-3xl font-bold num-metric tabular-nums text-amber-600 mt-1">${Math.round(annualBurn).toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
           <span className="block text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Active</span>
@@ -324,10 +324,10 @@ export default function SubscriptionsClient() {
                     <td className="py-2 px-2">
                       <div className={cn("flex items-center gap-1 transition-opacity", deleteConfirm === sub.id ? "" : "sm:opacity-0 sm:group-hover:opacity-100")}>
                         {loggedId === sub.id ? (
-                          <span className="text-[10px] text-emerald-400 font-medium px-1">✓ Logged</span>
+                          <span className="text-[10px] text-emerald-600 font-medium px-1">✓ Logged</span>
                         ) : (
                           <button onClick={() => logPayment(sub)} className="p-1 rounded hover:bg-emerald-500/10" title="Log payment as expense">
-                            <CreditCard className="h-3.5 w-3.5 text-emerald-400" />
+                            <CreditCard className="h-3.5 w-3.5 text-emerald-600" />
                           </button>
                         )}
                         <button aria-label="Edit" onClick={() => openEdit(sub)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
@@ -340,7 +340,7 @@ export default function SubscriptionsClient() {
                           </div>
                         ) : (
                           <button aria-label="Delete" onClick={() => setDeleteConfirm(sub.id)} className="p-1 rounded hover:bg-rose-500/10">
-                            <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                            <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                           </button>
                         )}
                       </div>
@@ -371,11 +371,11 @@ export default function SubscriptionsClient() {
                   </div>
                 </div>
                 {loggedId === sub.id ? (
-                  <span className="text-[10px] text-emerald-400 font-medium shrink-0">✓</span>
+                  <span className="text-[10px] text-emerald-600 font-medium shrink-0">✓</span>
                 ) : (
                   <button onClick={(e) => { e.stopPropagation(); logPayment(sub) }}
                     className="p-1.5 rounded-md bg-emerald-500/10 shrink-0" title="Log payment">
-                    <CreditCard className="h-3.5 w-3.5 text-emerald-400" />
+                    <CreditCard className="h-3.5 w-3.5 text-emerald-600" />
                   </button>
                 )}
                 <button onClick={(e) => { e.stopPropagation(); toggleActive(sub) }}
@@ -384,7 +384,7 @@ export default function SubscriptionsClient() {
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(sub.id) }}
                   className="p-1.5 rounded-md hover:bg-rose-500/10 shrink-0" title="Delete">
-                  <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                  <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                 </button>
               </div>
             ))}
@@ -405,7 +405,7 @@ export default function SubscriptionsClient() {
                 <span className="text-sm">{sub.category?.icon}</span>
                 <span className="text-sm font-medium flex-1">{sub.name}</span>
                 <span className="text-xs text-[hsl(var(--text-secondary))] tabular-nums">{sub.next_due_date?.slice(5)}</span>
-                <span className="text-sm font-semibold num-metric tabular-nums text-rose-400 text-right">${sub.amount.toLocaleString()}</span>
+                <span className="text-sm font-semibold num-metric tabular-nums text-rose-600 text-right">${sub.amount.toLocaleString()}</span>
               </div>
             ))}
           </div>
@@ -467,7 +467,7 @@ export default function SubscriptionsClient() {
               {OWNERS.map(name => (
                 <button key={name} type="button" onClick={() => updateForm({ owner: name })}
                   className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
-                    form.owner === name ? "border-blue-500 bg-blue-500/10 text-blue-400" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                    form.owner === name ? "border-blue-500 bg-blue-500/10 text-blue-600" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
                   )}>
                   <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ background: getOwnerColor(name) }} />{name}
                 </button>

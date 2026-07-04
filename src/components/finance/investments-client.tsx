@@ -105,11 +105,11 @@ function OwnerToggle({ value, onChange }: { value: string; onChange: (v: string)
 // ─── Tier Badge ───
 function TierBadge({ tier }: { tier: number }) {
   const config: Record<number, { label: string; color: string; tooltip: string }> = {
-    1: { label: 'Tier 1', color: 'bg-emerald-500/10 text-emerald-400', tooltip: 'Fintech — Nu, Mercado Pago' },
-    2: { label: 'Tier 2', color: 'bg-blue-500/10 text-blue-400', tooltip: 'Regulated Broker/Neobank — GBM, Hey Banco, Klar (INDEVAL custody, no deposit insurance)' },
-    3: { label: 'Tier 3', color: 'bg-amber-500/10 text-amber-400', tooltip: 'Higher yield — CETES, Supertasas, Kubo. PROSOFIPO cap: $190K/institution' },
+    1: { label: 'Tier 1', color: 'bg-emerald-500/10 text-emerald-600', tooltip: 'Fintech — Nu, Mercado Pago' },
+    2: { label: 'Tier 2', color: 'bg-blue-500/10 text-blue-600', tooltip: 'Regulated Broker/Neobank — GBM, Hey Banco, Klar (INDEVAL custody, no deposit insurance)' },
+    3: { label: 'Tier 3', color: 'bg-amber-500/10 text-amber-600', tooltip: 'Higher yield — CETES, Supertasas, Kubo. PROSOFIPO cap: $190K/institution' },
   }
-  const c = config[tier] || { label: `Tier ${tier}`, color: 'bg-gray-500/10 text-gray-400', tooltip: '' }
+  const c = config[tier] || { label: `Tier ${tier}`, color: 'bg-gray-500/10 text-gray-600', tooltip: '' }
   return (
     <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full cursor-help", c.color)} title={c.tooltip}>
       {c.label}
@@ -432,7 +432,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
     return (
       <div className="p-4 md:p-6 space-y-4">
         <div className="h-8 w-48 rounded bg-[hsl(var(--accent))] animate-pulse" />
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {[1, 2, 3, 4].map(i => <div key={i} className="h-48 rounded-xl bg-[hsl(var(--accent))] animate-pulse" />)}
         </div>
       </div>
@@ -467,7 +467,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       </div>
 
       {error && (
-        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">{error}</div>
+        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 text-sm">{error}</div>
       )}
 
       {/* ═══════════ PORTFOLIO TAB ═══════════ */}
@@ -482,7 +482,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
               {totalPL !== null && (
                 <div className={cn(
                   "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium mt-3",
-                  totalPL >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"
+                  totalPL >= 0 ? "bg-emerald-500/10 text-emerald-600" : "bg-red-500/10 text-red-600"
                 )}>
                   {totalPL >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                   {totalPL >= 0 ? '+' : ''}{fmtMXN(totalPL)} ({totalPLPct?.toFixed(1)}%)
@@ -509,7 +509,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           </GlassCard>
 
           {/* Allocation Donut + Asset Class Cards */}
-          <div className="grid gap-4 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
             {/* Donut */}
             {allocationData.length > 0 && (
               <GlassCard className="lg:col-span-2 flex flex-col items-center justify-center py-6">
@@ -554,7 +554,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       {ac.locked ? (
                         <span className="text-xs text-[hsl(var(--text-secondary))]">🔒 locked until 65</span>
                       ) : (
-                        <span className={cn("text-xs font-medium", ac.pl >= 0 ? "text-emerald-400" : "text-red-400")}>
+                        <span className={cn("text-xs font-medium", ac.pl >= 0 ? "text-emerald-600" : "text-red-600")}>
                           {ac.plPct !== 0 ? `${ac.pl >= 0 ? '+' : ''}${ac.plPct.toFixed(1)}%` : '—'}
                         </span>
                       )}
@@ -659,8 +659,8 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                           <tr key={s.id} className="border-b border-[hsl(var(--border))] last:border-0 group hover:bg-[hsl(var(--bg-elevated))]/50">
                             <td className="py-3 px-4"><OwnerDot owner={s.owner} size="sm" /></td>
                             <td className="py-3 px-3">
-                              <span className="font-mono font-semibold text-blue-400">{s.ticker}</span>
-                              {s.exchange === 'BMV' && <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-400">MX</span>}
+                              <span className="font-mono font-semibold text-blue-600">{s.ticker}</span>
+                              {s.exchange === 'BMV' && <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-600">MX</span>}
                             </td>
                             <td className="py-3 px-3 text-[hsl(var(--text-secondary))]">{s.name}</td>
                             <td className="py-3 px-3 text-right font-mono tabular-nums">{fmt(s.shares, 2)}</td>
@@ -673,7 +673,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                                   <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                                 </button>
                                 <button aria-label="Delete" onClick={() => deleteStock(s.id)} className="p-1 rounded hover:bg-rose-500/10">
-                                  <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                                  <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                                 </button>
                               </div>
                             </td>
@@ -691,8 +691,8 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                   <div key={s.id} className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-semibold text-blue-400 text-sm">{s.ticker}</span>
-                        {s.exchange === 'BMV' && <span className="text-[9px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-400">MX</span>}
+                        <span className="font-mono font-semibold text-blue-600 text-sm">{s.ticker}</span>
+                        {s.exchange === 'BMV' && <span className="text-[9px] px-1 py-0.5 rounded bg-blue-500/10 text-blue-600">MX</span>}
                         <OwnerDot owner={s.owner} size="sm" />
                       </div>
                       <span className="text-sm font-semibold tabular-nums">{fmtMXN(s.shares * s.avg_cost_basis)}</span>
@@ -739,7 +739,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
             <GlassCard>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Est. Value</span>
-              <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-400 mt-1 tabular-nums">{fmtMXN(fiTotal)}</p>
+              <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-600 mt-1 tabular-nums">{fmtMXN(fiTotal)}</p>
               <p className="text-[11px] text-[hsl(var(--text-tertiary))] mt-1">
                 {fiAccrued >= 1 ? `+${fmtMXN(fiAccrued)} accrued since confirmed` : `${fmtMXN(fiCost)} confirmed`}
               </p>
@@ -752,7 +752,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
             </GlassCard>
             <GlassCard className="col-span-2 sm:col-span-1">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Interest</span>
-              <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-400 mt-1 tabular-nums">
+              <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-600 mt-1 tabular-nums">
                 {fmtMXN(filteredFI.reduce((s, i) => s + (i.principal * i.annual_rate) / 12, 0))}
               </p>
             </GlassCard>
@@ -793,7 +793,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                             <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                           </button>
                           <button aria-label="Delete" onClick={() => deleteFI(group.filtered[0].id)} className="p-1 rounded hover:bg-rose-500/10">
-                            <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                            <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                           </button>
                         </>
                       )}
@@ -849,24 +849,24 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-[hsl(var(--text-secondary))]">Commission</span>
-                            <span className="tabular-nums text-amber-400">-{(normalizeRate(inst.commission_rate) * 100).toFixed(2)}%</span>
+                            <span className="tabular-nums text-amber-600">-{(normalizeRate(inst.commission_rate) * 100).toFixed(2)}%</span>
                           </div>
                           <div className="flex justify-between border-t border-[hsl(var(--border))] pt-1">
                             <span className="text-[hsl(var(--text-secondary))] font-medium">Net Rate</span>
-                            <span className="font-bold text-emerald-400 tabular-nums">{(netRate * 100).toFixed(2)}%</span>
+                            <span className="font-bold text-emerald-600 tabular-nums">{(netRate * 100).toFixed(2)}%</span>
                           </div>
                         </>
                       ) : (
                         <div className="flex justify-between">
                           <span className="text-[hsl(var(--text-secondary))]">Rate</span>
-                          <span className="font-semibold text-emerald-400 tabular-nums">{(normalizeRate(inst.annual_rate) * 100).toFixed(2)}%</span>
+                          <span className="font-semibold text-emerald-600 tabular-nums">{(normalizeRate(inst.annual_rate) * 100).toFixed(2)}%</span>
                         </div>
                       )}
                       <div className="flex justify-between">
                         <span className="text-[hsl(var(--text-secondary))]">Term</span>
                         <span>
                           {inst.is_liquid ? (
-                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-medium">Liquid</span>
+                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 text-[10px] font-medium">Liquid</span>
                           ) : inst.settlement_days ? (
                             <span className="tabular-nums">{inst.settlement_days}d settlement</span>
                           ) : (
@@ -884,11 +884,11 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       <div className="flex items-center gap-2">
                         <TierBadge tier={inst.tier} />
                         {inst.auto_renew && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-medium">Auto-renew</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 font-medium">Auto-renew</span>
                         )}
                       </div>
                       <button onClick={() => openAddFunds(group)}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 transition-colors">
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-600 transition-colors">
                         <Plus className="h-3 w-3" /> Add Funds
                       </button>
                     </div>
@@ -951,7 +951,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                 const valuationAge = prop.last_valuation_date
                   ? Math.floor((Date.now() - new Date(prop.last_valuation_date).getTime()) / (1000 * 60 * 60 * 24 * 30)) : null
                 const propertyTypeLabel = isPreSale ? 'Pre-sale' : isSalePending ? 'Sale Pending' : prop.property_type
-                const propertyTypeColor = isPreSale ? 'bg-blue-500/10 text-blue-400' : isSalePending ? 'bg-amber-500/10 text-amber-400' : 'bg-violet-500/10 text-violet-400'
+                const propertyTypeColor = isPreSale ? 'bg-blue-500/10 text-blue-600' : isSalePending ? 'bg-amber-500/10 text-amber-600' : 'bg-violet-500/10 text-violet-600'
                 const mortgageLabelText = isPreSale ? 'Remaining to Developer' : 'Mortgage'
                 const equityLabelText = isPreSale ? 'Unrealized Equity' : isSalePending ? 'Net Proceeds' : 'Equity'
 
@@ -962,7 +962,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                         <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                       </button>
                       <button aria-label="Delete" onClick={() => deleteRE(prop.id)} className="p-1 rounded hover:bg-rose-500/10">
-                        <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                        <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                       </button>
                     </div>
 
@@ -977,7 +977,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                         <div className="flex items-center gap-2">
                           <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize", propertyTypeColor)}>{propertyTypeLabel}</span>
                           {valuationAge !== null && valuationAge > 6 && (
-                            <span className="text-[10px] text-amber-400" title="Valuation older than 6 months">⚠️ Stale valuation</span>
+                            <span className="text-[10px] text-amber-600" title="Valuation older than 6 months">⚠️ Stale valuation</span>
                           )}
                         </div>
                       </div>
@@ -988,14 +988,14 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Current Value</span>
                         <p className="text-lg font-bold tabular-nums">{fmtMXN(prop.current_value)}</p>
                         {appreciation !== null && (
-                          <span className={cn("text-xs font-medium", appreciation >= 0 ? "text-emerald-400" : "text-red-400")}>
+                          <span className={cn("text-xs font-medium", appreciation >= 0 ? "text-emerald-600" : "text-red-600")}>
                             {appreciation >= 0 ? '↑' : '↓'} {Math.abs(appreciation).toFixed(1)}% from purchase
                           </span>
                         )}
                       </div>
                       <div>
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">{equityLabelText}</span>
-                        <p className="text-lg font-bold text-violet-400 tabular-nums">{fmtMXN(equity)}</p>
+                        <p className="text-lg font-bold text-violet-600 tabular-nums">{fmtMXN(equity)}</p>
                       </div>
                     </div>
 
@@ -1009,7 +1009,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                           {prop.monthly_mortgage && (
                             <div className="flex justify-between">
                               <span className="text-[hsl(var(--text-secondary))]">Monthly Payment</span>
-                              <span className="tabular-nums text-red-400">-{fmtMXN(prop.monthly_mortgage)}</span>
+                              <span className="tabular-nums text-red-600">-{fmtMXN(prop.monthly_mortgage)}</span>
                             </div>
                           )}
                         </>
@@ -1017,18 +1017,18 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       {(prop.rental_income || 0) > 0 && (
                         <div className="flex justify-between">
                           <span className="text-[hsl(var(--text-secondary))]">Rental Income</span>
-                          <span className="tabular-nums text-emerald-400">+{fmtMXN(prop.rental_income!)}</span>
+                          <span className="tabular-nums text-emerald-600">+{fmtMXN(prop.rental_income!)}</span>
                         </div>
                       )}
                       {(prop.monthly_expenses || 0) > 0 && (
                         <div className="flex justify-between">
                           <span className="text-[hsl(var(--text-secondary))]">Expenses</span>
-                          <span className="tabular-nums text-red-400">-{fmtMXN(prop.monthly_expenses!)}</span>
+                          <span className="tabular-nums text-red-600">-{fmtMXN(prop.monthly_expenses!)}</span>
                         </div>
                       )}
                       <div className="flex justify-between pt-2 border-t border-[hsl(var(--border))] font-semibold">
                         <span>Monthly Cash Flow</span>
-                        <span className={cn("tabular-nums", monthlyCashFlow >= 0 ? "text-emerald-400" : "text-red-400")}>
+                        <span className={cn("tabular-nums", monthlyCashFlow >= 0 ? "text-emerald-600" : "text-red-600")}>
                           {monthlyCashFlow >= 0 ? '+' : ''}{fmtMXN(monthlyCashFlow)}
                         </span>
                       </div>
@@ -1203,7 +1203,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-amber-500" />
                     <p className="text-[10px] text-[hsl(var(--text-secondary))] mt-0.5">GBM = 3 (48–72h)</p>
                   </div>
-                  <div className="col-span-2 text-xs text-amber-400">
+                  <div className="col-span-2 text-xs text-amber-600">
                     Net rate: <strong>{(((fiForm.annual_rate || 0) - (fiForm.commission_rate || 0)) * 100).toFixed(2)}%</strong>
                     {' '}(gross {((fiForm.annual_rate || 0) * 100).toFixed(2)}% − commission {((fiForm.commission_rate || 0) * 100).toFixed(2)}%)
                   </div>
@@ -1295,7 +1295,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
               <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/40 border border-[hsl(var(--border))] text-xs">
                 <div className="flex justify-between font-semibold">
                   <span>Combined Total</span>
-                  <span className="tabular-nums text-emerald-400">{fmtMXN(total)}</span>
+                  <span className="tabular-nums text-emerald-600">{fmtMXN(total)}</span>
                 </div>
                 {fiGroupEditData.allMembers.map(m => {
                   const v = parseFloat(fiGroupSlices[m.id]) || 0
@@ -1353,7 +1353,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       <div className="flex items-center gap-1.5 mb-1">
                         <OwnerDot owner={m.owner} size="sm" />
                         <span className="text-xs font-semibold">{m.owner}</span>
-                        {addFundsOwner === m.owner && <span className="ml-auto text-emerald-400">✓</span>}
+                        {addFundsOwner === m.owner && <span className="ml-auto text-emerald-600">✓</span>}
                       </div>
                       <span className="text-[11px] text-[hsl(var(--text-secondary))] tabular-nums">{fmtMXN(m.principal)}</span>
                     </button>
@@ -1381,13 +1381,13 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                     <span>Current ({addFundsOwner})</span>
                     <span className="tabular-nums">{fmtMXN(currentPrincipal)}</span>
                   </div>
-                  <div className="flex justify-between text-emerald-400">
+                  <div className="flex justify-between text-emerald-600">
                     <span>+ Adding</span>
                     <span className="tabular-nums font-medium">+{fmtMXN(amount)}</span>
                   </div>
                   <div className="flex justify-between font-semibold border-t border-emerald-500/20 pt-1">
                     <span>New balance</span>
-                    <span className="tabular-nums text-emerald-400">{fmtMXN(newPrincipal)}</span>
+                    <span className="tabular-nums text-emerald-600">{fmtMXN(newPrincipal)}</span>
                   </div>
                 </div>
               )}

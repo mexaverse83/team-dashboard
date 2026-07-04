@@ -194,9 +194,9 @@ export default function FinanceOverviewClient() {
         <GlassCard>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Spent</span>
-            <TrendingDown className="h-4 w-4 text-rose-400" />
+            <TrendingDown className="h-4 w-4 text-rose-600" />
           </div>
-          <p className="num-metric text-2xl sm:text-3xl font-bold text-rose-400">${totalSpent.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold text-rose-600">${totalSpent.toLocaleString()}</p>
           <TrendBadge value={spentDelta * -1} suffix="% vs last month" />
           <OwnerBar bernardo={bernardoSpent} laura={lauraSpent} className="mt-2" />
           <div className="mt-3 h-8"><SparklineChart data={dailySpendHistory} color="hsl(var(--chart-6))" /></div>
@@ -205,16 +205,16 @@ export default function FinanceOverviewClient() {
         <GlassCard>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Income</span>
-            <TrendingUp className="h-4 w-4 text-emerald-400" />
+            <TrendingUp className="h-4 w-4 text-emerald-600" />
           </div>
-          <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-400">${totalIncome.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-600">${totalIncome.toLocaleString()}</p>
           <TrendBadge value={incomeDelta} suffix="% vs last month" />
           {expectedMonthlyIncome > 0 && (
             <div className="mt-2 flex items-center justify-between text-xs">
               <span className="text-[hsl(var(--text-tertiary))]">Expected</span>
               <span className={cn(
                 "font-medium",
-                incomeVariance >= 0 ? "text-emerald-400" : "text-amber-400"
+                incomeVariance >= 0 ? "text-emerald-600" : "text-amber-600"
               )}>
                 ${expectedMonthlyIncome.toLocaleString()}
                 {incomeVariance !== 0 && (
@@ -234,7 +234,7 @@ export default function FinanceOverviewClient() {
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Net Savings</span>
             <Wallet className="h-4 w-4 text-[hsl(var(--text-tertiary))]" />
           </div>
-          <p className={cn("num-metric text-2xl sm:text-3xl font-bold", netSavings >= 0 ? "text-emerald-400" : "text-rose-400")}>
+          <p className={cn("num-metric text-2xl sm:text-3xl font-bold", netSavings >= 0 ? "text-emerald-600" : "text-rose-600")}>
             ${Math.abs(netSavings).toLocaleString()}
           </p>
           <TrendBadge value={savingsDelta} suffix="% vs last month" />
@@ -258,7 +258,7 @@ export default function FinanceOverviewClient() {
       </div>
 
       {/* Safe to Spend + Weekend Budget */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <SafeToSpendCard />
         <WeekendBudgetCard transactions={transactions} categories={categories} />
       </div>
@@ -268,7 +268,7 @@ export default function FinanceOverviewClient() {
       <WolffWidget />
 
       {/* Charts Row */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Category Donut */}
         <GlassCard>
           <h3 className="text-base font-semibold mb-4">Spending by Category</h3>
@@ -311,9 +311,9 @@ export default function FinanceOverviewClient() {
                     <stop offset="100%" stopColor="hsl(var(--chart-6))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} />
                 <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
                 <Area type="monotone" dataKey="amount" stroke="hsl(var(--chart-6))" strokeWidth={2} fill="url(#spendGrad)" />
               </AreaChart>
@@ -323,7 +323,7 @@ export default function FinanceOverviewClient() {
       </div>
 
       {/* Bottom Row */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Budget Status */}
         <GlassCard>
           <h3 className="text-base font-semibold mb-4">Budget Status</h3>
@@ -339,7 +339,7 @@ export default function FinanceOverviewClient() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-medium">{budget.icon} {budget.name}</span>
                       <span className="text-xs text-[hsl(var(--text-secondary))]">
-                        ${budget.spent.toLocaleString()} / ${budget.limit.toLocaleString()}{budget.isNonMonthly && <span className="text-blue-400 ml-0.5">({CYCLE_MONTHS[budget.cycle]}mo)</span>}
+                        ${budget.spent.toLocaleString()} / ${budget.limit.toLocaleString()}{budget.isNonMonthly && <span className="text-blue-600 ml-0.5">({CYCLE_MONTHS[budget.cycle]}mo)</span>}
                       </span>
                     </div>
                     <div className="h-2 rounded-full bg-[hsl(var(--bg-elevated))]">
@@ -351,7 +351,7 @@ export default function FinanceOverviewClient() {
                       />
                     </div>
                     {pct >= 80 && (
-                      <span className={cn("text-[10px] font-medium mt-0.5 inline-block", pct >= 100 ? "text-rose-400" : "text-orange-400")}>
+                      <span className={cn("text-[10px] font-medium mt-0.5 inline-block", pct >= 100 ? "text-rose-600" : "text-orange-600")}>
                         {pct > 100 ? `⚠️ Over budget by $${(budget.spent - budget.limit).toLocaleString()}` : pct === 100 ? '✅ On budget' : `${Math.round(pct)}% used`}
                       </span>
                     )}
@@ -366,7 +366,7 @@ export default function FinanceOverviewClient() {
         <GlassCard>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-semibold">Recent Transactions</h3>
-            <Link href="/finance/transactions" className="text-xs text-blue-400 hover:underline">View all →</Link>
+            <Link href="/finance/transactions" className="text-xs text-blue-600 hover:underline">View all →</Link>
           </div>
           {recentTxs.length === 0 ? (
             <p className="text-sm text-[hsl(var(--text-tertiary))] text-center py-8">No transactions this month</p>
@@ -382,7 +382,7 @@ export default function FinanceOverviewClient() {
                     <p className="text-sm font-medium truncate">{tx.merchant || tx.description || '—'}</p>
                     <p className="text-xs text-[hsl(var(--text-tertiary))]">{tx.category?.name} · {tx.transaction_date.slice(5)}</p>
                   </div>
-                  <span className={cn("text-sm font-semibold", tx.type === 'income' ? "text-emerald-400" : "text-rose-400")}>
+                  <span className={cn("text-sm font-semibold", tx.type === 'income' ? "text-emerald-600" : "text-rose-600")}>
                     {tx.type === 'income' ? '+' : '-'}${tx.amount_mxn.toLocaleString()}
                   </span>
                 </div>

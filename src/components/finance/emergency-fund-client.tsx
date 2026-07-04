@@ -171,10 +171,10 @@ export default function EmergencyFundClient() {
 
       {/* Hero KPIs */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
-        <GlassCard><span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Current Fund</span><p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-indigo-400 mt-1">${currentFund.toLocaleString()}</p></GlassCard>
+        <GlassCard><span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Current Fund</span><p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-indigo-600 mt-1">${currentFund.toLocaleString()}</p></GlassCard>
         <GlassCard><span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Target ({recommendedMonths}mo)</span><p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">${targetAmount.toLocaleString()}</p></GlassCard>
-        <GlassCard><span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Months Covered</span><p className={cn("num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1", monthsCovered >= 6 ? "text-emerald-400" : monthsCovered >= 3 ? "text-amber-400" : "text-rose-400")}>{monthsCovered.toFixed(1)}</p><p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">of {recommendedMonths} month target</p></GlassCard>
-        <GlassCard><span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Risk Score</span><p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">{answeredAll ? `${riskScore}/20` : '—'}</p>{answeredAll && <span className={cn("text-xs font-medium", riskScore <= 8 ? "text-emerald-400" : riskScore <= 13 ? "text-amber-400" : "text-rose-400")}>{riskScore <= 8 ? 'Low risk' : riskScore <= 13 ? 'Moderate' : 'High risk'}</span>}</GlassCard>
+        <GlassCard><span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Months Covered</span><p className={cn("num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1", monthsCovered >= 6 ? "text-emerald-600" : monthsCovered >= 3 ? "text-amber-600" : "text-rose-600")}>{monthsCovered.toFixed(1)}</p><p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">of {recommendedMonths} month target</p></GlassCard>
+        <GlassCard><span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Risk Score</span><p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">{answeredAll ? `${riskScore}/20` : '—'}</p>{answeredAll && <span className={cn("text-xs font-medium", riskScore <= 8 ? "text-emerald-600" : riskScore <= 13 ? "text-amber-600" : "text-rose-600")}>{riskScore <= 8 ? 'Low risk' : riskScore <= 13 ? 'Moderate' : 'High risk'}</span>}</GlassCard>
       </div>
 
       {/* Thermometer + Risk Questionnaire */}
@@ -221,8 +221,8 @@ export default function EmergencyFundClient() {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               className="mt-4 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30">
               <div className="flex items-center justify-between">
-                <div><span className="text-xs text-indigo-400/70 uppercase tracking-wider">Risk Score</span><p className="num-metric text-2xl font-bold text-indigo-400">{riskScore}/20</p></div>
-                <div className="text-right"><span className="text-xs text-indigo-400/70 uppercase tracking-wider">Recommended Fund</span><p className="num-metric text-2xl font-bold tabular-nums">{recommendedMonths} months</p><p className="text-sm font-medium tabular-nums text-indigo-400">${targetAmount.toLocaleString()}</p></div>
+                <div><span className="text-xs text-indigo-600/70 uppercase tracking-wider">Risk Score</span><p className="num-metric text-2xl font-bold text-indigo-600">{riskScore}/20</p></div>
+                <div className="text-right"><span className="text-xs text-indigo-600/70 uppercase tracking-wider">Recommended Fund</span><p className="num-metric text-2xl font-bold tabular-nums">{recommendedMonths} months</p><p className="text-sm font-medium tabular-nums text-indigo-600">${targetAmount.toLocaleString()}</p></div>
               </div>
             </motion.div>
           )}
@@ -262,15 +262,15 @@ export default function EmergencyFundClient() {
         <GlassCard>
           <h3 className="text-base font-semibold mb-4">Savings Plan</h3>
           <div className="space-y-3 mb-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--bg-elevated))]"><span className="text-sm">Monthly target</span><span className="text-sm font-bold tabular-nums text-indigo-400">${monthlySaving.toLocaleString()}</span></div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--bg-elevated))]"><span className="text-sm">Monthly target</span><span className="text-sm font-bold tabular-nums text-indigo-600">${monthlySaving.toLocaleString()}</span></div>
             <div className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--bg-elevated))]"><span className="text-sm">Months to target</span><span className="text-sm font-bold tabular-nums">{monthsToTarget === Infinity ? '∞' : monthsToTarget}</span></div>
           </div>
           <div className="h-44 sm:h-56">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={savingsData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} />
-                <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} />
+                <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} />
                 <defs><linearGradient id="fundGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.3} /><stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0} /></linearGradient></defs>
                 <Area type="monotone" dataKey="balance" stroke="hsl(var(--chart-3))" fill="url(#fundGrad)" strokeWidth={2} />
@@ -290,8 +290,8 @@ export default function EmergencyFundClient() {
                 <p className="text-sm font-medium mb-2">{step.question}</p>
                 {decisionStep === i && !decisionComplete && (
                   <div className="flex gap-2">
-                    <button onClick={() => handleDecision(i, 'yes')} className="flex-1 py-2 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all">✓ Yes</button>
-                    <button onClick={() => handleDecision(i, 'no')} className="flex-1 py-2 rounded-lg text-xs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20 transition-all">✗ No</button>
+                    <button onClick={() => handleDecision(i, 'yes')} className="flex-1 py-2 rounded-lg text-xs font-medium bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all">✓ Yes</button>
+                    <button onClick={() => handleDecision(i, 'no')} className="flex-1 py-2 rounded-lg text-xs font-medium bg-rose-500/10 text-rose-600 border border-rose-500/30 hover:bg-rose-500/20 transition-all">✗ No</button>
                   </div>
                 )}
                 {decisionAnswers[i] && <p className="text-xs mt-1 text-[hsl(var(--text-tertiary))]">Answered: {decisionAnswers[i] === 'yes' ? '✓ Yes' : '✗ No'}</p>}
@@ -316,13 +316,13 @@ export default function EmergencyFundClient() {
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {ACCOUNTS.map(acct => (
             <div key={acct.name} className="p-4 rounded-xl border border-[hsl(var(--border))] hover:border-indigo-500/30 transition-all">
-              <div className="flex items-center gap-2 mb-2"><span className="text-xl">{acct.icon}</span><div><h4 className="text-sm font-semibold">{acct.name}</h4><span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", acct.color === 'emerald' ? 'bg-emerald-500/15 text-emerald-400' : acct.color === 'blue' ? 'bg-blue-500/15 text-blue-400' : 'bg-violet-500/15 text-violet-400')}>Tier {acct.tier}</span></div></div>
+              <div className="flex items-center gap-2 mb-2"><span className="text-xl">{acct.icon}</span><div><h4 className="text-sm font-semibold">{acct.name}</h4><span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", acct.color === 'emerald' ? 'bg-emerald-500/15 text-emerald-600' : acct.color === 'blue' ? 'bg-blue-500/15 text-blue-600' : 'bg-violet-500/15 text-violet-600')}>Tier {acct.tier}</span></div></div>
               <div className="space-y-1.5 mt-3">
-                <div className="flex items-center justify-between"><span className="text-xs text-[hsl(var(--text-tertiary))]">Rate</span><span className="text-sm font-bold tabular-nums text-emerald-400">{acct.rate}</span></div>
+                <div className="flex items-center justify-between"><span className="text-xs text-[hsl(var(--text-tertiary))]">Rate</span><span className="text-sm font-bold tabular-nums text-emerald-600">{acct.rate}</span></div>
                 <div className="flex items-center justify-between"><span className="text-xs text-[hsl(var(--text-tertiary))]">Access</span><span className="text-xs">{acct.access}</span></div>
               </div>
-              <p className="text-xs text-emerald-400/70 mt-2">✓ {acct.pro}</p>
-              <p className="text-xs text-rose-400/70 mt-0.5">✗ {acct.con}</p>
+              <p className="text-xs text-emerald-600/70 mt-2">✓ {acct.pro}</p>
+              <p className="text-xs text-rose-600/70 mt-0.5">✗ {acct.con}</p>
             </div>
           ))}
         </div>

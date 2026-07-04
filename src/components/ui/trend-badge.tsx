@@ -13,8 +13,8 @@ export function TrendBadge({ value, suffix = '%', className = '' }: TrendBadgePr
   const color = isNeutral
     ? 'text-[hsl(var(--text-secondary))] bg-[hsl(var(--muted))]'
     : isPositive
-      ? 'text-emerald-400 bg-emerald-500/10'
-      : 'text-red-400 bg-red-500/10'
+      ? 'text-emerald-600 bg-emerald-500/10'
+      : 'text-red-600 bg-red-500/10'
 
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${color} ${className}`}>

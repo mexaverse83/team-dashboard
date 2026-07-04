@@ -69,12 +69,12 @@ describe('TrendBadge', () => {
 
   it('applies positive styling', () => {
     const { container } = render(<TrendBadge value={10} />)
-    expect(container.firstChild).toHaveClass('text-emerald-400')
+    expect(container.firstChild).toHaveClass('text-emerald-600')
   })
 
   it('applies negative styling', () => {
     const { container } = render(<TrendBadge value={-10} />)
-    expect(container.firstChild).toHaveClass('text-red-400')
+    expect(container.firstChild).toHaveClass('text-red-600')
   })
 })
 

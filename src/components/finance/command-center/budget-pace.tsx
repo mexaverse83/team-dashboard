@@ -24,12 +24,12 @@ function BudgetRow({ cat }: { cat: BudgetCat }) {
       <div className="flex items-center justify-between mb-1">
         <span className="text-sm font-medium">
           {cat.icon} {cat.category}
-          {cat.is_non_monthly && <span className="text-blue-400 text-[10px] ml-1">({cat.cycle_months}mo cycle)</span>}
+          {cat.is_non_monthly && <span className="text-blue-600 text-[10px] ml-1">({cat.cycle_months}mo cycle)</span>}
         </span>
         <span className="text-xs tabular-nums text-[hsl(var(--text-secondary))]">
           {fmtMoney(cat.spent, { compact: true })} / {fmtMoney(cat.budget, { compact: true })}
           {monthly && cat.budget > 0 && (
-            <span className={cn('ml-2', overshoot ? 'text-rose-400' : 'text-emerald-400')}>
+            <span className={cn('ml-2', overshoot ? 'text-rose-600' : 'text-emerald-600')}>
               → {fmtMoney(projection, { compact: true })}
             </span>
           )}
@@ -45,7 +45,7 @@ function BudgetRow({ cat }: { cat: BudgetCat }) {
         )}
       </div>
       {overshoot && (
-        <p className="text-[10px] text-rose-400 mt-1">
+        <p className="text-[10px] text-rose-600 mt-1">
           Projected overshoot: {fmtMoney(overBy, { compact: true })} ({Math.round(projectedPct - 100)}% over)
         </p>
       )}
@@ -100,9 +100,9 @@ export function BudgetPaceCard({ summary }: { summary: Summary | null }) {
 
       <div className="flex items-center gap-1 mb-4 -mt-1">
         {[
-          { key: 'over', label: 'Over', count: overshootCount, color: 'text-rose-400 border-rose-500/40 bg-rose-500/5' },
-          { key: 'all', label: 'All', count: all.length, color: 'text-blue-400 border-blue-500/40 bg-blue-500/5' },
-          { key: 'on_track', label: 'On track', count: onTrack.length, color: 'text-emerald-400 border-emerald-500/40 bg-emerald-500/5' },
+          { key: 'over', label: 'Over', count: overshootCount, color: 'text-rose-600 border-rose-500/40 bg-rose-500/5' },
+          { key: 'all', label: 'All', count: all.length, color: 'text-blue-600 border-blue-500/40 bg-blue-500/5' },
+          { key: 'on_track', label: 'On track', count: onTrack.length, color: 'text-emerald-600 border-emerald-500/40 bg-emerald-500/5' },
         ].map(chip => (
           <button
             key={chip.key}
@@ -136,7 +136,7 @@ export function BudgetPaceCard({ summary }: { summary: Summary | null }) {
           {hidden > 0 && (
             <button
               onClick={() => setExpanded(true)}
-              className="w-full mt-3 inline-flex items-center justify-center gap-1 py-2 text-xs font-medium text-blue-400 hover:bg-[hsl(var(--muted))]/30 rounded-md transition-colors"
+              className="w-full mt-3 inline-flex items-center justify-center gap-1 py-2 text-xs font-medium text-blue-600 hover:bg-[hsl(var(--muted))]/30 rounded-md transition-colors"
             >
               Show {hidden} more <ChevronDown className="h-3 w-3" />
             </button>

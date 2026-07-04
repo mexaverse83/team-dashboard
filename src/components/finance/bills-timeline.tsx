@@ -86,7 +86,7 @@ export function BillsTimeline({ events, daysAhead = 30, maxItems = 12 }: BillsTi
               <p className="text-xs font-semibold">{dateLabel}</p>
               <p className="text-[10px] text-[hsl(var(--text-tertiary))]">{inDays || (days > 7 ? `in ${days}d` : '')}</p>
             </div>
-            <div className="flex-1 space-y-1.5">
+            <div className="flex-1 min-w-0 space-y-1.5">
               {items.map((ev, i) => {
                 const isInflow = ev.amount_mxn > 0
                 const Icon = isInflow ? ArrowDownLeft : ArrowUpRight
@@ -107,7 +107,7 @@ export function BillsTimeline({ events, daysAhead = 30, maxItems = 12 }: BillsTi
                         {TYPE_LABELS[ev.type]}{ev.owner ? ` · ${ev.owner}` : ''}
                       </p>
                     </div>
-                    <span className={cn('text-sm font-semibold tabular-nums', isInflow ? 'text-emerald-400' : 'text-rose-400')}>
+                    <span className={cn('text-sm font-semibold tabular-nums', isInflow ? 'text-emerald-600' : 'text-rose-600')}>
                       {isInflow ? '+' : '-'}${Math.abs(Math.round(ev.amount_mxn)).toLocaleString()}
                     </span>
                   </div>

@@ -71,19 +71,19 @@ export function SafeToSpendCard({ summary }: { summary?: SummarySlice | null }) 
     <GlassCard>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Safe to Spend Today</span>
-        <Coins className={cn('h-4 w-4', overCommitted ? 'text-rose-400' : 'text-emerald-400')} />
+        <Coins className={cn('h-4 w-4', overCommitted ? 'text-rose-600' : 'text-emerald-600')} />
       </div>
 
       {overCommitted ? (
         <>
-          <p className="num-metric text-2xl sm:text-3xl font-bold text-rose-400">$0</p>
-          <p className="text-xs text-rose-400/90 mt-1">
+          <p className="num-metric text-2xl sm:text-3xl font-bold text-rose-600">$0</p>
+          <p className="text-xs text-rose-600/90 mt-1">
             Over-committed by ${Math.abs(freeThisMonth).toLocaleString()} this month — extra spending comes out of savings.
           </p>
         </>
       ) : (
         <>
-          <p className={cn('num-metric text-2xl sm:text-3xl font-bold', perDay > 500 ? 'text-emerald-400' : 'text-amber-400')}>
+          <p className={cn('num-metric text-2xl sm:text-3xl font-bold', perDay > 500 ? 'text-emerald-600' : 'text-amber-600')}>
             ${perDay.toLocaleString()}<span className="text-sm font-medium text-[hsl(var(--text-tertiary))]"> /day</span>
           </p>
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">
@@ -101,7 +101,7 @@ export function SafeToSpendCard({ summary }: { summary?: SummarySlice | null }) 
         ].map(([label, val]) => (
           <div key={label as string} className="flex items-center justify-between text-[11px]">
             <span className="text-[hsl(var(--text-tertiary))]">{label}</span>
-            <span className={cn('font-medium', (val as number) < 0 ? 'text-[hsl(var(--text-secondary))]' : 'text-emerald-400')}>
+            <span className={cn('font-medium', (val as number) < 0 ? 'text-[hsl(var(--text-secondary))]' : 'text-emerald-600')}>
               {(val as number) < 0 ? '−' : ''}${Math.abs(val as number).toLocaleString()}
             </span>
           </div>

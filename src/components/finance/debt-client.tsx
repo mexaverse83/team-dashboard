@@ -189,7 +189,7 @@ export default function DebtClient() {
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Debt</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-rose-400 mt-1">${totalDebt.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-rose-600 mt-1">${totalDebt.toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{debts.length} accounts</p>
         </GlassCard>
         <GlassCard>
@@ -198,13 +198,13 @@ export default function DebtClient() {
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Avg Interest</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-400 mt-1">{weightedAvgRate.toFixed(1)}%</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-600 mt-1">{weightedAvgRate.toFixed(1)}%</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">weighted by balance</p>
         </GlassCard>
         <GlassCard className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent pointer-events-none" />
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Debt-Free Date</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">{debts.length > 0 ? debtFreeDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">{debts.length > 0 ? debtFreeDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{bestResult.months} months away</p>
         </GlassCard>
       </div>
@@ -216,9 +216,9 @@ export default function DebtClient() {
           <div className="h-44 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(222, 20%, 14%)" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} label={{ value: 'Months', position: 'insideBottom', offset: -5, fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} />
-                <YAxis tick={{ fontSize: 10, fill: 'hsl(222, 15%, 55%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} label={{ value: 'Months', position: 'insideBottom', offset: -5, fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} />
+                <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
                 <Line type="monotone" dataKey="snowball" name="Snowball" stroke="hsl(var(--chart-3))" strokeWidth={2.5} dot={false} />
                 <Line type="monotone" dataKey="avalanche" name="Avalanche" stroke="hsl(var(--chart-5))" strokeWidth={2.5} dot={false} strokeDasharray="6 3" />
@@ -240,11 +240,11 @@ export default function DebtClient() {
                 <div key={s.name} className={cn("p-4 rounded-xl border transition-all",
                   isWinner ? "border-emerald-500/50 bg-emerald-500/5" : "border-[hsl(var(--border))]"
                 )}>
-                  {isWinner && <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-2 block">⭐ Recommended</span>}
+                  {isWinner && <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 mb-2 block">⭐ Recommended</span>}
                   <div className="flex items-center gap-2 mb-2"><span className="text-lg">{s.icon}</span><span className="text-sm font-semibold">{s.name}</span></div>
                   <div className="grid grid-cols-2 gap-2">
                     <div><span className="text-xs text-[hsl(var(--text-tertiary))]">Time</span><p className="text-sm font-bold tabular-nums">{s.months} months</p></div>
-                    <div><span className="text-xs text-[hsl(var(--text-tertiary))]">Total Interest</span><p className="text-sm font-bold tabular-nums text-rose-400">${s.interest.toLocaleString()}</p></div>
+                    <div><span className="text-xs text-[hsl(var(--text-tertiary))]">Total Interest</span><p className="text-sm font-bold tabular-nums text-rose-600">${s.interest.toLocaleString()}</p></div>
                   </div>
                   <p className="text-xs text-[hsl(var(--text-tertiary))] mt-2 italic">{s.pro}</p>
                 </div>
@@ -266,7 +266,7 @@ export default function DebtClient() {
                   onChange={e => setExtraPayment(Number(e.target.value))} className="w-full accent-emerald-500" />
                 <div className="flex items-center justify-between mt-1">
                   <span className="text-xs text-[hsl(var(--text-tertiary))]">$0</span>
-                  <span className="text-lg font-bold tabular-nums text-emerald-400">+${extraPayment.toLocaleString()}/mo</span>
+                  <span className="text-lg font-bold tabular-nums text-emerald-600">+${extraPayment.toLocaleString()}/mo</span>
                   <span className="text-xs text-[hsl(var(--text-tertiary))]">$20,000</span>
                 </div>
               </div>
@@ -274,13 +274,13 @@ export default function DebtClient() {
                 {[1000, 2500, 5000, 10000].map(amt => (
                   <button key={amt} onClick={() => setExtraPayment(amt)}
                     className={cn("flex-1 py-1.5 rounded-lg text-xs font-medium transition-all border",
-                      extraPayment === amt ? "border-emerald-500 bg-emerald-500/10 text-emerald-400" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                      extraPayment === amt ? "border-emerald-500 bg-emerald-500/10 text-emerald-600" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
                     )}>+${(amt / 1000).toFixed(0)}k</button>
                 ))}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-lg bg-emerald-500/10"><span className="text-xs text-emerald-400/70">Time Saved</span><p className="text-lg font-bold text-emerald-400 tabular-nums">{monthsSaved} months</p></div>
-                <div className="p-3 rounded-lg bg-emerald-500/10"><span className="text-xs text-emerald-400/70">Interest Saved</span><p className="text-lg font-bold text-emerald-400 tabular-nums">${interestSaved.toLocaleString()}</p></div>
+                <div className="p-3 rounded-lg bg-emerald-500/10"><span className="text-xs text-emerald-600/70">Time Saved</span><p className="text-lg font-bold text-emerald-600 tabular-nums">{monthsSaved} months</p></div>
+                <div className="p-3 rounded-lg bg-emerald-500/10"><span className="text-xs text-emerald-600/70">Interest Saved</span><p className="text-lg font-bold text-emerald-600 tabular-nums">${interestSaved.toLocaleString()}</p></div>
               </div>
             </div>
           </GlassCard>
@@ -290,17 +290,17 @@ export default function DebtClient() {
             <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.6 }}>
               <span className="text-5xl mb-3 block">🎯</span>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-1">Debt-Free Countdown</p>
-              <p className="num-metric text-4xl sm:text-5xl font-black tabular-nums text-emerald-400">{bestResult.months}</p>
+              <p className="num-metric text-4xl sm:text-5xl font-black tabular-nums text-emerald-600">{bestResult.months}</p>
               <p className="text-sm text-[hsl(var(--text-secondary))] mt-1">months to go</p>
               <div className="relative h-32 w-32 mx-auto mt-4">
                 <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(222, 20%, 14%)" strokeWidth="6" />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(210, 20%, 88%)" strokeWidth="6" />
                   <motion.circle cx="50" cy="50" r="42" fill="none" stroke="#10B981" strokeWidth="6" strokeLinecap="round"
                     strokeDasharray={`${2 * Math.PI * 42}`} initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
                     animate={{ strokeDashoffset: 2 * Math.PI * 42 * (1 - pctPaid) }} transition={{ duration: 1.2 }} />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold text-emerald-400 tabular-nums">{Math.round(pctPaid * 100)}%</span>
+                  <span className="text-sm font-bold text-emerald-600 tabular-nums">{Math.round(pctPaid * 100)}%</span>
                 </div>
               </div>
               <p className="text-xs text-[hsl(var(--text-tertiary))] mt-2">of original debt paid off</p>
@@ -334,17 +334,17 @@ export default function DebtClient() {
                     <tr key={debt.id} className="border-b border-[hsl(var(--border))] last:border-0 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors group">
                       <td className="py-3 px-3"><div className="flex items-center gap-2"><span>{DEBT_ICONS[debt.type] || '📄'}</span><div><p className="text-sm font-medium flex items-center gap-2">{debt.name} <OwnerDot owner={debt.owner} /></p><p className="text-xs text-[hsl(var(--text-tertiary))]">{debt.creditor}</p></div></div></td>
                       <td className="py-3 px-3"><span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(var(--bg-elevated))] capitalize">{debt.type.replace('_', ' ')}</span></td>
-                      <td className="py-3 px-3 text-right text-sm font-semibold tabular-nums text-rose-400">${debt.balance.toLocaleString()}</td>
-                      <td className="py-3 px-3 text-right"><span className={cn("text-sm font-medium tabular-nums", debt.interest_rate >= 25 ? "text-rose-400" : debt.interest_rate >= 15 ? "text-amber-400" : "")}>{debt.interest_rate}%</span></td>
+                      <td className="py-3 px-3 text-right text-sm font-semibold tabular-nums text-rose-600">${debt.balance.toLocaleString()}</td>
+                      <td className="py-3 px-3 text-right"><span className={cn("text-sm font-medium tabular-nums", debt.interest_rate >= 25 ? "text-rose-600" : debt.interest_rate >= 15 ? "text-amber-600" : "")}>{debt.interest_rate}%</span></td>
                       <td className="py-3 px-3 text-right text-sm tabular-nums">${debt.minimum_payment.toLocaleString()}</td>
                       <td className="py-2 px-2 w-16">
                         <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                          <button onClick={(e) => { e.stopPropagation(); setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }} className="p-1 rounded hover:bg-emerald-500/10" title="Log payment"><CreditCard className="h-3.5 w-3.5 text-emerald-400" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }} className="p-1 rounded hover:bg-emerald-500/10" title="Log payment"><CreditCard className="h-3.5 w-3.5 text-emerald-600" /></button>
                           <button aria-label="Edit" onClick={() => openEdit(debt)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
                           {deleteConfirm === debt.id ? (
                             <div className="flex gap-0.5"><button onClick={() => handleDelete(debt.id)} className="px-1.5 py-0.5 rounded text-[10px] bg-rose-600 text-white">Del</button><button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--bg-elevated))]">No</button></div>
                           ) : (
-                            <button aria-label="Delete" onClick={() => setDeleteConfirm(debt.id)} className="p-1 rounded hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-400" /></button>
+                            <button aria-label="Delete" onClick={() => setDeleteConfirm(debt.id)} className="p-1 rounded hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-600" /></button>
                           )}
                         </div>
                       </td>
@@ -358,14 +358,14 @@ export default function DebtClient() {
                 <div key={debt.id} className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
                   <div className="flex items-center justify-between" onClick={() => openEdit(debt)}>
                     <div className="flex items-center gap-2"><span className="text-lg">{DEBT_ICONS[debt.type] || '📄'}</span><div><p className="text-sm font-medium flex items-center gap-2">{debt.name} <OwnerDot owner={debt.owner} /></p><p className="text-xs text-[hsl(var(--text-tertiary))]">{debt.creditor}</p></div></div>
-                    <span className="text-sm font-bold tabular-nums text-rose-400">${debt.balance.toLocaleString()}</span>
+                    <span className="text-sm font-bold tabular-nums text-rose-600">${debt.balance.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-tertiary))]"><span className={cn(debt.interest_rate >= 25 ? "text-rose-400" : debt.interest_rate >= 15 ? "text-amber-400" : "")}>{debt.interest_rate}% APR</span><span>Min: ${debt.minimum_payment.toLocaleString()}</span></div>
+                    <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-tertiary))]"><span className={cn(debt.interest_rate >= 25 ? "text-rose-600" : debt.interest_rate >= 15 ? "text-amber-600" : "")}>{debt.interest_rate}% APR</span><span>Min: ${debt.minimum_payment.toLocaleString()}</span></div>
                     <div className="flex gap-1">
-                      <button onClick={(e) => { e.stopPropagation(); setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }} className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-400" title="Log payment"><CreditCard className="h-3.5 w-3.5" /></button>
-                      <button aria-label="Edit" onClick={() => openEdit(debt)} className="p-1.5 rounded-lg hover:bg-blue-500/10 text-blue-400"><Pencil className="h-3.5 w-3.5" /></button>
-                      <button aria-label="Delete" onClick={() => setDeleteConfirm(debt.id)} className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400"><Trash2 className="h-3.5 w-3.5" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }} className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-600" title="Log payment"><CreditCard className="h-3.5 w-3.5" /></button>
+                      <button aria-label="Edit" onClick={() => openEdit(debt)} className="p-1.5 rounded-lg hover:bg-blue-500/10 text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
+                      <button aria-label="Delete" onClick={() => setDeleteConfirm(debt.id)} className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
                   </div>
                 </div>
@@ -433,8 +433,8 @@ export default function DebtClient() {
               </div>
               {amount > 0 && (
                 <div className="p-3 rounded-lg border border-[hsl(var(--border))] text-sm space-y-1">
-                  <div className="flex justify-between"><span className="text-amber-400">→ Interest</span><span className="tabular-nums">${interest.toLocaleString()}</span></div>
-                  <div className="flex justify-between"><span className="text-emerald-400">→ Principal</span><span className="tabular-nums font-medium">${principal.toLocaleString()}</span></div>
+                  <div className="flex justify-between"><span className="text-amber-600">→ Interest</span><span className="tabular-nums">${interest.toLocaleString()}</span></div>
+                  <div className="flex justify-between"><span className="text-emerald-600">→ Principal</span><span className="tabular-nums font-medium">${principal.toLocaleString()}</span></div>
                   <div className="flex justify-between pt-1 border-t border-[hsl(var(--border))]"><span className="font-medium">New balance</span><span className="tabular-nums font-bold">${newBalance.toLocaleString()}</span></div>
                 </div>
               )}

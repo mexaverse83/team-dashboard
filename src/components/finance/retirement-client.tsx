@@ -102,14 +102,14 @@ function AforeCard({ record, onEdit }: { record: RetirementRecord; onEdit: (r: R
         </div>
         <div className="flex justify-between font-semibold border-t border-[hsl(var(--border))] pt-2">
           <span className="text-[hsl(var(--text-secondary))]">Projected at 65 (base)</span>
-          <span className="tabular-nums text-slate-300">{fmtMXN(projected)}</span>
+          <span className="tabular-nums text-slate-600">{fmtMXN(projected)}</span>
         </div>
       </div>
 
       {/* Badges */}
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[hsl(var(--border))]">
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-400 font-medium">AFORE</span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-500/10 text-slate-400 font-medium">🔒 Locked until 65</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-600 font-medium">AFORE</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-500/10 text-slate-600 font-medium">🔒 Locked until 65</span>
       </div>
     </GlassCard>
   )
@@ -140,7 +140,7 @@ function InfonavitCard({ record, onEdit }: { record: RetirementRecord; onEdit: (
       </div>
 
       {/* Balance */}
-      <p className="text-xl font-bold tabular-nums text-emerald-400">{fmtMXN(record.current_balance)}</p>
+      <p className="text-xl font-bold tabular-nums text-emerald-600">{fmtMXN(record.current_balance)}</p>
       <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
         Updated {record.last_updated ?? 'unknown'}
       </p>
@@ -149,15 +149,15 @@ function InfonavitCard({ record, onEdit }: { record: RetirementRecord; onEdit: (
       <div className="flex items-center gap-2 mt-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
         <span className="text-sm shrink-0">🏗️</span>
         <div>
-          <p className="text-xs font-medium text-emerald-400">Earmarked: WEST Apartment</p>
+          <p className="text-xs font-medium text-emerald-600">Earmarked: WEST Apartment</p>
           <p className="text-xs text-[hsl(var(--text-secondary))]">Applied at delivery — Dec 2027</p>
         </div>
       </div>
 
       {/* Badges */}
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[hsl(var(--border))]">
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-medium">Infonavit</span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-medium">✅ Available for WEST</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-medium">Infonavit</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-medium">✅ Available for WEST</span>
       </div>
     </GlassCard>
   )
@@ -325,15 +325,15 @@ export function RetirementTab({ ownerFilter }: RetirementTabProps) {
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">AFORE Combined</span>
           <p className="text-2xl sm:text-3xl font-bold tabular-nums mt-1">{fmtMXN(aforeTotal)}</p>
           <div className="flex items-center gap-1 mt-1">
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-500/10 text-slate-400 font-medium">🔒 Locked</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-500/10 text-slate-600 font-medium">🔒 Locked</span>
           </div>
         </GlassCard>
 
         <GlassCard className="col-span-2 sm:col-span-1">
           <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Available for WEST</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-emerald-400 mt-1">{fmtMXN(westEarmarked)}</p>
+          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">{fmtMXN(westEarmarked)}</p>
           <div className="flex items-center gap-1 mt-1">
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-medium">✅ Laura&apos;s Infonavit</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-medium">✅ Laura&apos;s Infonavit</span>
           </div>
         </GlassCard>
       </div>
@@ -366,9 +366,9 @@ export function RetirementTab({ ownerFilter }: RetirementTabProps) {
               <thead>
                 <tr className="border-b border-[hsl(var(--border))]">
                   <th className="text-left text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider py-3 px-3">Person</th>
-                  <th className="text-right text-xs font-medium text-amber-400 uppercase tracking-wider py-3 px-3">Conservative (7%)</th>
+                  <th className="text-right text-xs font-medium text-amber-600 uppercase tracking-wider py-3 px-3">Conservative (7%)</th>
                   <th className="text-right text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider py-3 px-3">Base (8.5%)</th>
-                  <th className="text-right text-xs font-medium text-emerald-400 uppercase tracking-wider py-3 px-3">Optimistic (10%)</th>
+                  <th className="text-right text-xs font-medium text-emerald-600 uppercase tracking-wider py-3 px-3">Optimistic (10%)</th>
                 </tr>
               </thead>
               <tbody>
@@ -381,16 +381,16 @@ export function RetirementTab({ ownerFilter }: RetirementTabProps) {
                         <span className="text-xs text-[hsl(var(--text-secondary))]">{row.yearsToRetirement}yr to 65</span>
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-amber-400">{fmtMXN(row.conservative)}</td>
+                    <td className="py-3 px-3 text-right tabular-nums text-amber-600">{fmtMXN(row.conservative)}</td>
                     <td className="py-3 px-3 text-right tabular-nums font-semibold">{fmtMXN(row.base)}</td>
-                    <td className="py-3 px-3 text-right tabular-nums text-emerald-400">{fmtMXN(row.optimistic)}</td>
+                    <td className="py-3 px-3 text-right tabular-nums text-emerald-600">{fmtMXN(row.optimistic)}</td>
                   </tr>
                 ))}
                 <tr className="bg-[hsl(var(--bg-elevated))]/50">
                   <td className="py-3 px-3 font-bold text-sm">Combined</td>
-                  <td className="py-3 px-3 text-right tabular-nums font-bold text-amber-400">{fmtMXN(projTotals.conservative)}</td>
+                  <td className="py-3 px-3 text-right tabular-nums font-bold text-amber-600">{fmtMXN(projTotals.conservative)}</td>
                   <td className="py-3 px-3 text-right tabular-nums font-bold">{fmtMXN(projTotals.base)}</td>
-                  <td className="py-3 px-3 text-right tabular-nums font-bold text-emerald-400">{fmtMXN(projTotals.optimistic)}</td>
+                  <td className="py-3 px-3 text-right tabular-nums font-bold text-emerald-600">{fmtMXN(projTotals.optimistic)}</td>
                 </tr>
               </tbody>
             </table>
@@ -407,7 +407,7 @@ export function RetirementTab({ ownerFilter }: RetirementTabProps) {
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
-                    <p className="text-[10px] text-amber-400 uppercase">Conservative</p>
+                    <p className="text-[10px] text-amber-600 uppercase">Conservative</p>
                     <p className="text-sm font-semibold tabular-nums">{fmtMXN(row.conservative)}</p>
                   </div>
                   <div>
@@ -415,7 +415,7 @@ export function RetirementTab({ ownerFilter }: RetirementTabProps) {
                     <p className="text-sm font-bold tabular-nums">{fmtMXN(row.base)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-emerald-400 uppercase">Optimistic</p>
+                    <p className="text-[10px] text-emerald-600 uppercase">Optimistic</p>
                     <p className="text-sm font-semibold tabular-nums">{fmtMXN(row.optimistic)}</p>
                   </div>
                 </div>
@@ -435,7 +435,7 @@ export function RetirementTab({ ownerFilter }: RetirementTabProps) {
         <p className="leading-relaxed">
           AFORE contributions are made automatically by your employer (6.5% of salary). Balances update with contributions + returns.
           To get your exact current balance, check your AFORE app or{' '}
-          <a href="https://afore.mx" target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">afore.mx</a>.
+          <a href="https://afore.mx" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">afore.mx</a>.
         </p>
       </div>
 

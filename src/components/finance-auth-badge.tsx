@@ -26,7 +26,7 @@ export function FinanceAuthBadge({ collapsed }: { collapsed: boolean }) {
   if (collapsed) {
     return (
       <button onClick={handleSignOut} title={`${user.email} — Sign out`}
-        className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-red-500/10 text-red-400 transition-colors">
+        className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-red-500/10 text-red-600 transition-colors">
         <LogOut className="h-4 w-4" />
       </button>
     )
@@ -36,11 +36,11 @@ export function FinanceAuthBadge({ collapsed }: { collapsed: boolean }) {
     <div className="px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))]">
       <div className="flex items-center justify-between">
         <div className="min-w-0">
-          <p className="text-[10px] text-emerald-400 font-medium">🔒 Authenticated</p>
+          <p className="text-[10px] text-emerald-600 font-medium">🔒 Authenticated</p>
           <p className="text-[10px] text-[hsl(var(--text-tertiary))] truncate">{user.email}</p>
         </div>
         <button onClick={handleSignOut} title="Sign out"
-          className="p-1 rounded hover:bg-red-500/10 text-red-400 transition-colors shrink-0">
+          className="p-1 rounded hover:bg-red-500/10 text-red-600 transition-colors shrink-0">
           <LogOut className="h-3.5 w-3.5" />
         </button>
       </div>

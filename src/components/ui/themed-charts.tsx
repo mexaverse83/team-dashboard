@@ -106,7 +106,7 @@ export function ThemedRadialChart({
         >
           <RadialBar
             dataKey="value"
-            background={{ fill: 'hsl(222, 47%, 9%)' }}
+            background={{ fill: 'hsl(206, 26%, 92%)' }}
             cornerRadius={4}
             animationDuration={1000}
           />

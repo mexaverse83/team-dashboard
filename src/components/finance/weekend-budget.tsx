@@ -108,9 +108,9 @@ export function WeekendBudgetCard({ transactions, categories }: Props) {
   const tight = !overspent && m.discretionaryPool > 0 && m.mtdDiscretionary / m.discretionaryPool > 0.7
   const tone = overspent ? 'rose' : tight ? 'amber' : 'emerald'
   const headlineColor = {
-    rose: 'text-rose-400',
-    amber: 'text-amber-400',
-    emerald: 'text-emerald-400',
+    rose: 'text-rose-600',
+    amber: 'text-amber-600',
+    emerald: 'text-emerald-600',
   }[tone]
 
   const fmt = (n: number) => `$${Math.round(n).toLocaleString()}`
@@ -131,7 +131,7 @@ export function WeekendBudgetCard({ transactions, categories }: Props) {
             <span className="ml-1">{m.weekendsRemaining} weekend{m.weekendsRemaining === 1 ? '' : 's'} left this month</span>
           </p>
           {overspent && (
-            <p className="text-xs text-rose-400 mt-1">
+            <p className="text-xs text-rose-600 mt-1">
               Already over the discretionary pool by {fmt(-m.remaining)} — extra spend pulls from savings.
             </p>
           )}
@@ -155,7 +155,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'ro
   return (
     <div>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">{label}</p>
-      <p className={cn('font-semibold mt-0.5', tone === 'rose' ? 'text-rose-400' : '')}>{value}</p>
+      <p className={cn('font-semibold mt-0.5', tone === 'rose' ? 'text-rose-600' : '')}>{value}</p>
     </div>
   )
 }

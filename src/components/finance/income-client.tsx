@@ -137,7 +137,7 @@ export function IncomeClient() {
         </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-600 rounded-lg text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4" /> Add Source
         </button>
@@ -147,10 +147,10 @@ export function IncomeClient() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <GlassCard className="p-4">
           <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
+            <TrendingUp className="w-4 h-4 text-emerald-600" />
             <span className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Monthly</span>
           </div>
-          <p className="text-2xl font-bold num-metric tabular-nums text-emerald-400">${totalActive.toLocaleString()}</p>
+          <p className="text-2xl font-bold num-metric tabular-nums text-emerald-600">${totalActive.toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">Active sources only</p>
         </GlassCard>
         {Object.entries(byOwner).map(([owner, amt]) => (
@@ -167,7 +167,7 @@ export function IncomeClient() {
 
       {/* Error */}
       {error && (
-        <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">{error}</div>
+        <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 text-sm">{error}</div>
       )}
 
       {/* Income list */}
@@ -184,10 +184,10 @@ export function IncomeClient() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-[hsl(var(--foreground))] truncate">{item.name}</span>
                     {item.active && (
-                      <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">Active</span>
+                      <span className="text-xs bg-emerald-500/20 text-emerald-600 px-2 py-0.5 rounded-full">Active</span>
                     )}
                     {!item.active && (
-                      <span className="text-xs bg-zinc-500/20 text-zinc-400 px-2 py-0.5 rounded-full">Inactive</span>
+                      <span className="text-xs bg-zinc-500/20 text-zinc-600 px-2 py-0.5 rounded-full">Inactive</span>
                     )}
                   </div>
                   <p className="flex items-center gap-1.5 flex-wrap text-sm text-[hsl(var(--text-secondary))] mt-0.5">
@@ -200,7 +200,7 @@ export function IncomeClient() {
                   )}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className={cn("text-lg font-bold num-metric tabular-nums", item.active ? "text-emerald-400" : "text-[hsl(var(--text-secondary))]")}>
+                  <p className={cn("text-lg font-bold num-metric tabular-nums", item.active ? "text-emerald-600" : "text-[hsl(var(--text-secondary))]")}>
                     +${item.amount.toLocaleString()}
                   </p>
                   <p className="text-xs text-[hsl(var(--text-tertiary))]">/mo</p>
@@ -229,7 +229,7 @@ export function IncomeClient() {
                   <button aria-label="Delete"
                     onClick={() => handleDelete(item.id)}
                     disabled={deleting === item.id}
-                    className="p-1.5 rounded text-[hsl(var(--text-secondary))] hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                    className="p-1.5 rounded text-[hsl(var(--text-secondary))] hover:text-rose-600 hover:bg-rose-500/10 transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -241,7 +241,7 @@ export function IncomeClient() {
               <span className="text-sm font-medium text-[hsl(var(--text-secondary))]">
                 Total active monthly income
               </span>
-              <span className="text-lg font-bold num-metric tabular-nums text-emerald-400">+${totalActive.toLocaleString()}</span>
+              <span className="text-lg font-bold num-metric tabular-nums text-emerald-600">+${totalActive.toLocaleString()}</span>
             </div>
           </div>
         )}
@@ -376,7 +376,7 @@ export function IncomeClient() {
         <RefreshCw className="w-3.5 h-3.5" />
         <span>
           Auto-registered entries appear in Transactions with a{' '}
-          <span className="text-emerald-400 font-medium">🔁</span>{' '}
+          <span className="text-emerald-600 font-medium">🔁</span>{' '}
           badge. The daily cron runs at 06:00 UTC (midnight CST).
         </span>
       </div>

@@ -164,7 +164,7 @@ export default function BudgetsClient() {
                     <div className="flex items-center gap-1.5">
                       <h4 className="text-sm font-semibold">{b.category?.name}</h4>
                       {b.cycle && b.cycle !== 'monthly' && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-medium">{CYCLE_LABELS[b.cycle as keyof typeof CYCLE_LABELS]}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-600 font-medium">{CYCLE_LABELS[b.cycle as keyof typeof CYCLE_LABELS]}</span>
                       )}
                     </div>
                     <p className="text-xs text-[hsl(var(--text-tertiary))]">
@@ -184,12 +184,12 @@ export default function BudgetsClient() {
                       </div>
                     ) : (
                       <button aria-label="Delete" onClick={() => setDeleteConfirm(b.id)} className="p-1 rounded hover:bg-rose-500/10">
-                        <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                        <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                       </button>
                     )}
                   </div>
                   <span className={cn("text-lg font-bold",
-                    b.pct < 60 ? "text-emerald-400" : b.pct < 80 ? "text-yellow-400" : b.pct < 100 ? "text-orange-400" : "text-rose-400"
+                    b.pct < 60 ? "text-emerald-600" : b.pct < 80 ? "text-yellow-600" : b.pct < 100 ? "text-orange-600" : "text-rose-600"
                   )}>{Math.round(b.pct)}%</span>
                 </div>
                 <div className="h-2.5 rounded-full bg-[hsl(var(--bg-elevated))]">

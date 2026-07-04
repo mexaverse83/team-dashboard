@@ -323,7 +323,7 @@ export function CryptoClient() {
     return (
       <div className="p-4 md:p-6 space-y-4">
         <div className="h-8 w-48 rounded bg-[hsl(var(--accent))] animate-pulse" />
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {[1, 2, 3].map(i => <div key={i} className="h-48 rounded-xl bg-[hsl(var(--accent))] animate-pulse" />)}
         </div>
       </div>
@@ -337,7 +337,7 @@ export function CryptoClient() {
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <span className="section-tick" aria-hidden />
-            <Bitcoin className="h-5 w-5 text-orange-400" /> Crypto Portfolio
+            <Bitcoin className="h-5 w-5 text-orange-600" /> Crypto Portfolio
           </h1>
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
             {prices ? 'Live prices via CoinGecko' : 'Prices unavailable'}
@@ -358,19 +358,19 @@ export function CryptoClient() {
       </div>
 
       {error && (
-        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">{error}</div>
+        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 text-sm">{error}</div>
       )}
 
       {/* Portfolio Summary */}
       <GlassCard className="p-5">
         <div className="flex items-center gap-2 mb-3">
-          <Wallet className="h-4 w-4 text-emerald-400" />
+          <Wallet className="h-4 w-4 text-emerald-600" />
           <span className="text-sm font-semibold">Portfolio Value</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total (MXN)</p>
-            <p className="text-lg font-bold text-emerald-400 tabular-nums">{fmtMXN(totalMXN)}</p>
+            <p className="text-lg font-bold text-emerald-600 tabular-nums">{fmtMXN(totalMXN)}</p>
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total (USD)</p>
@@ -383,7 +383,7 @@ export function CryptoClient() {
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">P&L</p>
             {totalPL !== null ? (
-              <p className={`text-lg font-bold flex items-center gap-1 tabular-nums whitespace-nowrap ${totalPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              <p className={`text-lg font-bold flex items-center gap-1 tabular-nums whitespace-nowrap ${totalPL >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {totalPL >= 0 ? <TrendingUp className="h-4 w-4 shrink-0" /> : <TrendingDown className="h-4 w-4 shrink-0" />}
                 {totalPL >= 0 ? '+' : ''}{fmtMXN(totalPL)}
                 {totalPLPct !== null && <span className="text-xs font-medium ml-1">({totalPLPct >= 0 ? '+' : ''}{totalPLPct.toFixed(1)}%)</span>}
@@ -401,7 +401,7 @@ export function CryptoClient() {
           {/* Combined per-coin totals */}
           <GlassCard className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Wallet className="h-4 w-4 text-blue-400" />
+              <Wallet className="h-4 w-4 text-blue-600" />
               <span className="text-sm font-semibold">Combined Holdings</span>
               <span className="text-[10px] text-[hsl(var(--text-tertiary))]">(Both owners)</span>
             </div>
@@ -442,7 +442,7 @@ export function CryptoClient() {
                   <OwnerDot owner={name} size="md" showLabel />
                   {o.pl !== null && (
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full tabular-nums ${
-                      o.pl >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                      o.pl >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'
                     }`}>
                       {o.pl >= 0 ? '+' : ''}{o.plPct !== null ? `${o.plPct.toFixed(1)}%` : ''}
                     </span>
@@ -453,7 +453,7 @@ export function CryptoClient() {
                 <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-secondary))] mb-3">
                   <span>Cost: {o.cost > 0 ? fmtMXN(o.cost) : '—'}</span>
                   {o.pl !== null && (
-                    <span className={o.pl >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                    <span className={o.pl >= 0 ? 'text-emerald-600' : 'text-red-600'}>
                       P&L: {o.pl >= 0 ? '+' : ''}{fmtMXN(o.pl)}
                     </span>
                   )}
@@ -475,7 +475,7 @@ export function CryptoClient() {
                           <span className="text-xs font-semibold tabular-nums">{fmtMXN(c.valueMXN)}</span>
                           <span className="text-[10px] text-[hsl(var(--text-tertiary))] ml-1.5">{pct.toFixed(0)}%</span>
                           {coinPL !== null && (
-                            <span className={`text-[10px] ml-1.5 ${coinPL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            <span className={`text-[10px] ml-1.5 ${coinPL >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                               {coinPL >= 0 ? '↑' : '↓'}
                             </span>
                           )}
@@ -553,7 +553,7 @@ export function CryptoClient() {
           </button>
         </GlassCard>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map(h => {
             const price = prices?.[h.symbol]
             const valueMXN = getValueMXN(h, prices)
@@ -567,13 +567,13 @@ export function CryptoClient() {
               <GlassCard key={h.id} className="p-4 relative group">
                 <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   <button onClick={() => openTxForm(h.symbol, h.owner, h.id)} className="p-1.5 rounded-md hover:bg-emerald-500/20" title="Log transaction">
-                    <Plus className="h-3.5 w-3.5 text-emerald-400" />
+                    <Plus className="h-3.5 w-3.5 text-emerald-600" />
                   </button>
                   <button aria-label="Edit" onClick={() => editHolding(h)} className="p-1.5 rounded-md hover:bg-[hsl(var(--accent))]">
                     <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                   </button>
                   <button aria-label="Delete" onClick={() => handleDeleteHolding(h.id)} className="p-1.5 rounded-md hover:bg-red-500/20">
-                    <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                    <Trash2 className="h-3.5 w-3.5 text-red-600" />
                   </button>
                 </div>
 
@@ -600,7 +600,7 @@ export function CryptoClient() {
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-[hsl(var(--text-secondary))]">24h</span>
-                        <span className={`font-mono tabular-nums ${change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        <span className={`font-mono tabular-nums ${change >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {change >= 0 ? '+' : ''}{change.toFixed(2)}%
                         </span>
                       </div>
@@ -609,7 +609,7 @@ export function CryptoClient() {
                   <div className="border-t border-[hsl(var(--border))] my-2" />
                   <div className="flex justify-between text-xs">
                     <span className="text-[hsl(var(--text-secondary))]">Value (MXN)</span>
-                    <span className="font-semibold text-emerald-400 tabular-nums">{fmtMXN(valueMXN)}</span>
+                    <span className="font-semibold text-emerald-600 tabular-nums">{fmtMXN(valueMXN)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-[hsl(var(--text-secondary))]">Value (USD)</span>
@@ -618,7 +618,7 @@ export function CryptoClient() {
                   {pl !== null && (
                     <div className="flex justify-between text-xs">
                       <span className="text-[hsl(var(--text-secondary))]">P&L</span>
-                      <span className={`font-semibold tabular-nums ${pl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <span className={`font-semibold tabular-nums ${pl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                         {pl >= 0 ? '+' : ''}{fmtMXN(pl)}
                         {plPct !== null && <span className="ml-1 text-[10px]">({plPct >= 0 ? '+' : ''}{plPct.toFixed(1)}%)</span>}
                       </span>
@@ -664,7 +664,7 @@ export function CryptoClient() {
                     <td className="py-3 px-3 text-[hsl(var(--text-secondary))] tabular-nums">{tx.transaction_date.slice(5)}</td>
                     <td className="py-3 px-2">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        tx.type === 'buy' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                        tx.type === 'buy' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'
                       }`}>
                         {tx.type === 'buy' ? '🟢 Buy' : '🔴 Sell'}
                       </span>
@@ -681,7 +681,7 @@ export function CryptoClient() {
                     <td className="py-3 px-2">
                       <button aria-label="Delete" onClick={() => handleDeleteTx(tx.id, tx.holding_id)}
                         className="p-1 rounded-md hover:bg-red-500/20 sm:opacity-0 sm:group-hover/row:opacity-100 transition-opacity">
-                        <Trash2 className="h-3 w-3 text-red-400" />
+                        <Trash2 className="h-3 w-3 text-red-600" />
                       </button>
                     </td>
                   </tr>
@@ -697,7 +697,7 @@ export function CryptoClient() {
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      tx.type === 'buy' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                      tx.type === 'buy' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'
                     }`}>{tx.type === 'buy' ? 'Buy' : 'Sell'}</span>
                     <span className="text-sm font-medium">{tx.symbol}</span>
                     <OwnerDot owner={tx.owner} size="sm" />
@@ -705,7 +705,7 @@ export function CryptoClient() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold tabular-nums">{fmtMXN(tx.total_mxn)}</span>
                     <button aria-label="Delete" onClick={() => handleDeleteTx(tx.id, tx.holding_id)} className="p-1 rounded-md hover:bg-red-500/20">
-                      <Trash2 className="h-3 w-3 text-red-400" />
+                      <Trash2 className="h-3 w-3 text-red-600" />
                     </button>
                   </div>
                 </div>
