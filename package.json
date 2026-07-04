@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "insights:codex": "node scripts/generate-insights-codex.mjs"
+    "insights:codex": "node scripts/generate-insights-codex.mjs",
+    "push:send": "node scripts/send-push.mjs",
+    "daily": "node scripts/generate-insights-codex.mjs && node scripts/send-push.mjs"
   },
   "keywords": [],
   "author": "",
@@ -50,7 +52,8 @@
     "recharts": "^3.7.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

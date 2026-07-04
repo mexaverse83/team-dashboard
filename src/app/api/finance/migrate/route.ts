@@ -166,6 +166,35 @@ const MIGRATIONS: Record<string, string> = {
     SELECT 'insights-cache migration complete' AS result;
   `,
 
+  'push-subscriptions': `
+    CREATE TABLE IF NOT EXISTS finance_push_subscriptions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      endpoint TEXT NOT NULL UNIQUE,
+      subscription JSONB NOT NULL,
+      owner TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    ALTER TABLE finance_push_subscriptions ENABLE ROW LEVEL SECURITY;
+
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='finance_push_subscriptions' AND policyname='all read push subs') THEN
+        CREATE POLICY "all read push subs" ON finance_push_subscriptions FOR SELECT USING (true);
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='finance_push_subscriptions' AND policyname='all insert push subs') THEN
+        CREATE POLICY "all insert push subs" ON finance_push_subscriptions FOR INSERT WITH CHECK (true);
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='finance_push_subscriptions' AND policyname='all update push subs') THEN
+        CREATE POLICY "all update push subs" ON finance_push_subscriptions FOR UPDATE USING (true);
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='finance_push_subscriptions' AND policyname='all delete push subs') THEN
+        CREATE POLICY "all delete push subs" ON finance_push_subscriptions FOR DELETE USING (true);
+      END IF;
+    END $$;
+
+    SELECT 'push-subscriptions migration complete' AS result;
+  `,
+
   'finance-installments-sync': `
     -- Add installment_id to transactions for proper dupe-guarding
     ALTER TABLE finance_transactions

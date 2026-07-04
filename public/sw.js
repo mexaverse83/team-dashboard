@@ -2,7 +2,7 @@
 // basic offline fallback. Network-first for everything cacheable; API calls
 // and non-GET requests pass straight through (finance data must never be
 // served stale from a SW cache).
-const CACHE = 'finance-pwa-v1'
+const CACHE = 'finance-pwa-v2'
 
 self.addEventListener('install', () => {
   self.skipWaiting()
@@ -13,6 +13,30 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
+  )
+})
+
+self.addEventListener('push', (event) => {
+  let data = {}
+  try { data = event.data ? event.data.json() : {} } catch { /* plain text push */ }
+  event.waitUntil(
+    self.registration.showNotification(data.title || '🐺 Finance', {
+      body: data.body || '',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url: data.url || '/finance' },
+    })
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = (event.notification.data && event.notification.data.url) || '/finance'
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      const existing = wins.find((w) => w.url.includes('/finance'))
+      return existing ? existing.focus() : clients.openWindow(url)
+    })
   )
 })
 

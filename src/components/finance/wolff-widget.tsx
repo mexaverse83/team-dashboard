@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { PushToggle } from '@/components/finance/push-toggle'
 
 interface Insight {
   type: string
@@ -81,9 +82,12 @@ export function WolffWidget() {
             </span>
           )}
         </div>
-        <Link href="/finance/insights" className="text-xs text-blue-600 hover:underline">
-          View all →
-        </Link>
+        <div className="flex items-center gap-2">
+          <PushToggle />
+          <Link href="/finance/insights" className="text-xs text-blue-600 hover:underline">
+            View all →
+          </Link>
+        </div>
       </div>
 
       {loading ? (
