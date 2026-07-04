@@ -41,6 +41,40 @@ ${(b.monthly_net_savings_history || []).map((m) => `  · ${m.month}: income $${N
 ${west.savings_plan?.months?.length ? `- MONTH-BY-MONTH SAVINGS PLAN — covers the purchase gap${west.savings_plan.furnishing_budget ? ` PLUS a $${Number(west.savings_plan.furnishing_budget).toLocaleString()} furnishing budget` : ''} (seasonally weighted by real capacity; stretch factor ${west.savings_plan.stretch_factor}× of historical capacity${west.savings_plan.flat_monthly_equivalent ? `; flat equivalent $${Number(west.savings_plan.flat_monthly_equivalent).toLocaleString()}/mo` : ''}):
 ${west.savings_plan.months.map((m) => `  · ${m.month}: save $${Number(m.target).toLocaleString()}${m.notes.length ? ` (${m.notes.join('; ')})` : ''}`).join('\n')}` : ''}` : ''
 
+  // Weekly coaching context: how much controllable money is left, sliced by
+  // the weeks remaining, so WOLFF can issue concrete week/weekend directives.
+  const CONTROLLABLE = new Set(['Dining Out', 'Groceries', 'Entertainment', 'Shopping', 'Transport', 'Travel', 'Gifts', 'Other'])
+  const weekSection = (() => {
+    const cm = data.current_month
+    if (!cm || !bva.length) return ''
+    const nowD = new Date()
+    const daysLeftMonth = Math.max(1, (cm.days_in_month || 30) - (cm.day_of_month || 1) + 1)
+    const weeksLeft = Math.max(1, Math.ceil(daysLeftMonth / 7))
+    const dow = nowD.getDay() // 0=Sun..6=Sat
+    const daysToSunday = dow === 0 ? 0 : 7 - dow
+    const fmtDay = (offset) => {
+      const d = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate() + offset)
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
+    const satOffset = dow === 6 ? 0 : (6 - dow + 7) % 7
+    const ctrl = bva.filter((b) => CONTROLLABLE.has(b.category) && !b.is_non_monthly)
+    if (!ctrl.length) return ''
+    const rows = ctrl.map((b) => {
+      const remaining = Math.max(0, Number(b.budget) - Number(b.spent))
+      return `  · ${b.category}: $${remaining.toLocaleString()} left of $${Number(b.budget).toLocaleString()} (spent $${Number(b.spent).toLocaleString()}) → ~$${Math.round(remaining / weeksLeft).toLocaleString()}/week`
+    }).join('\n')
+    const totalRemaining = ctrl.reduce((s, b) => s + Math.max(0, Number(b.budget) - Number(b.spent)), 0)
+    const westMonthTarget = west?.savings_plan?.months?.find((m) => m.month === cm.month)
+    return `
+WEEKLY SPENDING COACH CONTEXT:
+- Today is ${fmtDay(0)}; this week runs through Sunday ${fmtDay(daysToSunday)}; the coming weekend is ${fmtDay(satOffset)}–${fmtDay(satOffset + 1)}
+- ${daysLeftMonth} days (${weeksLeft} week${weeksLeft > 1 ? 's' : ''}) left in the month
+- Controllable budget remaining this month: $${totalRemaining.toLocaleString()} total → ~$${Math.round(totalRemaining / weeksLeft).toLocaleString()}/week across all controllable categories
+${rows}
+${westMonthTarget ? `- THIS MONTH'S WEST SAVINGS TARGET: $${Number(westMonthTarget.target).toLocaleString()} must be left over and moved to GBM${westMonthTarget.notes?.length ? ` (${westMonthTarget.notes.join('; ')})` : ''}` : ''}
+- Expected monthly income: $${Number(data.income?.total_monthly || 0).toLocaleString()}; spent so far: $${Number(cm.total_spent || 0).toLocaleString()}`
+  })()
+
   const goalSection = data.goal_funding ? `
 GOAL FUNDING GAP:
 - Goals need: $${Number(data.goal_funding.total_monthly_needed).toLocaleString()}/mo
@@ -56,6 +90,7 @@ ${msiSection}
 ${goalSection}
 ${cryptoSection}
 ${westSection}
+${weekSection}
 
 CONTEXT:
 - Currency is MXN (Mexican Pesos)
@@ -93,6 +128,11 @@ Rules:
 - Flag if unrealized crypto loss exceeds 20% — suggest DCA or holding strategy
 - Consider crypto value in overall financial health assessment
 - If long-term investment, net worth, real-estate, retirement, or tax data is missing, do not fabricate it. Prefer a recommendation to connect or refresh that data.
+- If WEEKLY SPENDING COACH CONTEXT is present: include exactly 3 insights with category "WEEK". These are the household's weekly money coach — be direct, personal, and specific, like a trainer, never generic:
+  (1) type "recommendation", the WEEK'S ENVELOPE: exactly how much they can spend this week in total and per key category (dining, groceries, entertainment), derived from remaining budgets ÷ weeks left, tightened if the month's WEST savings target is at risk;
+  (2) type "alert" or "recommendation", the WEEKEND VERDICT for the coming weekend by name (e.g. "Jul 5–6"): can they afford dinner out or not, and if not say so bluntly ("this weekend is a cook-at-home weekend — dining budget is gone") with the specific number that remains;
+  (3) type "saving", the WEEK'S BEST SAVE: the single most impactful save this week (e.g. "keep groceries under $2,800 this week — buy for the week on Saturday, skip the mid-week convenience runs") with the amount it protects.
+  Weekly amounts must be internally consistent with the remaining budgets and the WEST monthly target. If a category is already exhausted, the directive is zero-based ("$0 left — anything spent here comes out of the WEST transfer").
 - If WEST APARTMENT readiness data is present: include exactly 2 insights with category "WEST" — (1) a "forecast" giving the readiness verdict: most-likely position and gap at delivery given ACTUAL savings behavior vs the scheduled plan, and whether the household is on track to pay without financing; (2) a "recommendation" anchored on the MONTH-BY-MONTH SAVINGS PLAN if present: state THIS month's and NEXT month's plan targets, whether current-month savings are tracking toward this month's target, and the single biggest lever if behind. Use the behavioral numbers, not just the scheduled plan.
 
 CRITICAL — Bimonthly/non-monthly billing categories:

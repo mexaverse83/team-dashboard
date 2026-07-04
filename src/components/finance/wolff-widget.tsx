@@ -9,6 +9,7 @@ interface Insight {
   title: string
   detail: string
   priority: string
+  category?: string
 }
 
 const typeIcons: Record<string, string> = {
@@ -18,6 +19,8 @@ const typeIcons: Record<string, string> = {
 const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 }
 // Alerts surface first within a priority tier; wins last so the brief leads with action.
 const TYPE_RANK: Record<string, number> = { alert: 0, forecast: 1, recommendation: 2, saving: 2, pattern: 3, win: 4 }
+// Envelope first, weekend verdict second, best save last — coach reading order.
+const WEEK_TYPE_RANK: Record<string, number> = { recommendation: 0, alert: 1, saving: 2 }
 
 const priorityChip: Record<string, string> = {
   high: 'bg-rose-500/15 text-rose-400',
@@ -27,6 +30,7 @@ const priorityChip: Record<string, string> = {
 
 export function WolffWidget() {
   const [insights, setInsights] = useState<Insight[]>([])
+  const [weekly, setWeekly] = useState<Insight[]>([])
   const [generatedAt, setGeneratedAt] = useState<string | null>(null)
   const [stale, setStale] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -39,11 +43,18 @@ export function WolffWidget() {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.insights) {
-          const sorted = [...data.insights].sort((a: Insight, b: Insight) =>
-            (PRIORITY_RANK[a.priority] ?? 3) - (PRIORITY_RANK[b.priority] ?? 3) ||
-            (TYPE_RANK[a.type] ?? 5) - (TYPE_RANK[b.type] ?? 5)
-          )
-          setInsights(sorted.slice(0, 3))
+          const all: Insight[] = data.insights
+          const week = all
+            .filter(i => (i.category || '').toUpperCase() === 'WEEK')
+            .sort((a, b) => (WEEK_TYPE_RANK[a.type] ?? 3) - (WEEK_TYPE_RANK[b.type] ?? 3))
+          const rest = all
+            .filter(i => (i.category || '').toUpperCase() !== 'WEEK')
+            .sort((a, b) =>
+              (PRIORITY_RANK[a.priority] ?? 3) - (PRIORITY_RANK[b.priority] ?? 3) ||
+              (TYPE_RANK[a.type] ?? 5) - (TYPE_RANK[b.type] ?? 5)
+            )
+          setWeekly(week.slice(0, 3))
+          setInsights(rest.slice(0, 3))
           setGeneratedAt(data.generated_at || null)
           setStale(Boolean(data.stale))
         }
@@ -52,7 +63,7 @@ export function WolffWidget() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (!loading && insights.length === 0) return null
+  if (!loading && insights.length === 0 && weekly.length === 0) return null
 
   const generatedLabel = generatedAt
     ? new Date(generatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -83,6 +94,23 @@ export function WolffWidget() {
         </div>
       ) : (
         <div className="space-y-3">
+          {weekly.length > 0 && (
+            <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400">📅 This week&apos;s money coach</p>
+              {weekly.map((ins, i) => (
+                <div key={i} className="flex items-start gap-2.5">
+                  <span className="text-xs mt-0.5">{ins.icon || typeIcons[ins.type] || '💡'}</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium">{ins.title}</p>
+                    {ins.detail && (
+                      <p className="text-[11px] text-[hsl(var(--text-secondary))] leading-relaxed mt-0.5">{ins.detail}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {insights.map((ins, i) => (
             <div key={i} className="flex items-start gap-2.5">
               <span className="text-xs mt-0.5">{ins.icon || typeIcons[ins.type] || '💡'}</span>
