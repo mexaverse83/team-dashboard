@@ -19,9 +19,20 @@ const GRAY = new Color('#5b6b7b')
 const BG = new Color('#ffffff')
 
 async function fetchData() {
-  const req = new Request(API_URL)
-  req.headers = { 'x-api-key': API_KEY }
-  return await req.loadJSON()
+  let lastErr
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const req = new Request(API_URL)
+      req.headers = { 'x-api-key': API_KEY }
+      req.timeoutInterval = 20
+      const data = await req.loadJSON()
+      if (data && data.error) throw new Error('API: ' + data.error)
+      return data
+    } catch (e) {
+      lastErr = e
+    }
+  }
+  throw lastErr
 }
 
 function money(n) {
@@ -37,9 +48,12 @@ async function build() {
   try {
     d = await fetchData()
   } catch (e) {
-    const err = w.addText('Finance: offline')
-    err.textColor = GRAY
-    err.font = Font.mediumSystemFont(12)
+    const err = w.addText('Finance: error')
+    err.textColor = ROSE
+    err.font = Font.semiboldSystemFont(12)
+    const detail = w.addText(String(e && e.message ? e.message : e).slice(0, 90))
+    detail.textColor = GRAY
+    detail.font = Font.mediumSystemFont(9)
     return w
   }
 
