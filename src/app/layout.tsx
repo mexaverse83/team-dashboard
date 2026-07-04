@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk } from "next/font/google"
 import "./globals.css"
 import { Sidebar } from "@/components/Sidebar"
 import { CommandPalette } from "@/components/command-palette"
+import { PwaRegister } from "@/components/pwa-register"
 
 // Self-hosted via next/font: no render-blocking Google Fonts request chain.
 const inter = Inter({
@@ -26,13 +27,29 @@ export const metadata: Metadata = {
     icon: [
       { url: '/favicon-finance.svg', type: 'image/svg+xml' },
     ],
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180' },
+    ],
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Finance',
+  },
+}
+
+export const viewport = {
+  themeColor: '#f7fafb',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover' as const,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`dark ${inter.variable} ${spaceGrotesk.variable}`}>
+    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <body className="min-h-screen">
+        <PwaRegister />
         <CommandPalette />
         {/* Mobile top bar */}
         <header className="md:hidden sticky top-0 z-50 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 backdrop-blur-sm">
