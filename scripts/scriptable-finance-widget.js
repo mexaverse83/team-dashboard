@@ -18,9 +18,13 @@ const INK = new Color('#1a2430')
 const GRAY = new Color('#5b6b7b')
 const BG = new Color('#ffffff')
 
+// Strip invisible characters (zero-width spaces etc.) that email copy-paste
+// can smuggle into the strings — they 404 the URL or corrupt the key.
+const clean = (s) => s.replace(/[^\x20-\x7E]/g, '')
+
 async function fetchData() {
-  const req = new Request(API_URL)
-  req.headers = { 'x-api-key': API_KEY }
+  const req = new Request(clean(API_URL))
+  req.headers = { 'x-api-key': clean(API_KEY) }
   req.timeoutInterval = 20
   const text = await req.loadString()
   const status = req.response ? req.response.statusCode : '?'
