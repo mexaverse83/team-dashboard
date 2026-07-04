@@ -19,20 +19,19 @@ const GRAY = new Color('#5b6b7b')
 const BG = new Color('#ffffff')
 
 async function fetchData() {
-  let lastErr
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const req = new Request(API_URL)
-      req.headers = { 'x-api-key': API_KEY }
-      req.timeoutInterval = 20
-      const data = await req.loadJSON()
-      if (data && data.error) throw new Error('API: ' + data.error)
-      return data
-    } catch (e) {
-      lastErr = e
-    }
+  const req = new Request(API_URL)
+  req.headers = { 'x-api-key': API_KEY }
+  req.timeoutInterval = 20
+  const text = await req.loadString()
+  const status = req.response ? req.response.statusCode : '?'
+  try {
+    const data = JSON.parse(text)
+    if (data && data.error) throw new Error('API ' + status + ': ' + data.error)
+    return data
+  } catch (e) {
+    if (String(e.message || '').startsWith('API ')) throw e
+    throw new Error('HTTP ' + status + ' non-JSON: ' + text.slice(0, 80))
   }
-  throw lastErr
 }
 
 function money(n) {
