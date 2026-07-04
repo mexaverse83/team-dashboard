@@ -12,6 +12,7 @@ import { BillsTimeline } from '@/components/finance/bills-timeline'
 import { WestCompactWidget } from '@/components/finance/west-tracker'
 import { WolffWidget } from '@/components/finance/wolff-widget'
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend'
+import { InstallPrompt } from '@/components/finance/install-prompt'
 import { supabase } from '@/lib/supabase'
 import { ownersEqual } from '@/lib/owners'
 import { cn } from '@/lib/utils'
@@ -141,6 +142,9 @@ export default function CommandCenterClient() {
   return (
     <PageTransition>
       <div className="space-y-6" data-animate>
+        {/* ── Install banner (Android, only when installable) ── */}
+        <InstallPrompt />
+
         {/* ── Hero: the monthly answer ─────────────────────
             Leads with the one number that matters (net this month) instead of
             a uniform card grid; the status banner is its subline. */}
