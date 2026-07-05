@@ -238,15 +238,23 @@ async function build() {
     w.addSpacer(10)
     paceScreen(w, d, 300)
   } else {
-    // Medium: rotate with each OS refresh (~15 min), keyed to the clock so
-    // all three screens appear through the day. Weekends bias toward Wolff.
-    const slot = Math.floor(new Date().getMinutes() / 15) % 3
-    if (slot === 0) moneyScreen(w, d, false)
-    else if (slot === 1) wolffScreen(w, d)
-    else paceScreen(w, d, 280)
+    // Medium: the widget Parameter (long-press -> Edit Widget -> Parameter)
+    // pins a screen: 'money', 'wolff', or 'pace'. Pin three copies and stack
+    // them for instant swipe-shuffling. With no parameter, rotate by 5-minute
+    // clock slots so every OS refresh lands on a different screen.
+    const pinned = (args.widgetParameter || '').trim().toLowerCase()
+    if (pinned === 'money') moneyScreen(w, d, false)
+    else if (pinned === 'wolff') wolffScreen(w, d)
+    else if (pinned === 'pace') paceScreen(w, d, 280)
+    else {
+      const slot = Math.floor(new Date().getMinutes() / 5) % 3
+      if (slot === 0) moneyScreen(w, d, false)
+      else if (slot === 1) wolffScreen(w, d)
+      else paceScreen(w, d, 280)
+    }
   }
 
-  w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000)
+  w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000)
   return w
 }
 
