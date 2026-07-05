@@ -1,5 +1,11 @@
+import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+)
 
 // Glanceable numbers for home-screen widgets (Scriptable on iOS).
 // Everything derives from the summary + west-projection endpoints so the
@@ -55,6 +61,26 @@ export async function GET(req: NextRequest) {
   const monthKey = cm.month
   const planMonth = west?.savings_plan?.months?.find((m: { month: string }) => m.month === monthKey)
 
+  // Last 10 days of spending for the sparkline (controllable + fixed alike —
+  // it's a pulse, not a report)
+  const sparkStart = new Date(Date.now() - 9 * 86400000).toISOString().slice(0, 10)
+  const { data: sparkTxs } = await supabase
+    .from('finance_transactions')
+    .select('transaction_date, amount_mxn')
+    .eq('type', 'expense')
+    .gte('transaction_date', sparkStart)
+    .limit(1000)
+  const sparkMap: Record<string, number> = {}
+  for (const t of sparkTxs || []) {
+    const k = t.transaction_date.slice(5, 10)
+    sparkMap[k] = (sparkMap[k] || 0) + (t.amount_mxn || 0)
+  }
+  const daily_spend = Array.from({ length: 10 }, (_, i) => {
+    const d = new Date(Date.now() - (9 - i) * 86400000)
+    const k = d.toISOString().slice(5, 10)
+    return Math.round(sparkMap[k] || 0)
+  })
+
   return NextResponse.json({
     updated_at: new Date().toISOString(),
     month: monthKey,
@@ -81,6 +107,7 @@ export async function GET(req: NextRequest) {
       surplus_so_far: Math.round(income - spent),
       pct: planMonth.target > 0 ? Math.min(999, Math.round(((income - spent) / planMonth.target) * 100)) : null,
     } : null,
+    daily_spend,
     budget_pace: ctrl
       .map(b => ({
         name: b.category,
