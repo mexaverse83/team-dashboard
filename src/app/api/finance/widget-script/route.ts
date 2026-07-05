@@ -5,6 +5,11 @@ import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 // eliminates email copy-paste (which corrupts the script with invisible
 // characters). Auth: the logged-in Safari session cookie, so only household
 // members can obtain the embedded API key.
+//
+// Widget Pro: three screens rotate with iOS's periodic refresh —
+//   money (safe today + WEST bar) → wolff (top insight, weekend verdict on
+//   weekends) → pace (drawn budget bars). Small widgets always show money;
+//   large widgets show everything.
 export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
@@ -12,15 +17,18 @@ export async function GET(req: NextRequest) {
   const apiKey = process.env.FINANCE_API_KEY || ''
   const origin = 'https://finance.autonomis.co'
 
-  const script = `// Finance home-screen widget (Scriptable) — generated ${new Date().toISOString().slice(0, 10)}
+  const script = `// Finance Widget Pro (Scriptable) — generated ${new Date().toISOString().slice(0, 10)}
 
 const API_URL = '${origin}/api/finance/widget'
 const API_KEY = '${apiKey}'
+const APP_URL = '${origin}/finance'
 
 const EMERALD = new Color('#059669')
+const AMBER = new Color('#b45309')
 const ROSE = new Color('#e11d48')
 const INK = new Color('#1a2430')
 const GRAY = new Color('#5b6b7b')
+const TRACK = new Color('#e8edf2')
 const BG = new Color('#ffffff')
 
 async function fetchData() {
@@ -43,10 +51,167 @@ function money(n) {
   return '$' + Math.round(n).toLocaleString('en-US')
 }
 
+// Rounded progress bar rendered as an image
+function bar(widthPt, heightPt, pct, color) {
+  const scale = 3
+  const wpx = widthPt * scale, hpx = heightPt * scale
+  const ctx = new DrawContext()
+  ctx.size = new Size(wpx, hpx)
+  ctx.opaque = false
+  ctx.respectScreenScale = false
+  const r = hpx / 2
+  const track = new Path()
+  track.addRoundedRect(new Rect(0, 0, wpx, hpx), r, r)
+  ctx.addPath(track)
+  ctx.setFillColor(TRACK)
+  ctx.fillPath()
+  const fw = Math.max(hpx, wpx * Math.min(1, Math.max(0, pct)))
+  const fill = new Path()
+  fill.addRoundedRect(new Rect(0, 0, fw, hpx), r, r)
+  ctx.addPath(fill)
+  ctx.setFillColor(color)
+  ctx.fillPath()
+  const img = ctx.getImage()
+  return { img, w: widthPt, h: heightPt }
+}
+
+function addBar(w, pct, color, widthPt) {
+  const b = bar(widthPt, 5, pct, color)
+  const img = w.addImage(b.img)
+  img.imageSize = new Size(b.w, b.h)
+  img.cornerRadius = 2.5
+}
+
+function header(w, label, right) {
+  const s = w.addStack()
+  const t = s.addText(label)
+  t.font = Font.semiboldSystemFont(10)
+  t.textColor = GRAY
+  s.addSpacer()
+  if (right) {
+    const r = s.addText(right)
+    r.font = Font.mediumSystemFont(10)
+    r.textColor = GRAY
+  }
+}
+
+function kv(w, label, value, color) {
+  const s = w.addStack()
+  const l = s.addText(label)
+  l.font = Font.mediumSystemFont(11)
+  l.textColor = GRAY
+  l.lineLimit = 1
+  s.addSpacer()
+  const v = s.addText(value)
+  v.font = Font.semiboldSystemFont(11)
+  v.textColor = color || INK
+  w.addSpacer(2)
+}
+
+// ── Screens ──────────────────────────────────────────────
+
+function moneyScreen(w, d, compact) {
+  header(w, '\\u{1F4B0} SAFE TODAY', 'd' + d.day + '/' + d.days_in_month)
+  w.addSpacer(3)
+  if (d.over_committed_by > 0) {
+    const hero = w.addText('$0')
+    hero.font = Font.heavySystemFont(compact ? 30 : 34)
+    hero.textColor = ROSE
+    hero.minimumScaleFactor = 0.6
+    const sub = w.addText('over by ' + money(d.over_committed_by))
+    sub.font = Font.mediumSystemFont(10)
+    sub.textColor = ROSE
+  } else {
+    const hero = w.addText(money(d.safe_to_spend_day))
+    hero.font = Font.heavySystemFont(compact ? 30 : 34)
+    hero.textColor = EMERALD
+    hero.minimumScaleFactor = 0.6
+    const sub = w.addText('per day, guilt-free')
+    sub.font = Font.mediumSystemFont(10)
+    sub.textColor = GRAY
+  }
+  w.addSpacer(7)
+  kv(w, 'Week envelope', money(d.week_envelope))
+  if (!compact) kv(w, 'Net this month', money(d.net_this_month), d.net_this_month >= 0 ? EMERALD : ROSE)
+  if (d.west && d.west.funded_pct != null) {
+    w.addSpacer(3)
+    const s = w.addStack()
+    const l = s.addText('WEST')
+    l.font = Font.mediumSystemFont(10)
+    l.textColor = GRAY
+    s.addSpacer()
+    const v = s.addText(d.west.funded_pct + '%')
+    v.font = Font.semiboldSystemFont(10)
+    v.textColor = INK
+    w.addSpacer(2)
+    addBar(w, d.west.funded_pct / 100, EMERALD, compact ? 120 : 280)
+  }
+}
+
+function wolffScreen(w, d) {
+  const now = new Date()
+  const dow = now.getDay()
+  const isWeekendWindow = dow === 0 || dow === 6 || (dow === 5 && now.getHours() >= 15)
+  const item = (isWeekendWindow && d.wolff && d.wolff.weekend) ? d.wolff.weekend : (d.wolff ? d.wolff.top : null)
+  header(w, '\\u{1F43A} WOLFF SAYS', isWeekendWindow ? 'weekend' : '')
+  w.addSpacer(4)
+  if (!item) {
+    const t = w.addText('No brief yet today — open the app to generate one.')
+    t.font = Font.mediumSystemFont(11)
+    t.textColor = GRAY
+    return
+  }
+  const title = w.addText((item.icon ? item.icon + ' ' : '') + item.title)
+  title.font = Font.semiboldSystemFont(13)
+  title.textColor = INK
+  title.minimumScaleFactor = 0.8
+  title.lineLimit = 2
+  w.addSpacer(3)
+  const detail = w.addText(item.detail)
+  detail.font = Font.mediumSystemFont(10)
+  detail.textColor = GRAY
+  detail.lineLimit = 4
+  w.addSpacer(5)
+  const foot = w.addStack()
+  const safe = foot.addText(d.over_committed_by > 0 ? 'Safe today: $0' : 'Safe today: ' + money(d.safe_to_spend_day) + '/day')
+  safe.font = Font.semiboldSystemFont(10)
+  safe.textColor = d.over_committed_by > 0 ? ROSE : EMERALD
+}
+
+function paceScreen(w, d, barWidth) {
+  header(w, '\\u{1F4CA} BUDGET PACE', 'd' + d.day + '/' + d.days_in_month)
+  w.addSpacer(5)
+  const items = (d.budget_pace || []).slice(0, 4)
+  if (!items.length) {
+    const t = w.addText('No budget data')
+    t.font = Font.mediumSystemFont(11)
+    t.textColor = GRAY
+    return
+  }
+  for (const b of items) {
+    const s = w.addStack()
+    const l = s.addText(b.name)
+    l.font = Font.mediumSystemFont(10)
+    l.textColor = INK
+    l.lineLimit = 1
+    s.addSpacer()
+    const v = s.addText(money(b.spent) + ' / ' + money(b.budget))
+    v.font = Font.mediumSystemFont(9)
+    v.textColor = GRAY
+    w.addSpacer(2)
+    const color = b.pct >= 100 ? ROSE : b.pct >= 75 ? AMBER : EMERALD
+    addBar(w, b.pct / 100, color, barWidth)
+    w.addSpacer(5)
+  }
+}
+
+// ── Assemble by size + rotation ─────────────────────────
+
 async function build() {
   const w = new ListWidget()
   w.backgroundColor = BG
-  w.setPadding(14, 14, 12, 14)
+  w.setPadding(13, 14, 12, 14)
+  w.url = APP_URL
 
   let d
   try {
@@ -62,57 +227,26 @@ async function build() {
     return w
   }
 
-  const head = w.addStack()
-  const title = head.addText('\\u{1F4B0} SAFE TODAY')
-  title.font = Font.semiboldSystemFont(10)
-  title.textColor = GRAY
-  head.addSpacer()
-  const day = head.addText('d' + d.day + '/' + d.days_in_month)
-  day.font = Font.mediumSystemFont(10)
-  day.textColor = GRAY
+  const family = config.widgetFamily || 'medium'
 
-  w.addSpacer(4)
-
-  if (d.over_committed_by > 0) {
-    const hero = w.addText('$0')
-    hero.font = Font.heavySystemFont(34)
-    hero.textColor = ROSE
-    hero.minimumScaleFactor = 0.6
-    const sub = w.addText('over by ' + money(d.over_committed_by))
-    sub.font = Font.mediumSystemFont(10)
-    sub.textColor = ROSE
+  if (family === 'small') {
+    moneyScreen(w, d, true)
+  } else if (family === 'large') {
+    moneyScreen(w, d, false)
+    w.addSpacer(10)
+    wolffScreen(w, d)
+    w.addSpacer(10)
+    paceScreen(w, d, 300)
   } else {
-    const hero = w.addText(money(d.safe_to_spend_day))
-    hero.font = Font.heavySystemFont(34)
-    hero.textColor = EMERALD
-    hero.minimumScaleFactor = 0.6
-    const sub = w.addText('per day, guilt-free')
-    sub.font = Font.mediumSystemFont(10)
-    sub.textColor = GRAY
+    // Medium: rotate with each OS refresh (~15 min), keyed to the clock so
+    // all three screens appear through the day. Weekends bias toward Wolff.
+    const slot = Math.floor(new Date().getMinutes() / 15) % 3
+    if (slot === 0) moneyScreen(w, d, false)
+    else if (slot === 1) wolffScreen(w, d)
+    else paceScreen(w, d, 280)
   }
 
-  w.addSpacer(8)
-
-  const row = (label, value, color) => {
-    const s = w.addStack()
-    const l = s.addText(label)
-    l.font = Font.mediumSystemFont(11)
-    l.textColor = GRAY
-    s.addSpacer()
-    const v = s.addText(value)
-    v.font = Font.semiboldSystemFont(11)
-    v.textColor = color || INK
-    w.addSpacer(2)
-  }
-
-  row('Week envelope', money(d.week_envelope))
-  row('Net this month', money(d.net_this_month), d.net_this_month >= 0 ? EMERALD : ROSE)
-  if (d.west && d.west.month_target != null) {
-    row('WEST (' + d.west.funded_pct + '% funded)', money(d.west.month_target) + '/mo')
-  }
-
-  w.url = '${origin}/finance'
-  w.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000)
+  w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000)
   return w
 }
 
@@ -120,7 +254,7 @@ const widget = await build()
 if (config.runsInWidget) {
   Script.setWidget(widget)
 } else {
-  await widget.presentMedium()
+  await widget.presentLarge()
 }
 Script.complete()
 `

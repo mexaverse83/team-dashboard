@@ -13,13 +13,25 @@ export async function GET(req: NextRequest) {
   const authKey = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   const baseUrl = req.nextUrl.origin
 
-  const [summary, west] = await Promise.all([
+  const [summary, west, insightsRes] = await Promise.all([
     fetch(`${baseUrl}/api/finance/summary?months=1`, { headers: { 'x-api-key': authKey } })
       .then(r => (r.ok ? r.json() : null)).catch(() => null),
     fetch(`${baseUrl}/api/finance/investments/west-projection`, { headers: { 'x-api-key': authKey } })
       .then(r => (r.ok ? r.json() : null)).catch(() => null),
+    fetch(`${baseUrl}/api/finance/insights`, { headers: { 'x-api-key': authKey } })
+      .then(r => (r.ok ? r.json() : null)).catch(() => null),
   ])
   if (!summary) return NextResponse.json({ error: 'summary unavailable' }, { status: 500 })
+
+  type Insight = { type: string; icon: string; title: string; detail: string; priority: string; category?: string }
+  const insights: Insight[] = insightsRes?.insights || []
+  const trim = (i: Insight | undefined, len = 140) => i
+    ? { icon: i.icon, title: i.title, detail: (i.detail || '').slice(0, len) }
+    : null
+  const nonWeek = insights.filter(i => (i.category || '').toUpperCase() !== 'WEEK')
+  const topInsight = trim(nonWeek.find(i => i.priority === 'high') || nonWeek[0])
+  const weekItems = insights.filter(i => (i.category || '').toUpperCase() === 'WEEK')
+  const weekendVerdict = trim(weekItems.find(i => i.type === 'alert') || weekItems[1] || weekItems[0])
 
   const cm = summary.current_month || {}
   const income = summary.cash_flow?.monthly_income || 0
@@ -56,5 +68,18 @@ export async function GET(req: NextRequest) {
       funded_pct: Math.round(((west.projected_at_delivery?.total_projected || 0) / (west.target || 1)) * 1000) / 10,
       months_to_delivery: west.months_to_delivery,
     } : null,
+    wolff: {
+      top: topInsight,
+      weekend: weekendVerdict,
+    },
+    budget_pace: ctrl
+      .map(b => ({
+        name: b.category,
+        spent: Math.round(b.spent || 0),
+        budget: Math.round(b.budget || 0),
+        pct: b.budget > 0 ? Math.round(((b.spent || 0) / b.budget) * 100) : 0,
+      }))
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 4),
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
