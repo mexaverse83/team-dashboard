@@ -227,6 +227,7 @@ function addDirectivePill(w, d) {
   const dir = d.wolff && (d.wolff.directive || d.wolff.top)
   if (!dir) return
   const pill = w.addStack()
+  pill.url = APP_URL.replace('/finance', '/finance/ask')
   pill.centerAlignContent()
   pill.backgroundColor = new Color('#34d399', 0.10)
   pill.borderColor = new Color('#34d399', 0.16)

@@ -48,9 +48,9 @@ async function buildDailyMessage() {
 }
 
 async function main() {
-  const [, , argTitle, argBody] = process.argv
+  const [, , argTitle, argBody, argUrl] = process.argv
   const message = argTitle
-    ? { title: argTitle, body: argBody || '', url: '/finance' }
+    ? { title: argTitle, body: argBody || '', url: argUrl || '/finance' }
     : await buildDailyMessage()
 
   const res = await fetch(`${URL_}/rest/v1/finance_push_subscriptions?select=endpoint,subscription`, {

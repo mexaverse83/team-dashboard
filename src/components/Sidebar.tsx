@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Search as SearchIcon, Landmark, ShieldCheck, Target, CreditCard, Sparkles, TrendingUp, Banknote, Wand2, Bitcoin } from 'lucide-react'
+import { Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Search as SearchIcon, Landmark, ShieldCheck, Target, CreditCard, Sparkles, TrendingUp, Banknote, Wand2, Bitcoin, MessageCircle } from 'lucide-react'
 import { FinanceAuthBadge } from './finance-auth-badge'
 
 const financeTrack = [
@@ -25,6 +25,7 @@ const financePlan = [
 ]
 
 const financeAnalyze = [
+  { href: '/finance/ask', icon: MessageCircle, label: 'Ask Wolff' },
   { href: '/finance/insights', icon: Sparkles, label: 'Insights' },
   { href: '/finance/audit', icon: Search, label: 'Audit' },
   { href: '/finance/reports', icon: FileBarChart, label: 'Reports' },
@@ -41,8 +42,8 @@ const mobileQuickAccess = [
   { href: '/finance', icon: Wallet, label: 'Overview' },
   { href: '/finance/transactions', icon: ArrowLeftRight, label: 'Txns' },
   { href: '/finance/budgets', icon: PiggyBank, label: 'Budgets' },
+  { href: '/finance/ask', icon: MessageCircle, label: 'Wolff' },
   { href: '/finance/insights', icon: Sparkles, label: 'Insights' },
-  { href: '/finance/reports', icon: FileBarChart, label: 'Reports' },
 ]
 
 export function Sidebar() {

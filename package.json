@@ -13,7 +13,8 @@
     "test:coverage": "vitest run --coverage",
     "insights:codex": "node scripts/generate-insights-codex.mjs",
     "push:send": "node scripts/send-push.mjs",
-    "daily": "node scripts/generate-insights-codex.mjs && node scripts/send-push.mjs"
+    "daily": "node scripts/generate-insights-codex.mjs && node scripts/send-push.mjs",
+    "wolff:daemon": "node scripts/wolff-chat-daemon.mjs"
   },
   "keywords": [],
   "author": "",
