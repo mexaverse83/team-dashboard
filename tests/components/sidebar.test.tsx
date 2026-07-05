@@ -18,8 +18,8 @@ describe('Sidebar', () => {
   it('renders all nav links (finance only)', () => {
     render(<Sidebar />)
     const links = screen.getAllByRole('link')
-    // Mobile bottom (5) + desktop finance (16: 7 track + 5 plan + 4 analyze) = 21
-    expect(links.length).toBe(21)
+    // Mobile bottom (5) + desktop finance (17: 7 track + 5 plan + 5 analyze) = 21
+    expect(links.length).toBe(22)
   })
 
   it('has correct finance nav hrefs', () => {
