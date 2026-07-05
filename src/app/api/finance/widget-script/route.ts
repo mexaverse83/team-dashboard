@@ -205,6 +205,78 @@ function paceScreen(w, d, barWidth) {
   }
 }
 
+// The AI-curated single slide: safe today + WEST month progress + week
+// envelope + Wolff's daily directive.
+function smartScreen(w, d) {
+  header(w, '\\u{1F43A} TODAY', 'd' + d.day + '/' + d.days_in_month)
+  w.addSpacer(3)
+
+  const top = w.addStack()
+  top.centerAlignContent()
+  const heroCol = top.addStack()
+  heroCol.layoutVertically()
+  if (d.over_committed_by > 0) {
+    const hero = heroCol.addText('$0')
+    hero.font = Font.heavySystemFont(28)
+    hero.textColor = ROSE
+    const sub = heroCol.addText('over by ' + money(d.over_committed_by))
+    sub.font = Font.mediumSystemFont(9)
+    sub.textColor = ROSE
+  } else {
+    const hero = heroCol.addText(money(d.safe_to_spend_day))
+    hero.font = Font.heavySystemFont(28)
+    hero.textColor = EMERALD
+    const sub = heroCol.addText('safe today')
+    sub.font = Font.mediumSystemFont(9)
+    sub.textColor = GRAY
+  }
+  top.addSpacer()
+  const sideCol = top.addStack()
+  sideCol.layoutVertically()
+  const wk = sideCol.addText('Week left: ' + money(d.week_envelope))
+  wk.font = Font.semiboldSystemFont(10)
+  wk.textColor = INK
+  wk.rightAlignText()
+  const nm = sideCol.addText('Net: ' + money(d.net_this_month))
+  nm.font = Font.mediumSystemFont(10)
+  nm.textColor = d.net_this_month >= 0 ? EMERALD : ROSE
+  nm.rightAlignText()
+
+  if (d.west_month && d.west_month.target > 0) {
+    w.addSpacer(6)
+    const s = w.addStack()
+    const l = s.addText('WEST transfer this month')
+    l.font = Font.mediumSystemFont(9)
+    l.textColor = GRAY
+    s.addSpacer()
+    const v = s.addText(money(Math.max(0, d.west_month.surplus_so_far)) + ' / ' + money(d.west_month.target))
+    v.font = Font.semiboldSystemFont(9)
+    v.textColor = INK
+    w.addSpacer(2)
+    const pct = Math.max(0, d.west_month.surplus_so_far) / d.west_month.target
+    addBar(w, pct, pct >= 1 ? EMERALD : AMBER, 280)
+  }
+
+  const dir = d.wolff && d.wolff.directive
+  if (dir) {
+    w.addSpacer(7)
+    const box = w.addStack()
+    box.backgroundColor = new Color('#ecfdf5')
+    box.cornerRadius = 6
+    box.setPadding(5, 8, 5, 8)
+    box.layoutVertically()
+    const t = box.addText('\\u{1F43A} ' + dir.title)
+    t.font = Font.semiboldSystemFont(11)
+    t.textColor = new Color('#065f46')
+    t.lineLimit = 1
+    t.minimumScaleFactor = 0.75
+    const dd = box.addText(dir.detail)
+    dd.font = Font.mediumSystemFont(9)
+    dd.textColor = GRAY
+    dd.lineLimit = 2
+  }
+}
+
 // ── Assemble by size + rotation ─────────────────────────
 
 async function build() {
@@ -232,7 +304,7 @@ async function build() {
   if (family === 'small') {
     moneyScreen(w, d, true)
   } else if (family === 'large') {
-    moneyScreen(w, d, false)
+    smartScreen(w, d)
     w.addSpacer(10)
     wolffScreen(w, d)
     w.addSpacer(10)
@@ -246,11 +318,12 @@ async function build() {
     if (pinned === 'money') moneyScreen(w, d, false)
     else if (pinned === 'wolff') wolffScreen(w, d)
     else if (pinned === 'pace') paceScreen(w, d, 280)
+    else if (pinned === 'smart') smartScreen(w, d)
     else {
-      const slot = Math.floor(new Date().getMinutes() / 5) % 3
-      if (slot === 0) moneyScreen(w, d, false)
-      else if (slot === 1) wolffScreen(w, d)
-      else paceScreen(w, d, 280)
+      const slot = Math.floor(new Date().getMinutes() / 5) % 4
+      if (slot === 0 || slot === 2) smartScreen(w, d)
+      else if (slot === 1) moneyScreen(w, d, false)
+      else wolffScreen(w, d)
     }
   }
 

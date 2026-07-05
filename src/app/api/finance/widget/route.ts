@@ -28,10 +28,11 @@ export async function GET(req: NextRequest) {
   const trim = (i: Insight | undefined, len = 140) => i
     ? { icon: i.icon, title: i.title, detail: (i.detail || '').slice(0, len) }
     : null
-  const nonWeek = insights.filter(i => (i.category || '').toUpperCase() !== 'WEEK')
+  const nonWeek = insights.filter(i => !['WEEK', 'WIDGET'].includes((i.category || '').toUpperCase()))
   const topInsight = trim(nonWeek.find(i => i.priority === 'high') || nonWeek[0])
   const weekItems = insights.filter(i => (i.category || '').toUpperCase() === 'WEEK')
   const weekendVerdict = trim(weekItems.find(i => i.type === 'alert') || weekItems[1] || weekItems[0])
+  const directive = trim(insights.find(i => (i.category || '').toUpperCase() === 'WIDGET'), 110)
 
   const cm = summary.current_month || {}
   const income = summary.cash_flow?.monthly_income || 0
@@ -71,7 +72,15 @@ export async function GET(req: NextRequest) {
     wolff: {
       top: topInsight,
       weekend: weekendVerdict,
+      directive,
     },
+    west_month: planMonth ? {
+      target: planMonth.target,
+      // Month surplus so far is the money available to become this month's
+      // GBM transfer — the widget shows it as progress toward the target.
+      surplus_so_far: Math.round(income - spent),
+      pct: planMonth.target > 0 ? Math.min(999, Math.round(((income - spent) / planMonth.target) * 100)) : null,
+    } : null,
     budget_pace: ctrl
       .map(b => ({
         name: b.category,
