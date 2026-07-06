@@ -104,6 +104,19 @@ export async function GET(req: NextRequest) {
     // 4. Fetch crypto total
     const cryptoValue = await getCryptoTotal()
 
+    // 3b. amount_paid is anchored at the target's last manual update; WEST
+    // payments post as transactions monthly and must roll in automatically
+    // or "paid" silently drifts $10k/month behind reality.
+    const paidAnchor = (target.updated_at || target.purchase_date || '2026-01-01').slice(0, 10)
+    const { data: postedWest } = await supabase
+      .from('finance_transactions')
+      .select('amount_mxn, transaction_date')
+      .eq('merchant', 'WEST')
+      .eq('type', 'expense')
+      .gt('transaction_date', paidAnchor)
+    const postedSincePaidAnchor = (postedWest || []).reduce((s: number, t: { amount_mxn: number }) => s + (t.amount_mxn || 0), 0)
+    const paidToDate = (target.amount_paid || 0) + postedSincePaidAnchor
+
     // 4. Parse override return rate from query
     const overrideRate = req.nextUrl.searchParams.get('rate')
     // 9.5% net = 10.75% gross − 1.25% commission (based on 2023-2025 avg ~10.3% gross)
@@ -126,7 +139,7 @@ export async function GET(req: NextRequest) {
 
     const saleRemaining = (target.sale_price || 0) - (target.sale_deposit_received || 0)
     let investmentBalance = liveGBMBalance // GBM starting balance (live from DB)
-    let paidCumulative = target.amount_paid || 0
+    let paidCumulative = paidToDate
     // Laura's Infonavit subcuenta — confirmed $350K, applied at delivery, no compounding
     const lauraInfonvait = target.laura_infonavit_mxn || 350000
 
@@ -198,7 +211,7 @@ export async function GET(req: NextRequest) {
     const calcScenario = (rate: number, monthlyContribution = 0) => {
       const mr = Math.pow(1 + rate, 1 / 12) - 1
       let inv = liveGBMBalance
-      let paid = target.amount_paid || 0
+      let paid = paidToDate
       let crypto = cryptoValue
       let fullyFundedMonth: string | null = null
       const cur = new Date(startMonth)
@@ -354,7 +367,7 @@ export async function GET(req: NextRequest) {
 
     // 7. Milestones
     const milestones = [
-      { date: now.toISOString().slice(0, 10), label: `$${(target.amount_paid / 1e6).toFixed(1)}M paid (${((target.amount_paid / targetAmount) * 100).toFixed(1)}%)`, status: 'done' },
+      { date: now.toISOString().slice(0, 10), label: `$${(paidToDate / 1e6).toFixed(1)}M paid (${((paidToDate / targetAmount) * 100).toFixed(1)}%)`, status: 'done' },
     ]
 
     if (saleRemainingDate) {
@@ -419,13 +432,13 @@ export async function GET(req: NextRequest) {
       delivery_date: target.delivery_date,
       months_to_delivery: monthsToDelivery,
       current_status: {
-        amount_paid: target.amount_paid,
-        pct_paid: ((target.amount_paid / targetAmount) * 100),
+        amount_paid: Math.round(paidToDate),
+        pct_paid: ((paidToDate / targetAmount) * 100),
         investment_value: Math.round(liveGBMBalance),
         crypto_value: Math.round(cryptoValue),
         infonavit_laura: Math.round(lauraInfonvait),
-        total_available: Math.round((target.amount_paid || 0) + (target.sale_deposit_received || 0) + cryptoValue + lauraInfonvait),
-        gap: Math.round(targetAmount - (target.amount_paid || 0) - (target.sale_deposit_received || 0) - cryptoValue - lauraInfonvait),
+        total_available: Math.round(paidToDate + (target.sale_deposit_received || 0) + cryptoValue + lauraInfonvait),
+        gap: Math.round(targetAmount - paidToDate - (target.sale_deposit_received || 0) - cryptoValue - lauraInfonvait),
       },
       projected_at_delivery: lastMonth ? {
         total_paid: lastMonth.paid,
@@ -483,7 +496,7 @@ export async function GET(req: NextRequest) {
         equity_at_delivery: (lastMonth?.property_value || currentMarketValue) - targetAmount,
       },
       funding_sources: [
-        { name: 'Direct Payments', current: Math.round(target.amount_paid || 0), at_delivery: lastMonth?.paid || 0, owner: 'bernardo', status: 'on_track' },
+        { name: 'Direct Payments', current: Math.round(paidToDate), at_delivery: lastMonth?.paid || 0, owner: 'bernardo', status: 'on_track' },
         { name: 'GBM Investment', current: Math.round(liveGBMBalance), at_delivery: lastMonth?.investments || 0, owner: 'shared', status: 'growing' },
         { name: 'Crypto', current: Math.round(cryptoValue), at_delivery: lastMonth?.crypto || 0, owner: 'shared', status: 'growing' },
         { name: "Laura's Infonavit", current: Math.round(lauraInfonvait), at_delivery: Math.round(lauraInfonvait), owner: 'laura', status: 'on_track' },
