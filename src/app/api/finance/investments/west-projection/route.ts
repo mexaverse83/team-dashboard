@@ -337,6 +337,11 @@ export async function GET(req: NextRequest) {
       prevFreed = freed
       const treatmentEvent = getTreatmentEventForMonth(mKey)
       if (treatmentEvent) notes.push(`−$${treatmentEvent.amount.toLocaleString()} ${treatmentEvent.label}`)
+      // Developer-schedule balloon (e.g. dic-26 $100k abono = $90k above the
+      // usual $10k monthly) hits that month's saving capacity
+      const lumpHit = lumpSumDate && mKey === `${lumpSumDate.getFullYear()}-${String(lumpSumDate.getMonth() + 1).padStart(2, '0')}`
+        ? (target.lump_sum_amount || 0) : 0
+      if (lumpHit > 0) notes.push(`−$${Math.round(lumpHit).toLocaleString()} WEST balloon payment`)
       const isAguinaldoMonth = planCursor.getMonth() === 11 && yearlyBonusTotal > 0
       if (isAguinaldoMonth) notes.push(`+$${Math.round(yearlyBonusTotal).toLocaleString()} aguinaldo`)
       if (mKey === FERTILITY_TREATMENT_PLAN.endMonth) notes.push('last treatment month')
@@ -345,6 +350,7 @@ export async function GET(req: NextRequest) {
         + freed
         + (isAguinaldoMonth ? yearlyBonusTotal : 0)
         - (treatmentEvent ? treatmentEvent.amount : 0)
+        - lumpHit
       ))
       planMonths.push({ month: mKey, capacity, target: 0, notes })
       planCursor.setMonth(planCursor.getMonth() + 1)
