@@ -7,7 +7,7 @@ export function buildInsightsPrompt(data, west) {
   const bvaSection = bva.length > 0 ? `
 BUDGET VS ACTUAL (Current Month - Day ${data.current_month?.day_of_month}/${data.current_month?.days_in_month}, ${data.current_month?.month_progress_pct}% through month):
 ${bva.map((b) =>
-  `- ${b.category}${b.is_non_monthly ? ` [${b.billing_cycle} billing — amount is amortized monthly]` : ''}: Spent $${Number(b.spent).toLocaleString()} / Budget $${Number(b.budget).toLocaleString()} (${b.pct_used}% used)${b.is_non_monthly ? ' (amortized)' : ` | Daily pace: $${Number(b.daily_pace).toLocaleString()}/day vs budget $${Number(b.budget_daily_pace).toLocaleString()}/day (${Number(b.pace_vs_budget_pct) > 0 ? '+' : ''}${b.pace_vs_budget_pct}%) | Projected: $${Number(b.projected_month_total).toLocaleString()}`} | Status: ${b.status === 'ok' ? '✅' : b.status === 'warning' ? '⚠️' : '🔴'}`
+  `- ${b.category}${b.is_fixed ? ' [FIXED — full amount charges at month start, can never grow]' : ''}${b.is_non_monthly ? ` [${b.billing_cycle} billing — amount is amortized monthly]` : ''}: Spent $${Number(b.spent).toLocaleString()} / Budget $${Number(b.budget).toLocaleString()} (${b.pct_used}% used)${(b.is_non_monthly || b.is_fixed) ? '' : ` | Daily pace: $${Number(b.daily_pace).toLocaleString()}/day vs budget $${Number(b.budget_daily_pace).toLocaleString()}/day (${Number(b.pace_vs_budget_pct) > 0 ? '+' : ''}${b.pace_vs_budget_pct}%) | Projected: $${Number(b.projected_month_total).toLocaleString()}`} | Status: ${b.status === 'ok' ? '✅' : b.status === 'warning' ? '⚠️' : '🔴'}`
 ).join('\n')}` : ''
 
   const msiSection = (data.msi_timeline || []).length > 0 ? `
@@ -135,6 +135,11 @@ Rules:
   (3) type "saving", the WEEK'S BEST SAVE: the single most impactful save this week (e.g. "keep groceries under $2,800 this week — buy for the week on Saturday, skip the mid-week convenience runs") with the amount it protects.
   Weekly amounts must be internally consistent with the remaining budgets and the WEST monthly target. If a category is already exhausted, the directive is zero-based ("$0 left — anything spent here comes out of the WEST transfer").
 - If WEST APARTMENT readiness data is present: include exactly 2 insights with category "WEST" — (1) a "forecast" giving the readiness verdict: most-likely position and gap at delivery given ACTUAL savings behavior vs the scheduled plan, and whether the household is on track to pay without financing; (2) a "recommendation" anchored on the MONTH-BY-MONTH SAVINGS PLAN if present: state THIS month's and NEXT month's plan targets, whether current-month savings are tracking toward this month's target, and the single biggest lever if behind. Use the behavioral numbers, not just the scheduled plan.
+
+CRITICAL — FIXED categories (marked [FIXED]):
+- These charge their full budgeted amount at month start BY DESIGN (e.g. Rent/Mortgage = rent + WEST apartment payment on day 1). 100% used on day 1 is the correct, expected state.
+- NEVER generate alerts, warnings, pace analysis, projections, or TODAY'S PRIORITY items about a fixed category at ≤100% of budget. Do not mention it at all in that state — not even reassurance like "this is normal", it wastes the reader's attention.
+- The ONLY newsworthy event for a fixed category is spent EXCEEDING budget (duplicate charge or price increase) — that is a high alert.
 
 CRITICAL — Bimonthly/non-monthly billing categories:
 - Categories marked [bimonthly billing] or [quarterly billing] etc are KNOWN recurring charges

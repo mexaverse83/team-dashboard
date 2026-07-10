@@ -229,11 +229,18 @@ export async function GET(req: NextRequest) {
     currentMonthCatSpend[k] = (currentMonthCatSpend[k] || 0) + (t.amount_mxn || t.amount || 0)
   })
 
+  // Fixed categories: the whole budget posts as one known charge at month
+  // start (rent $35k + WEST $10k on day 1) and can never grow afterwards.
+  // 100% used is the NORMAL state — pace math and alerts are meaningless;
+  // only spending BEYOND the budget (duplicate/increase) matters.
+  const FIXED_CATEGORIES = new Set(['Rent/Mortgage'])
+
   const budgetVsActual = activeBudgetRows.map(b => {
     const cat = catMap.get(b.category_id)
     const billingCycle = cat?.billing_cycle || 'monthly'
     const cycleMonths = CYCLE_MONTHS[billingCycle] || 1
     const isNonMonthly = cycleMonths > 1
+    const isFixed = FIXED_CATEGORIES.has(cat?.name || '')
 
     const spent = currentMonthCatSpend[b.category_id] || 0
     const monthlyBudget = b.amount || 0
@@ -241,18 +248,20 @@ export async function GET(req: NextRequest) {
     const effectiveBudget = isNonMonthly ? monthlyBudget * cycleMonths : monthlyBudget
     const pctUsed = effectiveBudget > 0 ? Math.round(spent / effectiveBudget * 100) : 0
 
-    // Pace calculation: skip for non-monthly (bimonthly bills aren't linear spending)
+    // Pace calculation: skip for non-monthly (bimonthly bills aren't linear
+    // spending) and for fixed (the charge already landed; nothing accrues)
     let dailyPace = 0
     let budgetDailyPace = 0
     let paceVsBudget = 0
     let projectedTotal = 0
 
-    if (!isNonMonthly) {
+    if (!isNonMonthly && !isFixed) {
       dailyPace = dayOfMonth > 0 ? spent / dayOfMonth : 0
       budgetDailyPace = daysInMonth > 0 ? effectiveBudget / daysInMonth : 0
       paceVsBudget = budgetDailyPace > 0 ? Math.round((dailyPace / budgetDailyPace - 1) * 100) : 0
       projectedTotal = Math.round(dailyPace * daysInMonth)
     }
+    if (isFixed) projectedTotal = Math.round(spent)
 
     return {
       category: cat?.name || 'Unknown',
@@ -263,12 +272,15 @@ export async function GET(req: NextRequest) {
       monthly_budget: monthlyBudget,
       pct_used: pctUsed,
       over_under: Math.round(spent - effectiveBudget),
-      status: pctUsed < 80 ? 'ok' : pctUsed <= (isNonMonthly ? 150 : 100) ? 'warning' : 'over',
+      status: isFixed
+        ? (spent > effectiveBudget ? 'over' : 'ok')
+        : pctUsed < 80 ? 'ok' : pctUsed <= (isNonMonthly ? 150 : 100) ? 'warning' : 'over',
       daily_pace: Math.round(dailyPace),
       budget_daily_pace: Math.round(budgetDailyPace),
       pace_vs_budget_pct: paceVsBudget,
       projected_month_total: projectedTotal,
       is_non_monthly: isNonMonthly,
+      is_fixed: isFixed,
       cycle_months: cycleMonths,
     }
   }).sort((a, b) => b.pct_used - a.pct_used)
