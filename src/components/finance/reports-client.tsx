@@ -177,9 +177,9 @@ export default function ReportsClient() {
         <div className="h-52 sm:h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(210, 12%, 42%)' }} />
-              <YAxis tick={{ fontSize: 11, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} />
+              <YAxis tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
               <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
               <Line type="monotone" dataKey="income" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} name="Income" />
               <Line type="monotone" dataKey="expenses" stroke="hsl(var(--chart-6))" strokeWidth={2} dot={false} name="Expenses" />
@@ -205,9 +205,9 @@ export default function ReportsClient() {
           <div className="h-52 sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={categoryTrends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(210, 12%, 42%)' }} />
-                <YAxis tick={{ fontSize: 11, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} />
+                <YAxis tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
                 {topCatNames.map(name => (
                   <Area key={name} type="monotone" dataKey={name} stackId="1" stroke={catColors[name] || '#6B7280'} fill={catColors[name] || '#6B7280'} fillOpacity={0.3} strokeWidth={1.5} />
@@ -390,9 +390,9 @@ export default function ReportsClient() {
           <div className="h-52 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={ownerMonthly}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 86%)" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(210, 12%, 42%)' }} />
-                <YAxis tick={{ fontSize: 11, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 83%)" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} />
+                <YAxis tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} formatter={(v: number | undefined) => [`$${(v ?? 0).toLocaleString()}`, '']} />
                 <Legend />
                 <Bar dataKey="bernardo" name="Bernardo" fill="#3B82F6" radius={[4,4,0,0]} />

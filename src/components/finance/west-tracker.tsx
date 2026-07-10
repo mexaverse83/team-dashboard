@@ -527,9 +527,9 @@ export function WestTracker() {
                   <stop offset="100%" stopColor="hsl(var(--chart-5))" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={m => m.slice(5)} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={m => m.slice(5)} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
 
@@ -542,8 +542,8 @@ export function WestTracker() {
               <Line type="monotone" dataKey="property_value" stroke="hsl(var(--chart-1))" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" />
               <ReferenceLine y={target} stroke="hsl(var(--chart-6))" strokeDasharray="6 4" strokeWidth={1.5}
                 label={{ value: 'Target $11.2M', position: 'right', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
-              <ReferenceLine x="2026-04" stroke="hsl(210, 14%, 60%)" strokeDasharray="3 3"
-                label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(210, 12%, 42%)', fontSize: 10 }} />
+              <ReferenceLine x="2026-04" stroke="hsl(30, 13%, 58%)" strokeDasharray="3 3"
+                label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(28, 11%, 42%)', fontSize: 10 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -829,9 +829,9 @@ export function WestProjectionWithScenarios() {
                   <stop offset="0%" stopColor="hsl(var(--chart-5))" stopOpacity={0.3} /><stop offset="100%" stopColor="hsl(var(--chart-5))" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={(m: string) => m.slice(5)} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={(m: string) => m.slice(5)} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
 
@@ -845,8 +845,8 @@ export function WestProjectionWithScenarios() {
               <Line type="monotone" dataKey="property_value" stroke="hsl(var(--chart-1))" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" />
               <ReferenceLine y={target} stroke="hsl(var(--chart-6))" strokeDasharray="6 4" strokeWidth={1.5}
                 label={{ value: 'Target $11.2M', position: 'right', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
-              <ReferenceLine x="2026-04" stroke="hsl(210, 14%, 60%)" strokeDasharray="3 3"
-                label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(210, 12%, 42%)', fontSize: 10 }} />
+              <ReferenceLine x="2026-04" stroke="hsl(30, 13%, 58%)" strokeDasharray="3 3"
+                label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(28, 11%, 42%)', fontSize: 10 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>

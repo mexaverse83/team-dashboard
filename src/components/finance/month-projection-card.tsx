@@ -54,8 +54,8 @@ export function MonthProjectionCard({ projection }: Props) {
     <div className={cn(
       'relative overflow-hidden rounded-2xl border p-5 sm:p-6 shadow-[var(--shadow-elevate)]',
       positive
-        ? 'border-emerald-500/25 bg-gradient-to-br from-emerald-50 via-white to-teal-50'
-        : 'border-rose-300/40 bg-gradient-to-br from-rose-50 via-white to-amber-50'
+        ? 'border-emerald-500/25 bg-gradient-to-br from-emerald-50 via-[hsl(40,45%,99%)] to-amber-50'
+        : 'border-rose-300/40 bg-gradient-to-br from-rose-50 via-[hsl(40,45%,99%)] to-amber-50'
     )}>
       <div
         className="pointer-events-none absolute inset-0"
@@ -99,7 +99,7 @@ export function MonthProjectionCard({ projection }: Props) {
 
         {/* Wolff's take */}
         {wolffTake ? (
-          <div className="rounded-xl border border-emerald-500/20 bg-white/70 px-3.5 py-3">
+          <div className="rounded-xl border border-emerald-500/20 bg-[hsl(40,45%,99%)]/80 px-3.5 py-3">
             <p className="text-xs font-bold text-emerald-800">🐺 {wolffTake.title}</p>
             <p className="mt-1 text-[11px] leading-relaxed text-[hsl(var(--text-secondary))]">{wolffTake.detail}</p>
           </div>

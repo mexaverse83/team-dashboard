@@ -149,7 +149,7 @@ export default function CommandCenterClient() {
         {/* ── Hero: the monthly answer ─────────────────────
             Leads with the one number that matters (net this month) instead of
             a uniform card grid; the status banner is its subline. */}
-        <div className="relative overflow-hidden rounded-2xl border border-[hsl(208,25%,88%)] bg-gradient-to-br from-[hsl(160,50%,97%)] via-[hsl(0,0%,100%)] to-[hsl(200,60%,97%)] p-5 sm:p-7 shadow-[var(--shadow-elevate)]">
+        <div className="relative overflow-hidden rounded-2xl border border-[hsl(33,26%,85%)] bg-gradient-to-br from-[hsl(160,45%,96%)] via-[hsl(40,45%,99%)] to-[hsl(36,70%,95%)] p-5 sm:p-7 shadow-[var(--shadow-elevate)]">
           <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(50% 90% at 95% 0%, hsl(160 70% 42% / 0.10), transparent 60%)' }} />
           <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div className="min-w-0">
@@ -319,7 +319,7 @@ export default function CommandCenterClient() {
               ) : '—'
             }
             sparkline={forecast?.series.map(s => s.running_balance) || []}
-            sparklineColor="hsl(217, 91%, 60%)"
+            sparklineColor="hsl(225, 75%, 48%)"
             accent={forecast && forecast.summary.net_delta >= 0 ? 'positive' : 'negative'}
           />
         </div>

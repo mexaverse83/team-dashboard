@@ -490,9 +490,9 @@ export default function GoalsClient() {
                             <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
-                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} />
-                        <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
+                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} />
+                        <YAxis tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                         <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
                         <Area type="monotone" dataKey="projected" stroke="hsl(var(--chart-3))" fill="url(#goalGrad)" strokeWidth={2} />
                         <ReferenceLine y={goal.target_amount} stroke="hsl(var(--chart-1))" strokeDasharray="5 5" />
@@ -580,9 +580,9 @@ export default function GoalsClient() {
           <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={savingsChart} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 86%)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fill: 'hsl(215, 16%, 50%)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: 'hsl(215, 16%, 50%)', fontSize: 11 }} axisLine={false} tickLine={false}
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 83%)" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: 'hsl(28, 11%, 45%)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'hsl(28, 11%, 45%)', fontSize: 11 }} axisLine={false} tickLine={false}
                   tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                 <Tooltip
                   contentStyle={CHART_TOOLTIP_STYLE}
@@ -590,7 +590,7 @@ export default function GoalsClient() {
                   formatter={((v: number, name: string) => [`$${(v || 0).toLocaleString()}`, name === 'bernardo' ? 'Bernardo' : 'Laura']) as any}
                 />
                 <ReferenceLine y={lastTotal?.planned_contribution ?? 120000} stroke="hsl(var(--chart-5))" strokeDasharray="4 4" strokeWidth={1.5} />
-                <Bar dataKey="bernardo" stackId="savings" fill="hsl(217, 91%, 60%)" />
+                <Bar dataKey="bernardo" stackId="savings" fill="hsl(225, 75%, 48%)" />
                 <Bar dataKey="laura" stackId="savings" fill="hsl(160, 60%, 45%)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

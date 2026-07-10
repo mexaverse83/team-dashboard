@@ -311,9 +311,9 @@ export default function FinanceOverviewClient() {
                     <stop offset="100%" stopColor="hsl(var(--chart-6))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} />
                 <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
                 <Area type="monotone" dataKey="amount" stroke="hsl(var(--chart-6))" strokeWidth={2} fill="url(#spendGrad)" />
               </AreaChart>

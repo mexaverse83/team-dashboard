@@ -327,7 +327,7 @@ export default function AuditClient() {
               <div className="flex flex-col items-center sm:items-start shrink-0">
                 <div className="relative w-28 h-28">
                   <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(206, 26%, 92%)" strokeWidth="10" />
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(34, 26%, 89%)" strokeWidth="10" />
                     <circle cx="50" cy="50" r="40" fill="none"
                       stroke={ringColor} strokeWidth="10" strokeLinecap="round"
                       strokeDasharray={`${(score / 100) * 251.2} 251.2`}
@@ -410,7 +410,7 @@ export default function AuditClient() {
                   <span className="text-[10px] text-[hsl(var(--text-tertiary))] w-8 text-right shrink-0">{day}</span>
                   {heatmapData.grid[day].map((val, h) => (
                     <motion.div key={h} className="flex-1 h-6 sm:h-7 rounded-sm cursor-pointer"
-                      style={{ backgroundColor: val > 0 ? `rgba(244, 63, 94, ${0.15 + val * 0.75})` : 'hsl(206, 26%, 94%)' }}
+                      style={{ backgroundColor: val > 0 ? `rgba(244, 63, 94, ${0.15 + val * 0.75})` : 'hsl(35, 28%, 91%)' }}
                       whileHover={{ scale: 1.15, zIndex: 10 }}
                       title={`${day}: $${heatmapData.amounts[day][h].toLocaleString()}`} />
                   ))}

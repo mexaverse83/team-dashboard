@@ -23,7 +23,7 @@ interface ForecastChartProps {
 
 const tooltipStyle = {
   contentStyle: { ...CHART_TOOLTIP_STYLE, padding: '8px 12px' },
-  labelStyle: { color: 'hsl(210, 12%, 42%)', fontSize: 11 },
+  labelStyle: { color: 'hsl(28, 11%, 42%)', fontSize: 11 },
 }
 
 function fmtMoney(n: number) {
@@ -51,10 +51,10 @@ export function ForecastChart({ data, height = 240, showBalance = true, showFlow
               <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }}
+            tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }}
             tickLine={false}
             axisLine={false}
             tickFormatter={fmtDate}
@@ -62,7 +62,7 @@ export function ForecastChart({ data, height = 240, showBalance = true, showFlow
             minTickGap={40}
           />
           <YAxis
-            tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }}
+            tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }}
             tickLine={false}
             axisLine={false}
             tickFormatter={fmtMoney}

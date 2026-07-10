@@ -17,8 +17,8 @@ interface AlertCardProps {
 
 const SEVERITY_STYLES: Record<AlertSeverity, { bg: string; border: string; icon: typeof Info; iconColor: string }> = {
   info: {
-    bg: 'bg-[hsl(217,91%,60%)/0.08]',
-    border: 'border-[hsl(217,91%,60%)/0.25]',
+    bg: 'bg-[hsl(225,75%,48%)/0.08]',
+    border: 'border-[hsl(225,75%,48%)/0.25]',
     icon: Info,
     iconColor: 'text-blue-600',
   },

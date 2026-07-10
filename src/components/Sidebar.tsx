@@ -108,7 +108,7 @@ export function Sidebar() {
     </nav>
 
     {/* Desktop: always-visible sidebar */}
-    <aside className="hidden md:flex flex-col border-r border-[hsl(208,22%,89%)] bg-[hsl(0,0%,100%)] min-h-screen shrink-0 sticky top-0 h-screen w-60 p-4 overflow-y-auto">
+    <aside className="hidden md:flex flex-col border-r border-[hsl(33,26%,86%)] bg-[hsl(40,45%,99%)] min-h-screen shrink-0 sticky top-0 h-screen w-60 p-4 overflow-y-auto">
       {/* Logo */}
       <div className="flex items-center gap-3 mb-6 px-2">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 shrink-0">

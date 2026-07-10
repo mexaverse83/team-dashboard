@@ -9,7 +9,7 @@ import { CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
 
 // Themed colors from CSS vars (resolved at render time)
 const CHART_COLORS = {
-  brand: 'hsl(217, 91%, 60%)',
+  brand: 'hsl(225, 75%, 48%)',
   success: 'hsl(142, 71%, 45%)',
   warning: 'hsl(38, 92%, 50%)',
   danger: 'hsl(0, 84%, 60%)',
@@ -106,7 +106,7 @@ export function ThemedRadialChart({
         >
           <RadialBar
             dataKey="value"
-            background={{ fill: 'hsl(206, 26%, 92%)' }}
+            background={{ fill: 'hsl(34, 26%, 89%)' }}
             cornerRadius={4}
             animationDuration={1000}
           />

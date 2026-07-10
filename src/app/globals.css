@@ -1,63 +1,64 @@
 @import "tailwindcss";
 
 :root {
-  /* Foundations — light & airy fintech: near-white cool-neutral page, pure
-     white cards, emerald identity. Darker accent shades than the old dark
-     theme so everything clears WCAG AA on white. */
-  --background: 200 30% 98%;
-  --foreground: 210 28% 14%;
-  --card: 0 0% 100%;
-  --card-foreground: 210 28% 14%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 210 28% 14%;
-  --primary: 210 28% 14%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 206 28% 94%;
-  --secondary-foreground: 210 28% 14%;
-  --muted: 206 28% 94%;
-  --muted-foreground: 208 12% 42%;
-  --accent: 204 30% 93%;
-  --accent-foreground: 210 28% 14%;
-  --destructive: 0 74% 46%;
+  /* Foundations — "Casa WEST": Mexican-modernism light. Warm plaster-cream
+     page (never clinical white), warm ink text, white cards with warm
+     afternoon shadows. Accent language of Barragán architecture: emerald
+     (money/brand — Wolff), cobalt (information), marigold (caution),
+     rosa mexicano (over budget / danger). */
+  --background: 36 36% 96%;
+  --foreground: 26 24% 13%;
+  --card: 40 45% 99%;
+  --card-foreground: 26 24% 13%;
+  --popover: 40 45% 99%;
+  --popover-foreground: 26 24% 13%;
+  --primary: 26 24% 13%;
+  --primary-foreground: 40 45% 99%;
+  --secondary: 35 28% 91%;
+  --secondary-foreground: 26 24% 13%;
+  --muted: 35 28% 91%;
+  --muted-foreground: 28 12% 40%;
+  --accent: 35 30% 90%;
+  --accent-foreground: 26 24% 13%;
+  --destructive: 335 80% 42%;
   --destructive-foreground: 0 0% 100%;
-  --border: 208 22% 87%;
-  --input: 208 22% 87%;
-  --ring: 160 84% 32%;
+  --border: 33 24% 84%;
+  --input: 33 24% 84%;
+  --ring: 160 84% 30%;
   --radius: 0.625rem;
 
-  /* Brand — emerald is the identity; blue is demoted to informational */
-  --brand: 160 84% 33%;
-  --brand-glow: 168 76% 36%;
+  /* Brand — emerald is the identity (Wolff); cobalt is informational */
+  --brand: 160 84% 30%;
+  --brand-glow: 168 76% 34%;
 
-  /* Semantic */
-  --success: 156 72% 30%;
-  --warning: 30 95% 38%;
-  --danger: 350 75% 42%;
-  --info: 210 90% 40%;
+  /* Semantic — Barragán accents, AA on warm paper */
+  --success: 156 72% 28%;
+  --warning: 36 95% 36%;
+  --danger: 335 80% 40%;
+  --info: 225 75% 45%;
 
-  /* Text — secondary/tertiary clear WCAG AA (~4.5:1) at small sizes */
-  --text-primary: 210 28% 14%;
-  --text-secondary: 208 14% 38%;
-  --text-tertiary: 208 12% 47%;
+  /* Text — warm ink; secondary/tertiary clear WCAG AA at small sizes */
+  --text-primary: 26 24% 13%;
+  --text-secondary: 28 14% 36%;
+  --text-tertiary: 28 11% 45%;
 
-  /* Elevation ladder — on a light page, raised surfaces step toward pure
-     white; insets step slightly darker than the page */
-  --bg-base: 200 30% 98%;       /* page background tier */
-  --bg-surface: 0 0% 100%;      /* cards / panels */
-  --bg-elevated: 206 26% 92%;   /* raised insets: progress tracks, hover, chips */
-  --border-subtle: 208 20% 92%; /* fainter divider than --border */
+  /* Elevation ladder — raised surfaces step toward warm white; insets step
+     toward plaster */
+  --bg-base: 36 36% 96%;        /* page background tier */
+  --bg-surface: 40 45% 99%;     /* cards / panels */
+  --bg-elevated: 34 26% 89%;    /* raised insets: progress tracks, hover, chips */
+  --border-subtle: 34 22% 90%;  /* fainter divider than --border */
 
-  /* Elevation shadow token — soft daylight drop, no heavy darkness */
-  --shadow-elevate: 0 1px 2px hsl(210 30% 50% / 0.08), 0 8px 24px -12px hsl(210 40% 40% / 0.14);
+  /* Elevation shadow token — warm afternoon light, no cold gray */
+  --shadow-elevate: 0 1px 2px hsl(28 45% 40% / 0.09), 0 10px 28px -14px hsl(24 50% 35% / 0.16);
 
-  /* Chart system — one cohesive palette, referenced everywhere; darkened
-     for contrast against white surfaces */
-  --chart-1: 160 84% 32%;  /* emerald  — primary series / inflow   */
-  --chart-2: 187 80% 33%;  /* cyan     — secondary series          */
-  --chart-3: 217 85% 50%;  /* blue     — informational             */
-  --chart-4: 262 70% 54%;  /* violet   — comparison                */
-  --chart-5: 32 95% 42%;   /* amber    — caution                   */
-  --chart-6: 350 75% 48%;  /* rose     — outflow / over budget     */
+  /* Chart system — Barragán palette, darkened for contrast on warm paper */
+  --chart-1: 160 84% 29%;  /* emerald   — primary series / inflow   */
+  --chart-2: 187 75% 31%;  /* deep teal — secondary series          */
+  --chart-3: 225 75% 48%;  /* cobalt    — informational             */
+  --chart-4: 16 72% 45%;   /* terracotta — comparison               */
+  --chart-5: 36 95% 40%;   /* marigold  — caution                   */
+  --chart-6: 335 78% 45%;  /* rosa mexicano — outflow / over budget */
 }
 
 * {
@@ -81,8 +82,9 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(55% 45% at 88% -12%, hsl(160 70% 45% / 0.07), transparent 65%),
-    radial-gradient(45% 40% at -8% 18%, hsl(200 85% 55% / 0.05), transparent 60%);
+    radial-gradient(55% 45% at 90% -12%, hsl(160 65% 42% / 0.07), transparent 65%),
+    radial-gradient(45% 42% at -8% 20%, hsl(36 90% 55% / 0.07), transparent 60%),
+    radial-gradient(35% 35% at 100% 85%, hsl(335 70% 55% / 0.045), transparent 55%);
 }
 
 /* Headings and metric numerals speak in the display face */
@@ -101,7 +103,7 @@ h1, h2, h3 {
 /* Finance identity — emerald→teal gradient for hero numbers (dark shades
    for contrast on light surfaces) */
 .text-hero-gradient {
-  background: linear-gradient(120deg, #059669 0%, #0d9488 55%, #0284c7 110%);
+  background: linear-gradient(120deg, hsl(160 84% 27%) 0%, hsl(187 75% 29%) 55%, hsl(225 75% 42%) 110%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -114,7 +116,7 @@ h1, h2, h3 {
   width: 4px;
   height: 0.9em;
   border-radius: 9999px;
-  background: linear-gradient(180deg, #059669, #0d9488);
+  background: linear-gradient(180deg, hsl(335 78% 48%), hsl(36 95% 48%));
   flex-shrink: 0;
 }
 
@@ -214,10 +216,10 @@ select option:hover {
    hairline border. The old dark glass treatment is gone; depth comes from
    shadow, not translucency. */
 .glass {
-  background: hsl(0 0% 100% / 0.94);
+  background: hsl(40 45% 99% / 0.94);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  border: 1px solid hsl(208 22% 89%);
+  border: 1px solid hsl(33 26% 86%);
   box-shadow: var(--shadow-elevate);
 }
 

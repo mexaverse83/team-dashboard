@@ -216,9 +216,9 @@ export default function DebtClient() {
           <div className="h-44 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 88%)" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} label={{ value: 'Months', position: 'insideBottom', offset: -5, fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} />
-                <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 12%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} label={{ value: 'Months', position: 'insideBottom', offset: -5, fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} />
+                <YAxis tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
                 <Line type="monotone" dataKey="snowball" name="Snowball" stroke="hsl(var(--chart-3))" strokeWidth={2.5} dot={false} />
                 <Line type="monotone" dataKey="avalanche" name="Avalanche" stroke="hsl(var(--chart-5))" strokeWidth={2.5} dot={false} strokeDasharray="6 3" />
@@ -294,7 +294,7 @@ export default function DebtClient() {
               <p className="text-sm text-[hsl(var(--text-secondary))] mt-1">months to go</p>
               <div className="relative h-32 w-32 mx-auto mt-4">
                 <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(210, 20%, 88%)" strokeWidth="6" />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(34, 22%, 85%)" strokeWidth="6" />
                   <motion.circle cx="50" cy="50" r="42" fill="none" stroke="#10B981" strokeWidth="6" strokeLinecap="round"
                     strokeDasharray={`${2 * Math.PI * 42}`} initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
                     animate={{ strokeDashoffset: 2 * Math.PI * 42 * (1 - pctPaid) }} transition={{ duration: 1.2 }} />
