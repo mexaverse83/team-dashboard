@@ -75,6 +75,13 @@ ${westMonthTarget ? `- THIS MONTH'S WEST SAVINGS TARGET: $${Number(westMonthTarg
 - Expected monthly income: $${Number(data.income?.total_monthly || 0).toLocaleString()}; spent so far: $${Number(cm.total_spent || 0).toLocaleString()}`
   })()
 
+  const mp = data.month_projection
+  const projectionSection = mp ? `
+MONTH-END SAVINGS PROJECTION (deterministic, computed today):
+- Expected income this month: $${Number(mp.expected_income).toLocaleString()}
+- Spent so far: $${Number(mp.spent_so_far).toLocaleString()} · Projected total spend: $${Number(mp.projected_spend).toLocaleString()}${mp.known_upcoming_treatment > 0 ? ` (includes $${Number(mp.known_upcoming_treatment).toLocaleString()} known upcoming treatment)` : ''}
+- PROJECTED SAVINGS AT MONTH END: $${Number(mp.projected_savings).toLocaleString()} (method: ${mp.method})` : ''
+
   const goalSection = data.goal_funding ? `
 GOAL FUNDING GAP:
 - Goals need: $${Number(data.goal_funding.total_monthly_needed).toLocaleString()}/mo
@@ -87,6 +94,7 @@ FULL FINANCIAL DATA:
 ${JSON.stringify(data, null, 2)}
 ${bvaSection}
 ${msiSection}
+${projectionSection}
 ${goalSection}
 ${cryptoSection}
 ${westSection}
@@ -128,6 +136,7 @@ Rules:
 - Flag if unrealized crypto loss exceeds 20% — suggest DCA or holding strategy
 - Consider crypto value in overall financial health assessment
 - If long-term investment, net worth, real-estate, retirement, or tax data is missing, do not fabricate it. Prefer a recommendation to connect or refresh that data.
+- If MONTH-END SAVINGS PROJECTION is present: include exactly 1 insight with category "PROJECTION", type "forecast". title: the projected savings figure with direction (e.g. "On pace to save $118k this month"). detail: 1-2 sentences on WHY — which categories drive it, how it compares to this month's WEST savings target, and the single behavior that would most improve it. Use the deterministic number given; do not recompute.
 - ALWAYS include exactly 1 insight with category "WIDGET": the single most decision-relevant directive for TODAY, chosen from everything in this data. type "recommendation". title = the directive itself, imperative, max 48 characters, punchy (e.g. "Cook tonight — dining pace is 2× budget", "Move $58k surplus to GBM today", "Treatment payment tomorrow — hold spending"). detail = ONE sentence with the key number that justifies it. This is shown on a phone home-screen widget — it must be the one line that most changes today's behavior.
 - If WEEKLY SPENDING COACH CONTEXT is present: include exactly 3 insights with category "WEEK". These are the household's weekly money coach — be direct, personal, and specific, like a trainer, never generic:
   (1) type "recommendation", the WEEK'S ENVELOPE: exactly how much they can spend this week in total and per key category (dining, groceries, entertainment), derived from remaining budgets ÷ weeks left, tightened if the month's WEST savings target is at risk;

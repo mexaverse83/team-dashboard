@@ -288,6 +288,28 @@ export async function GET(req: NextRequest) {
 
   const totalCurrentMonthSpend = currentMonthTxs.reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
 
+  // ── Month-end savings projection ──────────────────────────────────
+  // Per-category expected month totals: fixed categories land their full
+  // scheduled amount; bimonthly counts only what posted; variable categories
+  // use budget until day 7 (pace is noise early), then daily pace.
+  const pastDay7 = dayOfMonth >= 7
+  const projectedBudgetedSpend = budgetVsActual.reduce((s, b) => {
+    if (b.is_fixed) return s + Math.max(b.spent, b.budget)
+    if (b.is_non_monthly) return s + b.spent
+    if (!pastDay7) return s + Math.max(b.spent, b.budget)
+    return s + Math.max(b.spent, b.projected_month_total)
+  }, 0)
+  const budgetedSpentSoFar = budgetVsActual.reduce((s, b) => s + b.spent, 0)
+  const unbudgetedSpent = Math.max(0, Math.round(totalCurrentMonthSpend) - budgetedSpentSoFar)
+  const todayKey = now.toISOString().slice(0, 10)
+  const treatmentRemainingThisMonth = FERTILITY_TREATMENT_PLAN.events
+    .filter(e => e.month === currentMonthStr && e.date > todayKey)
+    .reduce((s, e) => s + e.amount, 0)
+  const projectedMonthSpend = Math.round(projectedBudgetedSpend + unbudgetedSpent + treatmentRemainingThisMonth)
+  const actualIncomeThisMonth = (currentMonthIncomeTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
+  const expectedIncomeThisMonth = Math.round(Math.max(actualIncomeThisMonth, totalMonthlyIncome))
+  const projectedMonthSavings = expectedIncomeThisMonth - projectedMonthSpend
+
   // Goal funding gap
   const totalGoalMonthlyNeeded = activeGoals.reduce((s, g) => s + g.monthly_needed, 0)
   const discretionary = totalMonthlyIncome - fixedCommitments
@@ -455,6 +477,14 @@ export async function GET(req: NextRequest) {
       month_progress_pct: Math.round(monthProgress * 100),
       total_spent: Math.round(totalCurrentMonthSpend),
       budget_vs_actual: budgetVsActual,
+    },
+    month_projection: {
+      expected_income: expectedIncomeThisMonth,
+      spent_so_far: Math.round(totalCurrentMonthSpend),
+      projected_spend: projectedMonthSpend,
+      known_upcoming_treatment: Math.round(treatmentRemainingThisMonth),
+      projected_savings: projectedMonthSavings,
+      method: pastDay7 ? 'pace' : 'budget-anchored (pace stabilizes after day 7)',
     },
     goal_funding: {
       total_monthly_needed: totalGoalMonthlyNeeded,

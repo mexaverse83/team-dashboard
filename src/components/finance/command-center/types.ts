@@ -2,6 +2,14 @@ import type { AlertSeverity } from '@/components/ui/alert-card'
 
 // ─── Summary endpoint response shape (subset we use) ─────────────────────────
 export interface Summary {
+  month_projection?: {
+    expected_income: number
+    spent_so_far: number
+    projected_spend: number
+    known_upcoming_treatment: number
+    projected_savings: number
+    method: string
+  }
   current_month: {
     month: string
     day_of_month: number

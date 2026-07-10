@@ -12,6 +12,7 @@ import { BillsTimeline } from '@/components/finance/bills-timeline'
 import { WestCompactWidget } from '@/components/finance/west-tracker'
 import { WolffWidget } from '@/components/finance/wolff-widget'
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend'
+import { MonthProjectionCard } from '@/components/finance/month-projection-card'
 import { InstallPrompt } from '@/components/finance/install-prompt'
 import { supabase } from '@/lib/supabase'
 import { ownersEqual } from '@/lib/owners'
@@ -382,6 +383,7 @@ export default function CommandCenterClient() {
 
           {/* Right column - 1/3 */}
           <div className="space-y-4">
+            <MonthProjectionCard projection={summary?.month_projection} />
             <SafeToSpendCard summary={summary} />
             <GlassCard>
               <SectionHeader
