@@ -237,6 +237,9 @@ export default function CommandCenterClient() {
           </div>
         </div>
 
+        {/* ── HEADLINE: month-end savings projection ─────── */}
+        <MonthProjectionCard projection={summary?.month_projection} />
+
         {/* ── GLANCE: KPI strip ──────────────────────────── */}
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           {netWorth ? (
@@ -383,7 +386,6 @@ export default function CommandCenterClient() {
 
           {/* Right column - 1/3 */}
           <div className="space-y-4">
-            <MonthProjectionCard projection={summary?.month_projection} />
             <SafeToSpendCard summary={summary} />
             <GlassCard>
               <SectionHeader
