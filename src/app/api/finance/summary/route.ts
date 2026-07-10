@@ -229,11 +229,12 @@ export async function GET(req: NextRequest) {
     currentMonthCatSpend[k] = (currentMonthCatSpend[k] || 0) + (t.amount_mxn || t.amount || 0)
   })
 
-  // Fixed categories: the whole budget posts as one known charge at month
-  // start (rent $35k + WEST $10k on day 1) and can never grow afterwards.
-  // 100% used is the NORMAL state — pace math and alerts are meaningless;
-  // only spending BEYOND the budget (duplicate/increase) matters.
-  const FIXED_CATEGORIES = new Set(['Rent/Mortgage'])
+  // Fixed categories: known scheduled charges (rent + WEST on day 1; utility
+  // bills early-month; subscriptions on their billing dates) whose month
+  // total cannot exceed the budget by design. High %-used is the NORMAL
+  // state — pace math and alerts are meaningless; only spending BEYOND the
+  // budget (duplicate charge or price increase) matters.
+  const FIXED_CATEGORIES = new Set(['Rent/Mortgage', 'Utilities', 'Subscriptions'])
 
   const budgetVsActual = activeBudgetRows.map(b => {
     const cat = catMap.get(b.category_id)
