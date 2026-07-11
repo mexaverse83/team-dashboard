@@ -23,7 +23,7 @@ interface Props {
 // Wolff's daily commentary from the brief.
 export function MonthProjectionCard({ projection }: Props) {
   const [westTarget, setWestTarget] = useState<number | null>(null)
-  const [wolffTake, setWolffTake] = useState<{ title: string; detail: string } | null>(null)
+  const [wolffTake, setWolffTake] = useState<{ title: string; detail: string; asOf: string | null } | null>(null)
 
   useEffect(() => {
     fetch('/api/finance/investments/west-projection')
@@ -38,7 +38,12 @@ export function MonthProjectionCard({ projection }: Props) {
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         const p = (d?.insights || []).find((i: { category?: string }) => (i.category || '').toUpperCase() === 'PROJECTION')
-        if (p) setWolffTake({ title: p.title, detail: p.detail })
+        if (p) {
+          const asOf = d?.generated_at
+            ? new Date(d.generated_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+            : null
+          setWolffTake({ title: p.title, detail: p.detail, asOf })
+        }
       })
       .catch(() => {})
   }, [])
@@ -100,7 +105,10 @@ export function MonthProjectionCard({ projection }: Props) {
         {/* Wolff's take */}
         {wolffTake ? (
           <div className="rounded-xl border border-emerald-500/20 bg-[hsl(40,45%,99%)]/80 px-3.5 py-3">
-            <p className="text-xs font-bold text-emerald-800">🐺 {wolffTake.title}</p>
+            <p className="text-xs font-bold text-emerald-800">
+              🐺 {wolffTake.title}
+              {wolffTake.asOf && <span className="ml-1.5 font-medium text-[10px] text-[hsl(var(--text-tertiary))]">as of {wolffTake.asOf} — live number above</span>}
+            </p>
             <p className="mt-1 text-[11px] leading-relaxed text-[hsl(var(--text-secondary))]">{wolffTake.detail}</p>
           </div>
         ) : <div className="hidden lg:block" />}
