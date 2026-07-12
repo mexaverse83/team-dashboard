@@ -67,13 +67,13 @@ vi.mock('lucide-react', () => {
     Bitcoin: i('bitcoin'), CalendarDays: i('calendardays'), Check: i('check'),
     CheckCircle2: i('checkcircle2'), ChevronDown: i('chevrondown'), ChevronUp: i('chevronup'),
     Clock: i('clock'), HeartPulse: i('heartpulse'), Info: i('info'), Lightbulb: i('lightbulb'),
-    Scissors: i('scissors'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
+    Scissors: i('scissors'), SlidersHorizontal: i('slidershorizontal'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
   }
 })
 
 // Mock Modal
 vi.mock('@/components/ui/modal', () => ({
-  Modal: ({ children, open, title }: any) => open ? <div data-testid="modal"><h2>{title}</h2>{children}</div> : null,
+  Modal: ({ children, footer, open, title }: any) => open ? <div data-testid="modal"><h2>{title}</h2>{children}{footer}</div> : null,
 }))
 
 // Mock pdf-parser
@@ -267,7 +267,7 @@ describe('Transactions Page', () => {
     const Comp = (await import('@/components/finance/transactions-client')).default
     render(<Comp />)
     await waitFor(() => expect(screen.getByText('Transactions')).toBeInTheDocument())
-    expect(screen.getByText('All income and expenses')).toBeInTheDocument()
+    expect(screen.getByText('Capture spending fast. Keep every peso accountable.')).toBeInTheDocument()
   })
 
   it('renders type filter (All/Out/In)', async () => {
@@ -347,6 +347,32 @@ describe('Transactions Page', () => {
     await waitFor(() => {
       expect(container.querySelector('.text-rose-600')).toBeInTheDocument()
     })
+  })
+
+  it('opens a mobile-first entry flow with amount before merchant and category', async () => {
+    const Comp = (await import('@/components/finance/transactions-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Add transaction' }).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add transaction' })[0])
+
+    const amount = screen.getByLabelText('Amount *')
+    const merchant = screen.getByLabelText('Where did you spend?')
+    const category = screen.getByText('Category *')
+    expect(amount.compareDocumentPosition(merchant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(merchant.compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByText('Frequent first')).toBeInTheDocument()
+    expect(screen.getByText('Details')).toBeInTheDocument()
+  })
+
+  it('uses a recent merchant to fill merchant and category in one tap', async () => {
+    const Comp = (await import('@/components/finance/transactions-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Add transaction' }).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add transaction' })[0])
+    const recentMerchant = screen.getAllByRole('button', { name: 'Walmart' })[0]
+    fireEvent.click(recentMerchant)
+    expect(screen.getByLabelText('Where did you spend?')).toHaveValue('Walmart')
+    expect(screen.getByRole('button', { name: /Groceries/ })).toHaveAttribute('aria-pressed', 'true')
   })
 })
 

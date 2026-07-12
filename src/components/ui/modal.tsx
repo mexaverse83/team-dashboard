@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -18,6 +18,7 @@ interface ModalProps {
 
 export function Modal({ open, onClose, title, children, className, footer }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null)
+  const titleId = useId()
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -43,6 +44,9 @@ export function Modal({ open, onClose, title, children, className, footer }: Mod
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
           <motion.div
             ref={ref}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
             className={cn(
               "relative flex flex-col bg-[hsl(var(--bg-surface))] border border-[hsl(var(--border))] shadow-2xl",
               "w-full max-h-[92dvh] rounded-t-2xl",            // mobile sheet
@@ -59,7 +63,7 @@ export function Modal({ open, onClose, title, children, className, footer }: Mod
               <div className="h-1 w-9 rounded-full bg-[hsl(var(--border))]" />
             </div>
             <div className="flex items-center justify-between px-4 py-3 sm:p-4 border-b border-[hsl(var(--border))]">
-              <h2 className="text-lg font-semibold">{title}</h2>
+              <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
               <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-[hsl(var(--bg-elevated))] transition-colors">
                 <X className="h-5 w-5" />
               </button>

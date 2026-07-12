@@ -85,7 +85,7 @@ vi.mock('lucide-react', () => {
     Bitcoin: i('bitcoin'), CalendarDays: i('calendardays'), Check: i('check'),
     CheckCircle2: i('checkcircle2'), ChevronDown: i('chevrondown'), ChevronUp: i('chevronup'),
     Clock: i('clock'), HeartPulse: i('heartpulse'), Info: i('info'), Lightbulb: i('lightbulb'),
-    Scissors: i('scissors'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
+    Scissors: i('scissors'), SlidersHorizontal: i('slidershorizontal'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
   }
 })
 

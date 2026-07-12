@@ -113,11 +113,12 @@ export function allocatedMonthlySpend(
  * For arrears billing: coverage ends the month before payment, spans cycle length.
  */
 export function suggestCoveragePeriod(paymentDate: string, cycle: BillingCycle): { start: string; end: string } {
-  const payment = new Date(paymentDate)
+  const [year, month] = paymentDate.split('-').map(Number)
   const months = CYCLE_MONTHS[cycle]
-  // Coverage ends last day of previous month (arrears)
-  const coverageEnd = new Date(payment.getFullYear(), payment.getMonth(), 0)
-  const coverageStart = new Date(coverageEnd.getFullYear(), coverageEnd.getMonth() - months + 1, 1)
+  // Work entirely in UTC with numeric date parts. Parsing YYYY-MM-DD and then
+  // reading local fields shifts first-of-month payments backward in Mexico.
+  const coverageEnd = new Date(Date.UTC(year, month - 1, 0))
+  const coverageStart = new Date(Date.UTC(coverageEnd.getUTCFullYear(), coverageEnd.getUTCMonth() - months + 1, 1))
   return {
     start: coverageStart.toISOString().slice(0, 10),
     end: coverageEnd.toISOString().slice(0, 10),

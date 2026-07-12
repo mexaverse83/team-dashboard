@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Search, Plus, Pencil, Trash2, Upload, Download, Sparkles, AlertTriangle } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { Search, Plus, Pencil, Trash2, Upload, Download, Sparkles, AlertTriangle, Check, SlidersHorizontal } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { GlassCard } from '@/components/ui/glass-card'
@@ -18,6 +18,7 @@ import { OwnerDot } from '@/components/finance/owner-dot'
 import { applyRules, detectDuplicates, type FinanceRule } from '@/lib/finance-rules'
 
 import { inputCls } from '@/lib/form-style'
+import { localDateKey, prioritizeCategories, recentMerchantSuggestions, relativeLocalDateKey } from '@/lib/transaction-entry'
 
 const labelCls = "text-xs text-[hsl(var(--text-secondary))] mb-1 block"
 
@@ -32,7 +33,7 @@ function serializeTags(tags: string[]): string {
   return tags.join(', ')
 }
 
-function today() { return new Date().toISOString().slice(0, 10) }
+function today() { return localDateKey() }
 
 function notifyWolff(body: Record<string, unknown>) {
   fetch('/api/finance/wolff-events', {
@@ -140,6 +141,9 @@ export default function TransactionsClient() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<TxForm>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [savedMessage, setSavedMessage] = useState('')
+  const savedMessageTimer = useRef<number | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   // Auto-categorization rules + duplicate detection
@@ -215,6 +219,11 @@ export default function TransactionsClient() {
     )
   }, [form.merchant, form.amount, form.transaction_date, transactions, modalOpen, editingId])
 
+  const merchantSuggestions = useMemo(
+    () => recentMerchantSuggestions(transactions, form.type),
+    [transactions, form.type],
+  )
+
   // Merchant autocomplete
   const knownMerchants = useMemo(() => {
     const set = new Set<string>()
@@ -242,8 +251,21 @@ export default function TransactionsClient() {
   const openAdd = useCallback(() => {
     setEditingId(null)
     setForm({ ...emptyForm, owner: defaultOwner })
+    setSaveError('')
+    setSavedMessage('')
+    if (savedMessageTimer.current) window.clearTimeout(savedMessageTimer.current)
     setModalOpen(true)
   }, [defaultOwner])
+
+  useEffect(() => () => {
+    if (savedMessageTimer.current) window.clearTimeout(savedMessageTimer.current)
+  }, [])
+
+  useEffect(() => {
+    if (modalOpen && !editingId && defaultOwner) {
+      setForm(current => current.owner ? current : { ...current, owner: defaultOwner })
+    }
+  }, [defaultOwner, editingId, modalOpen])
 
   // Auto-open the add sheet when arriving via the mobile FAB (?add=1),
   // then strip the param so back/refresh doesn't reopen it.
@@ -261,6 +283,7 @@ export default function TransactionsClient() {
   // Open modal for edit
   const openEdit = (tx: FinanceTransaction) => {
     setEditingId(tx.id)
+    setSaveError('')
     setForm({
       type: tx.type,
       amount: tx.amount.toString(),
@@ -281,15 +304,30 @@ export default function TransactionsClient() {
 
   // Save (create or update)
   const handleSave = async () => {
-    if (!form.amount || !form.transaction_date) return
-    if (!editingId && !form.category_id) return
+    setSaveError('')
+    const amt = parseFloat(form.amount)
+    if (!Number.isFinite(amt) || amt <= 0) {
+      setSaveError('Enter an amount greater than zero.')
+      return
+    }
+    if (!form.transaction_date) {
+      setSaveError('Choose a transaction date.')
+      return
+    }
+    if (!form.category_id) {
+      setSaveError('Choose a category.')
+      return
+    }
+    if (form.currency === 'USD' && (!form.amount_mxn || parseFloat(form.amount_mxn) <= 0)) {
+      setSaveError('Enter the converted amount in MXN.')
+      return
+    }
     if (possibleDuplicates.length > 0 && !confirmDuplicate && !editingId) {
       setConfirmDuplicate(true)
       return
     }
     setSaving(true)
 
-    const amt = parseFloat(form.amount)
     const amtMxn = form.currency === 'USD' && form.amount_mxn ? parseFloat(form.amount_mxn) : amt
     const tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
 
@@ -312,7 +350,7 @@ export default function TransactionsClient() {
 
     if (editingId) {
       const { error } = await supabase.from('finance_transactions').update(record).eq('id', editingId)
-      if (error) { console.error('Update error:', error); alert(`Save failed: ${error.message}`); setSaving(false); return }
+      if (error) { console.error('Update error:', error); setSaveError(`Could not save: ${error.message}`); setSaving(false); return }
       notifyWolff({
         kind: 'updated',
         type: form.type,
@@ -325,7 +363,7 @@ export default function TransactionsClient() {
       })
     } else {
       const { error } = await supabase.from('finance_transactions').insert(record)
-      if (error) { console.error('Insert error:', error); alert(`Save failed: ${error.message}`); setSaving(false); return }
+      if (error) { console.error('Insert error:', error); setSaveError(`Could not save: ${error.message}`); setSaving(false); return }
       notifyWolff({
         kind: 'created',
         type: form.type,
@@ -351,6 +389,9 @@ export default function TransactionsClient() {
 
     setModalOpen(false)
     setSaving(false)
+    setSavedMessage(`${form.type === 'expense' ? 'Expense' : 'Income'} saved`)
+    if (savedMessageTimer.current) window.clearTimeout(savedMessageTimer.current)
+    savedMessageTimer.current = window.setTimeout(() => setSavedMessage(''), 4500)
     fetchData()
   }
 
@@ -564,7 +605,28 @@ export default function TransactionsClient() {
     URL.revokeObjectURL(url)
   }
 
-  const filteredCats = categories.filter(c => c.type === form.type || c.type === 'both')
+  const filteredCats = useMemo(
+    () => prioritizeCategories(categories, transactions, form.type),
+    [categories, transactions, form.type],
+  )
+
+  const periodSummary = useMemo(() => {
+    const now = new Date()
+    const todayKey = localDateKey(now)
+    const monthKey = todayKey.slice(0, 7)
+    const weekday = now.getDay() || 7
+    const weekStart = relativeLocalDateKey(-(weekday - 1), now)
+    const expenses = transactions.filter(transaction => transaction.type === 'expense')
+    const sumFrom = (start: string) => expenses
+      .filter(transaction => transaction.transaction_date >= start && transaction.transaction_date <= todayKey)
+      .reduce((sum, transaction) => sum + transaction.amount_mxn, 0)
+    return {
+      today: sumFrom(todayKey),
+      week: sumFrom(weekStart),
+      month: expenses.filter(transaction => transaction.transaction_date.startsWith(monthKey))
+        .reduce((sum, transaction) => sum + transaction.amount_mxn, 0),
+    }
+  }, [transactions])
 
   if (loading) return <div className="h-8 w-48 rounded bg-[hsl(var(--muted))] animate-pulse" />
 
@@ -574,22 +636,37 @@ export default function TransactionsClient() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Transactions</h1>
-          <p className="text-[hsl(var(--text-secondary))]">All income and expenses</p>
+          <p className="text-[hsl(var(--text-secondary))]">Capture spending fast. Keep every peso accountable.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => { setImportOpen(true); setImportResult(null); setCsvRows([]); setCsvHeaders([]); setPdfRows([]); setImportMode(null) }}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))] text-sm font-medium transition-colors">
-            <Upload className="h-4 w-4" /> Import CSV
+            aria-label="Import transactions"
+            className="flex h-11 items-center gap-2 rounded-xl border border-[hsl(var(--border))] px-3 hover:bg-[hsl(var(--bg-elevated))] text-sm font-medium transition-colors sm:h-auto sm:px-4 sm:py-2">
+            <Upload className="h-4 w-4" /> <span className="hidden sm:inline">Import</span>
           </button>
           <button onClick={exportCsv}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))] text-sm transition-colors">
+            aria-label="Export transactions"
+            className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg border border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))] text-sm transition-colors">
             <Download className="h-4 w-4" />
           </button>
           <button onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
-            <Plus className="h-4 w-4" /> Add
+            className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-lg shadow-emerald-950/20 transition-colors hover:bg-emerald-500 sm:h-auto sm:flex-none sm:py-2">
+            <Plus className="h-4 w-4" /> Add transaction
           </button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-3 overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))]">
+        {[
+          ['Today', periodSummary.today],
+          ['This week', periodSummary.week],
+          ['This month', periodSummary.month],
+        ].map(([label, amount], index) => (
+          <div key={label as string} className={cn('min-w-0 px-3 py-3 sm:px-4', index > 0 && 'border-l border-[hsl(var(--border))]')}>
+            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--text-tertiary))]">{label}</p>
+            <p className="mt-1 truncate text-sm font-bold tabular-nums text-rose-500 sm:text-lg">${(amount as number).toLocaleString()}</p>
+          </div>
+        ))}
       </div>
 
       {/* Filter Bar — search leads, controls wrap below (one row on desktop) */}
@@ -724,14 +801,16 @@ export default function TransactionsClient() {
                       <OwnerDot owner={tx.owner} size="md" showLabel />
                     </div>
                   </div>
-                  <div className="flex flex-col gap-1 shrink-0">
-                    <button onClick={() => openEdit(tx)} className="p-2 rounded-lg hover:bg-blue-500/10 text-blue-600 transition-colors" title="Edit">
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => setDeleteConfirm(tx.id)} className="p-2 rounded-lg hover:bg-rose-500/10 text-rose-600 transition-colors" title="Delete">
+                  {deleteConfirm === tx.id ? (
+                    <div className="flex shrink-0 flex-col gap-1" aria-label="Confirm deletion">
+                      <button onClick={() => handleDelete(tx.id)} className="rounded-md bg-rose-600 px-2 py-1.5 text-[11px] font-semibold text-white">Delete</button>
+                      <button onClick={() => setDeleteConfirm(null)} className="rounded-md px-2 py-1 text-[11px] text-[hsl(var(--text-secondary))]">Cancel</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setDeleteConfirm(tx.id)} aria-label={`Delete ${tx.merchant || 'transaction'}`} className="shrink-0 rounded-lg p-2 text-[hsl(var(--text-tertiary))] transition-colors hover:bg-rose-500/10 hover:text-rose-500">
                       <Trash2 className="h-4 w-4" />
                     </button>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -747,21 +826,40 @@ export default function TransactionsClient() {
         )}
       </GlassCard>
 
+      {!modalOpen && !savedMessage && (
+        <button onClick={openAdd} aria-label="Add transaction"
+          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex h-12 items-center gap-2 rounded-full bg-emerald-600 px-4 text-sm font-bold text-white shadow-xl shadow-black/40 sm:hidden">
+          <Plus className="h-5 w-5" /> Add
+        </button>
+      )}
+
+      {savedMessage && (
+        <div role="status" className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-4 right-4 z-40 flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-[hsl(var(--bg-surface))] p-3 shadow-2xl sm:bottom-6 sm:left-auto sm:right-6 sm:w-80">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400"><Check className="h-4 w-4" /></span>
+          <span className="flex-1 text-sm font-semibold">{savedMessage}</span>
+          <button onClick={openAdd} className="text-xs font-semibold text-emerald-400 hover:text-emerald-300">Add another</button>
+        </div>
+      )}
+
       {/* Add/Edit Modal */}
       <Modal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editingId ? 'Edit Transaction' : 'Add Transaction'}
+        onClose={() => { if (!saving) setModalOpen(false) }}
+        title={editingId ? 'Edit transaction' : 'New transaction'}
+        className="sm:max-w-lg"
         footer={
-          <button type="submit" form="tx-form" disabled={saving || !form.amount || (!editingId && !form.category_id)}
+          <button type="submit" form="tx-form" disabled={saving || !form.amount || !form.category_id || !form.transaction_date}
             className={cn("w-full py-3 rounded-xl text-base font-semibold text-white transition-colors disabled:opacity-50",
               form.type === 'expense' ? "bg-rose-600 hover:bg-rose-500" : "bg-emerald-600 hover:bg-emerald-500"
             )}>
-            {saving ? 'Saving…' : editingId ? 'Update Transaction' : form.type === 'expense' ? 'Log Expense' : 'Log Income'}
+            {saving ? 'Saving…' : confirmDuplicate ? 'Save anyway' : editingId ? 'Update transaction' : form.type === 'expense' ? 'Save expense' : 'Save income'}
           </button>
         }
       >
-        <form id="tx-form" onSubmit={e => { e.preventDefault(); handleSave() }} className="space-y-4">
+        <form id="tx-form" onSubmit={e => { e.preventDefault(); handleSave() }} className="space-y-4" noValidate>
+          {saveError && (
+            <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{saveError}</div>
+          )}
           {/* Duplicate warning */}
           {possibleDuplicates.length > 0 && !editingId && (
             <div className={cn(
@@ -790,62 +888,72 @@ export default function TransactionsClient() {
             </div>
           )}
 
-          {/* Auto-applied rule indicator */}
-          {appliedRuleId && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-500/5 border border-violet-500/20 text-xs text-violet-700">
-              <Sparkles className="h-3.5 w-3.5 shrink-0" />
-              <span>Category auto-applied from rule. <button type="button" onClick={() => { setAppliedRuleId(null); setForm(f => ({ ...f, category_id: '' })) }} className="underline hover:text-violet-200">Clear</button></span>
-            </div>
-          )}
-
           {/* Type Toggle */}
           <div className="flex p-1 rounded-xl bg-[hsl(var(--bg-elevated))]">
-            <button type="button" onClick={() => updateForm({ type: 'expense', category_id: '' })}
+            <button type="button" onClick={() => { updateForm({ type: 'expense', category_id: '' }); setAppliedRuleId(null); setConfirmDuplicate(false) }}
               className={cn("flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all",
                 form.type === 'expense' ? "bg-rose-500/20 text-rose-600" : "text-[hsl(var(--text-secondary))]"
               )}>↓ Expense</button>
-            <button type="button" onClick={() => updateForm({ type: 'income', category_id: '' })}
+            <button type="button" onClick={() => { updateForm({ type: 'income', category_id: '' }); setAppliedRuleId(null); setConfirmDuplicate(false) }}
               className={cn("flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all",
                 form.type === 'income' ? "bg-emerald-500/20 text-emerald-600" : "text-[hsl(var(--text-secondary))]"
               )}>↑ Income</button>
           </div>
 
-          {/* Amount + Currency — amount leads, big and keypad-ready */}
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <label className={labelCls}>Amount *</label>
-              <div className="relative">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg font-semibold text-[hsl(var(--text-tertiary))]">$</span>
-                <input type="number" inputMode="decimal" step="0.01" min="0" required placeholder="0.00" value={form.amount}
-                  autoFocus={!editingId}
-                  onChange={e => updateForm({ amount: e.target.value, amount_mxn: form.currency === 'MXN' ? e.target.value : form.amount_mxn })}
-                  className={cn(inputCls, "num-metric pl-7 text-2xl font-bold h-14")} />
-              </div>
-            </div>
-            <div className="w-24">
-              <label className={labelCls}>Currency</label>
-              <select value={form.currency} onChange={e => updateForm({ currency: e.target.value })} className={cn(inputCls, "h-14")}>
-                <option>MXN</option><option>USD</option>
-              </select>
+          {/* Amount leads and opens the numeric keyboard immediately. */}
+          <div>
+            <label htmlFor="transaction-amount" className={labelCls}>Amount *</label>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg font-semibold text-[hsl(var(--text-tertiary))]">$</span>
+              <input id="transaction-amount" type="number" inputMode="decimal" step="0.01" min="0.01" required placeholder="0.00" value={form.amount}
+                autoFocus={!editingId}
+                onChange={e => { updateForm({ amount: e.target.value, amount_mxn: form.currency === 'MXN' ? e.target.value : form.amount_mxn }); setSaveError(''); setConfirmDuplicate(false) }}
+                className={cn(inputCls, "num-metric h-16 appearance-none pl-8 text-3xl font-bold [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none")} />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold tracking-wide text-[hsl(var(--text-tertiary))]">{form.currency}</span>
             </div>
           </div>
 
-          {form.currency === 'USD' && (
-            <div>
-              <label className={labelCls}>Amount in MXN *</label>
-              <input type="number" step="0.01" required placeholder="Converted amount" value={form.amount_mxn}
-                onChange={e => updateForm({ amount_mxn: e.target.value })} className={inputCls} />
+          {/* Merchant comes before category so history and rules can do the work. */}
+          <div>
+            <label htmlFor="transaction-merchant" className={labelCls}>{form.type === 'expense' ? 'Where did you spend?' : 'Who paid you?'}</label>
+            <input id="transaction-merchant" type="text" list="merchants" autoComplete="off" placeholder={form.type === 'expense' ? 'Merchant or place' : 'Income source'} value={form.merchant}
+              onChange={e => { updateForm({ merchant: e.target.value, ...(appliedRuleId ? { category_id: '' } : {}) }); if (appliedRuleId) setAppliedRuleId(null); setConfirmDuplicate(false) }} className={cn(inputCls, 'h-12')} />
+            <datalist id="merchants">
+              {knownMerchants.map(m => <option key={m} value={m} />)}
+            </datalist>
+            {!editingId && merchantSuggestions.length > 0 && (
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]" aria-label="Recent merchants">
+                {merchantSuggestions.map(suggestion => (
+                  <button key={suggestion.merchant} type="button"
+                    onClick={() => { updateForm({ merchant: suggestion.merchant, category_id: suggestion.categoryId }); setAppliedRuleId(null); setConfirmDuplicate(false) }}
+                    className="shrink-0 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--text-secondary))] transition-colors hover:border-emerald-500/50 hover:text-[hsl(var(--foreground))]">
+                    {suggestion.merchant}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {appliedRuleId && (
+            <div className="flex items-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-xs text-violet-300">
+              <Sparkles className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1">Category selected automatically</span>
+              <button type="button" onClick={() => { setAppliedRuleId(null); setForm(f => ({ ...f, category_id: '' })) }} className="font-semibold underline">Change</button>
             </div>
           )}
 
           {/* Category Grid */}
           <div>
-            <label className={labelCls}>Category *</label>
-            <div className="grid grid-cols-4 gap-2 max-h-56 sm:max-h-44 overflow-y-auto overscroll-contain">
+            <div className="mb-1 flex items-center justify-between">
+              <label className={labelCls}>Category *</label>
+              <span className="text-[10px] text-[hsl(var(--text-tertiary))]">Frequent first</span>
+            </div>
+            <div className="grid max-h-48 grid-cols-4 gap-2 overflow-y-auto overscroll-contain pr-0.5 sm:grid-cols-5">
               {filteredCats.map(cat => (
                 <button key={cat.id} type="button" onClick={() => updateForm({ category_id: cat.id })}
-                  className={cn("flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl border text-[11px] leading-tight transition-all min-h-[64px]",
-                    form.category_id === cat.id ? "border-emerald-500 bg-emerald-500/10 text-emerald-700" : "border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]"
+                  aria-pressed={form.category_id === cat.id}
+                  className={cn("flex min-h-[62px] flex-col items-center justify-center gap-1 rounded-xl border py-2 text-[11px] leading-tight transition-all sm:min-h-[56px]",
+                    form.category_id === cat.id ? "border-emerald-500 bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30" : "border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]"
                   )}>
                   <span className="text-xl">{cat.icon}</span>
                   <span className="truncate w-full text-center px-0.5">{cat.name}</span>
@@ -854,45 +962,66 @@ export default function TransactionsClient() {
             </div>
           </div>
 
-          {/* Merchant with datalist */}
-          <div>
-            <label className={labelCls}>Merchant</label>
-            <input type="text" list="merchants" placeholder="e.g., Walmart, Uber..." value={form.merchant}
-              onChange={e => updateForm({ merchant: e.target.value })} className={inputCls} />
-            <datalist id="merchants">
-              {knownMerchants.map(m => <option key={m} value={m} />)}
-            </datalist>
-          </div>
-
-          {/* Date */}
-          <div>
-            <label className={labelCls}>Date *</label>
-            <input type="date" required value={form.transaction_date}
-              onChange={e => updateForm({ transaction_date: e.target.value })} className={inputCls} />
-          </div>
-
-          {/* Owner */}
-          <div>
-            <label className="text-xs font-medium text-[hsl(var(--text-secondary))] mb-1 block">Owner</label>
+          <div className="grid grid-cols-[1.1fr_1fr] gap-3">
+            <div>
+              <label htmlFor="transaction-date" className={labelCls}>Date *</label>
+              <input id="transaction-date" type="date" required value={form.transaction_date}
+                max={today()} onChange={e => { updateForm({ transaction_date: e.target.value }); setConfirmDuplicate(false) }} className={inputCls} />
+              <div className="mt-1.5 flex gap-1.5">
+                <button type="button" onClick={() => updateForm({ transaction_date: today() })} className="text-[11px] font-medium text-blue-400">Today</button>
+                <span className="text-[hsl(var(--border))]">·</span>
+                <button type="button" onClick={() => updateForm({ transaction_date: relativeLocalDateKey(-1) })} className="text-[11px] font-medium text-blue-400">Yesterday</button>
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Owner</label>
             <div className="flex gap-2">
               {OWNERS.map(name => (
                 <button key={name} type="button" onClick={() => updateForm({ owner: name })}
-                  className={cn("flex-1 py-2.5 rounded-lg text-sm font-medium transition-all border",
+                    aria-pressed={form.owner === name}
+                  className={cn("flex-1 truncate rounded-lg border px-1 py-2.5 text-xs font-medium transition-all",
                     form.owner === name
-                      ? "border-blue-500 bg-blue-500/10 text-blue-600"
+                      ? "border-blue-500 bg-blue-500/10 text-blue-300"
                       : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))]"
                   )}>
-                  <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ background: getOwnerColor(name) }} />
+                  <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: getOwnerColor(name) }} />
                   {name}
                 </button>
               ))}
             </div>
+            </div>
           </div>
 
-          {/* Tags */}
-          <div>
-            <label className={labelCls}>Tags</label>
-            <div className="flex flex-wrap gap-2 mb-2">
+          {/* Secondary fields stay available without slowing daily entry. */}
+          <details className="group rounded-xl border border-[hsl(var(--border))]">
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-sm font-medium text-[hsl(var(--text-secondary))]">
+              <SlidersHorizontal className="h-4 w-4" /> Details
+              <span className="ml-auto text-xs font-normal text-[hsl(var(--text-tertiary))]">Currency, notes, tags</span>
+            </summary>
+            <div className="space-y-4 border-t border-[hsl(var(--border))] p-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Currency</label>
+                  <select value={form.currency} onChange={e => updateForm({ currency: e.target.value, amount_mxn: e.target.value === 'MXN' ? form.amount : '' })} className={inputCls}>
+                    <option>MXN</option><option>USD</option>
+                  </select>
+                </div>
+                {form.currency === 'USD' && (
+                  <div>
+                    <label className={labelCls}>Amount in MXN *</label>
+                    <input type="number" inputMode="decimal" step="0.01" min="0.01" placeholder="Converted" value={form.amount_mxn}
+                      onChange={e => updateForm({ amount_mxn: e.target.value })} className={inputCls} />
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className={labelCls}>Notes</label>
+                <textarea placeholder="Optional note" rows={2} value={form.description}
+                  onChange={e => updateForm({ description: e.target.value })} className={inputCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Tags</label>
+                <div className="mb-2 flex flex-wrap gap-2">
               {QUICK_TAGS.map(({ value, label }) => {
                 const active = parseTagString(form.tags).includes(value)
                 return (
@@ -911,17 +1040,10 @@ export default function TransactionsClient() {
                   </button>
                 )
               })}
-            </div>
-            <input placeholder="Other tags (comma-separated)" value={form.tags}
-              onChange={e => updateForm({ tags: e.target.value })} className={inputCls} />
-          </div>
-
-          {/* More Options */}
-          <details>
-            <summary className="text-xs text-[hsl(var(--text-secondary))] cursor-pointer">More options</summary>
-            <div className="mt-2 space-y-3">
-              <textarea placeholder="Notes..." rows={2} value={form.description}
-                onChange={e => updateForm({ description: e.target.value })} className={inputCls} />
+                </div>
+                <input placeholder="Other tags, comma-separated" value={form.tags}
+                  onChange={e => updateForm({ tags: e.target.value })} className={inputCls} />
+              </div>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={form.is_recurring}
                   onChange={e => updateForm({ is_recurring: e.target.checked })} className="rounded" />
