@@ -21,12 +21,13 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: "Finance — Autonomis",
-  description: "Personal finance dashboard",
+  title: "Wolff Finance — Autonomis",
+  description: "Household financial plan for Bernardo and Laura",
   icons: {
     icon: [
-      { url: '/favicon-finance.svg', type: 'image/svg+xml' },
+      { url: '/wolff-mark.svg', type: 'image/svg+xml' },
     ],
+    shortcut: '/wolff-mark.svg',
     apple: [
       { url: '/icons/apple-touch-icon.png', sizes: '180x180' },
     ],
@@ -34,7 +35,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Finance',
+    title: 'Wolff Finance',
   },
 }
 

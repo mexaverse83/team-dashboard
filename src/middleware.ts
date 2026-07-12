@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 // Short URLs (/transactions, /budgets, …) rewrite to /finance/*.
 
 // Paths that are always allowed (static assets, API infra, PWA assets)
-const PASSTHROUGH_PREFIXES = ['/_next', '/api/', '/favicon', '/manifest.webmanifest', '/sw.js', '/icons/']
+const PASSTHROUGH_PREFIXES = ['/_next', '/api/', '/favicon', '/wolff-mark.svg', '/manifest.webmanifest', '/sw.js', '/icons/']
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl

@@ -2,7 +2,7 @@
 // basic offline fallback. Network-first for everything cacheable; API calls
 // and non-GET requests pass straight through (finance data must never be
 // served stale from a SW cache).
-const CACHE = 'finance-pwa-v2'
+const CACHE = 'finance-pwa-v3'
 
 self.addEventListener('install', () => {
   self.skipWaiting()

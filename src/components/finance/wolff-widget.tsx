@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowRight, MessageCircle, Sparkles } from 'lucide-react'
 import { PushToggle } from '@/components/finance/push-toggle'
 import { GlassCard } from '@/components/ui/glass-card'
+import { BrandLogo } from '@/components/brand-logo'
 
 interface Insight {
   type: string
@@ -58,7 +59,7 @@ export function WolffWidget() {
     <GlassCard className="overflow-hidden p-0">
       <div className="flex items-center justify-between border-b border-[hsl(var(--border-subtle))] px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--brand))] text-sm text-white shadow-[0_8px_20px_-12px_hsl(var(--brand))]">W</span>
+          <BrandLogo className="h-9 w-9 drop-shadow-sm" />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-semibold">Wolff&apos;s move</h2>

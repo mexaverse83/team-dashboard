@@ -1,52 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <defs>
-    <radialGradient id="bg" cx="50%" cy="35%" r="65%">
-      <stop offset="0%" stop-color="#0d1a33"/>
-      <stop offset="100%" stop-color="#030610"/>
-    </radialGradient>
+    <linearGradient id="bg" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse"><stop stop-color="#1D5144"/><stop offset="1" stop-color="#0B2822"/></linearGradient>
+    <linearGradient id="gold" x1="20" y1="36" x2="46" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="#C99B45"/><stop offset="1" stop-color="#F1D28A"/></linearGradient>
   </defs>
-
-  <!-- Space background circle -->
-  <circle cx="16" cy="16" r="16" fill="url(#bg)"/>
-
-  <!-- Stars -->
-  <circle cx="5"  cy="7"  r="0.7" fill="#fff" opacity="0.45"/>
-  <circle cx="25" cy="5"  r="0.5" fill="#fff" opacity="0.35"/>
-  <circle cx="27" cy="20" r="0.6" fill="#fff" opacity="0.3"/>
-  <circle cx="4"  cy="23" r="0.5" fill="#fff" opacity="0.4"/>
-  <circle cx="9"  cy="27" r="0.4" fill="#fff" opacity="0.25"/>
-
-  <!-- Flame (drawn first — behind fins) -->
-  <ellipse cx="16" cy="28" rx="3.2" ry="3.8" fill="#F59E0B"/>
-  <ellipse cx="16" cy="27.5" rx="1.9" ry="2.4" fill="#FEF3C7"/>
-  <ellipse cx="16" cy="27"   rx="0.9" ry="1.2" fill="#ffffff" opacity="0.6"/>
-
-  <!-- Left fin -->
-  <polygon points="12,21 7,28.5 12,25" fill="#334155"/>
-  <!-- Right fin -->
-  <polygon points="20,21 25,28.5 20,25" fill="#334155"/>
-
-  <!-- Rocket body -->
-  <rect x="12" y="14" width="8" height="12" rx="2" fill="#E2E8F0"/>
-
-  <!-- Nose cone (darker for depth) -->
-  <polygon points="12,17 20,17 16,5" fill="#94A3B8"/>
-
-  <!-- Nose highlight -->
-  <polygon points="15,9 16,5 16,14 14.5,14" fill="#CBD5E1" opacity="0.6"/>
-
-  <!-- Porthole window -->
-  <circle cx="16" cy="18" r="2.6" fill="#1D4ED8" opacity="0.9"/>
-  <circle cx="16" cy="18" r="1.8" fill="#38BDF8"/>
-  <circle cx="15.1" cy="17.1" r="0.7" fill="#BAE6FD" opacity="0.75"/>
-
-  <!-- $ sign on lower body -->
-  <text
-    x="16" y="24.5"
-    text-anchor="middle"
-    font-family="Arial Black, Arial, Helvetica, sans-serif"
-    font-size="7"
-    font-weight="900"
-    fill="#10B981"
-  >$</text>
+  <rect x="2" y="2" width="60" height="60" rx="17" fill="url(#bg)"/>
+  <path d="M12 11L25 17L32 10L39 17L52 11L48 37L40 47L32 55L24 47L16 37L12 11Z" fill="#F5EEDC"/>
+  <path d="M19 30L28.2 24L25.4 35L18.5 36.8L19 30ZM45 30L35.8 24L38.6 35L45.5 36.8L45 30Z" fill="#12352D"/>
+  <path d="M26 42L32 38L38 42L32 49L26 42Z" fill="#12352D"/>
+  <path d="M20.5 34.5L27.5 29L33 32.5L43.5 22" stroke="url(#gold)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M38.5 22H43.5V27" stroke="#F1D28A" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

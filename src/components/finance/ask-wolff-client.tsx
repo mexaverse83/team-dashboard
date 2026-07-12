@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { BrandLogo } from '@/components/brand-logo'
 
 interface ChatMessage {
   id: string
@@ -78,7 +79,7 @@ export default function AskWolffClient() {
   return (
     <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[560px] max-w-2xl flex-col md:h-[calc(100vh-4rem)]">
       <div className="mb-4 flex items-center gap-3">
-        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[hsl(var(--brand))] font-bold text-white shadow-[0_12px_30px_-18px_hsl(var(--brand))]">W</span>
+        <BrandLogo className="h-11 w-11 drop-shadow-sm" />
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight">Ask Wolff</h1>

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Search as SearchIcon, Landmark, ShieldCheck, Target, CreditCard, Sparkles, TrendingUp, Banknote, Wand2, Bitcoin, MessageCircle } from 'lucide-react'
 import { FinanceAuthBadge } from './finance-auth-badge'
+import { BrandLogo } from './brand-logo'
 
 const financeTrack = [
   { href: '/finance', icon: Wallet, label: 'Overview' },
@@ -70,9 +71,7 @@ export function Sidebar() {
     {/* Mobile: top bar with hamburger */}
     <header className="mobile-masthead md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-16 px-4">
       <div className="flex items-center gap-3">
-        <div className="brand-mark brand-mark-mobile" aria-hidden>
-          <span>W</span><i />
-        </div>
+        <BrandLogo className="h-9 w-9" />
         <div>
           <span className="block text-sm font-semibold tracking-tight text-white">Finance</span>
           <span className="block text-[9px] font-medium uppercase tracking-[0.18em] text-white/50">Private wealth</span>
@@ -136,9 +135,7 @@ export function Sidebar() {
     <aside className="app-sidebar hidden md:flex flex-col min-h-screen shrink-0 sticky top-0 h-screen w-60 lg:w-[264px] px-4 py-5 overflow-y-auto">
       {/* Logo */}
       <div className="flex items-center gap-3.5 mb-7 px-2">
-        <div className="brand-mark shrink-0" aria-hidden>
-          <span>W</span><i />
-        </div>
+        <BrandLogo className="h-10 w-10" />
         <div>
           <h2 className="text-[15px] font-semibold tracking-tight text-white">Finance</h2>
           <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-white/45">Personal Finance</p>
