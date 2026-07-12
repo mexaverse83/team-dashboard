@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { remainingCalendarWeekEnvelope } from '@/lib/insights-prompt.mjs'
 
 // Glanceable numbers for home-screen widgets (Scriptable on iOS).
 // Everything derives from the summary + west-projection endpoints so the
@@ -45,7 +46,13 @@ export async function GET(req: NextRequest) {
   const spent = cm.total_spent || 0
   const bva: Array<{ category: string; budget: number; spent: number; is_non_monthly: boolean }> = cm.budget_vs_actual || []
   const daysLeft = Math.max(1, (cm.days_in_month || 30) - (cm.day_of_month || 1) + 1)
-  const weeksLeft = Math.max(1, Math.ceil(daysLeft / 7))
+  const mexicoWeekday = (() => {
+    const weekday = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Mexico_City',
+      weekday: 'short',
+    }).format(new Date())
+    return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday)
+  })()
 
   // Same formula as the Safe-to-Spend card
   const reserved = bva.reduce((s, b) => s + Math.max(0, (b.budget || 0) - (b.spent || 0)), 0)
@@ -56,10 +63,11 @@ export async function GET(req: NextRequest) {
   const freeMonth = income - spent - reserved - goalNeed
   const safePerDay = freeMonth > 0 ? Math.floor(freeMonth / daysLeft) : 0
 
-  // Same envelope as the weekly coach
+  // Spread the remaining controllable budgets over the remaining month, then
+  // include only today through Sunday. Sunday is a one-day envelope.
   const ctrl = bva.filter(b => CONTROLLABLE.has(b.category) && !b.is_non_monthly)
   const ctrlRemaining = ctrl.reduce((s, b) => s + Math.max(0, (b.budget || 0) - (b.spent || 0)), 0)
-  const weekEnvelope = Math.round(ctrlRemaining / weeksLeft)
+  const calendarEnvelope = remainingCalendarWeekEnvelope(ctrlRemaining, daysLeft, mexicoWeekday)
 
   const monthKey = cm.month
   const planMonth = west?.savings_plan?.months?.find((m: { month: string }) => m.month === monthKey)
@@ -71,7 +79,10 @@ export async function GET(req: NextRequest) {
     days_in_month: cm.days_in_month,
     safe_to_spend_day: safePerDay,
     over_committed_by: freeMonth < 0 ? Math.abs(Math.round(freeMonth)) : 0,
-    week_envelope: weekEnvelope,
+    controllable_per_day: calendarEnvelope.dailyEnvelope,
+    week_envelope: calendarEnvelope.weekEnvelope,
+    days_left_in_week: calendarEnvelope.daysThroughSunday,
+    week_envelope_basis: 'remaining planned category spending from today through Sunday',
     net_this_month: Math.round(income - spent),
     projected_savings: Math.round(projectedSavings),
     goal_coverage_pct: goalCoverage,
