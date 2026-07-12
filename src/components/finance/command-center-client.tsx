@@ -2,14 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Activity, Sparkles, Target, Landmark, Bitcoin, Receipt, Wallet, LockKeyhole } from 'lucide-react'
+import { Plus, Activity, Sparkles, Landmark, Bitcoin, Receipt, LockKeyhole, ChevronDown, ChevronUp } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
-import { RadialProgress } from '@/components/ui/radial-progress'
 import { PageTransition } from '@/components/page-transition'
 import { SkeletonKPI } from '@/components/ui/skeleton-card'
 import { ForecastChart } from '@/components/finance/forecast-chart'
 import { BillsTimeline } from '@/components/finance/bills-timeline'
-import { WestCompactWidget } from '@/components/finance/west-tracker'
 import { WolffWidget } from '@/components/finance/wolff-widget'
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend'
 import { MonthProjectionCard } from '@/components/finance/month-projection-card'
@@ -23,7 +21,6 @@ import { enrichTransactions, DEFAULT_CATEGORIES, monthKey } from '@/lib/finance-
 import { type Summary, type Forecast, fmtMoney } from './command-center/types'
 import { KpiCard, SectionHeader } from './command-center/ui'
 import { BudgetPaceCard } from './command-center/budget-pace'
-import { PlansSection } from './command-center/plans'
 
 export default function CommandCenterClient() {
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -31,6 +28,7 @@ export default function CommandCenterClient() {
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
   const [categories, setCategories] = useState<FinanceCategory[]>([])
   const [loading, setLoading] = useState(true)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   // Net assets snapshot — fetched with the initial batch; the KPI strip falls
   // back to the crypto-position card when unavailable
   const [netWorth, setNetWorth] = useState<{ net_worth: number; total_assets: number; total_liabilities: number; date: string } | null>(null)
@@ -247,8 +245,11 @@ export default function CommandCenterClient() {
         {/* ── PRIORITIES: the couple-level plan in one place ────────── */}
         {summary && <HouseholdPriorities summary={summary} />}
 
-        {/* ── GLANCE: KPI strip ──────────────────────────── */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {/* ── WOLFF: one action, not another report ───────── */}
+        <WolffWidget />
+
+        {/* ── FINANCIAL PULSE: three durable health metrics ─ */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {netWorth ? (
             <KpiCard
               icon={Landmark}
@@ -297,23 +298,6 @@ export default function CommandCenterClient() {
           />
 
           <KpiCard
-            icon={Wallet}
-            label="Discretionary"
-            value={summary ? fmtMoney(summary.cash_flow.discretionary_available, { compact: true }) : '—'}
-            sublabel={
-              summary ? (
-                <span>
-                  After {fmtMoney(summary.cash_flow.fixed_commitments, { compact: true })} fixed.
-                  {summary.goal_funding.gap > 0 && (
-                    <span className="text-amber-600"> Goal gap: {fmtMoney(summary.goal_funding.gap, { compact: true })}</span>
-                  )}
-                </span>
-              ) : '—'
-            }
-            accent={summary && summary.cash_flow.discretionary_available > 0 ? 'positive' : 'negative'}
-          />
-
-          <KpiCard
             icon={LockKeyhole}
             label="Committed income"
             value={summary && summary.cash_flow.monthly_income > 0
@@ -331,163 +315,69 @@ export default function CommandCenterClient() {
           />
         </div>
 
-        {/* ── WOLFF: AI daily brief ──────────────────────── */}
-        <WolffWidget />
-
-        {/* ── PLANS: compact, collapsible ────────────────── */}
-        <PlansSection summary={summary} />
-
-        {/* ── SCAN + DETAIL: forecast + supporting columns ── */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          {/* Left column - 2/3 */}
-          <div className="lg:col-span-2 space-y-4">
-            <GlassCard>
-              <div id="forecast" className="flex items-end justify-between mb-3">
-                <div>
-                  <h3 className="text-base font-semibold flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-blue-600" /> 60-day cash flow forecast
-                  </h3>
-                  <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
-                    Projected from recurring income, subscriptions, MSI, and debt minimums
-                  </p>
-                </div>
-                {forecast && (
-                  <div className="text-right">
-                    <p className="text-xs text-[hsl(var(--text-tertiary))]">Ending net</p>
-                    <p className={cn('text-lg font-bold tabular-nums', forecast.summary.net_delta >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
-                      {forecast.summary.net_delta >= 0 ? '+' : ''}{fmtMoney(forecast.summary.net_delta, { compact: true })}
-                    </p>
-                  </div>
-                )}
-              </div>
-              {forecast ? (
-                <>
-                  <ForecastChart data={forecast.series} height={240} />
-                  <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-[hsl(var(--border))]">
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Next 7 days</p>
-                      <p className={cn('text-sm font-bold tabular-nums', forecast.summary.next_7_days.net >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
-                        {forecast.summary.next_7_days.net >= 0 ? '+' : ''}{fmtMoney(forecast.summary.next_7_days.net, { compact: true })}
-                      </p>
-                      <p className="text-[10px] text-[hsl(var(--text-tertiary))]">{forecast.summary.next_7_days.events} events</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Min balance</p>
-                      <p className="text-sm font-bold tabular-nums">{fmtMoney(forecast.summary.min_balance.balance, { compact: true })}</p>
-                      <p className="text-[10px] text-[hsl(var(--text-tertiary))]">{forecast.summary.min_balance.date}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Max balance</p>
-                      <p className="text-sm font-bold tabular-nums text-emerald-600">{fmtMoney(forecast.summary.max_balance.balance, { compact: true })}</p>
-                      <p className="text-[10px] text-[hsl(var(--text-tertiary))]">{forecast.summary.max_balance.date}</p>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-[hsl(var(--text-tertiary))] text-center py-12">Forecast unavailable</p>
-              )}
-            </GlassCard>
-
-            <BudgetPaceCard summary={summary} />
-          </div>
-
-          {/* Right column - 1/3 */}
-          <div className="space-y-4">
-            <SafeToSpendCard summary={summary} />
-            <GlassCard>
-              <SectionHeader
-                title="Next 30 days"
-                subtitle="Scheduled bills & income"
-                action={{ label: 'Subscriptions', href: '/finance/subscriptions' }}
-              />
-              {forecast ? (
-                <BillsTimeline events={forecast.events} daysAhead={30} maxItems={10} />
-              ) : (
-                <p className="text-sm text-[hsl(var(--text-tertiary))] text-center py-8">Loading…</p>
-              )}
-            </GlassCard>
-
-          </div>
-        </div>
-
-        {/* ── Goals & WEST ───────────────────────────────── */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <GlassCard className="lg:col-span-2">
-            <SectionHeader
-              title="Goals"
-              subtitle={`${summary?.goals.active.length || 0} active · ${summary?.goal_funding.fully_funded ? 'fully funded' : `${fmtMoney(summary?.goal_funding.gap || 0, { compact: true })} gap`}`}
-              action={{ label: 'Manage', href: '/finance/goals' }}
-            />
-            {summary && summary.goals.active.length > 0 ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {summary.goals.active.filter(g => g.target >= 100).slice(0, 4).map(g => (
-                  <div key={g.name} className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--muted))]/40 border border-[hsl(var(--border))]">
-                    <RadialProgress
-                      value={g.pct}
-                      size={56}
-                      strokeWidth={5}
-                      color={g.on_track ? 'hsl(142, 71%, 45%)' : 'hsl(38, 92%, 50%)'}
-                      label={`${g.pct}%`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{g.name}</p>
-                      <p className="text-xs text-[hsl(var(--text-secondary))] tabular-nums">
-                        {fmtMoney(g.current, { compact: true })} of {fmtMoney(g.target, { compact: true })}
-                      </p>
-                      {g.monthly_needed > 0 && (
-                        <p className={cn('text-[10px] mt-0.5', g.on_track ? 'text-emerald-600' : 'text-amber-600')}>
-                          {g.on_track ? '✓' : '!'} {fmtMoney(g.monthly_needed, { compact: true })}/mo needed
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Target className="h-10 w-10 mx-auto text-[hsl(var(--text-tertiary))] mb-2" />
-                <p className="text-sm text-[hsl(var(--text-secondary))]">No active goals</p>
-                <Link href="/finance/goals" className="text-xs text-blue-600 hover:underline">Create one →</Link>
-              </div>
-            )}
-          </GlassCard>
-
-          <WestCompactWidget />
-        </div>
-
-        {/* ── Recent activity ────────────────────────────── */}
-        <GlassCard>
-          <SectionHeader
-            title="Recent activity"
-            subtitle={`${monthTxs.length} transactions this month`}
-            action={{ label: 'View all', href: '/finance/transactions' }}
-          />
-          {monthTxs.length > 0 ? (
-            <div className="space-y-1.5">
-              {monthTxs.slice(0, 6).map(tx => (
-                <div key={tx.id} className="flex items-center gap-3 py-2 px-2 rounded-md hover:bg-[hsl(var(--muted))]/30 transition-colors">
-                  <div className="h-9 w-9 rounded-lg flex items-center justify-center text-base shrink-0"
-                    style={{ background: `${tx.category?.color || '#6B7280'}20` }}>
-                    {tx.category?.icon || '📦'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{tx.merchant || tx.description || '—'}</p>
-                    <p className="text-[11px] text-[hsl(var(--text-tertiary))]">
-                      {tx.category?.name || 'Uncategorized'} · {tx.transaction_date.slice(5)}
-                      {tx.owner && <> · {tx.owner}</>}
-                      {tx.is_recurring && <> · auto</>}
-                    </p>
-                  </div>
-                  <span className={cn('text-sm font-semibold tabular-nums', tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600')}>
-                    {tx.type === 'income' ? '+' : '-'}{fmtMoney(tx.amount_mxn, { compact: true })}
-                  </span>
-                </div>
-              ))}
+        {/* ── SECONDARY DETAIL: available without dominating the page ─ */}
+        <section className="overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))]/65 shadow-[var(--shadow-elevate)]">
+          <button
+            type="button"
+            onClick={() => setDetailsOpen(open => !open)}
+            aria-expanded={detailsOpen}
+            className="flex w-full flex-col gap-3 px-4 py-4 text-left hover:bg-[hsl(var(--brand)/0.025)] sm:flex-row sm:items-center sm:justify-between sm:px-5"
+          >
+            <div>
+              <p className="text-sm font-semibold">Cash flow &amp; activity</p>
+              <p className="text-[11px] text-[hsl(var(--text-secondary))]">Forecast, budget exceptions, upcoming bills, and recent transactions</p>
             </div>
-          ) : (
-            <p className="text-sm text-[hsl(var(--text-tertiary))] text-center py-8">No transactions yet this month</p>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-rose-500/8 px-2.5 py-1 text-[10px] font-semibold text-rose-700">
+                {summary?.current_month.budget_vs_actual.filter(cat => !cat.is_non_monthly && cat.projected_month_total > cat.budget * 1.1 && cat.pct_used > 50).length || 0} budget alert
+              </span>
+              <span className="rounded-full bg-[hsl(var(--accent))] px-2.5 py-1 text-[10px] font-semibold text-[hsl(var(--text-secondary))]">
+                {forecast?.summary.next_7_days.events || 0} events this week
+              </span>
+              {detailsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </div>
+          </button>
+
+          {detailsOpen && (
+            <div className="space-y-4 border-t border-[hsl(var(--border-subtle))] p-4 sm:p-5" data-animate>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="space-y-4 lg:col-span-2">
+                  <GlassCard>
+                    <div id="forecast" className="mb-3 flex items-end justify-between gap-4">
+                      <div>
+                        <h3 className="flex items-center gap-2 text-base font-semibold"><Sparkles className="h-4 w-4 text-blue-600" /> Scheduled cash flow</h3>
+                        <p className="mt-0.5 text-xs text-[hsl(var(--text-secondary))]">Known income, subscriptions, MSI, debt, and treatment events</p>
+                      </div>
+                      {forecast && <p className={cn('text-lg font-bold tabular-nums', forecast.summary.net_delta >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{forecast.summary.net_delta >= 0 ? '+' : ''}{fmtMoney(forecast.summary.net_delta, { compact: true })}</p>}
+                    </div>
+                    {forecast ? <ForecastChart data={forecast.series} height={220} /> : <p className="py-10 text-center text-sm text-[hsl(var(--text-tertiary))]">Forecast unavailable</p>}
+                  </GlassCard>
+                  <BudgetPaceCard summary={summary} />
+                </div>
+                <div className="space-y-4">
+                  <SafeToSpendCard summary={summary} />
+                  <GlassCard>
+                    <SectionHeader title="Next 30 days" subtitle="Scheduled bills & income" action={{ label: 'Manage', href: '/finance/subscriptions' }} />
+                    {forecast ? <BillsTimeline events={forecast.events} daysAhead={30} maxItems={7} /> : <p className="py-8 text-center text-sm text-[hsl(var(--text-tertiary))]">Loading…</p>}
+                  </GlassCard>
+                </div>
+              </div>
+
+              <GlassCard>
+                <SectionHeader title="Recent activity" subtitle={`${monthTxs.length} transactions this month`} action={{ label: 'View all', href: '/finance/transactions' }} />
+                <div className="grid gap-x-6 sm:grid-cols-2">
+                  {monthTxs.slice(0, 4).map(tx => (
+                    <div key={tx.id} className="flex items-center gap-3 border-b border-[hsl(var(--border-subtle))] px-1 py-2.5 last:border-0">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm" style={{ background: `${tx.category?.color || '#6B7280'}20` }}>{tx.category?.icon || '📦'}</div>
+                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{tx.merchant || tx.description || '—'}</p><p className="text-[10px] text-[hsl(var(--text-tertiary))]">{tx.category?.name || 'Uncategorized'} · {tx.transaction_date.slice(5)}</p></div>
+                      <span className={cn('text-xs font-semibold tabular-nums', tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600')}>{tx.type === 'income' ? '+' : '−'}{fmtMoney(tx.amount_mxn, { compact: true })}</span>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            </div>
           )}
-        </GlassCard>
+        </section>
       </div>
     </PageTransition>
   )

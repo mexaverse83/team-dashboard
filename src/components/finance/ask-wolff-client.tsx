@@ -13,10 +13,10 @@ interface ChatMessage {
 }
 
 const SUGGESTIONS = [
+  'What is our one financial action today?',
   'Can we afford dinner out this weekend?',
-  'How is the WEST plan going?',
-  'Where are we overspending this month?',
-  '¿Cuánto puedo gastar hoy sin culpa?',
+  'How much should move to GBM this month?',
+  'Are all our household priorities covered?',
 ]
 
 export default function AskWolffClient() {
@@ -76,28 +76,30 @@ export default function AskWolffClient() {
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-8.5rem)] max-w-2xl flex-col md:h-[calc(100vh-4rem)]">
-      <div className="mb-3">
-        <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight">
-          <span className="section-tick" aria-hidden />🐺 Ask Wolff
-        </h1>
-        <p className="text-sm text-[hsl(var(--text-secondary))]">
-          Your financial advisor, with your live numbers. Replies take ~10–30s.
-        </p>
+    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[560px] max-w-2xl flex-col md:h-[calc(100vh-4rem)]">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[hsl(var(--brand))] font-bold text-white shadow-[0_12px_30px_-18px_hsl(var(--brand))]">W</span>
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">Ask Wolff</h1>
+            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">Live plan</span>
+          </div>
+          <p className="text-xs text-[hsl(var(--text-secondary))]">One verdict, the numbers behind it, and your next move.</p>
+        </div>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] p-4">
+      <div className="flex-1 space-y-3 overflow-y-auto rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] p-4 shadow-[var(--shadow-elevate)]">
         {loading ? (
           <p className="py-10 text-center text-sm text-[hsl(var(--text-tertiary))]">Loading conversation…</p>
         ) : messages.length === 0 ? (
           <div className="py-8 text-center">
-            <p className="text-3xl">🐺</p>
-            <p className="mt-2 text-sm font-medium">Ask me anything about your money.</p>
-            <p className="mt-1 text-xs text-[hsl(var(--text-tertiary))]">I know your budgets, the WEST plan, and today&apos;s numbers.</p>
-            <div className="mx-auto mt-4 flex max-w-md flex-wrap justify-center gap-2">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--brand)/0.08)] text-xl">🐺</span>
+            <p className="mt-3 text-sm font-semibold">Make the next decision simple.</p>
+            <p className="mt-1 text-xs text-[hsl(var(--text-tertiary))]">Wolff checks your live month, WEST target, treatment plan, goals, and budgets.</p>
+            <div className="mx-auto mt-5 grid max-w-lg gap-2 sm:grid-cols-2">
               {SUGGESTIONS.map(s => (
                 <button key={s} onClick={() => send(s)}
-                  className="rounded-full border border-emerald-500/30 bg-emerald-500/5 px-3 py-1.5 text-xs text-emerald-700 hover:bg-emerald-500/10">
+                  className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--brand)/0.035)] px-3 py-2.5 text-left text-xs font-medium text-[hsl(var(--foreground))] hover:border-emerald-500/30 hover:bg-emerald-500/5">
                   {s}
                 </button>
               ))}

@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
-import { buildInsightsPrompt, parseInsightsResponse } from '@/lib/insights-prompt.mjs'
+import { buildInsightsPrompt, normalizeInsights, parseInsightsResponse } from '@/lib/insights-prompt.mjs'
 import { monthKey } from '@/lib/finance-utils'
 
 const supabase = createClient(
@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
     }
     const text = result.text
 
-    const insights: Insight[] = parseInsightsResponse(text)
+    const insights: Insight[] = normalizeInsights(parseInsightsResponse(text))
 
     // Cache results — live table schema is (id, insights_json, generated_at,
     // period_month NOT NULL, expires_at NOT NULL). Log but don't fail.

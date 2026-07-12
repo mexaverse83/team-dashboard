@@ -49,12 +49,27 @@ let contextCache = { at: 0, text: '' }
 async function financialContext() {
   if (Date.now() - contextCache.at < 5 * 60 * 1000) return contextCache.text
   const headers = { 'x-api-key': API_KEY }
-  const [widget, insights, west] = await Promise.all([
+  const [summary, widget, insights, west] = await Promise.all([
+    fetch('https://finance.autonomis.co/api/finance/summary?months=3', { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch('https://finance.autonomis.co/api/finance/widget', { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch('https://finance.autonomis.co/api/finance/insights', { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch('https://finance.autonomis.co/api/finance/investments/west-projection', { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
   ])
   const parts = []
+  if (summary) parts.push('HOUSEHOLD PLAN: ' + JSON.stringify({
+    as_of: new Date().toISOString(),
+    income: summary.income,
+    cash_flow: summary.cash_flow,
+    month_projection: summary.month_projection,
+    current_month: summary.current_month,
+    emergency_fund: summary.emergency_fund,
+    goal_funding: summary.goal_funding,
+    goals: summary.goals,
+    fertility_plan: summary.fertility_plan,
+    year_end_goal_plan: summary.year_end_goal_plan,
+    installments: summary.installments,
+    debts: summary.debts,
+  }))
   if (widget) parts.push('TODAY: ' + JSON.stringify(widget))
   if (west) parts.push('WEST APARTMENT: ' + JSON.stringify({
     target: west.target, delivery: west.delivery_date, months_left: west.months_to_delivery,
@@ -71,7 +86,7 @@ function askCodex(prompt) {
   const outFile = join(workDir, 'answer.txt')
   const res = spawnSync('codex', [
     'exec', '--skip-git-repo-check', '--ephemeral', '-s', 'read-only',
-    '-c', 'model_reasoning_effort="low"',
+    '-c', 'model_reasoning_effort="medium"',
     '-C', workDir, '-o', outFile, '-',
   ], { input: prompt, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, timeout: 180000 })
   let answer = ''
@@ -89,9 +104,18 @@ async function answer(question) {
     .map(m => (m.role === 'user' ? 'THEM: ' : 'YOU: ') + m.content.slice(0, 400))
     .join('\n')
 
-  const prompt = `You are WOLFF, the sharp, warm, direct personal financial advisor for Bernardo & Laura's household (Mexico, MXN currency). You know their finances from the live data below. You are texting with them — answer the question conversationally.
+  const prompt = `You are WOLFF, the calm, exact, warm financial decision coach for Bernardo & Laura's household (Mexico, MXN). You know their live plan below. You are texting with them; help them make one good decision, not read another report.
 
-Rules: answer in 2-6 sentences, specific numbers from the data, no markdown headers or bullets unless truly needed, be direct about what they can/can't afford, reference the WEST apartment plan when relevant. If the question needs data you don't have, say so plainly. Reply in the language the question was asked in (Spanish or English).
+Decision order: near-term liquidity and treatment payments; this month's WEST/GBM target; protect the already-funded emergency reserve; combined 2026 goals; then discretionary spending and investments.
+
+Rules:
+- Answer in the language asked, in 2-5 concise sentences.
+- Start with the verdict (yes/no/on track/behind), then the 1-3 numbers that prove it, then one concrete next action and its consequence.
+- Distinguish actual-to-date, projected month-end, sustainable baseline, and scenario data. Scheduled cash flow is not guaranteed savings.
+- Use the deterministic month projection for this month's expected savings. Never substitute income minus spend-to-date.
+- Do not recommend adding to an emergency fund already above target unless the question explicitly asks about it.
+- Avoid generic encouragement, repeated caveats, markdown headers, and long lists.
+- If the data is missing or stale, say exactly what is missing. Never invent a balance, return, transaction, or date.
 
 LIVE FINANCIAL DATA:
 ${ctx}

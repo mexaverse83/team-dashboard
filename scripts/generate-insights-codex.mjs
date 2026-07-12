@@ -14,7 +14,7 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildInsightsPrompt, parseInsightsResponse } from '../src/lib/insights-prompt.mjs'
+import { buildInsightsPrompt, normalizeInsights, parseInsightsResponse } from '../src/lib/insights-prompt.mjs'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -120,9 +120,8 @@ async function main() {
     // failed insert never wastes a generation.
     const rawBackup = join(tmpdir(), 'wolff-insights-raw.txt')
     writeFileSync(rawBackup, text)
-    const insights = parseInsightsResponse(text)
-    const valid = insights.filter((i) => i && i.title && i.detail && i.type)
-    if (valid.length < 5) {
+    const valid = normalizeInsights(parseInsightsResponse(text))
+    if (valid.length < 7) {
       throw new Error(`Only ${valid.length} valid insights parsed — raw response saved to ${rawBackup}`)
     }
     console.log(`Parsed ${valid.length} insights.`)

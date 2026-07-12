@@ -101,34 +101,6 @@ function ringImage(sizePt, pct, valueText) {
   return ctx.getImage()
 }
 
-// 10-day spending sparkline; today amber, heaviest days brighter
-function sparkImage(values, wPt, hPt) {
-  const S = 3
-  const W = wPt * S, H = hPt * S
-  const ctx = new DrawContext()
-  ctx.size = new Size(W, H)
-  ctx.opaque = false
-  ctx.respectScreenScale = false
-  const n = values.length
-  const gap = 3 * S
-  const bw = (W - gap * (n - 1)) / n
-  const max = Math.max(1, ...values)
-  const sorted = values.slice().sort((a, b) => b - a)
-  const hotCut = sorted[Math.min(2, sorted.length - 1)]
-  values.forEach((v, i) => {
-    const bh = Math.max(3 * S, (v / max) * H)
-    const x = i * (bw + gap)
-    const isToday = i === n - 1
-    const color = isToday ? AMBER : (v >= hotCut && v > 0 ? new Color('#34d399', 0.75) : new Color('#34d399', 0.22))
-    ctx.setFillColor(color)
-    const p = new Path()
-    p.addRoundedRect(new Rect(x, H - bh, bw, bh), 1.5 * S, 1.5 * S)
-    ctx.addPath(p)
-    ctx.fillPath()
-  })
-  return ctx.getImage()
-}
-
 // Horizontal progress bar
 function barImage(wPt, hPt, pct, color) {
   const S = 3
@@ -179,11 +151,11 @@ function addLabel(w, text) {
 }
 
 function addHero(w, d, size) {
-  addLabel(w, 'SAFE TODAY')
-  const over = d.over_committed_by > 0
-  const hero = w.addText(over ? '$0' : money(d.safe_to_spend_day))
+  addLabel(w, 'PROJECTED SAVINGS')
+  const behind = d.goal_gap > 0
+  const hero = w.addText(moneyShort(d.projected_savings || 0))
   hero.font = Font.heavyRoundedSystemFont(size)
-  hero.textColor = over ? ROSE : MINT
+  hero.textColor = behind ? AMBER : MINT
   hero.minimumScaleFactor = 0.6
   hero.lineLimit = 1
 }
@@ -196,14 +168,14 @@ function addContextLine(w, d) {
     t.font = bold ? Font.boldSystemFont(8.5) : Font.semiboldSystemFont(8.5)
     t.textColor = color
   }
-  if (d.over_committed_by > 0) {
-    seg('over ' + moneyShort(d.over_committed_by), ROSE, true)
+  if (d.west_month && d.west_month.target > 0) {
+    seg(Math.round(d.west_month.pct || 0) + '% WEST', d.west_month.gap > 0 ? AMBER : MINT, true)
+    seg('  ·  gap ', TXT_DIM, false)
+    seg(moneyShort(d.west_month.gap || 0), d.west_month.gap > 0 ? AMBER : MINT_PALE, true)
+  } else {
+    seg(Math.round(d.goal_coverage_pct || 0) + '% GOALS', d.goal_gap > 0 ? AMBER : MINT, true)
     seg('  ·  week ', TXT_DIM, false)
     seg(moneyShort(d.week_envelope), MINT_PALE, true)
-  } else {
-    seg('week ' + moneyShort(d.week_envelope), MINT_PALE, true)
-    seg('  ·  net ', TXT_DIM, false)
-    seg(moneyShort(d.net_this_month), d.net_this_month >= 0 ? MINT_PALE : ROSE, true)
   }
 }
 
@@ -241,23 +213,13 @@ function smartScreen(w, d) {
   addHero(left, d, 29)
   left.addSpacer(2)
   addContextLine(left, d)
-  if (Array.isArray(d.daily_spend) && d.daily_spend.some(v => v > 0)) {
-    left.addSpacer(8)
-    const spark = left.addImage(sparkImage(d.daily_spend, 118, 17))
-    spark.imageSize = new Size(118, 17)
-    spark.leftAlignImage()
-    left.addSpacer(2)
-    const sl = left.addText('LAST 10 DAYS')
-    sl.font = Font.boldSystemFont(6.5)
-    sl.textColor = TXT_FAINT
-  }
   main.addSpacer()
 
   if (d.west_month && d.west_month.target > 0) {
     const right = main.addStack()
     right.layoutVertically()
     right.setPadding(0, 0, 0, 6)
-    const pct = Math.max(0, d.west_month.surplus_so_far) / d.west_month.target
+    const pct = Math.max(0, d.west_month.pct || 0) / 100
     const ringStack = right.addStack()
     ringStack.addSpacer()
     const ring = ringStack.addImage(ringImage(54, pct, Math.round(pct * 100) + '%'))
@@ -349,24 +311,15 @@ function smallScreen(w, d) {
   addHero(w, d, 24)
   w.addSpacer(2)
   const s = w.addStack()
-  const c = s.addText('week ')
+  const c = s.addText('WEST ')
   c.font = Font.semiboldSystemFont(8)
   c.textColor = TXT_DIM
-  const e = s.addText(money(d.week_envelope))
+  const e = s.addText((d.west_month && d.west_month.pct != null ? d.west_month.pct : d.goal_coverage_pct) + '%')
   e.font = Font.boldSystemFont(8)
   e.textColor = MINT_PALE
   if (d.west_month && d.west_month.target > 0) {
-    w.addSpacer(7)
-    const pct = Math.max(0, d.west_month.surplus_so_far) / d.west_month.target
-    const s2 = w.addStack()
-    const l = s2.addText('GOAL')
-    l.font = Font.boldSystemFont(7)
-    l.textColor = TXT_FAINT
-    s2.addSpacer()
-    const v = s2.addText(Math.round(pct * 100) + '%')
-    v.font = Font.boldSystemFont(7.5)
-    v.textColor = MINT_PALE
-    w.addSpacer(2)
+    w.addSpacer(4)
+    const pct = Math.max(0, d.west_month.pct || 0) / 100
     const img = w.addImage(barImage(118, 4, pct, MINT))
     img.imageSize = new Size(118, 4)
   }
@@ -403,20 +356,12 @@ async function build() {
     smartScreen(w, d)
     w.addSpacer(11)
     wolffScreen(w, d)
-    w.addSpacer(11)
-    paceScreen(w, d, 300)
   } else {
     const pinned = (args.widgetParameter || '').trim().toLowerCase()
     if (pinned === 'wolff') wolffScreen(w, d)
     else if (pinned === 'pace') paceScreen(w, d, 280)
     else if (pinned === 'smart' || pinned === 'money') smartScreen(w, d)
-    else {
-      // Rotate: the smart slide appears twice per cycle — it's the flagship
-      const slot = Math.floor(new Date().getMinutes() / 5) % 4
-      if (slot === 1) wolffScreen(w, d)
-      else if (slot === 3) paceScreen(w, d, 280)
-      else smartScreen(w, d)
-    }
+    else smartScreen(w, d)
   }
 
   w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000)

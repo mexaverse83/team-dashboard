@@ -23,7 +23,6 @@ interface Props {
 // Wolff's daily commentary from the brief.
 export function MonthProjectionCard({ projection }: Props) {
   const [westTarget, setWestTarget] = useState<number | null>(null)
-  const [wolffTake, setWolffTake] = useState<{ title: string; detail: string; asOf: string | null } | null>(null)
 
   useEffect(() => {
     fetch('/api/finance/investments/west-projection')
@@ -32,18 +31,6 @@ export function MonthProjectionCard({ projection }: Props) {
         const monthKey = new Date().toISOString().slice(0, 7)
         const m = d?.savings_plan?.months?.find((x: { month: string }) => x.month === monthKey)
         if (m?.target) setWestTarget(m.target)
-      })
-      .catch(() => {})
-    fetch('/api/finance/insights', { cache: 'no-store' })
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => {
-        const p = (d?.insights || []).find((i: { category?: string }) => (i.category || '').toUpperCase() === 'PROJECTION')
-        if (p) {
-          const asOf = d?.generated_at
-            ? new Date(d.generated_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-            : null
-          setWolffTake({ title: p.title, detail: p.detail, asOf })
-        }
       })
       .catch(() => {})
   }, [])
@@ -66,7 +53,7 @@ export function MonthProjectionCard({ projection }: Props) {
         className="pointer-events-none absolute inset-0"
         style={{ background: 'radial-gradient(45% 90% at 95% 0%, hsl(160 70% 45% / 0.08), transparent 60%)' }}
       />
-      <div className="relative grid gap-5 lg:grid-cols-[1.2fr_1fr_1.3fr] lg:items-center">
+      <div className="relative grid gap-5 md:grid-cols-[1.1fr_1fr] md:items-center">
         {/* The number */}
         <div>
           <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">
@@ -100,18 +87,7 @@ export function MonthProjectionCard({ projection }: Props) {
               {onTrack ? '✓ this month’s WEST transfer is covered' : 'projection below the monthly WEST transfer'}
             </p>
           </div>
-        ) : <div className="hidden lg:block" />}
-
-        {/* Wolff's take */}
-        {wolffTake ? (
-          <div className="rounded-xl border border-emerald-500/20 bg-[hsl(40,45%,99%)]/80 px-3.5 py-3">
-            <p className="text-xs font-bold text-emerald-800">
-              🐺 {wolffTake.title}
-              {wolffTake.asOf && <span className="ml-1.5 font-medium text-[10px] text-[hsl(var(--text-tertiary))]">as of {wolffTake.asOf} — live number above</span>}
-            </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-[hsl(var(--text-secondary))]">{wolffTake.detail}</p>
-          </div>
-        ) : <div className="hidden lg:block" />}
+        ) : <div className="hidden md:block" />}
       </div>
     </div>
   )

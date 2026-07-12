@@ -32,11 +32,23 @@ const financeAnalyze = [
   { href: '/finance/rules', icon: Wand2, label: 'Auto Rules' },
 ]
 
-const navGroups = [
+const allNavGroups = [
   { label: 'Track', items: financeTrack },
   { label: 'Plan', items: financePlan },
   { label: 'Analyze', items: financeAnalyze },
 ]
+
+const primaryHrefs = new Set([
+  '/finance', '/finance/transactions', '/finance/budgets',
+  '/finance/investments', '/finance/goals', '/finance/ask', '/finance/insights',
+])
+
+const navGroups = allNavGroups.map(group => ({
+  ...group,
+  items: group.items.filter(item => primaryHrefs.has(item.href)),
+}))
+
+const moreFinance = allNavGroups.flatMap(group => group.items).filter(item => !primaryHrefs.has(item.href))
 
 const mobileQuickAccess = [
   { href: '/finance', icon: Wallet, label: 'Overview' },
@@ -93,6 +105,16 @@ export function Sidebar() {
               </div>
             </div>
           ))}
+          <details open={moreFinance.some(item => isActive(item.href))} className="group mt-3 border-t border-white/10 pt-3">
+            <summary className="sidebar-group-label cursor-pointer list-none px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em]">More tools</summary>
+            <div className="mt-1 space-y-1">
+              {moreFinance.map(item => (
+                <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className={`sidebar-link flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${isActive(item.href) ? 'sidebar-link-active' : ''}`}>
+                  <item.icon className="h-4 w-4 shrink-0" /><span>{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          </details>
         </nav>
       </div>
     )}
@@ -155,6 +177,16 @@ export function Sidebar() {
             </div>
           </div>
         ))}
+        <details open={moreFinance.some(item => isActive(item.href))} className="group mt-2 border-t border-white/[0.08] pt-3">
+          <summary className="sidebar-group-label cursor-pointer list-none rounded-lg px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.2em] hover:bg-white/5">More tools</summary>
+          <div className="mt-1 flex flex-col gap-0.5">
+            {moreFinance.map(item => (
+              <Link key={item.href} href={item.href} className={`sidebar-link flex items-center gap-3 rounded-xl px-3 py-[7px] text-sm ${isActive(item.href) ? 'sidebar-link-active' : ''}`}>
+                <item.icon className="h-4 w-4 shrink-0" /><span className="text-[12px] font-medium">{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        </details>
       </div>
 
       {/* Footer */}

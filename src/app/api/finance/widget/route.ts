@@ -1,11 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-)
 
 // Glanceable numbers for home-screen widgets (Scriptable on iOS).
 // Everything derives from the summary + west-projection endpoints so the
@@ -35,10 +29,16 @@ export async function GET(req: NextRequest) {
     ? { icon: i.icon, title: i.title, detail: (i.detail || '').slice(0, len) }
     : null
   const nonWeek = insights.filter(i => !['WEEK', 'WIDGET'].includes((i.category || '').toUpperCase()))
-  const topInsight = trim(nonWeek.find(i => i.priority === 'high') || nonWeek[0])
+  const rawDirective = insights.find(i => (i.category || '').toUpperCase() === 'WIDGET')
+  const topInsight = trim(
+    insights.find(i => (i.category || '').toUpperCase() === 'HOUSEHOLD')
+    || rawDirective
+    || nonWeek.find(i => i.priority === 'high')
+    || nonWeek[0]
+  )
   const weekItems = insights.filter(i => (i.category || '').toUpperCase() === 'WEEK')
   const weekendVerdict = trim(weekItems.find(i => i.type === 'alert') || weekItems[1] || weekItems[0])
-  const directive = trim(insights.find(i => (i.category || '').toUpperCase() === 'WIDGET'), 110)
+  const directive = trim(rawDirective, 110)
 
   const cm = summary.current_month || {}
   const income = summary.cash_flow?.monthly_income || 0
@@ -50,6 +50,9 @@ export async function GET(req: NextRequest) {
   // Same formula as the Safe-to-Spend card
   const reserved = bva.reduce((s, b) => s + Math.max(0, (b.budget || 0) - (b.spent || 0)), 0)
   const goalNeed = summary.goal_funding?.total_monthly_needed || 0
+  const projectedSavings = summary.month_projection?.projected_savings || 0
+  const goalGap = Math.max(0, goalNeed - projectedSavings)
+  const goalCoverage = goalNeed > 0 ? Math.max(0, Math.round((projectedSavings / goalNeed) * 100)) : 100
   const freeMonth = income - spent - reserved - goalNeed
   const safePerDay = freeMonth > 0 ? Math.floor(freeMonth / daysLeft) : 0
 
@@ -61,26 +64,6 @@ export async function GET(req: NextRequest) {
   const monthKey = cm.month
   const planMonth = west?.savings_plan?.months?.find((m: { month: string }) => m.month === monthKey)
 
-  // Last 10 days of spending for the sparkline (controllable + fixed alike —
-  // it's a pulse, not a report)
-  const sparkStart = new Date(Date.now() - 9 * 86400000).toISOString().slice(0, 10)
-  const { data: sparkTxs } = await supabase
-    .from('finance_transactions')
-    .select('transaction_date, amount_mxn')
-    .eq('type', 'expense')
-    .gte('transaction_date', sparkStart)
-    .limit(1000)
-  const sparkMap: Record<string, number> = {}
-  for (const t of sparkTxs || []) {
-    const k = t.transaction_date.slice(5, 10)
-    sparkMap[k] = (sparkMap[k] || 0) + (t.amount_mxn || 0)
-  }
-  const daily_spend = Array.from({ length: 10 }, (_, i) => {
-    const d = new Date(Date.now() - (9 - i) * 86400000)
-    const k = d.toISOString().slice(5, 10)
-    return Math.round(sparkMap[k] || 0)
-  })
-
   return NextResponse.json({
     updated_at: new Date().toISOString(),
     month: monthKey,
@@ -90,6 +73,10 @@ export async function GET(req: NextRequest) {
     over_committed_by: freeMonth < 0 ? Math.abs(Math.round(freeMonth)) : 0,
     week_envelope: weekEnvelope,
     net_this_month: Math.round(income - spent),
+    projected_savings: Math.round(projectedSavings),
+    goal_coverage_pct: goalCoverage,
+    goal_gap: Math.round(goalGap),
+    emergency_months: summary.emergency_fund?.months_covered || 0,
     west: west ? {
       month_target: planMonth?.target ?? null,
       funded_pct: Math.round(((west.projected_at_delivery?.total_projected || 0) / (west.target || 1)) * 1000) / 10,
@@ -102,12 +89,13 @@ export async function GET(req: NextRequest) {
     },
     west_month: planMonth ? {
       target: planMonth.target,
-      // Month surplus so far is the money available to become this month's
-      // GBM transfer — the widget shows it as progress toward the target.
-      surplus_so_far: Math.round(income - spent),
-      pct: planMonth.target > 0 ? Math.min(999, Math.round(((income - spent) / planMonth.target) * 100)) : null,
+      // Deterministic month-end savings is the same source of truth shown in
+      // the dashboard; income minus spend-to-date overstates progress early.
+      surplus_so_far: Math.round(projectedSavings),
+      projected_savings: Math.round(projectedSavings),
+      gap: Math.max(0, Math.round(planMonth.target - projectedSavings)),
+      pct: planMonth.target > 0 ? Math.min(999, Math.max(0, Math.round((projectedSavings / planMonth.target) * 100))) : null,
     } : null,
-    daily_spend,
     budget_pace: ctrl
       .map(b => ({
         name: b.category,

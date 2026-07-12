@@ -61,7 +61,7 @@ function PriorityCard({
   children?: React.ReactNode
 }) {
   return (
-    <div className="group flex min-w-0 flex-col p-4 sm:p-5">
+    <div className="group flex min-w-0 flex-col bg-[hsl(var(--card))] p-3 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className={cn(
@@ -73,7 +73,7 @@ function PriorityCard({
           </span>
           <div className="min-w-0">
             <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[hsl(var(--text-tertiary))]">{eyebrow}</p>
-            <h3 className="truncate text-sm font-semibold">{title}</h3>
+            <h3 className="text-xs font-semibold leading-tight sm:text-sm">{title}</h3>
           </div>
         </div>
         <Link href={href} aria-label={`Open ${title}`} className="rounded-lg p-1.5 text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--brand))]">
@@ -81,11 +81,11 @@ function PriorityCard({
         </Link>
       </div>
 
-      <p className="num-metric mt-4 text-2xl font-bold leading-none sm:text-[28px]">{value}</p>
-      <p className="mt-1 min-h-8 text-[11px] leading-relaxed text-[hsl(var(--text-secondary))]">{detail}</p>
+      <p className="num-metric mt-4 text-xl font-bold leading-none sm:text-[28px]">{value}</p>
+      <p className="mt-1 hidden min-h-8 text-[11px] leading-relaxed text-[hsl(var(--text-secondary))] sm:block">{detail}</p>
       <div className="mt-3">
-        <div className="mb-1.5 flex items-center justify-between gap-3 text-[10px] text-[hsl(var(--text-tertiary))]">
-          <span>{progressLabel}</span>
+        <div className="mb-1.5 flex items-center justify-end gap-3 text-[10px] text-[hsl(var(--text-tertiary))] sm:justify-between">
+          <span className="hidden truncate sm:block">{progressLabel}</span>
           <span className="font-semibold tabular-nums">{Math.round(progress)}%</span>
         </div>
         <Progress value={progress} tone={tone} />
@@ -151,14 +151,14 @@ export function HouseholdPriorities({ summary }: { summary: Summary }) {
             </p>
           </div>
           <div className="shrink-0 sm:text-right">
-            <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-[hsl(var(--text-tertiary))]">One number to close</p>
+            <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-[hsl(var(--text-tertiary))]">Combined goal gap</p>
             <p className={cn('num-metric text-2xl font-bold leading-none', attention ? 'text-amber-700' : 'text-emerald-700')}>
               {attention ? fmtMoney(coverage.gap, { compact: true }) : '$0'}
             </p>
           </div>
         </div>
 
-        <div className="grid divide-y divide-[hsl(var(--border-subtle))] sm:grid-cols-2 sm:divide-x xl:grid-cols-4 xl:divide-y-0">
+        <div className="grid grid-cols-2 gap-px bg-[hsl(var(--border-subtle))] xl:grid-cols-4">
           <PriorityCard
             icon={Home}
             eyebrow="Home · Dec 2027"
