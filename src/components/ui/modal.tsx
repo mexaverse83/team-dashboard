@@ -11,12 +11,13 @@ interface ModalProps {
   title: string
   children: React.ReactNode
   className?: string
+  bodyClassName?: string
   /** Sticky footer (e.g. submit button) pinned to the bottom of the sheet,
    * always reachable in the thumb zone on mobile without scrolling. */
   footer?: React.ReactNode
 }
 
-export function Modal({ open, onClose, title, children, className, footer }: ModalProps) {
+export function Modal({ open, onClose, title, children, className, bodyClassName, footer }: ModalProps) {
   const ref = useRef<HTMLDivElement>(null)
   const titleId = useId()
 
@@ -68,7 +69,7 @@ export function Modal({ open, onClose, title, children, className, footer }: Mod
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto overscroll-contain p-4">{children}</div>
+            <div className={cn("flex-1 overflow-y-auto overscroll-contain p-4", bodyClassName)}>{children}</div>
             {footer && (
               <div className="border-t border-[hsl(var(--border))] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-[hsl(var(--bg-surface))]">
                 {footer}

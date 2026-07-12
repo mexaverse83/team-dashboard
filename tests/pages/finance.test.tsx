@@ -361,7 +361,8 @@ describe('Transactions Page', () => {
     expect(amount.compareDocumentPosition(merchant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(merchant.compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('Frequent first')).toBeInTheDocument()
-    expect(screen.getByText('Details')).toBeInTheDocument()
+    expect(screen.getByLabelText('Notes')).toBeInTheDocument()
+    expect(screen.getByLabelText('Tags')).toBeInTheDocument()
   })
 
   it('uses a recent merchant to fill merchant and category in one tap', async () => {

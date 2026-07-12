@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { Search, Plus, Pencil, Trash2, Upload, Download, Sparkles, AlertTriangle, Check, SlidersHorizontal } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Upload, Download, Sparkles, AlertTriangle, Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { GlassCard } from '@/components/ui/glass-card'
@@ -846,7 +846,8 @@ export default function TransactionsClient() {
         open={modalOpen}
         onClose={() => { if (!saving) setModalOpen(false) }}
         title={editingId ? 'Edit transaction' : 'New transaction'}
-        className="sm:max-w-lg"
+        className="h-[100dvh] max-h-[100dvh] rounded-none border-x-0 border-b-0 sm:h-auto sm:max-h-[85vh] sm:max-w-lg sm:rounded-xl sm:border"
+        bodyClassName="overflow-hidden p-3 sm:overflow-y-auto sm:p-4"
         footer={
           <button type="submit" form="tx-form" disabled={saving || !form.amount || !form.category_id || !form.transaction_date}
             className={cn("w-full py-3 rounded-xl text-base font-semibold text-white transition-colors disabled:opacity-50",
@@ -856,7 +857,7 @@ export default function TransactionsClient() {
           </button>
         }
       >
-        <form id="tx-form" onSubmit={e => { e.preventDefault(); handleSave() }} className="space-y-4" noValidate>
+        <form id="tx-form" onSubmit={e => { e.preventDefault(); handleSave() }} className="space-y-2.5 sm:space-y-4" noValidate>
           {saveError && (
             <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{saveError}</div>
           )}
@@ -908,7 +909,7 @@ export default function TransactionsClient() {
               <input id="transaction-amount" type="number" inputMode="decimal" step="0.01" min="0.01" required placeholder="0.00" value={form.amount}
                 autoFocus={!editingId}
                 onChange={e => { updateForm({ amount: e.target.value, amount_mxn: form.currency === 'MXN' ? e.target.value : form.amount_mxn }); setSaveError(''); setConfirmDuplicate(false) }}
-                className={cn(inputCls, "num-metric h-16 appearance-none pl-8 text-3xl font-bold [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none")} />
+                className={cn(inputCls, "num-metric h-14 appearance-none pl-8 text-2xl font-bold sm:h-16 sm:text-3xl [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none")} />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold tracking-wide text-[hsl(var(--text-tertiary))]">{form.currency}</span>
             </div>
           </div>
@@ -917,17 +918,18 @@ export default function TransactionsClient() {
           <div>
             <label htmlFor="transaction-merchant" className={labelCls}>{form.type === 'expense' ? 'Where did you spend?' : 'Who paid you?'}</label>
             <input id="transaction-merchant" type="text" list="merchants" autoComplete="off" placeholder={form.type === 'expense' ? 'Merchant or place' : 'Income source'} value={form.merchant}
-              onChange={e => { updateForm({ merchant: e.target.value, ...(appliedRuleId ? { category_id: '' } : {}) }); if (appliedRuleId) setAppliedRuleId(null); setConfirmDuplicate(false) }} className={cn(inputCls, 'h-12')} />
+              onChange={e => { updateForm({ merchant: e.target.value, ...(appliedRuleId ? { category_id: '' } : {}) }); if (appliedRuleId) setAppliedRuleId(null); setConfirmDuplicate(false) }} className={cn(inputCls, 'h-11 sm:h-12')} />
             <datalist id="merchants">
               {knownMerchants.map(m => <option key={m} value={m} />)}
             </datalist>
             {!editingId && merchantSuggestions.length > 0 && (
-              <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]" aria-label="Recent merchants">
-                {merchantSuggestions.map(suggestion => (
+              <div className="mt-1.5 grid grid-cols-3 gap-1.5 sm:flex sm:gap-2" aria-label="Recent merchants">
+                {merchantSuggestions.map((suggestion, index) => (
                   <button key={suggestion.merchant} type="button"
                     onClick={() => { updateForm({ merchant: suggestion.merchant, category_id: suggestion.categoryId }); setAppliedRuleId(null); setConfirmDuplicate(false) }}
-                    className="shrink-0 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--text-secondary))] transition-colors hover:border-emerald-500/50 hover:text-[hsl(var(--foreground))]">
-                    {suggestion.merchant}
+                    title={suggestion.merchant}
+                    className={cn("min-w-0 truncate rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))] px-2 py-1.5 text-xs font-medium text-[hsl(var(--text-secondary))] transition-colors hover:border-emerald-500/50 hover:text-[hsl(var(--foreground))] sm:shrink-0 sm:rounded-full sm:px-3", index > 2 && 'hidden sm:block')}>
+                    <span className="block truncate">{suggestion.merchant}</span>
                   </button>
                 ))}
               </div>
@@ -942,13 +944,18 @@ export default function TransactionsClient() {
             </div>
           )}
 
-          {/* Category Grid */}
+          {/* Compact native picker on mobile; visual grid remains on desktop. */}
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <label className={labelCls}>Category *</label>
+              <label htmlFor="transaction-category" className={labelCls}>Category *</label>
               <span className="text-[10px] text-[hsl(var(--text-tertiary))]">Frequent first</span>
             </div>
-            <div className="grid max-h-48 grid-cols-4 gap-2 overflow-y-auto overscroll-contain pr-0.5 sm:grid-cols-5">
+            <select id="transaction-category" required value={form.category_id} onChange={e => updateForm({ category_id: e.target.value })}
+              className={cn(inputCls, 'h-11 sm:hidden')}>
+              <option value="">Choose category</option>
+              {filteredCats.map(cat => <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>)}
+            </select>
+            <div className="hidden max-h-48 grid-cols-5 gap-2 overflow-y-auto overscroll-contain pr-0.5 sm:grid">
               {filteredCats.map(cat => (
                 <button key={cat.id} type="button" onClick={() => updateForm({ category_id: cat.id })}
                   aria-pressed={form.category_id === cat.id}
@@ -964,14 +971,15 @@ export default function TransactionsClient() {
 
           <div className="grid grid-cols-[1.1fr_1fr] gap-3">
             <div>
-              <label htmlFor="transaction-date" className={labelCls}>Date *</label>
+              <div className="flex items-center justify-between">
+                <label htmlFor="transaction-date" className={labelCls}>Date *</label>
+                <span className="flex gap-1.5 text-[10px]">
+                  <button type="button" onClick={() => updateForm({ transaction_date: today() })} className="font-medium text-blue-400">Today</button>
+                  <button type="button" onClick={() => updateForm({ transaction_date: relativeLocalDateKey(-1) })} className="font-medium text-blue-400">Yesterday</button>
+                </span>
+              </div>
               <input id="transaction-date" type="date" required value={form.transaction_date}
                 max={today()} onChange={e => { updateForm({ transaction_date: e.target.value }); setConfirmDuplicate(false) }} className={inputCls} />
-              <div className="mt-1.5 flex gap-1.5">
-                <button type="button" onClick={() => updateForm({ transaction_date: today() })} className="text-[11px] font-medium text-blue-400">Today</button>
-                <span className="text-[hsl(var(--border))]">·</span>
-                <button type="button" onClick={() => updateForm({ transaction_date: relativeLocalDateKey(-1) })} className="text-[11px] font-medium text-blue-400">Yesterday</button>
-              </div>
             </div>
             <div>
               <label className={labelCls}>Owner</label>
@@ -992,65 +1000,55 @@ export default function TransactionsClient() {
             </div>
           </div>
 
-          {/* Secondary fields stay available without slowing daily entry. */}
-          <details className="group rounded-xl border border-[hsl(var(--border))]">
-            <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-sm font-medium text-[hsl(var(--text-secondary))]">
-              <SlidersHorizontal className="h-4 w-4" /> Details
-              <span className="ml-auto text-xs font-normal text-[hsl(var(--text-tertiary))]">Currency, notes, tags</span>
-            </summary>
-            <div className="space-y-4 border-t border-[hsl(var(--border))] p-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelCls}>Currency</label>
-                  <select value={form.currency} onChange={e => updateForm({ currency: e.target.value, amount_mxn: e.target.value === 'MXN' ? form.amount : '' })} className={inputCls}>
-                    <option>MXN</option><option>USD</option>
-                  </select>
-                </div>
-                {form.currency === 'USD' && (
-                  <div>
-                    <label className={labelCls}>Amount in MXN *</label>
-                    <input type="number" inputMode="decimal" step="0.01" min="0.01" placeholder="Converted" value={form.amount_mxn}
-                      onChange={e => updateForm({ amount_mxn: e.target.value })} className={inputCls} />
-                  </div>
-                )}
-              </div>
-              <div>
-                <label className={labelCls}>Notes</label>
-                <textarea placeholder="Optional note" rows={2} value={form.description}
-                  onChange={e => updateForm({ description: e.target.value })} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>Tags</label>
-                <div className="mb-2 flex flex-wrap gap-2">
+          {/* Every standard field stays visible without opening another section. */}
+          <div className="grid grid-cols-[5.5rem_1fr] gap-2">
+            <div>
+              <label className={labelCls}>Currency</label>
+              <select value={form.currency} onChange={e => updateForm({ currency: e.target.value, amount_mxn: e.target.value === 'MXN' ? form.amount : '' })} className={cn(inputCls, 'h-10 px-2')}>
+                <option>MXN</option><option>USD</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="transaction-notes" className={labelCls}>Notes</label>
+              <input id="transaction-notes" placeholder="Optional note" value={form.description}
+                onChange={e => updateForm({ description: e.target.value })} className={cn(inputCls, 'h-10')} />
+            </div>
+          </div>
+
+          {form.currency === 'USD' && (
+            <div>
+              <label className={labelCls}>Amount in MXN *</label>
+              <input type="number" inputMode="decimal" step="0.01" min="0.01" placeholder="Converted amount" value={form.amount_mxn}
+                onChange={e => updateForm({ amount_mxn: e.target.value })} className={cn(inputCls, 'h-10')} />
+            </div>
+          )}
+
+          <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+            <div>
+              <label htmlFor="transaction-tags" className={labelCls}>Tags</label>
+              <input id="transaction-tags" placeholder="Optional tags" value={form.tags}
+                onChange={e => updateForm({ tags: e.target.value })} className={cn(inputCls, 'h-10')} />
+            </div>
+            <div className="flex h-10 items-center gap-3 rounded-lg border border-[hsl(var(--border))] px-3 text-xs text-[hsl(var(--text-secondary))]">
               {QUICK_TAGS.map(({ value, label }) => {
                 const active = parseTagString(form.tags).includes(value)
                 return (
-                  <button key={value} type="button"
-                    onClick={() => {
+                  <label key={value} className="flex cursor-pointer items-center gap-1.5 whitespace-nowrap">
+                    <input type="checkbox" checked={active} onChange={() => {
                       const current = parseTagString(form.tags)
-                      const next = active ? current.filter(t => t !== value) : [...current, value]
-                      updateForm({ tags: serializeTags(next) })
-                    }}
-                    className={cn("px-3 py-1 rounded-full text-xs font-medium border transition-all",
-                      active
-                        ? "border-blue-500 bg-blue-500/10 text-blue-600"
-                        : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))]"
-                    )}>
-                    {label}
-                  </button>
+                      updateForm({ tags: serializeTags(active ? current.filter(t => t !== value) : [...current, value]) })
+                    }} className="rounded" />
+                    <span className="hidden sm:inline">{label}</span><span className="sm:hidden">🧬</span>
+                  </label>
                 )
               })}
-                </div>
-                <input placeholder="Other tags, comma-separated" value={form.tags}
-                  onChange={e => updateForm({ tags: e.target.value })} className={inputCls} />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex cursor-pointer items-center gap-1.5 whitespace-nowrap">
                 <input type="checkbox" checked={form.is_recurring}
                   onChange={e => updateForm({ is_recurring: e.target.checked })} className="rounded" />
-                Recurring transaction
+                <span className="hidden sm:inline">Recurring</span><span className="sm:hidden">Repeat</span>
               </label>
             </div>
-          </details>
+          </div>
 
           {/* Coverage period for non-monthly billing cycles */}
           {(() => {
@@ -1058,7 +1056,7 @@ export default function TransactionsClient() {
             const cycle = selectedCat?.billing_cycle
             if (!cycle || cycle === 'monthly') return null
             return (
-              <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/20 space-y-3">
+              <div className="space-y-1.5 rounded-lg border border-blue-500/20 bg-blue-500/5 p-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-blue-600">📅 Period Covered ({CYCLE_LABELS[cycle]})</span>
                   <button type="button" onClick={() => {
@@ -1070,14 +1068,14 @@ export default function TransactionsClient() {
                     Auto-suggest →
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Coverage Start</label>
-                    <input type="date" value={form.coverage_start} onChange={e => updateForm({ coverage_start: e.target.value })} className={inputCls} />
+                    <label className="mb-0.5 block text-[10px] text-[hsl(var(--text-secondary))]">Coverage start</label>
+                    <input type="date" value={form.coverage_start} onChange={e => updateForm({ coverage_start: e.target.value })} className={cn(inputCls, 'h-9 py-1.5')} />
                   </div>
                   <div>
-                    <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Coverage End</label>
-                    <input type="date" value={form.coverage_end} onChange={e => updateForm({ coverage_end: e.target.value })} className={inputCls} />
+                    <label className="mb-0.5 block text-[10px] text-[hsl(var(--text-secondary))]">Coverage end</label>
+                    <input type="date" value={form.coverage_end} onChange={e => updateForm({ coverage_end: e.target.value })} className={cn(inputCls, 'h-9 py-1.5')} />
                   </div>
                 </div>
                 {form.coverage_start && form.coverage_end && form.amount && (() => {
@@ -1086,7 +1084,7 @@ export default function TransactionsClient() {
                   const [ey, em] = form.coverage_end.split('-').map(Number)
                   const covMonths = Math.max(1, (ey - sy) * 12 + (em - sm) + 1)
                   const perMonth = parseFloat(form.amount) / covMonths
-                  return <p className="text-xs text-blue-600/70">→ ${perMonth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo across {covMonths} months</p>
+                  return <p className="text-[10px] text-blue-400">${perMonth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo · {covMonths} months</p>
                 })()}
               </div>
             )
