@@ -11,7 +11,6 @@ import { BillsTimeline } from '@/components/finance/bills-timeline'
 import { WolffWidget } from '@/components/finance/wolff-widget'
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend'
 import { MonthProjectionCard } from '@/components/finance/month-projection-card'
-import { HouseholdPriorities } from '@/components/finance/household-priorities'
 import { InstallPrompt } from '@/components/finance/install-prompt'
 import { supabase } from '@/lib/supabase'
 import { ownersEqual } from '@/lib/owners'
@@ -144,14 +143,14 @@ export default function CommandCenterClient() {
 
   return (
     <PageTransition>
-      <div className="space-y-6" data-animate>
+      <div className="space-y-5 sm:space-y-6" data-animate>
         {/* ── Install banner (Android, only when installable) ── */}
         <InstallPrompt />
 
         {/* ── Hero: the monthly answer ─────────────────────
             Leads with the one number that matters (net this month) instead of
             a uniform card grid; the status banner is its subline. */}
-        <div className="wealth-hero relative overflow-hidden rounded-[1.5rem] p-5 sm:p-7 lg:p-8">
+        <div className="wealth-hero relative overflow-hidden rounded-[1.5rem] p-5 sm:p-6 lg:p-7">
           <div className="wealth-hero-orbit absolute inset-0 pointer-events-none" />
           <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div className="min-w-0">
@@ -160,7 +159,7 @@ export default function CommandCenterClient() {
               </p>
               <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <span className={cn(
-                  'num-metric text-5xl sm:text-6xl font-black tracking-tight leading-none',
+                  'num-metric text-4xl sm:text-5xl font-black tracking-tight leading-none',
                   awaitingIncome ? 'text-[hsl(var(--text-secondary))]'
                     : netSavings >= 0 ? 'text-hero-gradient' : 'text-rose-600',
                 )}>
@@ -239,14 +238,11 @@ export default function CommandCenterClient() {
           </div>
         </div>
 
-        {/* ── HEADLINE: month-end savings projection ─────── */}
-        <MonthProjectionCard projection={summary?.month_projection} />
-
-        {/* ── PRIORITIES: the couple-level plan in one place ────────── */}
-        {summary && <HouseholdPriorities summary={summary} />}
-
-        {/* ── WOLFF: one action, not another report ───────── */}
+        {/* ── WOLFF: the daily decision layer comes before reporting ── */}
         <WolffWidget />
+
+        {/* ── MONTH PLAN: one deterministic finish line ─────────────── */}
+        <MonthProjectionCard projection={summary?.month_projection} />
 
         {/* ── FINANCIAL PULSE: three durable health metrics ─ */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

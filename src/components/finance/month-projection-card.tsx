@@ -44,22 +44,22 @@ export function MonthProjectionCard({ projection }: Props) {
 
   return (
     <div className={cn(
-      'relative overflow-hidden rounded-2xl border p-5 sm:p-6 shadow-[var(--shadow-elevate)]',
+      'relative overflow-hidden rounded-2xl border p-4 sm:p-5 shadow-[var(--shadow-elevate)]',
       positive
-        ? 'border-emerald-500/25 bg-gradient-to-br from-emerald-50 via-[hsl(40,45%,99%)] to-amber-50'
-        : 'border-rose-300/40 bg-gradient-to-br from-rose-50 via-[hsl(40,45%,99%)] to-amber-50'
+        ? 'border-emerald-400/20 bg-gradient-to-br from-emerald-500/[0.09] via-[hsl(var(--card))] to-blue-500/[0.07]'
+        : 'border-rose-400/30 bg-gradient-to-br from-rose-500/[0.10] via-[hsl(var(--card))] to-orange-500/[0.06]'
     )}>
       <div
         className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(45% 90% at 95% 0%, hsl(160 70% 45% / 0.08), transparent 60%)' }}
+        style={{ background: 'radial-gradient(45% 90% at 95% 0%, hsl(211 90% 60% / 0.10), transparent 60%)' }}
       />
-      <div className="relative grid gap-5 md:grid-cols-[1.1fr_1fr] md:items-center">
+      <div className="relative grid gap-4 md:grid-cols-[1.1fr_1fr] md:items-center">
         {/* The number */}
         <div>
           <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">
             <TrendingUp className="h-3.5 w-3.5" /> Projected savings · {new Date().toLocaleDateString('en-US', { month: 'long' })}
           </p>
-          <p className={cn('num-metric mt-1 text-4xl sm:text-5xl font-black tracking-tight', positive ? 'text-emerald-600' : 'text-rose-600')}>
+          <p className={cn('num-metric mt-1 text-3xl sm:text-4xl font-black tracking-tight', positive ? 'text-emerald-400' : 'text-rose-400')}>
             {positive ? '' : '−'}${Math.abs(p.projected_savings).toLocaleString()}
           </p>
           <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">

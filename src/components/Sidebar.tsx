@@ -46,7 +46,7 @@ const primaryHrefs = new Set([
 
 const navGroups = allNavGroups.map(group => ({
   ...group,
-  items: group.items.filter(item => primaryHrefs.has(item.href)),
+  items: group.items.filter(item => primaryHrefs.has(item.href) && item.href !== '/finance/ask'),
 }))
 
 const moreFinance = allNavGroups.flatMap(group => group.items).filter(item => !primaryHrefs.has(item.href))
@@ -85,9 +85,14 @@ export function Sidebar() {
     {/* Mobile: slide-out nav overlay */}
     {mobileOpen && (
       <div className="md:hidden fixed inset-0 z-40" onClick={() => setMobileOpen(false)}>
-        <div className="absolute inset-0 bg-[#071b17]/70 backdrop-blur-sm" />
+        <div className="absolute inset-0 bg-[#050914]/80 backdrop-blur-sm" />
         <nav className="app-sidebar absolute top-16 right-0 bottom-0 w-[min(84vw,320px)] overflow-y-auto p-5 space-y-1 shadow-2xl"
           onClick={e => e.stopPropagation()}>
+          <Link href="/finance/ask" onClick={() => setMobileOpen(false)} className="mb-4 flex items-center gap-3 rounded-2xl border border-blue-400/20 bg-blue-500/10 p-3 text-blue-100">
+            <BrandLogo className="h-9 w-9" />
+            <div><span className="block text-sm font-semibold">Talk to Wolff</span><span className="text-[10px] text-blue-200/60">Your daily financial copilot</span></div>
+            <MessageCircle className="ml-auto h-4 w-4" />
+          </Link>
           {navGroups.map((group, i) => (
             <div key={group.label} className={i > 0 ? 'pt-3 mt-3 border-t border-[hsl(var(--border))]' : ''}>
               <span className="sidebar-group-label px-3 text-[10px] font-semibold uppercase tracking-[0.18em]">{group.label}</span>
@@ -152,6 +157,12 @@ export function Sidebar() {
         <span>Search…</span>
         <kbd className="ml-auto rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-mono">⌘K</kbd>
       </button>
+
+      <Link href="/finance/ask" className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-400/20 bg-gradient-to-r from-blue-500/15 to-emerald-500/[0.07] p-3 text-blue-100 hover:border-blue-400/35 hover:bg-blue-500/20">
+        <BrandLogo className="h-9 w-9" />
+        <div className="min-w-0"><span className="block text-[12px] font-semibold">Talk to Wolff</span><span className="block truncate text-[9px] text-blue-200/55">Daily financial copilot</span></div>
+        <MessageCircle className="ml-auto h-4 w-4 text-blue-300" />
+      </Link>
 
       {/* Finance nav */}
       <div>

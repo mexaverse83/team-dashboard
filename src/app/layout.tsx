@@ -34,13 +34,13 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: 'Wolff Finance',
   },
 }
 
 export const viewport = {
-  themeColor: '#12352d',
+  themeColor: '#080d19',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover' as const,

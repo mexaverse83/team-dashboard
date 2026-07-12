@@ -9,20 +9,23 @@ export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
 
-  const script = `// Palette — deep emerald night
+  const script = `// Palette — Wolff midnight
 const MINT = new Color('#34d399')
 const MINT_BRIGHT = new Color('#4ade80')
 const MINT_PALE = new Color('#d1fae5')
-const MINT_DIM = new Color('#2c8f6d')
+const MINT_DIM = new Color('#4f8f7d')
+const BLUE = new Color('#60a5fa')
+const BLUE_PALE = new Color('#dbeafe')
 const AMBER = new Color('#fbbf24')
+const ORANGE = new Color('#fb923c')
 const ROSE = new Color('#f87171')
 const WHITE = new Color('#ffffff')
-const TXT_DIM = new Color('#8aa39a')
-const TXT_FAINT = new Color('#5f7a70')
-const TRACK = new Color('#20372f')
-const BG_HI = new Color('#123529')
-const BG_MID = new Color('#0d1f1a')
-const BG_LO = new Color('#0a1512')
+const TXT_DIM = new Color('#a8b3c7')
+const TXT_FAINT = new Color('#68758d')
+const TRACK = new Color('#1c2940')
+const BG_HI = new Color('#14233d')
+const BG_MID = new Color('#0b1425')
+const BG_LO = new Color('#070c17')
 
 function applyBackground(w) {
   const g = new LinearGradient()
@@ -133,7 +136,7 @@ function addHeader(w, d) {
   wolf.font = Font.systemFont(10)
   const name = s.addText('WOLFF')
   name.font = Font.boldSystemFont(9)
-  name.textColor = MINT_BRIGHT
+  name.textColor = BLUE
   s.addSpacer()
   const now = new Date()
   const df = new DateFormatter()
@@ -185,8 +188,8 @@ function addDirectivePill(w, d) {
   const pill = w.addStack()
   pill.url = APP_URL.replace('/finance', '/finance/ask')
   pill.centerAlignContent()
-  pill.backgroundColor = new Color('#34d399', 0.10)
-  pill.borderColor = new Color('#34d399', 0.16)
+  pill.backgroundColor = new Color('#60a5fa', 0.11)
+  pill.borderColor = new Color('#60a5fa', 0.20)
   pill.borderWidth = 1
   pill.cornerRadius = 8
   pill.setPadding(5, 9, 5, 9)
@@ -194,7 +197,7 @@ function addDirectivePill(w, d) {
   wolf.font = Font.systemFont(10)
   const t = pill.addText(dir.title)
   t.font = Font.boldSystemFont(10.5)
-  t.textColor = MINT_PALE
+  t.textColor = BLUE_PALE
   t.lineLimit = 1
   t.minimumScaleFactor = 0.72
   pill.addSpacer()
@@ -245,7 +248,7 @@ function wolffScreen(w, d) {
   const now = new Date()
   const dow = now.getDay()
   const isWeekend = dow === 0 || dow === 6 || (dow === 5 && now.getHours() >= 15)
-  const item = (isWeekend && d.wolff && d.wolff.weekend) ? d.wolff.weekend : (d.wolff ? d.wolff.top : null)
+  const item = (isWeekend && d.wolff && d.wolff.weekend) ? d.wolff.weekend : (d.wolff ? (d.wolff.directive || d.wolff.top) : null)
   addHeader(w, d)
   w.addSpacer(4)
   addLabel(w, isWeekend ? 'WEEKEND VERDICT' : 'TOP INSIGHT')
@@ -269,10 +272,14 @@ function wolffScreen(w, d) {
   w.addSpacer()
   const foot = w.addStack()
   const safe = foot.addText(d.over_committed_by > 0
-    ? 'safe today $0 · over by ' + money(d.over_committed_by)
-    : 'safe today ' + money(d.safe_to_spend_day) + '/day')
+    ? 'extra $0  ·  planned ' + money(d.controllable_per_day || 0)
+    : 'extra ' + money(d.safe_to_spend_day) + '  ·  planned ' + money(d.controllable_per_day || 0))
   safe.font = Font.boldSystemFont(9)
   safe.textColor = d.over_committed_by > 0 ? ROSE : MINT
+  foot.addSpacer()
+  const week = foot.addText('week ' + money(d.week_envelope || 0))
+  week.font = Font.boldSystemFont(9)
+  week.textColor = ORANGE
 }
 
 function paceScreen(w, d, barWidth) {
@@ -361,7 +368,7 @@ async function build() {
     if (pinned === 'wolff') wolffScreen(w, d)
     else if (pinned === 'pace') paceScreen(w, d, 280)
     else if (pinned === 'smart' || pinned === 'money') smartScreen(w, d)
-    else smartScreen(w, d)
+    else wolffScreen(w, d)
   }
 
   w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000)

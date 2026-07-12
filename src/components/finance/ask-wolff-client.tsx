@@ -11,13 +11,16 @@ interface ChatMessage {
   content: string
   status: string
   created_at: string
+  reply_to?: string | null
+  asked_by?: string | null
 }
 
 const SUGGESTIONS = [
   'What is our one financial action today?',
   'Can we afford dinner out this weekend?',
+  'Help us plan a romantic dinner without moving our goals.',
   'How much should move to GBM this month?',
-  'Are all our household priorities covered?',
+  'What changed since our last transaction?',
 ]
 
 export default function AskWolffClient() {
@@ -38,7 +41,7 @@ export default function AskWolffClient() {
   }, [])
 
   // Poll — faster while a question is waiting for Wolff
-  const waiting = messages.some(m => m.role === 'user' && m.status === 'pending')
+  const waiting = messages.some(m => m.role === 'user' && m.status === 'pending' && !m.asked_by?.startsWith('wolff-monitor:'))
   useEffect(() => {
     load()
   }, [load])
@@ -76,6 +79,9 @@ export default function AskWolffClient() {
     }
   }
 
+  const monitorIds = new Set(messages.filter(m => m.role === 'user' && m.asked_by?.startsWith('wolff-monitor:')).map(m => m.id))
+  const visibleMessages = messages.filter(m => !(m.role === 'user' && monitorIds.has(m.id)))
+
   return (
     <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[560px] max-w-2xl flex-col md:h-[calc(100vh-4rem)]">
       <div className="mb-4 flex items-center gap-3">
@@ -92,7 +98,7 @@ export default function AskWolffClient() {
       <div className="flex-1 space-y-3 overflow-y-auto rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] p-4 shadow-[var(--shadow-elevate)]">
         {loading ? (
           <p className="py-10 text-center text-sm text-[hsl(var(--text-tertiary))]">Loading conversation…</p>
-        ) : messages.length === 0 ? (
+        ) : visibleMessages.length === 0 ? (
           <div className="py-8 text-center">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--brand)/0.08)] text-xl">🐺</span>
             <p className="mt-3 text-sm font-semibold">Make the next decision simple.</p>
@@ -107,14 +113,19 @@ export default function AskWolffClient() {
             </div>
           </div>
         ) : (
-          messages.map(m => (
+          visibleMessages.map(m => {
+            const proactive = m.role === 'wolff' && Boolean(m.reply_to && monitorIds.has(m.reply_to))
+            return (
             <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
               <div className={cn(
                 'max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
                 m.role === 'user'
-                  ? 'rounded-br-md bg-emerald-600 text-white'
-                  : 'rounded-bl-md border border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))]/60'
+                  ? 'rounded-br-md bg-blue-600 text-white'
+                  : proactive
+                    ? 'rounded-bl-md border border-orange-400/25 bg-orange-400/[0.07]'
+                    : 'rounded-bl-md border border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))]/60'
               )}>
+                {proactive && <span className="mb-1 block text-[9px] font-bold uppercase tracking-[0.14em] text-orange-300">Proactive transaction review</span>}
                 {m.role === 'wolff' && <span className="mr-1.5">🐺</span>}
                 {m.content}
                 {m.role === 'user' && m.status === 'failed' && (
@@ -122,7 +133,7 @@ export default function AskWolffClient() {
                 )}
               </div>
             </div>
-          ))
+          )})
         )}
         {waiting && (
           <div className="flex justify-start">

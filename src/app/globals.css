@@ -1,62 +1,55 @@
 @import "tailwindcss";
 
 :root {
-  /* Wolff Private Wealth — warm mineral canvas, evergreen ink and restrained
-     brass. Colour carries meaning; surface and typography carry hierarchy. */
-  --background: 42 30% 96%;
-  --foreground: 164 25% 12%;
-  --card: 44 38% 99%;
-  --card-foreground: 164 25% 12%;
-  --popover: 44 38% 99%;
-  --popover-foreground: 164 25% 12%;
-  --primary: 160 57% 22%;
-  --primary-foreground: 44 42% 98%;
-  --secondary: 42 23% 91%;
-  --secondary-foreground: 164 25% 15%;
-  --muted: 42 24% 92%;
-  --muted-foreground: 34 10% 39%;
-  --accent: 42 27% 90%;
-  --accent-foreground: 164 25% 15%;
-  --destructive: 348 68% 43%;
+  /* Wolff Midnight — deep navy surfaces with high-signal semantic colour. */
+  --background: 224 38% 6%;
+  --foreground: 214 28% 94%;
+  --card: 222 31% 10%;
+  --card-foreground: 214 28% 94%;
+  --popover: 222 31% 10%;
+  --popover-foreground: 214 28% 94%;
+  --primary: 151 68% 45%;
+  --primary-foreground: 224 45% 6%;
+  --secondary: 221 25% 15%;
+  --secondary-foreground: 214 25% 91%;
+  --muted: 221 24% 14%;
+  --muted-foreground: 215 13% 64%;
+  --accent: 220 26% 16%;
+  --accent-foreground: 214 25% 94%;
+  --destructive: 354 78% 58%;
   --destructive-foreground: 0 0% 100%;
-  --border: 38 21% 83%;
-  --input: 38 21% 80%;
-  --ring: 159 64% 30%;
+  --border: 219 20% 21%;
+  --input: 219 20% 24%;
+  --ring: 211 90% 62%;
   --radius: 0.875rem;
 
-  /* Brand — emerald is the identity (Wolff); cobalt is informational */
-  --brand: 159 67% 27%;
-  --brand-glow: 160 60% 32%;
-  --brass: 40 54% 52%;
+  --brand: 151 68% 45%;
+  --brand-glow: 151 72% 53%;
+  --brass: 43 92% 58%;
 
-  /* Semantic — Barragán accents, AA on warm paper */
-  --success: 156 72% 28%;
-  --warning: 36 95% 36%;
-  --danger: 335 80% 40%;
-  --info: 225 75% 45%;
+  --success: 151 68% 45%;
+  --warning: 45 96% 58%;
+  --danger: 354 78% 58%;
+  --info: 211 92% 62%;
+  --orange: 26 94% 58%;
 
-  /* Text — warm ink; secondary/tertiary clear WCAG AA at small sizes */
-  --text-primary: 164 25% 12%;
-  --text-secondary: 35 12% 35%;
-  --text-tertiary: 34 9% 47%;
+  --text-primary: 214 28% 94%;
+  --text-secondary: 215 16% 70%;
+  --text-tertiary: 216 12% 53%;
 
-  /* Elevation ladder — raised surfaces step toward warm white; insets step
-     toward plaster */
-  --bg-base: 42 30% 96%;
-  --bg-surface: 44 38% 99%;
-  --bg-elevated: 41 24% 90%;
-  --border-subtle: 40 20% 89%;
+  --bg-base: 224 38% 6%;
+  --bg-surface: 222 31% 10%;
+  --bg-elevated: 220 25% 16%;
+  --border-subtle: 220 20% 17%;
 
-  /* Elevation shadow token — warm afternoon light, no cold gray */
-  --shadow-elevate: 0 1px 2px hsl(34 25% 25% / 0.06), 0 18px 48px -28px hsl(155 28% 12% / 0.24);
+  --shadow-elevate: 0 1px 0 hsl(210 35% 92% / 0.035) inset, 0 22px 55px -34px hsl(228 80% 2% / 0.9);
 
-  /* Chart system — Barragán palette, darkened for contrast on warm paper */
-  --chart-1: 160 84% 29%;  /* emerald   — primary series / inflow   */
-  --chart-2: 187 75% 31%;  /* deep teal — secondary series          */
-  --chart-3: 225 75% 48%;  /* cobalt    — informational             */
-  --chart-4: 16 72% 45%;   /* terracotta — comparison               */
-  --chart-5: 36 95% 40%;   /* marigold  — caution                   */
-  --chart-6: 335 78% 45%;  /* rosa mexicano — outflow / over budget */
+  --chart-1: 151 68% 50%;  /* green  — inflow / on track */
+  --chart-2: 190 88% 52%;  /* cyan   — comparison */
+  --chart-3: 211 92% 62%;  /* blue   — intelligence / information */
+  --chart-4: 26 94% 58%;   /* orange — commitments */
+  --chart-5: 45 96% 58%;   /* yellow — attention */
+  --chart-6: 354 78% 60%;  /* red    — outflow / risk */
 }
 
 * {
@@ -81,10 +74,10 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(60% 46% at 88% -10%, hsl(158 48% 38% / 0.08), transparent 66%),
-    radial-gradient(44% 38% at 0% 35%, hsl(40 65% 55% / 0.075), transparent 65%),
-    linear-gradient(hsl(42 30% 96% / 0.78), hsl(42 30% 96% / 0.94)),
-    repeating-linear-gradient(90deg, hsl(160 20% 20% / 0.018) 0 1px, transparent 1px 72px);
+    radial-gradient(70% 55% at 86% -12%, hsl(211 92% 56% / 0.14), transparent 65%),
+    radial-gradient(48% 42% at 4% 35%, hsl(151 72% 45% / 0.09), transparent 70%),
+    radial-gradient(42% 36% at 75% 100%, hsl(26 94% 55% / 0.045), transparent 72%),
+    repeating-linear-gradient(90deg, hsl(210 35% 90% / 0.012) 0 1px, transparent 1px 80px);
 }
 
 /* Headings and metric numerals speak in the display face */
@@ -103,7 +96,7 @@ h1, h2, h3 {
 /* Finance identity — emerald→teal gradient for hero numbers (dark shades
    for contrast on light surfaces) */
 .text-hero-gradient {
-  background: linear-gradient(120deg, hsl(160 67% 25%) 0%, hsl(184 55% 29%) 58%, hsl(214 58% 38%) 115%);
+  background: linear-gradient(120deg, hsl(151 70% 58%) 0%, hsl(190 88% 62%) 55%, hsl(211 92% 68%) 115%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -212,20 +205,18 @@ select option:hover {
   background-color: hsl(var(--bg-elevated));
 }
 
-/* Surface card — light theme: white card with a soft daylight shadow and a
-   hairline border. The old dark glass treatment is gone; depth comes from
-   shadow, not translucency. */
+/* Surface card — dark glass with restrained translucency and blue elevation. */
 .glass {
-  background: linear-gradient(145deg, hsl(44 45% 99% / 0.98), hsl(40 30% 98% / 0.94));
+  background: linear-gradient(145deg, hsl(222 31% 11% / 0.96), hsl(224 32% 9% / 0.92));
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid hsl(38 22% 84% / 0.9);
+  border: 1px solid hsl(216 24% 22% / 0.86);
   box-shadow: var(--shadow-elevate);
 }
 
 .glass:hover {
-  border-color: hsl(158 30% 68% / 0.75);
-  box-shadow: 0 2px 4px hsl(34 25% 25% / 0.05), 0 22px 54px -30px hsl(155 30% 11% / 0.3);
+  border-color: hsl(211 70% 48% / 0.42);
+  box-shadow: 0 1px 0 hsl(210 35% 92% / 0.04) inset, 0 24px 58px -36px hsl(211 90% 42% / 0.42);
 }
 
 .finance-card { border-radius: 1rem; }
@@ -234,16 +225,17 @@ select option:hover {
 .app-sidebar {
   color: hsl(42 26% 92%);
   background:
-    radial-gradient(90% 35% at 10% 0%, hsl(158 45% 28% / 0.46), transparent 72%),
-    linear-gradient(165deg, hsl(162 38% 17%), hsl(164 42% 10%) 74%);
-  border-right: 1px solid hsl(157 30% 36% / 0.25);
-  box-shadow: 18px 0 60px -46px hsl(164 55% 5% / 0.8);
+    radial-gradient(90% 35% at 10% 0%, hsl(211 76% 33% / 0.34), transparent 72%),
+    radial-gradient(80% 35% at 0% 100%, hsl(151 65% 28% / 0.16), transparent 70%),
+    linear-gradient(165deg, hsl(224 42% 9%), hsl(226 48% 5%) 74%);
+  border-right: 1px solid hsl(215 30% 24% / 0.48);
+  box-shadow: 18px 0 60px -46px hsl(228 80% 2% / 0.95);
 }
 
 .mobile-masthead {
-  background: hsl(163 40% 13% / 0.96);
-  border-bottom: 1px solid hsl(42 35% 70% / 0.16);
-  box-shadow: 0 12px 30px -22px hsl(164 60% 4% / 0.85);
+  background: hsl(225 42% 7% / 0.94);
+  border-bottom: 1px solid hsl(211 55% 45% / 0.18);
+  box-shadow: 0 12px 30px -22px hsl(228 80% 2% / 0.95);
   backdrop-filter: blur(18px);
 }
 .sidebar-search {
@@ -256,14 +248,14 @@ select option:hover {
 .sidebar-link { color: hsl(42 22% 89% / 0.67); transition: color .16s ease, background-color .16s ease, transform .16s ease; }
 .sidebar-link:hover { color: white; background: hsl(42 30% 95% / 0.075); transform: translateX(2px); }
 .sidebar-link svg { color: hsl(41 28% 75% / 0.64); }
-.sidebar-link-active { color: hsl(42 45% 96%); background: linear-gradient(90deg, hsl(159 43% 44% / 0.26), hsl(42 38% 94% / 0.07)); box-shadow: inset 2px 0 hsl(41 51% 64%); }
-.sidebar-link-active svg { color: hsl(41 55% 72%); }
+.sidebar-link-active { color: hsl(214 35% 97%); background: linear-gradient(90deg, hsl(211 88% 58% / 0.22), hsl(151 65% 48% / 0.08)); box-shadow: inset 2px 0 hsl(211 92% 65%); }
+.sidebar-link-active svg { color: hsl(151 70% 58%); }
 .sidebar-footer > div:first-child { color: hsl(42 22% 90% / 0.7); }
 
 .mobile-dock {
-  background: hsl(44 40% 99% / 0.94);
+  background: hsl(225 38% 8% / 0.94);
   border-top: 1px solid hsl(var(--border) / 0.85);
-  box-shadow: 0 -14px 35px -26px hsl(160 30% 10% / 0.55);
+  box-shadow: 0 -14px 35px -24px hsl(228 80% 2% / 0.95);
   backdrop-filter: blur(18px);
 }
 .mobile-dock-link { color: hsl(var(--text-tertiary)); }
@@ -271,28 +263,66 @@ select option:hover {
 
 /* Overview hero --------------------------------------------------------- */
 .wealth-hero {
-  color: hsl(42 35% 96%);
+  color: hsl(214 30% 97%);
   background:
-    linear-gradient(118deg, hsl(162 40% 14%), hsl(159 43% 20%) 52%, hsl(156 35% 24%));
-  border: 1px solid hsl(41 48% 70% / 0.24);
-  box-shadow: 0 26px 70px -38px hsl(160 50% 6% / 0.75), inset 0 1px hsl(42 40% 95% / 0.08);
+    linear-gradient(118deg, hsl(225 45% 10%), hsl(215 48% 16%) 52%, hsl(158 42% 16%));
+  border: 1px solid hsl(211 72% 56% / 0.26);
+  box-shadow: 0 28px 74px -40px hsl(211 90% 36% / 0.48), inset 0 1px hsl(210 40% 95% / 0.08);
 }
 .wealth-hero-orbit {
   background:
-    radial-gradient(55% 150% at 96% 0%, hsl(41 64% 65% / 0.16), transparent 62%),
-    radial-gradient(35% 90% at 5% 105%, hsl(163 70% 48% / 0.12), transparent 70%),
-    repeating-linear-gradient(105deg, transparent 0 62px, hsl(42 40% 95% / 0.022) 63px 64px);
+    radial-gradient(55% 150% at 96% 0%, hsl(211 92% 65% / 0.18), transparent 62%),
+    radial-gradient(35% 90% at 5% 105%, hsl(151 72% 50% / 0.14), transparent 70%),
+    repeating-linear-gradient(105deg, transparent 0 62px, hsl(210 40% 95% / 0.025) 63px 64px);
 }
 .wealth-hero .text-hero-gradient {
-  background: linear-gradient(115deg, hsl(42 55% 95%), hsl(40 55% 74%) 85%);
+  background: linear-gradient(115deg, hsl(151 70% 64%), hsl(190 90% 70%) 52%, hsl(211 92% 72%) 100%);
   -webkit-background-clip: text;
   background-clip: text;
 }
 .wealth-hero .text-\[hsl\(var\(--text-secondary\)\)\] { color: hsl(42 25% 88% / 0.72); }
 .wealth-hero .text-\[hsl\(var\(--text-tertiary\)\)\] { color: hsl(42 20% 84% / 0.52); }
-.wealth-hero .bg-emerald-600 { background: hsl(41 48% 86%); color: hsl(161 43% 15%); box-shadow: 0 12px 26px -14px hsl(40 65% 8% / 0.8); }
-.wealth-hero .bg-emerald-600:hover { background: hsl(41 55% 92%); }
+.wealth-hero .bg-emerald-600 { background: hsl(151 68% 48%); color: hsl(225 45% 6%); box-shadow: 0 12px 26px -14px hsl(151 85% 35% / 0.75); }
+.wealth-hero .bg-emerald-600:hover { background: hsl(151 72% 56%); }
 .wealth-hero .bg-\[hsl\(var\(--bg-elevated\)\)\] { background: hsl(42 20% 95% / 0.14); }
+
+/* Tailwind semantic shades are authored for white surfaces in older screens.
+   Keep their meaning while lifting contrast on the midnight canvas. */
+.finance-app .text-emerald-700,
+.finance-app .text-emerald-600 { color: hsl(151 70% 55%); }
+.finance-app .text-rose-700,
+.finance-app .text-rose-600 { color: hsl(354 82% 68%); }
+.finance-app .text-amber-700,
+.finance-app .text-amber-600,
+.finance-app .text-amber-500 { color: hsl(45 96% 64%); }
+.finance-app .text-orange-700,
+.finance-app .text-orange-600 { color: hsl(26 96% 65%); }
+.finance-app .text-blue-700,
+.finance-app .text-blue-600 { color: hsl(211 94% 70%); }
+.finance-app .text-teal-700 { color: hsl(181 72% 58%); }
+
+/* Wolff is the overview's command layer: blue intelligence, green action,
+   and a subtle warm edge where a human decision is needed. */
+.wolff-command {
+  background:
+    radial-gradient(80% 130% at 92% -15%, hsl(211 92% 60% / 0.20), transparent 58%),
+    radial-gradient(55% 100% at 5% 110%, hsl(151 70% 48% / 0.13), transparent 64%),
+    linear-gradient(140deg, hsl(223 38% 12% / 0.98), hsl(222 34% 9% / 0.98));
+  border: 1px solid hsl(211 72% 58% / 0.34);
+  box-shadow: 0 1px 0 hsl(210 50% 96% / 0.06) inset, 0 28px 80px -42px hsl(211 92% 44% / 0.56);
+}
+.wolff-command-grid {
+  background-image:
+    linear-gradient(hsl(210 40% 90% / 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(210 40% 90% / 0.025) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: linear-gradient(to bottom right, black, transparent 75%);
+}
+.signal-blue { color: hsl(211 94% 70%); background: hsl(211 92% 60% / 0.10); border-color: hsl(211 92% 60% / 0.22); }
+.signal-green { color: hsl(151 72% 60%); background: hsl(151 68% 48% / 0.10); border-color: hsl(151 68% 48% / 0.22); }
+.signal-red { color: hsl(354 84% 70%); background: hsl(354 78% 58% / 0.10); border-color: hsl(354 78% 58% / 0.24); }
+.signal-yellow { color: hsl(45 98% 67%); background: hsl(45 96% 58% / 0.10); border-color: hsl(45 96% 58% / 0.23); }
+.signal-orange { color: hsl(26 96% 67%); background: hsl(26 94% 58% / 0.10); border-color: hsl(26 94% 58% / 0.23); }
 
 input, textarea, select {
   border-radius: 0.75rem;

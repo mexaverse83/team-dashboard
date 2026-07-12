@@ -34,6 +34,14 @@ function serializeTags(tags: string[]): string {
 
 function today() { return new Date().toISOString().slice(0, 10) }
 
+function notifyWolff(body: Record<string, unknown>) {
+  fetch('/api/finance/wolff-events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_id: crypto.randomUUID(), ...body }),
+  }).catch(() => {})
+}
+
 function parseCsvLine(line: string): string[] {
   const values: string[] = []
   let current = ''
@@ -305,9 +313,29 @@ export default function TransactionsClient() {
     if (editingId) {
       const { error } = await supabase.from('finance_transactions').update(record).eq('id', editingId)
       if (error) { console.error('Update error:', error); alert(`Save failed: ${error.message}`); setSaving(false); return }
+      notifyWolff({
+        kind: 'updated',
+        type: form.type,
+        amount_mxn: amtMxn,
+        category_id: form.category_id || null,
+        category_name: categories.find(category => category.id === form.category_id)?.name || null,
+        merchant: form.merchant || null,
+        transaction_date: form.transaction_date,
+        is_recurring: form.is_recurring,
+      })
     } else {
       const { error } = await supabase.from('finance_transactions').insert(record)
       if (error) { console.error('Insert error:', error); alert(`Save failed: ${error.message}`); setSaving(false); return }
+      notifyWolff({
+        kind: 'created',
+        type: form.type,
+        amount_mxn: amtMxn,
+        category_id: form.category_id || null,
+        category_name: categories.find(category => category.id === form.category_id)?.name || null,
+        merchant: form.merchant || null,
+        transaction_date: form.transaction_date,
+        is_recurring: form.is_recurring,
+      })
       // Increment match_count on the auto-applied rule (fire & forget)
       if (appliedRuleId) {
         const rule = rules.find(r => r.id === appliedRuleId)
@@ -451,7 +479,16 @@ export default function TransactionsClient() {
 
     setImporting(false)
     setImportResult({ success, errors, skipped })
-    if (success > 0) fetchData()
+    if (success > 0) {
+      const importedExpenses = batch.filter(row => row.type === 'expense')
+      notifyWolff({
+        kind: 'imported',
+        type: 'expense',
+        import_count: importedExpenses.length,
+        import_total: importedExpenses.reduce((sum, row) => sum + row.amount_mxn, 0),
+      })
+      fetchData()
+    }
   }
 
   // ── PDF Import ──────────────────────────────────
@@ -501,7 +538,16 @@ export default function TransactionsClient() {
 
     setImporting(false)
     setImportResult({ success, errors, skipped })
-    if (success > 0) fetchData()
+    if (success > 0) {
+      const importedExpenses = batch.filter(row => row.type === 'expense')
+      notifyWolff({
+        kind: 'imported',
+        type: 'expense',
+        import_count: importedExpenses.length,
+        import_total: importedExpenses.reduce((sum, row) => sum + row.amount_mxn, 0),
+      })
+      fetchData()
+    }
   }
 
   // ── CSV Export ──────────────────────────────────

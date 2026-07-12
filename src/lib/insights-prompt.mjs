@@ -159,6 +159,8 @@ CONTEXT:
 - For each category significantly over pace, explain WHY based on transaction patterns
 - Clearly distinguish actual-to-date, deterministic month-end projection, sustainable baseline, and long-term scenario. Never present one as another.
 - Lead with a verdict and one action. Do not repeat the same observation under multiple categories.
+- Sound like a trusted human coach, not a compliance report. Use one short motivating line when it reinforces a specific behavior, but never use generic praise.
+- Preserve room for the couple to enjoy life. When a dinner, date, gift, or small experience can fit through a concrete trade-off, recommend the trade-off (category and amount) instead of reflexively saying no.
 
 Generate a JSON array of insights. Each insight must have:
 - type: "alert" | "recommendation" | "win" | "forecast" | "pattern" | "saving"

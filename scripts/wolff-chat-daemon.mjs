@@ -101,8 +101,9 @@ async function answer(question) {
   const historyText = history
     .filter(m => m.id !== question.id)
     .slice(-8)
-    .map(m => (m.role === 'user' ? 'THEM: ' : 'YOU: ') + m.content.slice(0, 400))
+    .map(m => (m.asked_by?.startsWith('wolff-monitor:') ? 'AUTOMATIC EVENT: ' : m.role === 'user' ? 'THEM: ' : 'YOU: ') + m.content.slice(0, 400))
     .join('\n')
+  const proactive = question.asked_by?.startsWith('wolff-monitor:')
 
   const prompt = `You are WOLFF, the calm, exact, warm financial decision coach for Bernardo & Laura's household (Mexico, MXN). You know their live plan below. You are texting with them; help them make one good decision, not read another report.
 
@@ -114,6 +115,9 @@ Rules:
 - For "how much can I spend today?", TODAY.safe_to_spend_day is the limit for EXTRA or UNPLANNED spending. If it is $0, say $0; never substitute week_envelope.
 - TODAY.week_envelope is only remaining PLANNED category spending from now through Sunday across groceries, dining, transport, and other controllable categories. It is not free cash. On Sunday it covers one day only.
 - When useful, distinguish "$X extra spending" from "$Y already reserved inside category budgets". Never describe a weekly envelope as unclaimed money.
+- Be human without becoming vague: acknowledge the life they are trying to enjoy, and use one brief motivating sentence when it reinforces a concrete behavior.
+- For quality-of-life requests such as a romantic dinner, trip, gift, or celebration, do not default to "no". Build a safe trade-off from live lower-priority categories and state exactly what to reduce, by how much, and what goal remains protected.
+- For an AUTOMATIC TRANSACTION EVENT, proactively assess the impact even though nobody asked. If risk changed, name the smallest corrective action; if the plan still absorbs it, reassure them with the number that proves it. Never scold.
 - Distinguish actual-to-date, projected month-end, sustainable baseline, and scenario data. Scheduled cash flow is not guaranteed savings.
 - Use the deterministic month projection for this month's expected savings. Never substitute income minus spend-to-date.
 - Do not recommend adding to an emergency fund already above target unless the question explicitly asks about it.
@@ -126,7 +130,7 @@ ${ctx}
 RECENT CONVERSATION:
 ${historyText || '(none)'}
 
-THEIR QUESTION: ${question.content}
+${proactive ? 'AUTOMATIC TRANSACTION EVENT' : 'THEIR QUESTION'}: ${question.content}
 
 Respond with ONLY your reply text — you are not an agent, do not run commands or read files.`
 
@@ -142,7 +146,12 @@ Respond with ONLY your reply text — you are not an agent, do not run commands 
   })
 
   // Best effort: push-notify the phones that Wolff replied
-  spawnSync('node', [join(repoRoot, 'scripts/send-push.mjs'), '🐺 Wolff replied', text.slice(0, 140), '/finance/ask'], { encoding: 'utf8', timeout: 30000 })
+  spawnSync('node', [
+    join(repoRoot, 'scripts/send-push.mjs'),
+    proactive ? '🐺 Wolff noticed a transaction' : '🐺 Wolff replied',
+    text.slice(0, 140),
+    proactive ? '/finance' : '/finance/ask',
+  ], { encoding: 'utf8', timeout: 30000 })
   return text
 }
 
