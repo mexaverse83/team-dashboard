@@ -189,7 +189,7 @@ function EditModal({ record, onSave, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-sm bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="w-full max-w-sm space-y-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 sm:p-6" onClick={e => e.stopPropagation()}>
         <h2 className="font-semibold">Update {record.name}</h2>
         <div className="space-y-3">
           <div>

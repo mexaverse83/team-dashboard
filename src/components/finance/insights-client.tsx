@@ -298,7 +298,7 @@ export default function InsightsClient() {
         {/* Loading skeleton */}
         {loading && (
           <div className="space-y-6">
-            <div className="rounded-xl border border-[hsl(var(--border))] p-6 space-y-3">
+            <div className="space-y-3 rounded-xl border border-[hsl(var(--border))] p-4 sm:p-6">
               <div className="h-3 w-24 bg-[hsl(var(--bg-elevated))] rounded animate-pulse" />
               <div className="h-5 w-3/4 bg-[hsl(var(--bg-elevated))] rounded animate-pulse" />
               <div className="h-3 w-1/2 bg-[hsl(var(--bg-elevated))] rounded animate-pulse" />
@@ -484,7 +484,7 @@ export default function InsightsClient() {
                       <span className="text-base">🏗️</span>
                       <span className="text-sm font-semibold">WEST Apartment</span>
                     </div>
-                    <Link href="/finance/investments" className="text-xs text-blue-600 hover:underline">Full tracker →</Link>
+                    <Link href="/finance/investments" className="inline-flex min-h-10 items-center text-xs text-blue-600 hover:underline">Full tracker →</Link>
                   </div>
                   <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))] mb-2">
                     <div className="h-full bg-emerald-500" style={{ width: `${Math.max(0, westSnapshot.paidPct)}%` }} />

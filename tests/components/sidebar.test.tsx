@@ -18,8 +18,8 @@ describe('Sidebar', () => {
   it('renders all nav links (finance only)', () => {
     render(<Sidebar />)
     const links = screen.getAllByRole('link')
-    // Mobile dock (4 links + More button) + desktop finance (17 links)
-    expect(links.length).toBe(21)
+    // Mobile dock (4 links + More button), mobile quick-add, and desktop finance (17 links)
+    expect(links.length).toBe(22)
   })
 
   it('has correct finance nav hrefs', () => {
@@ -106,6 +106,11 @@ describe('Sidebar', () => {
     expect(topBar).toBeInTheDocument()
     expect(topBar?.querySelector('button')).toBeInTheDocument()
     expect(topBar?.textContent).toContain('Finance')
+  })
+
+  it('keeps new transaction one tap away in the mobile header', () => {
+    render(<Sidebar />)
+    expect(screen.getByRole('link', { name: 'Add transaction' })).toHaveAttribute('href', '/finance/transactions?add=1')
   })
 
   it('mobile bottom bar has four destinations and a More menu', () => {

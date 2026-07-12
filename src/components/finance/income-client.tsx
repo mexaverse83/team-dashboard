@@ -250,7 +250,7 @@ export function IncomeClient() {
       {/* Add/Edit form modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <GlassCard className="w-full max-w-md p-6 space-y-4">
+          <GlassCard className="w-full max-w-md space-y-4 p-4 sm:p-6">
             <h2 className="text-lg font-bold text-[hsl(var(--foreground))]">
               {editing ? 'Edit Income Source' : 'Add Income Source'}
             </h2>

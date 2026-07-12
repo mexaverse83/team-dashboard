@@ -321,7 +321,7 @@ export function CryptoClient() {
 
   if (loading) {
     return (
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="space-y-4 p-0 md:p-6">
         <div className="h-8 w-48 rounded bg-[hsl(var(--accent))] animate-pulse" />
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {[1, 2, 3].map(i => <div key={i} className="h-48 rounded-xl bg-[hsl(var(--accent))] animate-pulse" />)}
@@ -331,7 +331,7 @@ export function CryptoClient() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-5xl">
+    <div className="max-w-5xl space-y-6 p-0 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -722,7 +722,7 @@ export function CryptoClient() {
       {/* Add Position Modal (simplified) */}
       {showHoldingForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto" onClick={() => setShowHoldingForm(false)}>
-          <div className="w-full max-w-md bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
+          <div className="my-auto w-full max-w-md space-y-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 sm:p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{holdingForm.id ? 'Edit Position' : 'Add Position'}</h2>
               <button aria-label="Close" onClick={() => setShowHoldingForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
@@ -776,7 +776,7 @@ export function CryptoClient() {
       {/* Log Transaction Modal */}
       {showTxForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto" onClick={() => setShowTxForm(false)}>
-          <div className="w-full max-w-md bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
+          <div className="my-auto w-full max-w-md space-y-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 sm:p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">Log Transaction</h2>
               <button aria-label="Close" onClick={() => setShowTxForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>

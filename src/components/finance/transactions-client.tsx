@@ -846,7 +846,7 @@ export default function TransactionsClient() {
         open={modalOpen}
         onClose={() => { if (!saving) setModalOpen(false) }}
         title={editingId ? 'Edit transaction' : 'New transaction'}
-        className="h-[100dvh] max-h-[100dvh] rounded-none border-x-0 border-b-0 sm:h-auto sm:max-h-[85vh] sm:max-w-lg sm:rounded-xl sm:border"
+        className="h-[100dvh] max-h-[100dvh] rounded-none border-x-0 border-b-0 pt-[env(safe-area-inset-top)] sm:h-auto sm:max-h-[85vh] sm:max-w-lg sm:rounded-xl sm:border sm:pt-0"
         bodyClassName="overflow-hidden p-3 sm:overflow-y-auto sm:p-4"
         footer={
           <button type="submit" form="tx-form" disabled={saving || !form.amount || !form.category_id || !form.transaction_date}
@@ -857,7 +857,7 @@ export default function TransactionsClient() {
           </button>
         }
       >
-        <form id="tx-form" onSubmit={e => { e.preventDefault(); handleSave() }} className="space-y-2.5 sm:space-y-4" noValidate>
+        <form id="tx-form" onSubmit={e => { e.preventDefault(); handleSave() }} className="mobile-compact-form space-y-2.5 sm:space-y-4" noValidate>
           {saveError && (
             <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{saveError}</div>
           )}
@@ -1131,25 +1131,25 @@ export default function TransactionsClient() {
               <span className="text-xs text-[hsl(var(--text-secondary))]">— {pdfRows.length} transactions found</span>
             </div>
             {/* Preview */}
-            <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
-              <table className="w-full text-xs">
+            <div className="overflow-hidden rounded-lg border border-[hsl(var(--border))]">
+              <table className="w-full table-fixed text-[10px] sm:text-xs">
                 <thead><tr className="bg-[hsl(var(--bg-elevated))]">
-                  <th className="px-2 py-1 text-left">Date</th>
+                  <th className="w-[24%] px-1.5 py-1 text-left">Date</th>
                   <th className="px-2 py-1 text-left">Description</th>
-                  <th className="px-2 py-1 text-right">Amount</th>
-                  <th className="px-2 py-1 text-center">Type</th>
+                  <th className="w-[23%] px-1.5 py-1 text-right">Amount</th>
+                  <th className="w-[16%] px-1 py-1 text-center">Type</th>
                 </tr></thead>
                 <tbody>
                   {pdfRows.slice(0, 8).map((row, i) => (
                     <tr key={i} className="border-t border-[hsl(var(--border))]">
-                      <td className="px-2 py-1">{row.date}</td>
-                      <td className="px-2 py-1 max-w-[200px] truncate">{row.description}</td>
-                      <td className={cn("px-2 py-1 text-right font-mono", row.type === 'expense' ? 'text-rose-600' : 'text-emerald-600')}>
+                      <td className="truncate px-1.5 py-1">{row.date}</td>
+                      <td className="truncate px-2 py-1">{row.description}</td>
+                      <td className={cn("truncate px-1.5 py-1 text-right font-mono", row.type === 'expense' ? 'text-rose-600' : 'text-emerald-600')}>
                         ${row.amount.toLocaleString('en', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-2 py-1 text-center">
-                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", row.type === 'expense' ? 'bg-rose-500/10 text-rose-600' : 'bg-emerald-500/10 text-emerald-600')}>
-                          {row.type === 'expense' ? 'Cargo' : 'Abono'}
+                        <span className={cn("rounded-full px-1 py-0.5 text-[9px]", row.type === 'expense' ? 'bg-rose-500/10 text-rose-600' : 'bg-emerald-500/10 text-emerald-600')}>
+                          {row.type === 'expense' ? 'Out' : 'In'}
                         </span>
                       </td>
                     </tr>
@@ -1194,19 +1194,19 @@ export default function TransactionsClient() {
             {csvRows.length > 0 && columnMap.date && columnMap.amount && (
               <div className="mt-3">
                 <p className="text-xs text-[hsl(var(--text-secondary))] mb-2">Preview (first 5 rows):</p>
-                <div className="overflow-x-auto rounded-lg border border-[hsl(var(--border))]">
-                  <table className="w-full text-xs">
+                <div className="overflow-hidden rounded-lg border border-[hsl(var(--border))]">
+                  <table className="w-full table-fixed text-[10px] sm:text-xs">
                     <thead><tr className="bg-[hsl(var(--bg-elevated))]">
-                      <th className="px-2 py-1 text-left">Date</th>
-                      <th className="px-2 py-1 text-right">Amount</th>
+                      <th className="w-[28%] px-1.5 py-1 text-left">Date</th>
+                      <th className="w-[25%] px-1.5 py-1 text-right">Amount</th>
                       <th className="px-2 py-1 text-left">Description</th>
                     </tr></thead>
                     <tbody>
                       {csvRows.slice(0, 5).map((row, i) => (
                         <tr key={i} className="border-t border-[hsl(var(--border))]">
-                          <td className="px-2 py-1">{row[columnMap.date]}</td>
-                          <td className="px-2 py-1 text-right">{row[columnMap.amount]}</td>
-                          <td className="px-2 py-1">{columnMap.description ? row[columnMap.description] : '—'}</td>
+                          <td className="truncate px-1.5 py-1">{row[columnMap.date]}</td>
+                          <td className="truncate px-1.5 py-1 text-right">{row[columnMap.amount]}</td>
+                          <td className="truncate px-2 py-1">{columnMap.description ? row[columnMap.description] : '—'}</td>
                         </tr>
                       ))}
                     </tbody>

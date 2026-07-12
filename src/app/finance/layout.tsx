@@ -2,7 +2,6 @@
 
 import { usePathname } from 'next/navigation'
 import { FinanceAuthGuard } from '@/components/finance-auth-guard'
-import { AddTransactionFab } from '@/components/finance/add-fab'
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -14,8 +13,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
 
   return (
     <FinanceAuthGuard>
-      <div className="pb-16 md:pb-0">{children}</div>
-      <AddTransactionFab />
+      {children}
     </FinanceAuthGuard>
   )
 }

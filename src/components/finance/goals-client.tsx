@@ -246,7 +246,7 @@ export default function GoalsClient() {
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Saved</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">${totalSaved.toLocaleString()}</p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">${Math.round(totalSaved).toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{overallPct}% of all goals</p>
         </GlassCard>
         <GlassCard>

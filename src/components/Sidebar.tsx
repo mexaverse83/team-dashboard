@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ChevronDown, LayoutGrid, Menu, Search, X } from 'lucide-react'
+import { ChevronDown, LayoutGrid, Menu, Plus, Search, X } from 'lucide-react'
 import { FinanceAuthBadge } from './finance-auth-badge'
 import { BrandLogo } from './brand-logo'
 import {
@@ -79,7 +79,7 @@ export function Sidebar() {
 
   return (
     <>
-      <header className="mobile-masthead fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between px-4 md:hidden">
+      <header className="mobile-masthead fixed inset-x-0 top-0 z-50 flex h-[calc(4rem+env(safe-area-inset-top))] items-center justify-between px-3 pt-[env(safe-area-inset-top)] min-[360px]:px-4 md:hidden">
         <div className="flex min-w-0 items-center gap-3">
           <BrandLogo className="h-9 w-9" />
           <div className="min-w-0">
@@ -87,17 +87,24 @@ export function Sidebar() {
             <span className="block text-[9px] font-medium uppercase tracking-[0.18em] text-white/45">Wolff Finance</span>
           </div>
         </div>
-        <button
-          ref={menuButtonRef}
-          type="button"
-          onClick={toggleMobile}
-          aria-label={mobileOpen ? 'Close finance navigation' : 'Open finance navigation'}
-          aria-expanded={mobileOpen}
-          aria-controls="finance-mobile-menu"
-          className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-white hover:bg-white/10"
-        >
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          {pathname !== '/finance/login' && pathname !== '/finance/transactions' && (
+            <Link href="/finance/transactions?add=1" aria-label="Add transaction" className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-lg shadow-emerald-950/30 active:scale-95">
+              <Plus className="h-5 w-5" strokeWidth={2.5} />
+            </Link>
+          )}
+          <button
+            ref={menuButtonRef}
+            type="button"
+            onClick={toggleMobile}
+            aria-label={mobileOpen ? 'Close finance navigation' : 'Open finance navigation'}
+            aria-expanded={mobileOpen}
+            aria-controls="finance-mobile-menu"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white hover:bg-white/10"
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </header>
 
       {mobileOpen && (
@@ -107,7 +114,7 @@ export function Sidebar() {
             ref={mobileNavRef}
             id="finance-mobile-menu"
             aria-label="Finance navigation"
-            className="app-sidebar absolute inset-x-0 bottom-0 top-16 overflow-y-auto px-5 pb-24 pt-5 shadow-2xl"
+            className="app-sidebar absolute inset-x-0 bottom-0 top-[calc(4rem+env(safe-area-inset-top))] overflow-y-auto px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-5 shadow-2xl min-[360px]:px-5"
             onClick={event => event.stopPropagation()}
           >
             <Link href="/finance/ask" onClick={closeMobile} aria-current={isFinanceRouteActive(pathname, wolffNavItem.href) ? 'page' : undefined} className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-400/25 bg-gradient-to-r from-blue-500/15 to-emerald-500/[0.08] p-3 text-blue-100">
@@ -138,7 +145,7 @@ export function Sidebar() {
         </div>
       )}
 
-      <nav className="mobile-dock fixed inset-x-0 bottom-0 z-50 flex h-[4.25rem] items-center justify-around px-1 pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Quick finance navigation">
+      <nav className="mobile-dock fixed inset-x-0 bottom-0 z-50 flex h-[calc(4.25rem+env(safe-area-inset-bottom))] items-start justify-around px-1 pt-1.5 pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Quick finance navigation">
         {mobileDockItems.map(item => {
           const active = isFinanceRouteActive(pathname, item.href)
           const Icon = item.icon
@@ -148,7 +155,7 @@ export function Sidebar() {
               key={item.href}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={`mobile-dock-link flex min-w-[58px] flex-col items-center gap-1 rounded-xl px-2 py-1.5 ${active ? 'mobile-dock-link-active' : ''} ${wolff ? 'mobile-dock-wolff' : ''}`}
+              className={`mobile-dock-link flex min-w-[56px] flex-col items-center gap-1 rounded-xl px-1.5 py-1.5 min-[360px]:min-w-[58px] min-[360px]:px-2 ${active ? 'mobile-dock-link-active' : ''} ${wolff ? 'mobile-dock-wolff' : ''}`}
             >
               {wolff ? <BrandLogo className="h-7 w-7" /> : <Icon className="h-[18px] w-[18px]" />}
               <span className="text-[9px] font-semibold">{item.shortLabel || item.label}</span>
@@ -161,7 +168,7 @@ export function Sidebar() {
           aria-label="Open all finance tools"
           aria-expanded={mobileOpen}
           aria-controls="finance-mobile-menu"
-          className={`mobile-dock-link flex min-w-[58px] flex-col items-center gap-1 rounded-xl px-2 py-1.5 ${toolRouteActive ? 'mobile-dock-link-active' : ''}`}
+          className={`mobile-dock-link flex min-w-[56px] flex-col items-center gap-1 rounded-xl px-1.5 py-1.5 min-[360px]:min-w-[58px] min-[360px]:px-2 ${toolRouteActive ? 'mobile-dock-link-active' : ''}`}
         >
           <LayoutGrid className="h-[18px] w-[18px]" />
           <span className="text-[9px] font-semibold">More</span>

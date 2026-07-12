@@ -121,15 +121,15 @@ export default function BudgetsClient() {
           <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Budgets</h1>
           <p className="text-[hsl(var(--text-secondary))]">Monthly spending limits by category</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex w-full items-center gap-2 sm:w-auto sm:gap-3">
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-1 sm:flex-none sm:gap-2">
             <button aria-label="Previous month" onClick={prevMonth} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronLeft className="h-4 w-4" /></button>
-            <span className="text-sm font-medium min-w-[140px] text-center">{monthLabel}</span>
+            <span className="min-w-0 flex-1 text-center text-sm font-medium sm:min-w-[140px]">{monthLabel}</span>
             <button aria-label="Next month" onClick={nextMonth} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronRight className="h-4 w-4" /></button>
           </div>
           <button onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
-            <Plus className="h-4 w-4" /> Add Budget
+            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 sm:gap-2 sm:px-4">
+            <Plus className="h-4 w-4" /> <span className="sm:hidden">Add</span><span className="hidden sm:inline">Add Budget</span>
           </button>
         </div>
       </div>
@@ -142,7 +142,8 @@ export default function BudgetsClient() {
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Spent</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold mt-1">${totalSpent.toLocaleString()} <span className="text-lg text-[hsl(var(--text-tertiary))]">({overallPct}%)</span></p>
+          <p className="num-metric text-2xl sm:text-3xl font-bold mt-1">${Math.round(totalSpent).toLocaleString()}</p>
+          <p className="mt-1 text-xs text-[hsl(var(--text-tertiary))]">{overallPct}% of budget</p>
         </GlassCard>
       </div>
 

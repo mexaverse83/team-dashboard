@@ -63,6 +63,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  min-height: 100dvh;
 }
 
 /* Ambient depth — two faint brand washes anchored to the viewport so the
@@ -343,6 +344,53 @@ input, textarea, select {
 @media (max-width: 639px) {
   .wealth-hero { border-radius: 1.25rem; }
   .glass { border-radius: 1rem; }
+}
+
+/* Mobile interaction contract: page controls use a consistent finger-sized
+   target while the one-screen transaction form opts into its compact density. */
+@media (max-width: 767px) {
+  .finance-app main button {
+    min-width: 40px;
+    min-height: 40px;
+    touch-action: manipulation;
+  }
+  .finance-app main input:not([type='checkbox']):not([type='radio']),
+  .finance-app main select {
+    min-height: 40px;
+    max-width: 100%;
+  }
+  .finance-app main .mobile-compact-form button {
+    min-width: 0;
+    min-height: 0;
+  }
+  .finance-app main h1 {
+    overflow-wrap: anywhere;
+    line-height: 1.2;
+  }
+  .finance-app main {
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* 320–359px phones need slightly tighter cards and metrics. The information
+   hierarchy stays intact without forcing one-column KPI stacks. */
+@media (max-width: 359px) {
+  .finance-app main .glass {
+    padding: 0.875rem;
+  }
+  .finance-app main .grid-cols-2 {
+    column-gap: 0.75rem;
+    row-gap: 0.75rem;
+  }
+  .finance-app main .grid-cols-2 .num-metric {
+    font-size: 1.25rem;
+    line-height: 1.5rem;
+    overflow-wrap: anywhere;
+  }
+  .finance-app main .grid-cols-2 .text-lg {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
 }
 
 /* Respect OS-level reduced-motion: collapse entrance/pulse/glow animations and

@@ -83,7 +83,7 @@ export default function AskWolffClient() {
   const visibleMessages = messages.filter(m => !(m.role === 'user' && monitorIds.has(m.id)))
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-[560px] max-w-2xl flex-col md:h-[calc(100vh-4rem)]">
+    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-96 max-w-2xl flex-col md:h-[calc(100vh-4rem)] md:min-h-[560px]">
       <div className="mb-4 flex items-center gap-3">
         <BrandLogo className="h-11 w-11 drop-shadow-sm" />
         <div>

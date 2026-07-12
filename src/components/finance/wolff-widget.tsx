@@ -124,7 +124,7 @@ export function WolffWidget() {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="hidden sm:inline"><PushToggle /></span>
-            <Link href="/finance/ask" className="inline-flex items-center gap-1.5 rounded-xl bg-blue-500 px-3 py-2.5 text-xs font-semibold text-white shadow-lg shadow-blue-950/40 hover:bg-blue-400">
+            <Link href="/finance/ask" aria-label="Talk to Wolff" className="inline-flex h-10 w-10 items-center justify-center gap-1.5 rounded-xl bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-950/40 hover:bg-blue-400 sm:h-auto sm:w-auto sm:px-3 sm:py-2.5">
               <MessageCircle className="h-3.5 w-3.5" /><span className="hidden sm:inline">Talk to Wolff</span>
             </Link>
           </div>

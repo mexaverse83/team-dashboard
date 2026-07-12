@@ -430,7 +430,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
 
   if (loading) {
     return (
-      <div className="p-4 md:p-6 space-y-4">
+      <div className="space-y-4 p-0 md:p-6">
         <div className="h-8 w-48 rounded bg-[hsl(var(--accent))] animate-pulse" />
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {[1, 2, 3, 4].map(i => <div key={i} className="h-48 rounded-xl bg-[hsl(var(--accent))] animate-pulse" />)}
@@ -440,7 +440,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-6xl">
+    <div className="max-w-6xl space-y-6 p-0 md:p-6">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -451,11 +451,11 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-1 border-b border-[hsl(var(--border))] overflow-x-auto">
+      <div className="grid grid-cols-3 gap-1 rounded-xl bg-[hsl(var(--bg-elevated))] p-1 sm:flex sm:rounded-none sm:border-b sm:border-[hsl(var(--border))] sm:bg-transparent sm:p-0">
         {TABS.map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={cn(
-              "px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors relative",
+              "relative rounded-lg px-2 py-2.5 text-xs font-medium transition-colors sm:rounded-none sm:px-4 sm:text-sm sm:whitespace-nowrap",
               activeTab === tab
                 ? "text-[hsl(var(--foreground))]"
                 : "text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]"
@@ -1044,7 +1044,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {/* ═══════════ STOCK FORM MODAL ═══════════ */}
       {showStockForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto" onClick={() => setShowStockForm(false)}>
-          <div className="w-full max-w-md bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
+          <div className="my-auto w-full max-w-md space-y-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 sm:p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{stockForm.id ? 'Edit Stock' : 'Add Stock'}</h2>
               <button aria-label="Close" onClick={() => setShowStockForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
@@ -1129,7 +1129,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {/* ═══════════ FIXED INCOME FORM MODAL ═══════════ */}
       {showFIForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto" onClick={() => setShowFIForm(false)}>
-          <div className="w-full max-w-md bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
+          <div className="my-auto w-full max-w-md space-y-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 sm:p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{fiForm.id ? 'Edit Instrument' : 'Add Instrument'}</h2>
               <button aria-label="Close" onClick={() => setShowFIForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>
@@ -1261,7 +1261,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
         const total = fiGroupEditData.allMembers.reduce((s, m) => s + (parseFloat(fiGroupSlices[m.id]) || 0), 0)
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowFIGroupEdit(false)}>
-            <div className="w-full max-w-sm bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
+            <div className="w-full max-w-sm space-y-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 sm:p-6" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-semibold text-sm">Edit Ownership Split</h2>
@@ -1329,7 +1329,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
         const newPrincipal = currentPrincipal + amount
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowAddFunds(false)}>
-            <div className="w-full max-w-sm bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
+            <div className="w-full max-w-sm space-y-5 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 sm:p-6" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-semibold text-sm">Add Funds</h2>
@@ -1412,7 +1412,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {/* ═══════════ REAL ESTATE FORM MODAL ═══════════ */}
       {showREForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto" onClick={() => setShowREForm(false)}>
-          <div className="w-full max-w-md bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-2xl p-6 space-y-4 my-auto" onClick={e => e.stopPropagation()}>
+          <div className="my-auto w-full max-w-md space-y-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 sm:p-6" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h2 className="font-semibold">{reForm.id ? 'Edit Property' : 'Add Property'}</h2>
               <button aria-label="Close" onClick={() => setShowREForm(false)} className="p-1 rounded-md hover:bg-[hsl(var(--accent))]"><X className="h-4 w-4" /></button>

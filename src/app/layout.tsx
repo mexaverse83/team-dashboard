@@ -54,7 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <CommandPalette />
         <div className="flex min-h-screen min-w-0">
           <Sidebar />
-          <main className="min-h-screen min-w-0 flex-1 overflow-x-hidden px-4 pb-24 pt-20 sm:px-5 md:p-7 lg:p-9 xl:p-10">
+          <main className="min-h-screen min-w-0 flex-1 overflow-x-hidden px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))] min-[360px]:px-4 sm:px-5 md:p-7 lg:p-9 xl:p-10">
             <div className="mx-auto w-full max-w-[1560px]">
               {children}
             </div>
