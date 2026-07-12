@@ -1,35 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  /* Foundations — "Casa WEST": Mexican-modernism light. Warm plaster-cream
-     page (never clinical white), warm ink text, white cards with warm
-     afternoon shadows. Accent language of Barragán architecture: emerald
-     (money/brand — Wolff), cobalt (information), marigold (caution),
-     rosa mexicano (over budget / danger). */
-  --background: 36 36% 96%;
-  --foreground: 26 24% 13%;
-  --card: 40 45% 99%;
-  --card-foreground: 26 24% 13%;
-  --popover: 40 45% 99%;
-  --popover-foreground: 26 24% 13%;
-  --primary: 26 24% 13%;
-  --primary-foreground: 40 45% 99%;
-  --secondary: 35 28% 91%;
-  --secondary-foreground: 26 24% 13%;
-  --muted: 35 28% 91%;
-  --muted-foreground: 28 12% 40%;
-  --accent: 35 30% 90%;
-  --accent-foreground: 26 24% 13%;
-  --destructive: 335 80% 42%;
+  /* Wolff Private Wealth — warm mineral canvas, evergreen ink and restrained
+     brass. Colour carries meaning; surface and typography carry hierarchy. */
+  --background: 42 30% 96%;
+  --foreground: 164 25% 12%;
+  --card: 44 38% 99%;
+  --card-foreground: 164 25% 12%;
+  --popover: 44 38% 99%;
+  --popover-foreground: 164 25% 12%;
+  --primary: 160 57% 22%;
+  --primary-foreground: 44 42% 98%;
+  --secondary: 42 23% 91%;
+  --secondary-foreground: 164 25% 15%;
+  --muted: 42 24% 92%;
+  --muted-foreground: 34 10% 39%;
+  --accent: 42 27% 90%;
+  --accent-foreground: 164 25% 15%;
+  --destructive: 348 68% 43%;
   --destructive-foreground: 0 0% 100%;
-  --border: 33 24% 84%;
-  --input: 33 24% 84%;
-  --ring: 160 84% 30%;
-  --radius: 0.625rem;
+  --border: 38 21% 83%;
+  --input: 38 21% 80%;
+  --ring: 159 64% 30%;
+  --radius: 0.875rem;
 
   /* Brand — emerald is the identity (Wolff); cobalt is informational */
-  --brand: 160 84% 30%;
-  --brand-glow: 168 76% 34%;
+  --brand: 159 67% 27%;
+  --brand-glow: 160 60% 32%;
+  --brass: 40 54% 52%;
 
   /* Semantic — Barragán accents, AA on warm paper */
   --success: 156 72% 28%;
@@ -38,19 +36,19 @@
   --info: 225 75% 45%;
 
   /* Text — warm ink; secondary/tertiary clear WCAG AA at small sizes */
-  --text-primary: 26 24% 13%;
-  --text-secondary: 28 14% 36%;
-  --text-tertiary: 28 11% 45%;
+  --text-primary: 164 25% 12%;
+  --text-secondary: 35 12% 35%;
+  --text-tertiary: 34 9% 47%;
 
   /* Elevation ladder — raised surfaces step toward warm white; insets step
      toward plaster */
-  --bg-base: 36 36% 96%;        /* page background tier */
-  --bg-surface: 40 45% 99%;     /* cards / panels */
-  --bg-elevated: 34 26% 89%;    /* raised insets: progress tracks, hover, chips */
-  --border-subtle: 34 22% 90%;  /* fainter divider than --border */
+  --bg-base: 42 30% 96%;
+  --bg-surface: 44 38% 99%;
+  --bg-elevated: 41 24% 90%;
+  --border-subtle: 40 20% 89%;
 
   /* Elevation shadow token — warm afternoon light, no cold gray */
-  --shadow-elevate: 0 1px 2px hsl(28 45% 40% / 0.09), 0 10px 28px -14px hsl(24 50% 35% / 0.16);
+  --shadow-elevate: 0 1px 2px hsl(34 25% 25% / 0.06), 0 18px 48px -28px hsl(155 28% 12% / 0.24);
 
   /* Chart system — Barragán palette, darkened for contrast on warm paper */
   --chart-1: 160 84% 29%;  /* emerald   — primary series / inflow   */
@@ -71,6 +69,7 @@ body {
   font-family: var(--font-inter, 'Inter'), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 /* Ambient depth — two faint brand washes anchored to the viewport so the
@@ -82,15 +81,16 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(55% 45% at 90% -12%, hsl(160 65% 42% / 0.07), transparent 65%),
-    radial-gradient(45% 42% at -8% 20%, hsl(36 90% 55% / 0.07), transparent 60%),
-    radial-gradient(35% 35% at 100% 85%, hsl(335 70% 55% / 0.045), transparent 55%);
+    radial-gradient(60% 46% at 88% -10%, hsl(158 48% 38% / 0.08), transparent 66%),
+    radial-gradient(44% 38% at 0% 35%, hsl(40 65% 55% / 0.075), transparent 65%),
+    linear-gradient(hsl(42 30% 96% / 0.78), hsl(42 30% 96% / 0.94)),
+    repeating-linear-gradient(90deg, hsl(160 20% 20% / 0.018) 0 1px, transparent 1px 72px);
 }
 
 /* Headings and metric numerals speak in the display face */
 h1, h2, h3 {
   font-family: var(--font-display, var(--font-inter, 'Inter')), system-ui, sans-serif;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.025em;
 }
 
 /* Metric numerals — big money values share one treatment */
@@ -103,7 +103,7 @@ h1, h2, h3 {
 /* Finance identity — emerald→teal gradient for hero numbers (dark shades
    for contrast on light surfaces) */
 .text-hero-gradient {
-  background: linear-gradient(120deg, hsl(160 84% 27%) 0%, hsl(187 75% 29%) 55%, hsl(225 75% 42%) 110%);
+  background: linear-gradient(120deg, hsl(160 67% 25%) 0%, hsl(184 55% 29%) 58%, hsl(214 58% 38%) 115%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -116,7 +116,7 @@ h1, h2, h3 {
   width: 4px;
   height: 0.9em;
   border-radius: 9999px;
-  background: linear-gradient(180deg, hsl(335 78% 48%), hsl(36 95% 48%));
+  background: linear-gradient(180deg, hsl(var(--brand)), hsl(var(--brass)));
   flex-shrink: 0;
 }
 
@@ -216,11 +216,120 @@ select option:hover {
    hairline border. The old dark glass treatment is gone; depth comes from
    shadow, not translucency. */
 .glass {
-  background: hsl(40 45% 99% / 0.94);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border: 1px solid hsl(33 26% 86%);
+  background: linear-gradient(145deg, hsl(44 45% 99% / 0.98), hsl(40 30% 98% / 0.94));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid hsl(38 22% 84% / 0.9);
   box-shadow: var(--shadow-elevate);
+}
+
+.glass:hover {
+  border-color: hsl(158 30% 68% / 0.75);
+  box-shadow: 0 2px 4px hsl(34 25% 25% / 0.05), 0 22px 54px -30px hsl(155 30% 11% / 0.3);
+}
+
+.finance-card { border-radius: 1rem; }
+
+/* Product shell --------------------------------------------------------- */
+.app-sidebar {
+  color: hsl(42 26% 92%);
+  background:
+    radial-gradient(90% 35% at 10% 0%, hsl(158 45% 28% / 0.46), transparent 72%),
+    linear-gradient(165deg, hsl(162 38% 17%), hsl(164 42% 10%) 74%);
+  border-right: 1px solid hsl(157 30% 36% / 0.25);
+  box-shadow: 18px 0 60px -46px hsl(164 55% 5% / 0.8);
+}
+
+.brand-mark {
+  position: relative;
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border: 1px solid hsl(42 45% 74% / 0.42);
+  border-radius: 0.8rem;
+  background: linear-gradient(145deg, hsl(41 40% 96%), hsl(40 42% 82%));
+  box-shadow: 0 10px 28px -14px hsl(40 60% 12% / 0.8), inset 0 1px 0 white;
+  color: hsl(161 47% 18%);
+  font-family: var(--font-display), sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.08em;
+}
+
+.brand-mark i {
+  position: absolute;
+  right: 0.38rem;
+  bottom: 0.38rem;
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: hsl(var(--brand));
+  box-shadow: 0 0 0 2px hsl(40 42% 86%);
+}
+
+.brand-mark-mobile { width: 2.25rem; height: 2.25rem; border-radius: 0.72rem; }
+.mobile-masthead {
+  background: hsl(163 40% 13% / 0.96);
+  border-bottom: 1px solid hsl(42 35% 70% / 0.16);
+  box-shadow: 0 12px 30px -22px hsl(164 60% 4% / 0.85);
+  backdrop-filter: blur(18px);
+}
+.sidebar-search {
+  color: hsl(42 20% 82% / 0.56);
+  background: hsl(42 30% 95% / 0.055);
+  border: 1px solid hsl(42 35% 85% / 0.1);
+}
+.sidebar-search:hover { color: hsl(42 25% 92%); border-color: hsl(42 35% 85% / 0.24); background: hsl(42 30% 95% / 0.08); }
+.sidebar-group-label { color: hsl(40 30% 75% / 0.5); }
+.sidebar-link { color: hsl(42 22% 89% / 0.67); transition: color .16s ease, background-color .16s ease, transform .16s ease; }
+.sidebar-link:hover { color: white; background: hsl(42 30% 95% / 0.075); transform: translateX(2px); }
+.sidebar-link svg { color: hsl(41 28% 75% / 0.64); }
+.sidebar-link-active { color: hsl(42 45% 96%); background: linear-gradient(90deg, hsl(159 43% 44% / 0.26), hsl(42 38% 94% / 0.07)); box-shadow: inset 2px 0 hsl(41 51% 64%); }
+.sidebar-link-active svg { color: hsl(41 55% 72%); }
+.sidebar-footer > div:first-child { color: hsl(42 22% 90% / 0.7); }
+
+.mobile-dock {
+  background: hsl(44 40% 99% / 0.94);
+  border-top: 1px solid hsl(var(--border) / 0.85);
+  box-shadow: 0 -14px 35px -26px hsl(160 30% 10% / 0.55);
+  backdrop-filter: blur(18px);
+}
+.mobile-dock-link { color: hsl(var(--text-tertiary)); }
+.mobile-dock-link-active { color: hsl(var(--brand)); background: hsl(var(--brand) / 0.08); }
+
+/* Overview hero --------------------------------------------------------- */
+.wealth-hero {
+  color: hsl(42 35% 96%);
+  background:
+    linear-gradient(118deg, hsl(162 40% 14%), hsl(159 43% 20%) 52%, hsl(156 35% 24%));
+  border: 1px solid hsl(41 48% 70% / 0.24);
+  box-shadow: 0 26px 70px -38px hsl(160 50% 6% / 0.75), inset 0 1px hsl(42 40% 95% / 0.08);
+}
+.wealth-hero-orbit {
+  background:
+    radial-gradient(55% 150% at 96% 0%, hsl(41 64% 65% / 0.16), transparent 62%),
+    radial-gradient(35% 90% at 5% 105%, hsl(163 70% 48% / 0.12), transparent 70%),
+    repeating-linear-gradient(105deg, transparent 0 62px, hsl(42 40% 95% / 0.022) 63px 64px);
+}
+.wealth-hero .text-hero-gradient {
+  background: linear-gradient(115deg, hsl(42 55% 95%), hsl(40 55% 74%) 85%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.wealth-hero .text-\[hsl\(var\(--text-secondary\)\)\] { color: hsl(42 25% 88% / 0.72); }
+.wealth-hero .text-\[hsl\(var\(--text-tertiary\)\)\] { color: hsl(42 20% 84% / 0.52); }
+.wealth-hero .bg-emerald-600 { background: hsl(41 48% 86%); color: hsl(161 43% 15%); box-shadow: 0 12px 26px -14px hsl(40 65% 8% / 0.8); }
+.wealth-hero .bg-emerald-600:hover { background: hsl(41 55% 92%); }
+.wealth-hero .bg-\[hsl\(var\(--bg-elevated\)\)\] { background: hsl(42 20% 95% / 0.14); }
+
+input, textarea, select {
+  border-radius: 0.75rem;
+}
+
+@media (max-width: 639px) {
+  .wealth-hero { border-radius: 1.25rem; }
+  .glass { border-radius: 1rem; }
 }
 
 /* Respect OS-level reduced-motion: collapse entrance/pulse/glow animations and

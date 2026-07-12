@@ -39,7 +39,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport = {
-  themeColor: '#f7fafb',
+  themeColor: '#12352d',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover' as const,
@@ -48,25 +48,15 @@ export const viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
-      <body className="min-h-screen">
+      <body className="finance-app min-h-screen">
         <PwaRegister />
         <CommandPalette />
-        {/* Mobile top bar */}
-        <header className="md:hidden sticky top-0 z-50 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/95 backdrop-blur-sm">
-          <div className="flex items-center justify-center px-4 h-12">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500">
-                <span className="text-xs">💰</span>
-              </div>
-              <span className="font-semibold text-sm">Finance</span>
-            </div>
-          </div>
-        </header>
-
-        <div className="flex">
+        <div className="flex min-h-screen min-w-0">
           <Sidebar />
-          <main className="flex-1 p-4 pt-16 pb-20 md:pt-6 md:pb-6 md:p-6 lg:p-8 overflow-auto min-h-screen">
-            {children}
+          <main className="min-h-screen min-w-0 flex-1 overflow-x-hidden px-4 pb-24 pt-20 sm:px-5 md:p-7 lg:p-9 xl:p-10">
+            <div className="mx-auto w-full max-w-[1560px]">
+              {children}
+            </div>
           </main>
         </div>
       </body>

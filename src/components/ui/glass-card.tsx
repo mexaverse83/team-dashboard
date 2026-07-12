@@ -10,7 +10,7 @@ interface GlassCardProps {
 export function GlassCard({ children, className = '', glowColor, onClick }: GlassCardProps) {
   return (
     <div
-      className={`glass rounded-xl p-4 ${className}`}
+      className={`glass rounded-2xl p-4 sm:p-5 ${className}`}
       onClick={onClick}
       style={glowColor ? {
         '--glow-color': glowColor,

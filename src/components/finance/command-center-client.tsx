@@ -149,8 +149,8 @@ export default function CommandCenterClient() {
         {/* ── Hero: the monthly answer ─────────────────────
             Leads with the one number that matters (net this month) instead of
             a uniform card grid; the status banner is its subline. */}
-        <div className="relative overflow-hidden rounded-2xl border border-[hsl(33,26%,85%)] bg-gradient-to-br from-[hsl(160,45%,96%)] via-[hsl(40,45%,99%)] to-[hsl(36,70%,95%)] p-5 sm:p-7 shadow-[var(--shadow-elevate)]">
-          <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(50% 90% at 95% 0%, hsl(160 70% 42% / 0.10), transparent 60%)' }} />
+        <div className="wealth-hero relative overflow-hidden rounded-[1.5rem] p-5 sm:p-7 lg:p-8">
+          <div className="wealth-hero-orbit absolute inset-0 pointer-events-none" />
           <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--text-secondary))]">
@@ -190,7 +190,7 @@ export default function CommandCenterClient() {
                   statusBanner.tone === 'info' && 'text-[hsl(var(--text-secondary))]',
                 )}>
                   <Activity className="h-4 w-4 shrink-0" />
-                  {statusBanner.msg}
+                  <span className="min-w-0">{statusBanner.msg}</span>
                 </p>
               )}
             </div>
@@ -241,7 +241,7 @@ export default function CommandCenterClient() {
         <MonthProjectionCard projection={summary?.month_projection} />
 
         {/* ── GLANCE: KPI strip ──────────────────────────── */}
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {netWorth ? (
             <KpiCard
               icon={Landmark}
