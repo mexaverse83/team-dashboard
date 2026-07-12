@@ -18,8 +18,8 @@ vi.mock('next/navigation', () => ({
 describe('Root Layout', () => {
   it('renders sidebar with Finance branding', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    // Mobile header + sidebar logo/top bar all say "Finance"
-    expect(screen.getAllByText('Finance').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('Finance')).toBeInTheDocument()
+    expect(screen.getByText('Wolff Finance')).toBeInTheDocument()
     expect(screen.getByText('Personal Finance')).toBeInTheDocument()
   })
 

@@ -260,6 +260,18 @@ select option:hover {
 }
 .mobile-dock-link { color: hsl(var(--text-tertiary)); }
 .mobile-dock-link-active { color: hsl(var(--brand)); background: hsl(var(--brand) / 0.08); }
+.mobile-dock-wolff {
+  transform: translateY(-7px);
+  color: hsl(211 94% 76%);
+  background: linear-gradient(145deg, hsl(211 85% 24% / 0.96), hsl(223 48% 13% / 0.98));
+  border: 1px solid hsl(211 92% 64% / 0.3);
+  box-shadow: 0 10px 26px -14px hsl(211 95% 55% / 0.7);
+}
+.mobile-dock-wolff:hover { transform: translateY(-8px); }
+.mobile-dock-wolff.mobile-dock-link-active {
+  color: white;
+  background: linear-gradient(145deg, hsl(211 88% 30%), hsl(158 52% 18%));
+}
 
 /* Overview hero --------------------------------------------------------- */
 .wealth-hero {

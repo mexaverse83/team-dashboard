@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { Sidebar } from '@/components/sidebar'
 
 // Mock next/navigation
@@ -18,8 +18,8 @@ describe('Sidebar', () => {
   it('renders all nav links (finance only)', () => {
     render(<Sidebar />)
     const links = screen.getAllByRole('link')
-    // Mobile bottom (5) + desktop finance (17: 7 track + 5 plan + 5 analyze) = 21
-    expect(links.length).toBe(22)
+    // Mobile dock (4 links + More button) + desktop finance (17 links)
+    expect(links.length).toBe(21)
   })
 
   it('has correct finance nav hrefs', () => {
@@ -57,7 +57,7 @@ describe('Sidebar', () => {
     expect(screen.getAllByText('Transactions').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('MSI Tracker').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Debt Planner').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Audit').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Spending Audit').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Auto Rules').length).toBeGreaterThanOrEqual(1)
   })
 
@@ -71,15 +71,18 @@ describe('Sidebar', () => {
 
   it('shows finance section group labels', () => {
     render(<Sidebar />)
-    expect(screen.getAllByText('Track').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Plan').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Analyze').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Daily').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Money').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Goals').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Cash flow').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Commitments').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Analysis & automation').length).toBeGreaterThanOrEqual(1)
   })
 
   it('shows Finance branding (no agent team name)', () => {
     render(<Sidebar />)
-    // Desktop logo + mobile top bar both say "Finance"
-    expect(screen.getAllByText('Finance').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText('Finance')).toBeInTheDocument()
+    expect(screen.getByText('Wolff Finance')).toBeInTheDocument()
     expect(screen.getByText('Personal Finance')).toBeInTheDocument()
     expect(screen.queryByText('Interstellar Squad')).not.toBeInTheDocument()
     expect(screen.queryByText('Squad Dashboard')).not.toBeInTheDocument()
@@ -87,7 +90,7 @@ describe('Sidebar', () => {
 
   it('shows version', () => {
     render(<Sidebar />)
-    expect(screen.getByText('v2.0 · Nexaminds')).toBeInTheDocument()
+    expect(screen.getByText('v2.1 · Wolff Finance')).toBeInTheDocument()
   })
 
   it('shows connection indicator', () => {
@@ -105,10 +108,26 @@ describe('Sidebar', () => {
     expect(topBar?.textContent).toContain('Finance')
   })
 
-  it('mobile bottom bar has 5 quick-access links', () => {
+  it('mobile bottom bar has four destinations and a More menu', () => {
     const { container } = render(<Sidebar />)
     const navs = container.querySelectorAll('nav')
     const bottomNav = Array.from(navs).find(n => n.className.includes('bottom-0'))
-    expect(bottomNav?.querySelectorAll('a').length).toBe(5)
+    expect(bottomNav?.querySelectorAll('a').length).toBe(4)
+    expect(bottomNav?.querySelector('button')?.textContent).toContain('More')
+  })
+
+  it('marks the current destination for assistive technology', () => {
+    render(<Sidebar />)
+    const overviewLinks = screen.getAllByRole('link', { name: 'Overview' })
+    expect(overviewLinks.every(link => link.getAttribute('aria-current') === 'page')).toBe(true)
+  })
+
+  it('opens every specialist tool from the mobile More menu', () => {
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open all finance tools' }))
+    expect(screen.getByRole('navigation', { name: 'Finance navigation' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Income' }).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByRole('link', { name: 'MSI Tracker' }).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByRole('link', { name: 'Spending Audit' }).length).toBeGreaterThanOrEqual(1)
   })
 })

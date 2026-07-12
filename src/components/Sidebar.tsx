@@ -1,212 +1,216 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Wallet, ArrowLeftRight, PiggyBank, RefreshCw, FileBarChart, Menu, X, Calculator, Search, Search as SearchIcon, Landmark, ShieldCheck, Target, CreditCard, Sparkles, TrendingUp, Banknote, Wand2, Bitcoin, MessageCircle } from 'lucide-react'
+import { ChevronDown, LayoutGrid, Menu, Search, X } from 'lucide-react'
 import { FinanceAuthBadge } from './finance-auth-badge'
 import { BrandLogo } from './brand-logo'
+import {
+  currentFinanceNavItem,
+  financeToolSections,
+  isFinanceRouteActive,
+  primaryFinanceSections,
+  wolffNavItem,
+  type FinanceNavItem,
+} from '@/lib/finance-navigation'
 
-const financeTrack = [
-  { href: '/finance', icon: Wallet, label: 'Overview' },
-  { href: '/finance/transactions', icon: ArrowLeftRight, label: 'Transactions' },
-  { href: '/finance/budgets', icon: PiggyBank, label: 'Budgets' },
-  { href: '/finance/subscriptions', icon: RefreshCw, label: 'Subscriptions' },
-  { href: '/finance/income', icon: Banknote, label: 'Income' },
-  { href: '/finance/investments', icon: TrendingUp, label: 'Investments' },
-  { href: '/finance/crypto', icon: Bitcoin, label: 'Crypto' },
+const mobileDockItems = [
+  primaryFinanceSections[0].items[0],
+  primaryFinanceSections[1].items[0],
+  wolffNavItem,
+  primaryFinanceSections[2].items[0],
 ]
+const WolffIcon = wolffNavItem.icon
 
-const financePlan = [
-  { href: '/finance/budget-builder', icon: Calculator, label: 'Budget Builder' },
-  { href: '/finance/installments', icon: CreditCard, label: 'MSI Tracker' },
-  { href: '/finance/debt', icon: Landmark, label: 'Debt Planner' },
-  { href: '/finance/emergency-fund', icon: ShieldCheck, label: 'Emergency Fund' },
-  { href: '/finance/goals', icon: Target, label: 'Goals' },
-]
-
-const financeAnalyze = [
-  { href: '/finance/ask', icon: MessageCircle, label: 'Ask Wolff' },
-  { href: '/finance/insights', icon: Sparkles, label: 'Insights' },
-  { href: '/finance/audit', icon: Search, label: 'Audit' },
-  { href: '/finance/reports', icon: FileBarChart, label: 'Reports' },
-  { href: '/finance/rules', icon: Wand2, label: 'Auto Rules' },
-]
-
-const allNavGroups = [
-  { label: 'Track', items: financeTrack },
-  { label: 'Plan', items: financePlan },
-  { label: 'Analyze', items: financeAnalyze },
-]
-
-const primaryHrefs = new Set([
-  '/finance', '/finance/transactions', '/finance/budgets',
-  '/finance/investments', '/finance/goals', '/finance/ask', '/finance/insights',
-])
-
-const navGroups = allNavGroups.map(group => ({
-  ...group,
-  items: group.items.filter(item => primaryHrefs.has(item.href) && item.href !== '/finance/ask'),
-}))
-
-const moreFinance = allNavGroups.flatMap(group => group.items).filter(item => !primaryHrefs.has(item.href))
-
-const mobileQuickAccess = [
-  { href: '/finance', icon: Wallet, label: 'Overview' },
-  { href: '/finance/transactions', icon: ArrowLeftRight, label: 'Txns' },
-  { href: '/finance/budgets', icon: PiggyBank, label: 'Budgets' },
-  { href: '/finance/ask', icon: MessageCircle, label: 'Wolff' },
-  { href: '/finance/insights', icon: Sparkles, label: 'Insights' },
-]
+function NavLink({ item, pathname, onNavigate, compact = false }: {
+  item: FinanceNavItem
+  pathname: string
+  onNavigate?: () => void
+  compact?: boolean
+}) {
+  const active = isFinanceRouteActive(pathname, item.href)
+  const Icon = item.icon
+  return (
+    <Link
+      href={item.href}
+      onClick={onNavigate}
+      aria-current={active ? 'page' : undefined}
+      className={`sidebar-link flex items-center gap-3 rounded-xl px-3 ${compact ? 'py-[7px]' : 'py-2.5'} text-sm ${active ? 'sidebar-link-active' : ''}`}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className={compact ? 'text-[12px] font-medium' : ''}>{item.label}</span>
+    </Link>
+  )
+}
 
 export function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = usePathname()
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const mobileNavRef = useRef<HTMLElement>(null)
+  const currentItem = currentFinanceNavItem(pathname)
+  const toolRouteActive = financeToolSections.some(section => section.items.some(item => isFinanceRouteActive(pathname, item.href)))
 
-  const isActive = (href: string) =>
-    href === '/finance' ? pathname === '/finance' : pathname.startsWith(href)
+  const closeMobile = useCallback(() => setMobileOpen(false), [])
+  const toggleMobile = () => setMobileOpen(open => !open)
+
+  useEffect(() => {
+    if (!mobileOpen) return
+    const previousOverflow = document.documentElement.style.overflow
+    document.documentElement.style.overflow = 'hidden'
+    const main = document.querySelector('main')
+    main?.setAttribute('inert', '')
+    const focusFrame = window.requestAnimationFrame(() => mobileNavRef.current?.querySelector<HTMLElement>('a')?.focus())
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeMobile()
+        menuButtonRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.documentElement.style.overflow = previousOverflow
+      main?.removeAttribute('inert')
+      window.cancelAnimationFrame(focusFrame)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [closeMobile, mobileOpen])
 
   return (
     <>
-    {/* Mobile: top bar with hamburger */}
-    <header className="mobile-masthead md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between h-16 px-4">
-      <div className="flex items-center gap-3">
-        <BrandLogo className="h-9 w-9" />
-        <div>
-          <span className="block text-sm font-semibold tracking-tight text-white">Finance</span>
-          <span className="block text-[9px] font-medium uppercase tracking-[0.18em] text-white/50">Private wealth</span>
+      <header className="mobile-masthead fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between px-4 md:hidden">
+        <div className="flex min-w-0 items-center gap-3">
+          <BrandLogo className="h-9 w-9" />
+          <div className="min-w-0">
+            <span className="block truncate text-sm font-semibold tracking-tight text-white">{currentItem?.label || 'Finance'}</span>
+            <span className="block text-[9px] font-medium uppercase tracking-[0.18em] text-white/45">Wolff Finance</span>
+          </div>
         </div>
-      </div>
-      <button onClick={() => setMobileOpen(!mobileOpen)} aria-label="Toggle navigation" className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-white hover:bg-white/10">
-        {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-      </button>
-    </header>
+        <button
+          ref={menuButtonRef}
+          type="button"
+          onClick={toggleMobile}
+          aria-label={mobileOpen ? 'Close finance navigation' : 'Open finance navigation'}
+          aria-expanded={mobileOpen}
+          aria-controls="finance-mobile-menu"
+          className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-white hover:bg-white/10"
+        >
+          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </header>
 
-    {/* Mobile: slide-out nav overlay */}
-    {mobileOpen && (
-      <div className="md:hidden fixed inset-0 z-40" onClick={() => setMobileOpen(false)}>
-        <div className="absolute inset-0 bg-[#050914]/80 backdrop-blur-sm" />
-        <nav className="app-sidebar absolute top-16 right-0 bottom-0 w-[min(84vw,320px)] overflow-y-auto p-5 space-y-1 shadow-2xl"
-          onClick={e => e.stopPropagation()}>
-          <Link href="/finance/ask" onClick={() => setMobileOpen(false)} className="mb-4 flex items-center gap-3 rounded-2xl border border-blue-400/20 bg-blue-500/10 p-3 text-blue-100">
-            <BrandLogo className="h-9 w-9" />
-            <div><span className="block text-sm font-semibold">Talk to Wolff</span><span className="text-[10px] text-blue-200/60">Your daily financial copilot</span></div>
-            <MessageCircle className="ml-auto h-4 w-4" />
-          </Link>
-          {navGroups.map((group, i) => (
-            <div key={group.label} className={i > 0 ? 'pt-3 mt-3 border-t border-[hsl(var(--border))]' : ''}>
-              <span className="sidebar-group-label px-3 text-[10px] font-semibold uppercase tracking-[0.18em]">{group.label}</span>
-              <div className="mt-2 space-y-1">
-                {group.items.map(item => (
-                  <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}
-                    className={`sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${
-                      isActive(item.href) ? 'sidebar-link-active' : ''
-                    }`}>
-                    <item.icon className="h-4 w-4 shrink-0" />
-                    <span>{item.label}</span>
-                  </Link>
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 md:hidden" role="presentation" onClick={closeMobile}>
+          <div className="absolute inset-0 bg-[#050914]/80 backdrop-blur-sm" />
+          <nav
+            ref={mobileNavRef}
+            id="finance-mobile-menu"
+            aria-label="Finance navigation"
+            className="app-sidebar absolute inset-x-0 bottom-0 top-16 overflow-y-auto px-5 pb-24 pt-5 shadow-2xl"
+            onClick={event => event.stopPropagation()}
+          >
+            <Link href="/finance/ask" onClick={closeMobile} aria-current={isFinanceRouteActive(pathname, wolffNavItem.href) ? 'page' : undefined} className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-400/25 bg-gradient-to-r from-blue-500/15 to-emerald-500/[0.08] p-3 text-blue-100">
+              <BrandLogo className="h-10 w-10" />
+              <div className="min-w-0"><span className="block text-sm font-semibold">Talk to Wolff</span><span className="block truncate text-[10px] text-blue-200/60">Daily decisions, trade-offs, and motivation</span></div>
+              <WolffIcon className="ml-auto h-4 w-4 text-blue-300" />
+            </Link>
+
+            {primaryFinanceSections.map((section, index) => (
+              <div key={section.label} className={index > 0 ? 'mt-4 border-t border-white/[0.08] pt-4' : ''}>
+                <p className="sidebar-group-label px-3 text-[10px] font-semibold uppercase tracking-[0.18em]">{section.label}</p>
+                <div className="mt-2 space-y-1">{section.items.map(item => <NavLink key={item.href} item={item} pathname={pathname} onNavigate={closeMobile} />)}</div>
+              </div>
+            ))}
+
+            <div className="mt-5 border-t border-white/[0.08] pt-5">
+              <div className="mb-3 flex items-center gap-2 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45"><LayoutGrid className="h-3.5 w-3.5" /> Specialist tools</div>
+              <div className="space-y-4">
+                {financeToolSections.map(section => (
+                  <div key={section.label}>
+                    <p className="px-3 text-[9px] font-bold uppercase tracking-[0.16em] text-blue-200/40">{section.label}</p>
+                    <div className="mt-1 space-y-1">{section.items.map(item => <NavLink key={item.href} item={item} pathname={pathname} onNavigate={closeMobile} />)}</div>
+                  </div>
                 ))}
               </div>
             </div>
-          ))}
-          <details open={moreFinance.some(item => isActive(item.href))} className="group mt-3 border-t border-white/10 pt-3">
-            <summary className="sidebar-group-label cursor-pointer list-none px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em]">More tools</summary>
-            <div className="mt-1 space-y-1">
-              {moreFinance.map(item => (
-                <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)} className={`sidebar-link flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${isActive(item.href) ? 'sidebar-link-active' : ''}`}>
-                  <item.icon className="h-4 w-4 shrink-0" /><span>{item.label}</span>
-                </Link>
-              ))}
-            </div>
-          </details>
-        </nav>
-      </div>
-    )}
-
-    {/* Mobile: bottom quick-access bar */}
-    <nav className="mobile-dock md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around h-[4.25rem] px-1 pb-[env(safe-area-inset-bottom)]">
-      {mobileQuickAccess.map(item => (
-        <Link key={item.href} href={item.href}
-          className={`mobile-dock-link flex min-w-[58px] flex-col items-center gap-1 rounded-xl px-2 py-1.5 ${
-            isActive(item.href) ? 'mobile-dock-link-active' : ''
-          }`}>
-          <item.icon className="h-[18px] w-[18px]" />
-          <span className="text-[9px] font-semibold">{item.label.split(' ')[0]}</span>
-        </Link>
-      ))}
-    </nav>
-
-    {/* Desktop: always-visible sidebar */}
-    <aside className="app-sidebar hidden md:flex flex-col min-h-screen shrink-0 sticky top-0 h-screen w-60 lg:w-[264px] px-4 py-5 overflow-y-auto">
-      {/* Logo */}
-      <div className="flex items-center gap-3.5 mb-7 px-2">
-        <BrandLogo className="h-10 w-10" />
-        <div>
-          <h2 className="text-[15px] font-semibold tracking-tight text-white">Finance</h2>
-          <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-white/45">Personal Finance</p>
+          </nav>
         </div>
-      </div>
+      )}
 
-      {/* Search — opens the command palette */}
-      <button
-        type="button"
-        onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
-        className="sidebar-search flex items-center gap-2 w-full mb-5 px-3 py-2.5 rounded-xl text-xs"
-      >
-        <SearchIcon className="h-3.5 w-3.5" />
-        <span>Search…</span>
-        <kbd className="ml-auto rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-mono">⌘K</kbd>
-      </button>
+      <nav className="mobile-dock fixed inset-x-0 bottom-0 z-50 flex h-[4.25rem] items-center justify-around px-1 pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Quick finance navigation">
+        {mobileDockItems.map(item => {
+          const active = isFinanceRouteActive(pathname, item.href)
+          const Icon = item.icon
+          const wolff = item.href === wolffNavItem.href
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? 'page' : undefined}
+              className={`mobile-dock-link flex min-w-[58px] flex-col items-center gap-1 rounded-xl px-2 py-1.5 ${active ? 'mobile-dock-link-active' : ''} ${wolff ? 'mobile-dock-wolff' : ''}`}
+            >
+              {wolff ? <BrandLogo className="h-7 w-7" /> : <Icon className="h-[18px] w-[18px]" />}
+              <span className="text-[9px] font-semibold">{item.shortLabel || item.label}</span>
+            </Link>
+          )
+        })}
+        <button
+          type="button"
+          onClick={toggleMobile}
+          aria-label="Open all finance tools"
+          aria-expanded={mobileOpen}
+          aria-controls="finance-mobile-menu"
+          className={`mobile-dock-link flex min-w-[58px] flex-col items-center gap-1 rounded-xl px-2 py-1.5 ${toolRouteActive ? 'mobile-dock-link-active' : ''}`}
+        >
+          <LayoutGrid className="h-[18px] w-[18px]" />
+          <span className="text-[9px] font-semibold">More</span>
+        </button>
+      </nav>
 
-      <Link href="/finance/ask" className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-400/20 bg-gradient-to-r from-blue-500/15 to-emerald-500/[0.07] p-3 text-blue-100 hover:border-blue-400/35 hover:bg-blue-500/20">
-        <BrandLogo className="h-9 w-9" />
-        <div className="min-w-0"><span className="block text-[12px] font-semibold">Talk to Wolff</span><span className="block truncate text-[9px] text-blue-200/55">Daily financial copilot</span></div>
-        <MessageCircle className="ml-auto h-4 w-4 text-blue-300" />
-      </Link>
+      <aside className="app-sidebar sticky top-0 hidden h-screen min-h-screen w-60 shrink-0 flex-col overflow-y-auto px-4 py-5 md:flex lg:w-[264px]">
+        <div className="mb-6 flex items-center gap-3.5 px-2">
+          <BrandLogo className="h-10 w-10" />
+          <div><h2 className="text-[15px] font-semibold tracking-tight text-white">Finance</h2><p className="text-[9px] font-medium uppercase tracking-[0.18em] text-white/45">Personal Finance</p></div>
+        </div>
 
-      {/* Finance nav */}
-      <div>
-        {navGroups.map(group => (
-          <div key={group.label} className="mb-3">
-            <span className="sidebar-group-label px-3 text-[9px] font-semibold uppercase tracking-[0.2em]">{group.label}</span>
-            <div className="mt-1.5 flex flex-col gap-0.5">
-              {group.items.map(item => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`sidebar-link flex items-center gap-3 rounded-xl px-3 py-[7px] text-sm ${
-                    isActive(item.href) ? 'sidebar-link-active' : ''
-                  }`}
-                >
-                  <item.icon className="h-4 w-4 shrink-0" />
-                  <span className="text-[12px] font-medium">{item.label}</span>
-                </Link>
-              ))}
+        <button type="button" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))} className="sidebar-search mb-4 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs">
+          <Search className="h-3.5 w-3.5" /><span>Search or jump…</span><kbd className="ml-auto rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-mono">⌘K</kbd>
+        </button>
+
+        <Link href="/finance/ask" aria-current={isFinanceRouteActive(pathname, wolffNavItem.href) ? 'page' : undefined} className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-400/20 bg-gradient-to-r from-blue-500/15 to-emerald-500/[0.07] p-3 text-blue-100 hover:border-blue-400/35 hover:bg-blue-500/20">
+          <BrandLogo className="h-9 w-9" /><div className="min-w-0"><span className="block text-[12px] font-semibold">Talk to Wolff</span><span className="block truncate text-[9px] text-blue-200/55">Daily financial copilot</span></div><WolffIcon className="ml-auto h-4 w-4 text-blue-300" />
+        </Link>
+
+        <nav aria-label="Primary finance navigation">
+          {primaryFinanceSections.map(section => (
+            <div key={section.label} className="mb-3">
+              <p className="sidebar-group-label px-3 text-[9px] font-semibold uppercase tracking-[0.2em]">{section.label}</p>
+              <div className="mt-1.5 flex flex-col gap-0.5">{section.items.map(item => <NavLink key={item.href} item={item} pathname={pathname} compact />)}</div>
             </div>
-          </div>
-        ))}
-        <details open={moreFinance.some(item => isActive(item.href))} className="group mt-2 border-t border-white/[0.08] pt-3">
-          <summary className="sidebar-group-label cursor-pointer list-none rounded-lg px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.2em] hover:bg-white/5">More tools</summary>
-          <div className="mt-1 flex flex-col gap-0.5">
-            {moreFinance.map(item => (
-              <Link key={item.href} href={item.href} className={`sidebar-link flex items-center gap-3 rounded-xl px-3 py-[7px] text-sm ${isActive(item.href) ? 'sidebar-link-active' : ''}`}>
-                <item.icon className="h-4 w-4 shrink-0" /><span className="text-[12px] font-medium">{item.label}</span>
-              </Link>
+          ))}
+        </nav>
+
+        <details open={toolRouteActive || undefined} className="group mt-1 border-t border-white/[0.08] pt-3">
+          <summary className="sidebar-group-label flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2 text-[9px] font-semibold uppercase tracking-[0.18em] hover:bg-white/5">
+            <LayoutGrid className="h-3.5 w-3.5" /><span>All tools</span><ChevronDown className="ml-auto h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="mt-2 space-y-3">
+            {financeToolSections.map(section => (
+              <div key={section.label}>
+                <p className="px-3 text-[8px] font-bold uppercase tracking-[0.14em] text-blue-200/35">{section.label}</p>
+                <div className="mt-0.5 flex flex-col gap-0.5">{section.items.map(item => <NavLink key={item.href} item={item} pathname={pathname} compact />)}</div>
+              </div>
             ))}
           </div>
         </details>
-      </div>
 
-      {/* Footer */}
-      <div className="sidebar-footer mt-auto space-y-3 border-t border-white/[0.08] pt-4">
-        <FinanceAuthBadge collapsed={false} />
-        <div className="flex items-center gap-2 px-2 text-[11px] text-white/55">
-          <div className="relative h-2 w-2 rounded-full bg-emerald-500 animate-pulse before:absolute before:inset-[-3px] before:rounded-full before:border before:border-emerald-400/30" />
-          <span>Connected</span>
+        <div className="sidebar-footer mt-auto space-y-3 border-t border-white/[0.08] pt-4">
+          <FinanceAuthBadge collapsed={false} />
+          <div className="flex items-center gap-2 px-2 text-[11px] text-white/55"><div className="relative h-2 w-2 rounded-full bg-emerald-500 animate-pulse before:absolute before:inset-[-3px] before:rounded-full before:border before:border-emerald-400/30" /><span>Connected</span></div>
+          <p className="px-2 text-[9px] uppercase tracking-[0.14em] text-white/25">v2.1 · Wolff Finance</p>
         </div>
-        <p className="px-2 text-[9px] uppercase tracking-[0.14em] text-white/25">v2.0 · Nexaminds</p>
-      </div>
-    </aside>
+      </aside>
     </>
   )
 }

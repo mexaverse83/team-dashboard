@@ -2,52 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  Wallet,
-  ArrowLeftRight,
-  PiggyBank,
-  RefreshCw,
-  Banknote,
-  TrendingUp,
-  Bitcoin,
-  Calculator,
-  CreditCard,
-  Landmark,
-  ShieldCheck,
-  Target,
-  Sparkles,
-  Search,
-  FileBarChart,
-  Wand2,
-  Plus,
-  type LucideIcon,
-} from 'lucide-react'
+import { Plus, Search, X, type LucideIcon } from 'lucide-react'
+import { financeToolSections, primaryFinanceSections, wolffNavItem } from '@/lib/finance-navigation'
 
 interface Destination {
   label: string
   href: string
   group: string
   icon: LucideIcon
+  description: string
+  keywords?: string[]
 }
 
 const DESTINATIONS: Destination[] = [
-  { label: 'Overview', href: '/finance', group: 'Track', icon: Wallet },
-  { label: 'Transactions', href: '/finance/transactions', group: 'Track', icon: ArrowLeftRight },
-  { label: 'Budgets', href: '/finance/budgets', group: 'Track', icon: PiggyBank },
-  { label: 'Subscriptions', href: '/finance/subscriptions', group: 'Track', icon: RefreshCw },
-  { label: 'Income', href: '/finance/income', group: 'Track', icon: Banknote },
-  { label: 'Investments', href: '/finance/investments', group: 'Track', icon: TrendingUp },
-  { label: 'Crypto', href: '/finance/crypto', group: 'Track', icon: Bitcoin },
-  { label: 'Budget Builder', href: '/finance/budget-builder', group: 'Plan', icon: Calculator },
-  { label: 'MSI Tracker', href: '/finance/installments', group: 'Plan', icon: CreditCard },
-  { label: 'Debt Planner', href: '/finance/debt', group: 'Plan', icon: Landmark },
-  { label: 'Emergency Fund', href: '/finance/emergency-fund', group: 'Plan', icon: ShieldCheck },
-  { label: 'Goals', href: '/finance/goals', group: 'Plan', icon: Target },
-  { label: 'Insights', href: '/finance/insights', group: 'Analyze', icon: Sparkles },
-  { label: 'Audit', href: '/finance/audit', group: 'Analyze', icon: Search },
-  { label: 'Reports', href: '/finance/reports', group: 'Analyze', icon: FileBarChart },
-  { label: 'Auto Rules', href: '/finance/rules', group: 'Analyze', icon: Wand2 },
-  { label: 'New transaction', href: '/finance/transactions', group: 'Actions', icon: Plus },
+  { label: 'New transaction', href: '/finance/transactions?add=1', group: 'Actions', icon: Plus, description: 'Record income or spending', keywords: ['add', 'expense', 'income'] },
+  { ...wolffNavItem, group: 'Actions' },
+  ...primaryFinanceSections.flatMap(section => section.items.map(item => ({ ...item, group: section.label }))),
+  ...financeToolSections.flatMap(section => section.items.map(item => ({ ...item, group: section.label }))),
 ]
 
 export function CommandPalette() {
@@ -56,11 +27,18 @@ export function CommandPalette() {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return DESTINATIONS
-    return DESTINATIONS.filter((d) => d.label.toLowerCase().includes(q))
+    return DESTINATIONS.filter(destination => [
+      destination.label,
+      destination.description,
+      destination.group,
+      ...(destination.keywords || []),
+    ].some(value => value.toLowerCase().includes(q)))
   }, [query])
 
   // Group items in display order, tracking flat indices for selection.
@@ -83,6 +61,11 @@ export function CommandPalette() {
     setSelectedIndex(0)
   }, [])
 
+  const closeAndRestoreFocus = useCallback(() => {
+    close()
+    window.requestAnimationFrame(() => previousFocusRef.current?.focus())
+  }, [close])
+
   const navigateTo = useCallback(
     (href: string) => {
       router.push(href)
@@ -100,7 +83,9 @@ export function CommandPalette() {
           if (prev) {
             setQuery('')
             setSelectedIndex(0)
+            window.requestAnimationFrame(() => previousFocusRef.current?.focus())
           }
+          if (!prev) previousFocusRef.current = document.activeElement as HTMLElement | null
           return !prev
         })
       }
@@ -115,15 +100,37 @@ export function CommandPalette() {
     const previousOverflow = document.documentElement.style.overflow
     document.documentElement.style.overflow = 'hidden'
     inputRef.current?.focus()
+    const onDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeAndRestoreFocus()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const focusable = [...(dialogRef.current?.querySelectorAll<HTMLElement>('input, button, [href], [tabindex]:not([tabindex="-1"])') || [])]
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onDialogKeyDown)
     return () => {
       document.documentElement.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onDialogKeyDown)
     }
-  }, [open])
+  }, [closeAndRestoreFocus, open])
 
   function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Escape') {
       e.preventDefault()
-      close()
+      e.stopPropagation()
+      closeAndRestoreFocus()
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
       setSelectedIndex((prev) => (filtered.length === 0 ? 0 : (prev + 1) % filtered.length))
@@ -143,11 +150,12 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm"
-      onClick={close}
+      className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm"
+      onClick={closeAndRestoreFocus}
       role="presentation"
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
@@ -160,7 +168,7 @@ export function CommandPalette() {
             ref={inputRef}
             type="text"
             aria-label="Search pages"
-            placeholder="Go to page…"
+            placeholder="Search pages, actions, or goals…"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
@@ -169,6 +177,7 @@ export function CommandPalette() {
             onKeyDown={onInputKeyDown}
             className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-[hsl(var(--muted-foreground))]"
           />
+          <button type="button" onClick={closeAndRestoreFocus} aria-label="Close command palette" className="rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-white/5 hover:text-white"><X className="h-4 w-4" /></button>
         </div>
 
         <div className="max-h-[50vh] overflow-y-auto p-2">
@@ -193,15 +202,12 @@ export function CommandPalette() {
                       onMouseEnter={() => setSelectedIndex(index)}
                       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
                         selected
-                          ? 'bg-emerald-500/10 text-emerald-700'
+                          ? 'bg-blue-500/12 text-blue-200'
                           : 'text-[hsl(var(--foreground))]'
                       }`}
                     >
                       <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                      <span className="flex-1 truncate">{item.label}</span>
-                      <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                        {item.group}
-                      </span>
+                      <span className="min-w-0 flex-1"><span className="block truncate">{item.label}</span><span className="block truncate text-[10px] text-[hsl(var(--muted-foreground))]">{item.description}</span></span>
                     </button>
                   )
                 })}
