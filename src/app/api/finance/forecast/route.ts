@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { getRemainingTreatmentEvents } from '@/lib/fertility-plan'
+import { deriveIncomeBaseline } from '@/lib/household-metrics'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -72,12 +73,18 @@ export async function GET(req: NextRequest) {
     { data: recurring },
     { data: recurringIncome },
     { data: incomeSources },
+    { data: incomeTransactions },
     { data: installments },
     { data: debts },
   ] = await Promise.all([
     supabase.from('finance_recurring').select('*').eq('is_active', true),
     supabase.from('finance_recurring_income').select('*').eq('active', true),
     supabase.from('finance_income_sources').select('*').eq('is_active', true),
+    supabase.from('finance_transactions')
+      .select('transaction_date,amount_mxn,amount')
+      .gte('transaction_date', new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 5, 1)).toISOString().slice(0, 10))
+      .lte('transaction_date', isoDate(today))
+      .eq('type', 'income'),
     supabase.from('finance_installments').select('*').eq('is_active', true),
     supabase.from('finance_debts').select('*').eq('is_active', true),
   ])
@@ -157,6 +164,37 @@ export async function GET(req: NextRequest) {
         source_id: inc.id,
       })
       cursor = advanceByFrequency(cursor, freq)
+    }
+  }
+
+  // The source tables can lag behind posted salary transactions. Add only the
+  // missing portion of the robust observed baseline so the forecast neither
+  // drops real household income nor double-counts configured sources.
+  if (!owner) {
+    const recurringNames = new Set((recurringIncome || []).filter(ri => ri.active).map(ri => ri.name))
+    const configuredFromRecurring = (recurringIncome || []).reduce((sum, income) => {
+      const divisor = income.recurrence === 'bimonthly' ? 2 : income.recurrence === 'annual' ? 12 : 1
+      return sum + Math.abs(income.amount || 0) / divisor
+    }, 0)
+    const configuredFromSources = (incomeSources || [])
+      .filter(income => !recurringNames.has(income.name))
+      .reduce((sum, income) => sum + Math.abs(income.amount || 0) / (FREQ_DIVISOR[income.frequency] || 1), 0)
+    const configuredMonthly = configuredFromRecurring + configuredFromSources
+    const baseline = deriveIncomeBaseline(configuredMonthly, incomeTransactions || [], isoDate(today).slice(0, 7))
+    const monthlySupplement = Math.max(0, baseline.effectiveMonthly - configuredMonthly)
+
+    if (monthlySupplement > 0) {
+      let cursor = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1))
+      while (cursor <= horizon) {
+        events.push({
+          date: isoDate(cursor),
+          type: 'income',
+          amount_mxn: monthlySupplement,
+          name: 'Observed household income baseline',
+          source_id: 'observed-income-baseline',
+        })
+        cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1))
+      }
     }
   }
 

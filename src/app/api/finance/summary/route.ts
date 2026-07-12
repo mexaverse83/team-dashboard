@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { buildFertilityCutRecommendations, FERTILITY_TREATMENT_PLAN, getRemainingTreatmentEvents, getTreatmentEventForMonth } from '@/lib/fertility-plan'
 import { defaultBudgetType } from '@/lib/finance-utils'
+import { deriveIncomeBaseline, emergencyFundCoverage } from '@/lib/household-metrics'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -29,6 +30,10 @@ export async function GET(req: NextRequest) {
   const startStr = start.toISOString().slice(0, 10)
   const endStr = now.toISOString().slice(0, 10)
   const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  // Income needs a longer lookback than spending. Six months is enough to
+  // distinguish normal salary cadence from a bonus-heavy month while keeping
+  // the baseline responsive to a real compensation change.
+  const incomeHistoryStart = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10)
 
   const currentMonthStart = `${currentMonthStr}-01`
   const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10)
@@ -45,6 +50,7 @@ export async function GET(req: NextRequest) {
     { data: incomeSources },
     { data: recurringIncome },
     { data: cryptoHoldings },
+    { data: incomeTransactions },
     { data: currentMonthIncomeTxs },
     { data: fertilityPaidTxs },
   ] = await Promise.all([
@@ -59,6 +65,7 @@ export async function GET(req: NextRequest) {
     supabase.from('finance_income_sources').select('*').eq('is_active', true),
     supabase.from('finance_recurring_income').select('*').eq('active', true),
     supabase.from('finance_crypto_holdings').select('*'),
+    fetchAllRows((from, to) => supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').gte('transaction_date', incomeHistoryStart).lte('transaction_date', currentMonthEnd).eq('type', 'income').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
     supabase.from('finance_transactions').select('amount_mxn,amount').gte('transaction_date', currentMonthStart).lte('transaction_date', currentMonthEnd).eq('type', 'income'),
     supabase.from('finance_transactions').select('amount_mxn,amount').contains('tags', ['fertility']).eq('type', 'expense'),
   ])
@@ -109,9 +116,11 @@ export async function GET(req: NextRequest) {
     monthly_amount: Math.round(r.amount / (RI_DIVISOR[r.recurrence] || 1)),
     start_date: r.start_date as string,
   }))
-  const totalMonthlyIncome =
+  const configuredMonthlyIncome =
     incSources.reduce((s, i) => s + i.monthly_amount, 0) +
     riSources.reduce((s, i) => s + i.monthly_amount, 0)
+  const incomeBaseline = deriveIncomeBaseline(configuredMonthlyIncome, incomeTransactions || [], currentMonthStr)
+  const totalMonthlyIncome = incomeBaseline.effectiveMonthly
 
   // Spending by category
   const txs = transactions || []
@@ -170,14 +179,21 @@ export async function GET(req: NextRequest) {
   const subsMonthly = subs.reduce((s, r) => s + r.monthly_equivalent, 0)
 
   // Installments
-  const inst = (installments || []).map(i => ({
-    name: i.name,
-    merchant: i.merchant,
-    monthly_payment: i.installment_amount,
-    payments_remaining: i.installment_count - (i.payments_made || 0),
-    total_remaining: (i.installment_count - (i.payments_made || 0)) * i.installment_amount,
-    end_date: i.end_date,
-  }))
+  const inst = (installments || [])
+    .map(i => {
+      const paymentsRemaining = Math.max(0, i.installment_count - (i.payments_made || 0))
+      return {
+        name: i.name,
+        merchant: i.merchant,
+        monthly_payment: i.installment_amount,
+        payments_remaining: paymentsRemaining,
+        total_remaining: paymentsRemaining * i.installment_amount,
+        end_date: i.end_date,
+      }
+    })
+    // A plan can remain marked active after its final scheduled payment. It
+    // belongs in history, not in the household's forward commitments.
+    .filter(i => i.payments_remaining > 0)
   const instMonthly = inst.reduce((s, i) => s + i.monthly_payment, 0)
 
   // Debts
@@ -190,8 +206,12 @@ export async function GET(req: NextRequest) {
 
   // Emergency fund
   const ef = (emergencyFund || [])[0]
-  const monthlyExpenses = monthlyAvgSpend
-  const monthsCovered = ef && monthlyExpenses > 0 ? Math.round((ef.current_amount / monthlyExpenses) * 10) / 10 : 0
+  const emergencyCoverage = emergencyFundCoverage({
+    current: ef?.current_amount || 0,
+    target: ef?.target_amount || 0,
+    targetMonths: ef?.target_months,
+    monthlyEssentials: ef?.account_allocation_json?.monthly_essentials,
+  })
 
   // Goals
   const activeGoals = (goals || []).map(g => {
@@ -331,7 +351,7 @@ export async function GET(req: NextRequest) {
   const totalGoalRemaining = Math.max(0, totalGoalTarget - totalGoalSaved)
   const totalNeededByDecember = totalGoalRemaining + remainingTreatmentAmount
   // Extra income already received this month beyond what's in the recurring base
-  const currentMonthActualIncome = (currentMonthIncomeTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
+  const currentMonthActualIncome = incomeBaseline.currentMonthActual
   const currentMonthExtraIncome = Math.max(0, currentMonthActualIncome - totalMonthlyIncome)
   // Month-by-month projection: starts with current month extra, then adds future months
   let projectedFreeCashByDecember = currentMonthExtraIncome
@@ -448,7 +468,16 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     period: { start: startStr, end: endStr },
-    income: { sources: incSources, recurring: riSources, future_recurring: futureRISources, total_monthly: totalMonthlyIncome },
+    income: {
+      sources: incSources,
+      recurring: riSources,
+      future_recurring: futureRISources,
+      configured_monthly: incomeBaseline.configuredMonthly,
+      observed_monthly: incomeBaseline.observedMonthly,
+      current_month_actual: incomeBaseline.currentMonthActual,
+      total_monthly: totalMonthlyIncome,
+      baseline_method: incomeBaseline.observedMonthly > incomeBaseline.configuredMonthly ? 'observed-median' : 'configured',
+    },
     spending: { by_category: spendByCategory, total_monthly_avg: monthlyAvgSpend, by_month: spendByMonth },
     budgets: {
       total_budgeted: budgetCategories.reduce((s, b) => s + b.budget, 0),
@@ -461,7 +490,11 @@ export async function GET(req: NextRequest) {
     emergency_fund: {
       target: ef?.target_amount || 0,
       current: ef?.current_amount || 0,
-      months_covered: monthsCovered,
+      target_months: ef?.target_months || 6,
+      monthly_essentials: emergencyCoverage.monthlyEssentials,
+      months_covered: emergencyCoverage.monthsCovered,
+      funded_pct: emergencyCoverage.fundedPct,
+      gap: emergencyCoverage.gap,
       risk_score: ef?.risk_score || 0,
     },
     goals: { active: activeGoals },

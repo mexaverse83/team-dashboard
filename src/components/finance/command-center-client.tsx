@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Activity, Sparkles, Target, Landmark, Bitcoin, Receipt, Wallet, CalendarRange } from 'lucide-react'
+import { Plus, Activity, Sparkles, Target, Landmark, Bitcoin, Receipt, Wallet, LockKeyhole } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { RadialProgress } from '@/components/ui/radial-progress'
 import { PageTransition } from '@/components/page-transition'
@@ -13,6 +13,7 @@ import { WestCompactWidget } from '@/components/finance/west-tracker'
 import { WolffWidget } from '@/components/finance/wolff-widget'
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend'
 import { MonthProjectionCard } from '@/components/finance/month-projection-card'
+import { HouseholdPriorities } from '@/components/finance/household-priorities'
 import { InstallPrompt } from '@/components/finance/install-prompt'
 import { supabase } from '@/lib/supabase'
 import { ownersEqual } from '@/lib/owners'
@@ -74,6 +75,9 @@ export default function CommandCenterClient() {
   const totalIncome = useMemo(() => monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
   const netSavings = totalIncome - totalSpent
   const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0
+  const monthlyGoalNeed = summary?.goal_funding.total_monthly_needed || 0
+  const projectedSavings = summary?.month_projection?.projected_savings || 0
+  const goalCoveragePct = monthlyGoalNeed > 0 ? Math.max(0, Math.round(projectedSavings / monthlyGoalNeed * 100)) : 100
   // Before any income lands (typically the first of the month, until payroll
   // auto-posts) a "net savings / % rate" framing is meaningless — net is just
   // −spend and the rate is undefined. Present it neutrally instead of a red
@@ -205,11 +209,11 @@ export default function CommandCenterClient() {
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Spent</p>
                   <p className="num-metric text-lg font-bold tabular-nums text-rose-600">−{fmtMoney(totalSpent, { compact: true })}</p>
                 </div>
-                {forecast && (
+                {summary && (
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">60d low</p>
-                    <p className={cn('num-metric text-lg font-bold tabular-nums', forecast.summary.min_balance.balance >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
-                      {fmtMoney(forecast.summary.min_balance.balance, { compact: true })}
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Goal coverage</p>
+                    <p className={cn('num-metric text-lg font-bold tabular-nums', goalCoveragePct >= 100 ? 'text-emerald-600' : 'text-amber-500')}>
+                      {goalCoveragePct}%
                     </p>
                   </div>
                 )}
@@ -239,6 +243,9 @@ export default function CommandCenterClient() {
 
         {/* ── HEADLINE: month-end savings projection ─────── */}
         <MonthProjectionCard projection={summary?.month_projection} />
+
+        {/* ── PRIORITIES: the couple-level plan in one place ────────── */}
+        {summary && <HouseholdPriorities summary={summary} />}
 
         {/* ── GLANCE: KPI strip ──────────────────────────── */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -307,20 +314,20 @@ export default function CommandCenterClient() {
           />
 
           <KpiCard
-            icon={CalendarRange}
-            label="60-day forecast"
-            value={forecast ? `${forecast.summary.net_delta >= 0 ? '+' : ''}${fmtMoney(forecast.summary.net_delta, { compact: true })}` : '—'}
+            icon={LockKeyhole}
+            label="Committed income"
+            value={summary && summary.cash_flow.monthly_income > 0
+              ? `${Math.round(summary.cash_flow.fixed_commitments / summary.cash_flow.monthly_income * 100)}%`
+              : '—'}
             sublabel={
-              forecast ? (
+              summary ? (
                 <span className="flex items-center justify-between">
-                  <span className="text-emerald-600">+{fmtMoney(forecast.summary.total_inflow, { compact: true })}</span>
-                  <span className="text-rose-600">−{fmtMoney(forecast.summary.total_outflow, { compact: true })}</span>
+                  <span>{fmtMoney(summary.cash_flow.fixed_commitments, { compact: true })} fixed</span>
+                  <span className="text-emerald-600">{fmtMoney(summary.cash_flow.discretionary_available, { compact: true })} free</span>
                 </span>
               ) : '—'
             }
-            sparkline={forecast?.series.map(s => s.running_balance) || []}
-            sparklineColor="hsl(225, 75%, 48%)"
-            accent={forecast && forecast.summary.net_delta >= 0 ? 'positive' : 'negative'}
+            accent={summary && summary.cash_flow.fixed_commitments / Math.max(summary.cash_flow.monthly_income, 1) <= 0.6 ? 'positive' : 'negative'}
           />
         </div>
 

@@ -29,13 +29,27 @@ export interface Summary {
       cycle_months: number
     }>
   }
-  income: { total_monthly: number }
+  income: {
+    total_monthly: number
+    configured_monthly?: number
+    observed_monthly?: number
+    current_month_actual?: number
+    baseline_method?: 'configured' | 'observed-median'
+  }
   spending: { total_monthly_avg: number }
   budgets: { total_budgeted: number }
   subscriptions: { total_monthly: number; total_annual: number }
   installments: { total_monthly_commitment: number }
   debts: { total_balance: number; total_minimums: number }
-  emergency_fund: { current: number; target: number; months_covered: number }
+  emergency_fund: {
+    current: number
+    target: number
+    target_months?: number
+    monthly_essentials?: number
+    months_covered: number
+    funded_pct?: number
+    gap?: number
+  }
   goals: { active: Array<{ name: string; target: number; current: number; pct: number; monthly_needed: number; on_track: boolean }> }
   cash_flow: { monthly_income: number; fixed_commitments: number; discretionary_available: number }
   goal_funding: { total_monthly_needed: number; discretionary_available: number; gap: number; fully_funded: boolean }
