@@ -38,15 +38,13 @@ export const FERTILITY_TREATMENT_PLAN = DEMO ? {
   planningTotal: 260000,
   startMonth: '2026-05',
   endMonth: '2026-08',
-  // Updated 2026-07-03: $232,655 already paid (fertility-tagged transactions),
-  // so the old "payment 3 = $50,000" overstated July. The actual ~$27,345
-  // remainder splits across July and August per Bernardo. The dashboard's
-  // remaining-amount math is dynamic (planningTotal − tagged spend); these
-  // events only drive per-month commitments and forecast entries.
+  // Updated 2026-07-13: the July commitment is $12,000 due July 22.
+  // The dashboard's remaining-amount math is dynamic (planningTotal − tagged
+  // spend); these events only drive per-month commitments and forecast entries.
   events: [
     { date: '2026-05-15', month: '2026-05', amount: 92000, minAmount: 92000, maxAmount: 92000, label: 'Treatment payment 1' },
     { date: '2026-06-15', month: '2026-06', amount: 50000, minAmount: 50000, maxAmount: 50000, label: 'Treatment payment 2' },
-    { date: '2026-07-15', month: '2026-07', amount: 13673, minAmount: 13673, maxAmount: 13673, label: 'Final treatment payment (1 of 2)' },
+    { date: '2026-07-22', month: '2026-07', amount: 12000, minAmount: 12000, maxAmount: 12000, label: 'Final treatment payment (1 of 2)' },
     { date: '2026-08-15', month: '2026-08', amount: 13672, minAmount: 13672, maxAmount: 13672, label: 'Final treatment payment (2 of 2)' },
   ] satisfies TreatmentEvent[],
 }
