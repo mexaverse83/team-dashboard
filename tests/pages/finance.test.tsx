@@ -375,6 +375,21 @@ describe('Transactions Page', () => {
     expect(screen.getByLabelText('Where did you spend?')).toHaveValue('Walmart')
     expect(screen.getByRole('button', { name: /Groceries/ })).toHaveAttribute('aria-pressed', 'true')
   })
+
+  it('changes the mobile owner without opening the date picker', async () => {
+    const Comp = (await import('@/components/finance/transactions-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Add transaction' }).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add transaction' })[0])
+
+    const dateInput = screen.getByLabelText('Choose transaction date') as HTMLInputElement
+    const dateClick = vi.spyOn(dateInput, 'click')
+    const laura = screen.getByRole('button', { name: 'Owner: Laura' })
+    fireEvent.click(laura)
+
+    expect(laura).toHaveAttribute('aria-pressed', 'true')
+    expect(dateClick).not.toHaveBeenCalled()
+  })
 })
 
 // ==========================================

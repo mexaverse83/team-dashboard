@@ -144,6 +144,7 @@ export default function TransactionsClient() {
   const [saveError, setSaveError] = useState('')
   const [savedMessage, setSavedMessage] = useState('')
   const savedMessageTimer = useRef<number | null>(null)
+  const mobileDateInputRef = useRef<HTMLInputElement>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   // Auto-categorization rules + duplicate detection
@@ -982,14 +983,20 @@ export default function TransactionsClient() {
                 <button type="button" onClick={() => { updateForm({ transaction_date: today() }); setConfirmDuplicate(false) }}
                   aria-pressed={form.transaction_date === today()}
                   className={cn('min-w-0 rounded-lg px-1 text-[10px] font-semibold transition-colors', form.transaction_date === today() ? 'bg-blue-500/20 text-blue-300' : 'text-[hsl(var(--text-secondary))]')}>Today</button>
-                <label title="Choose another date" className={cn('relative flex cursor-pointer items-center justify-center rounded-lg transition-colors', ![today(), relativeLocalDateKey(-1)].includes(form.transaction_date) ? 'bg-blue-500/20 text-blue-300' : 'text-[hsl(var(--text-tertiary))]')}>
+                <button type="button" title="Choose another date" aria-label="Choose another transaction date"
+                  onClick={() => {
+                    const picker = mobileDateInputRef.current
+                    if (!picker) return
+                    try { picker.showPicker() } catch { picker.click() }
+                  }}
+                  className={cn('flex items-center justify-center rounded-lg transition-colors', ![today(), relativeLocalDateKey(-1)].includes(form.transaction_date) ? 'bg-blue-500/20 text-blue-300' : 'text-[hsl(var(--text-tertiary))]')}>
                   <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                  <input id="transaction-date-mobile" type="date" required value={form.transaction_date} max={today()}
-                    aria-label="Choose transaction date"
-                    onChange={e => { updateForm({ transaction_date: e.target.value }); setConfirmDuplicate(false) }}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
-                </label>
+                </button>
               </div>
+              <input ref={mobileDateInputRef} id="transaction-date-mobile" type="date" required value={form.transaction_date} max={today()}
+                tabIndex={-1} aria-label="Choose transaction date"
+                onChange={e => { updateForm({ transaction_date: e.target.value }); setConfirmDuplicate(false) }}
+                className="pointer-events-none fixed bottom-0 left-0 h-px w-px opacity-0" />
             </div>
             <div className="min-w-0">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--text-tertiary))]">Owner</span>
