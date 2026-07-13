@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ChevronDown, LayoutGrid, Menu, Plus, Search, X } from 'lucide-react'
 import { FinanceAuthBadge } from './finance-auth-badge'
-import { BrandLogo } from './brand-logo'
+import { BrandLogo, WolffAvatar } from './brand-logo'
 import {
   currentFinanceNavItem,
   financeToolSections,
@@ -84,7 +84,7 @@ export function Sidebar() {
           <BrandLogo className="h-9 w-9" />
           <div className="min-w-0">
             <span className="block truncate text-sm font-semibold tracking-tight text-white">{currentItem?.label || 'Finance'}</span>
-            <span className="block text-[9px] font-medium uppercase tracking-[0.18em] text-white/45">Wolff Finance</span>
+            <span className="block text-[9px] font-medium uppercase tracking-[0.18em] text-white/45">Our goals, together</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -118,7 +118,7 @@ export function Sidebar() {
             onClick={event => event.stopPropagation()}
           >
             <Link href="/finance/ask" onClick={closeMobile} aria-current={isFinanceRouteActive(pathname, wolffNavItem.href) ? 'page' : undefined} className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-400/25 bg-gradient-to-r from-blue-500/15 to-emerald-500/[0.08] p-3 text-blue-100">
-              <BrandLogo className="h-10 w-10" />
+              <WolffAvatar className="h-10 w-10" />
               <div className="min-w-0"><span className="block text-sm font-semibold">Talk to Wolff</span><span className="block truncate text-[10px] text-blue-200/60">Daily decisions, trade-offs, and motivation</span></div>
               <WolffIcon className="ml-auto h-4 w-4 text-blue-300" />
             </Link>
@@ -157,7 +157,7 @@ export function Sidebar() {
               aria-current={active ? 'page' : undefined}
               className={`mobile-dock-link flex min-w-[56px] flex-col items-center gap-1 rounded-xl px-1.5 py-1.5 min-[360px]:min-w-[58px] min-[360px]:px-2 ${active ? 'mobile-dock-link-active' : ''} ${wolff ? 'mobile-dock-wolff' : ''}`}
             >
-              {wolff ? <BrandLogo className="h-7 w-7" /> : <Icon className="h-[18px] w-[18px]" />}
+              {wolff ? <WolffAvatar className="h-7 w-7" /> : <Icon className="h-[18px] w-[18px]" />}
               <span className="text-[9px] font-semibold">{item.shortLabel || item.label}</span>
             </Link>
           )
@@ -178,7 +178,7 @@ export function Sidebar() {
       <aside className="app-sidebar sticky top-0 hidden h-screen min-h-screen w-60 shrink-0 flex-col overflow-y-auto px-4 py-5 md:flex lg:w-[264px]">
         <div className="mb-6 flex items-center gap-3.5 px-2">
           <BrandLogo className="h-10 w-10" />
-          <div><h2 className="text-[15px] font-semibold tracking-tight text-white">Finance</h2><p className="text-[9px] font-medium uppercase tracking-[0.18em] text-white/45">Personal Finance</p></div>
+          <div><h2 className="text-[15px] font-semibold tracking-tight text-white">Bernardo + Laura</h2><p className="text-[9px] font-medium uppercase tracking-[0.18em] text-white/45">Our goals, together</p></div>
         </div>
 
         <button type="button" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))} className="sidebar-search mb-4 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs">
@@ -186,7 +186,7 @@ export function Sidebar() {
         </button>
 
         <Link href="/finance/ask" aria-current={isFinanceRouteActive(pathname, wolffNavItem.href) ? 'page' : undefined} className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-400/20 bg-gradient-to-r from-blue-500/15 to-emerald-500/[0.07] p-3 text-blue-100 hover:border-blue-400/35 hover:bg-blue-500/20">
-          <BrandLogo className="h-9 w-9" /><div className="min-w-0"><span className="block text-[12px] font-semibold">Talk to Wolff</span><span className="block truncate text-[9px] text-blue-200/55">Daily financial copilot</span></div><WolffIcon className="ml-auto h-4 w-4 text-blue-300" />
+          <WolffAvatar className="h-9 w-9" /><div className="min-w-0"><span className="block text-[12px] font-semibold">Talk to Wolff</span><span className="block truncate text-[9px] text-blue-200/55">Daily financial copilot</span></div><WolffIcon className="ml-auto h-4 w-4 text-blue-300" />
         </Link>
 
         <nav aria-label="Primary finance navigation">

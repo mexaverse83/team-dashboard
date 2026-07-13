@@ -79,11 +79,10 @@ describe('Sidebar', () => {
     expect(screen.getAllByText('Analysis & automation').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('shows Finance branding (no agent team name)', () => {
+  it('shows household branding (no agent team name)', () => {
     render(<Sidebar />)
-    expect(screen.getByText('Finance')).toBeInTheDocument()
-    expect(screen.getByText('Wolff Finance')).toBeInTheDocument()
-    expect(screen.getByText('Personal Finance')).toBeInTheDocument()
+    expect(screen.getByText('Bernardo + Laura')).toBeInTheDocument()
+    expect(screen.getAllByText('Our goals, together').length).toBeGreaterThanOrEqual(1)
     expect(screen.queryByText('Interstellar Squad')).not.toBeInTheDocument()
     expect(screen.queryByText('Squad Dashboard')).not.toBeInTheDocument()
   })
@@ -105,7 +104,7 @@ describe('Sidebar', () => {
     const topBar = container.querySelector('.md\\:hidden.fixed.top-0')
     expect(topBar).toBeInTheDocument()
     expect(topBar?.querySelector('button')).toBeInTheDocument()
-    expect(topBar?.textContent).toContain('Finance')
+    expect(topBar?.textContent).toContain('Overview')
   })
 
   it('keeps new transaction one tap away in the mobile header', () => {

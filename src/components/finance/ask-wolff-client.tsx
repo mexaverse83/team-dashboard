@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { BrandLogo } from '@/components/brand-logo'
+import { WolffAvatar } from '@/components/brand-logo'
 
 interface ChatMessage {
   id: string
@@ -85,7 +85,7 @@ export default function AskWolffClient() {
   return (
     <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-96 max-w-2xl flex-col md:h-[calc(100vh-4rem)] md:min-h-[560px]">
       <div className="mb-4 flex items-center gap-3">
-        <BrandLogo className="h-11 w-11 drop-shadow-sm" />
+        <WolffAvatar className="h-11 w-11 drop-shadow-sm" />
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight">Ask Wolff</h1>

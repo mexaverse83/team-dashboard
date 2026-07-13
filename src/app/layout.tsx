@@ -21,13 +21,13 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: "Wolff Finance — Autonomis",
+  title: "Wolff Finance — Bernardo + Laura",
   description: "Household financial plan for Bernardo and Laura",
   icons: {
     icon: [
-      { url: '/wolff-mark.svg', type: 'image/svg+xml' },
+      { url: '/icons/favicon-64.png', sizes: '64x64', type: 'image/png' },
     ],
-    shortcut: '/wolff-mark.svg',
+    shortcut: '/icons/favicon-64.png',
     apple: [
       { url: '/icons/apple-touch-icon.png', sizes: '180x180' },
     ],

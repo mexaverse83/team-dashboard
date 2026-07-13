@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Activity, AlertTriangle, ArrowRight, MessageCircle, Sparkles, Target, Wallet } from 'lucide-react'
 import { PushToggle } from '@/components/finance/push-toggle'
-import { BrandLogo } from '@/components/brand-logo'
+import { WolffAvatar } from '@/components/brand-logo'
 import { cn } from '@/lib/utils'
 
 interface Insight {
@@ -109,7 +109,7 @@ export function WolffWidget() {
       <div className="relative border-b border-white/[0.07] px-4 py-4 sm:px-6 sm:py-5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3.5">
-            <BrandLogo className="h-11 w-11 sm:h-12 sm:w-12" />
+            <WolffAvatar className="h-11 w-11 sm:h-12 sm:w-12" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 id="wolff-command-title" className="text-base font-semibold sm:text-lg">Wolff · daily command</h2>

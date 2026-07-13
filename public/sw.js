@@ -2,7 +2,7 @@
 // basic offline fallback. Network-first for everything cacheable; API calls
 // and non-GET requests pass straight through (finance data must never be
 // served stale from a SW cache).
-const CACHE = 'finance-pwa-v3'
+const CACHE = 'finance-pwa-v4'
 
 self.addEventListener('install', () => {
   self.skipWaiting()
@@ -49,7 +49,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((res) => {
-        if (res.ok && (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/icons/') || url.pathname === '/manifest.webmanifest')) {
+        if (res.ok && (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/icons/') || url.pathname.startsWith('/brand/') || url.pathname === '/manifest.webmanifest')) {
           const copy = res.clone()
           caches.open(CACHE).then((c) => c.put(event.request, copy)).catch(() => {})
         }

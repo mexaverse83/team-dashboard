@@ -16,11 +16,10 @@ vi.mock('next/navigation', () => ({
 }))
 
 describe('Root Layout', () => {
-  it('renders sidebar with Finance branding', () => {
+  it('renders sidebar with household branding', () => {
     render(<RootLayout><div>content</div></RootLayout>)
-    expect(screen.getByText('Finance')).toBeInTheDocument()
-    expect(screen.getByText('Wolff Finance')).toBeInTheDocument()
-    expect(screen.getByText('Personal Finance')).toBeInTheDocument()
+    expect(screen.getByText('Bernardo + Laura')).toBeInTheDocument()
+    expect(screen.getAllByText('Our goals, together').length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders navigation links', () => {
@@ -52,7 +51,7 @@ describe('Root Layout', () => {
     const { container } = render(<RootLayout><div>content</div></RootLayout>)
     const header = container.querySelector('header')
     expect(header).toBeInTheDocument()
-    expect(header?.textContent).toContain('Finance')
+    expect(header?.textContent).toContain('Overview')
   })
 
   it('uses dark mode', () => {
