@@ -81,7 +81,7 @@ export function Sidebar() {
     <>
       <header className="mobile-masthead fixed inset-x-0 top-0 z-50 flex h-[calc(4rem+env(safe-area-inset-top))] items-center justify-between px-3 pt-[env(safe-area-inset-top)] min-[360px]:px-4 md:hidden">
         <div className="flex min-w-0 items-center gap-3">
-          <BrandLogo className="h-9 w-9" />
+          <BrandLogo className="h-11 w-11" />
           <div className="min-w-0">
             <span className="block truncate text-sm font-semibold tracking-tight text-white">{currentItem?.label || 'Finance'}</span>
             <span className="block text-[9px] font-medium uppercase tracking-[0.18em] text-white/45">Our goals, together</span>
@@ -177,7 +177,7 @@ export function Sidebar() {
 
       <aside className="app-sidebar sticky top-0 hidden h-screen min-h-screen w-60 shrink-0 flex-col overflow-y-auto px-4 py-5 md:flex lg:w-[264px]">
         <div className="mb-6 flex items-center gap-3.5 px-2">
-          <BrandLogo className="h-10 w-10" />
+          <BrandLogo className="h-14 w-14" />
           <div><h2 className="text-[15px] font-semibold tracking-tight text-white">Bernardo + Laura</h2><p className="text-[9px] font-medium uppercase tracking-[0.18em] text-white/45">Our goals, together</p></div>
         </div>
 
