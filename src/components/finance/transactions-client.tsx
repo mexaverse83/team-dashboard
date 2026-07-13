@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { Search, Plus, Pencil, Trash2, Upload, Download, Sparkles, AlertTriangle, Check, RefreshCw } from 'lucide-react'
+import { Search, Plus, Pencil, Trash2, Upload, Download, Sparkles, AlertTriangle, Check, RefreshCw, CalendarDays } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { GlassCard } from '@/components/ui/glass-card'
@@ -970,7 +970,43 @@ export default function TransactionsClient() {
             </div>
           </div>
 
-          <div className="tx-date-owner grid grid-cols-[1.1fr_1fr] gap-3">
+          {/* Mobile uses purpose-built presets so the native date input never
+              competes with owner names for horizontal space. */}
+          <div className="tx-mobile-date-owner grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.8fr)] gap-1.5 sm:hidden">
+            <div className="min-w-0">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--text-tertiary))]">Date</span>
+              <div className="grid h-10 grid-cols-[1fr_0.8fr_2.25rem] gap-1 rounded-xl bg-[hsl(var(--bg-elevated))] p-1">
+                <button type="button" onClick={() => { updateForm({ transaction_date: relativeLocalDateKey(-1) }); setConfirmDuplicate(false) }}
+                  aria-pressed={form.transaction_date === relativeLocalDateKey(-1)}
+                  className={cn('min-w-0 rounded-lg px-1 text-[10px] font-semibold transition-colors', form.transaction_date === relativeLocalDateKey(-1) ? 'bg-blue-500/20 text-blue-300' : 'text-[hsl(var(--text-secondary))]')}>Yesterday</button>
+                <button type="button" onClick={() => { updateForm({ transaction_date: today() }); setConfirmDuplicate(false) }}
+                  aria-pressed={form.transaction_date === today()}
+                  className={cn('min-w-0 rounded-lg px-1 text-[10px] font-semibold transition-colors', form.transaction_date === today() ? 'bg-blue-500/20 text-blue-300' : 'text-[hsl(var(--text-secondary))]')}>Today</button>
+                <label title="Choose another date" className={cn('relative flex cursor-pointer items-center justify-center rounded-lg transition-colors', ![today(), relativeLocalDateKey(-1)].includes(form.transaction_date) ? 'bg-blue-500/20 text-blue-300' : 'text-[hsl(var(--text-tertiary))]')}>
+                  <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                  <input id="transaction-date-mobile" type="date" required value={form.transaction_date} max={today()}
+                    aria-label="Choose transaction date"
+                    onChange={e => { updateForm({ transaction_date: e.target.value }); setConfirmDuplicate(false) }}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                </label>
+              </div>
+            </div>
+            <div className="min-w-0">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--text-tertiary))]">Owner</span>
+              <div className="grid h-10 grid-cols-2 gap-1 rounded-xl bg-[hsl(var(--bg-elevated))] p-1">
+                {OWNERS.map(name => (
+                  <button key={name} type="button" onClick={() => updateForm({ owner: name })}
+                    aria-label={`Owner: ${name}`} aria-pressed={form.owner === name}
+                    className={cn('flex min-w-0 items-center justify-center gap-1 rounded-lg text-xs font-bold transition-colors', form.owner === name ? 'bg-blue-500/20 text-blue-300' : 'text-[hsl(var(--text-secondary))]')}>
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: getOwnerColor(name) }} />
+                    <span aria-hidden="true">{name.slice(0, 1)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="tx-date-owner hidden grid-cols-[1.1fr_1fr] gap-3 sm:grid">
             <div>
               <div className="tx-date-label flex items-center justify-between">
                 <label htmlFor="transaction-date" className={cn(labelCls, 'tx-label')}>Date *</label>
