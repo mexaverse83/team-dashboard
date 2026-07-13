@@ -26,6 +26,8 @@ const TRACK = new Color('#1c2940')
 const BG_HI = new Color('#14233d')
 const BG_MID = new Color('#0b1425')
 const BG_LO = new Color('#070c17')
+const CARD = new Color('#ffffff', 0.055)
+const CARD_BORDER = new Color('#ffffff', 0.09)
 
 function applyBackground(w) {
   const g = new LinearGradient()
@@ -50,6 +52,12 @@ async function fetchData() {
     if (String(e.message || '').startsWith('API ')) throw e
     throw new Error('HTTP ' + status + ' non-JSON: ' + text.slice(0, 80))
   }
+}
+
+async function fetchWolffAvatar() {
+  const req = new Request(APP_URL.replace('/finance', '/brand/wolff-widget.png'))
+  req.timeoutInterval = 8
+  return await req.loadImage()
 }
 
 function money(n) {
@@ -203,7 +211,120 @@ function addDirectivePill(w, d) {
   pill.addSpacer()
 }
 
+function addMediumHeader(w, d, avatar) {
+  const row = w.addStack()
+  row.centerAlignContent()
+
+  if (avatar) {
+    const image = row.addImage(avatar)
+    image.imageSize = new Size(22, 22)
+    image.cornerRadius = 11
+    image.borderColor = new Color('#60a5fa', 0.55)
+    image.borderWidth = 1
+  } else {
+    const fallback = row.addText('\u{1F43A}')
+    fallback.font = Font.systemFont(16)
+  }
+
+  row.addSpacer(6)
+  const identity = row.addStack()
+  identity.layoutVertically()
+  const name = identity.addText('WOLFF')
+  name.font = Font.boldSystemFont(9.5)
+  name.textColor = BLUE_PALE
+  const household = identity.addText('B + L  ·  DAILY COACH')
+  household.font = Font.boldSystemFont(6.5)
+  household.textColor = TXT_FAINT
+
+  row.addSpacer()
+  const date = new DateFormatter()
+  date.dateFormat = 'EEE · MMM d'
+  const stamp = row.addText(date.string(new Date()).toUpperCase())
+  stamp.font = Font.semiboldSystemFont(7.5)
+  stamp.textColor = TXT_FAINT
+}
+
+function addMetricCard(parent, label, value, detail, color) {
+  const card = parent.addStack()
+  card.layoutVertically()
+  card.size = new Size(92, 45)
+  card.backgroundColor = CARD
+  card.borderColor = CARD_BORDER
+  card.borderWidth = 0.7
+  card.cornerRadius = 9
+  card.setPadding(5, 8, 5, 8)
+
+  const heading = card.addText(label)
+  heading.font = Font.boldSystemFont(6.5)
+  heading.textColor = TXT_FAINT
+  heading.lineLimit = 1
+  card.addSpacer(1)
+
+  const amount = card.addText(value)
+  amount.font = Font.heavyRoundedSystemFont(15.5)
+  amount.textColor = color
+  amount.lineLimit = 1
+  amount.minimumScaleFactor = 0.72
+  card.addSpacer(1)
+
+  const sub = card.addText(detail)
+  sub.font = Font.semiboldSystemFont(6.5)
+  sub.textColor = TXT_DIM
+  sub.lineLimit = 1
+  sub.minimumScaleFactor = 0.75
+}
+
 // ── Screens ──────────────────────────────────────────────
+
+// The default medium widget is intentionally a decision surface, not a
+// miniature dashboard: one action from Wolff, then the three numbers that
+// define how much flexibility the household has today, this week, and against
+// its primary savings goal.
+function mediumScreen(w, d, avatar) {
+  const now = new Date()
+  const dow = now.getDay()
+  const isWeekend = dow === 0 || dow === 6 || (dow === 5 && now.getHours() >= 15)
+  const item = (isWeekend && d.wolff && d.wolff.weekend)
+    ? d.wolff.weekend
+    : (d.wolff ? (d.wolff.directive || d.wolff.top) : null)
+  const risk = (d.over_committed_by || 0) > 0
+
+  addMediumHeader(w, d, avatar)
+  w.addSpacer(6)
+
+  const meta = w.addStack()
+  meta.centerAlignContent()
+  const label = meta.addText(isWeekend ? 'WEEKEND PLAN' : "TODAY'S MOVE")
+  label.font = Font.boldSystemFont(7)
+  label.textColor = BLUE
+  meta.addSpacer()
+  const state = meta.addStack()
+  state.backgroundColor = risk ? new Color('#f87171', 0.13) : new Color('#34d399', 0.12)
+  state.cornerRadius = 5
+  state.setPadding(2, 6, 2, 6)
+  const stateText = state.addText(risk ? 'PROTECT THE PLAN' : 'ROOM AVAILABLE')
+  stateText.font = Font.boldSystemFont(6.5)
+  stateText.textColor = risk ? ROSE : MINT
+
+  w.addSpacer(2)
+  const directive = w.addText(item ? ((item.icon ? item.icon + '  ' : '') + item.title) : 'Stay intentional — Wolff is refreshing your next move.')
+  directive.font = Font.boldRoundedSystemFont(13.5)
+  directive.textColor = WHITE
+  directive.lineLimit = 2
+  directive.minimumScaleFactor = 0.76
+
+  w.addSpacer(7)
+  const metrics = w.addStack()
+  const extra = risk ? '$0' : moneyShort(d.safe_to_spend_day || 0)
+  addMetricCard(metrics, 'EXTRA TODAY', extra, risk ? 'no unplanned spend' : 'outside the plan', risk ? ROSE : MINT)
+  metrics.addSpacer()
+  addMetricCard(metrics, 'THROUGH SUNDAY', moneyShort(d.week_envelope || 0), (d.days_left_in_week || 1) + ' day plan', ORANGE)
+  metrics.addSpacer()
+
+  const west = d.west_month && d.west_month.target > 0
+  const pace = west ? Math.round(d.west_month.pct || 0) : Math.round(d.goal_coverage_pct || 0)
+  addMetricCard(metrics, west ? 'WEST PACE' : 'GOAL PACE', pace + '%', moneyShort(d.projected_savings || 0) + ' projected', d.goal_gap > 0 ? AMBER : MINT)
+}
 
 function smartScreen(w, d) {
   addHeader(w, d)
@@ -365,10 +486,13 @@ async function build() {
     wolffScreen(w, d)
   } else {
     const pinned = (args.widgetParameter || '').trim().toLowerCase()
-    if (pinned === 'wolff') wolffScreen(w, d)
-    else if (pinned === 'pace') paceScreen(w, d, 280)
+    if (pinned === 'pace') paceScreen(w, d, 280)
     else if (pinned === 'smart' || pinned === 'money') smartScreen(w, d)
-    else wolffScreen(w, d)
+    else {
+      let avatar = null
+      try { avatar = await fetchWolffAvatar() } catch (e) { /* emoji fallback */ }
+      mediumScreen(w, d, avatar)
+    }
   }
 
   w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000)
