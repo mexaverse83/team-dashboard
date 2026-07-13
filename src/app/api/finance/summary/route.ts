@@ -5,6 +5,7 @@ import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { buildFertilityCutRecommendations, FERTILITY_TREATMENT_PLAN, getRemainingTreatmentEvents, getTreatmentEventForMonth } from '@/lib/fertility-plan'
 import { defaultBudgetType } from '@/lib/finance-utils'
 import { deriveIncomeBaseline, emergencyFundCoverage } from '@/lib/household-metrics'
+import { OWNERS } from '@/lib/owners'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -453,8 +454,8 @@ export async function GET(req: NextRequest) {
         pnl_pct: pnlPct,
         holdings: holdingsAgg,
         by_owner: {
-          Bernardo: { value_mxn: holdingSummaries.filter(h => h.owner === 'Bernardo').reduce((s, h) => s + h.value_mxn, 0) },
-          Laura: { value_mxn: holdingSummaries.filter(h => h.owner === 'Laura').reduce((s, h) => s + h.value_mxn, 0) },
+          Bernardo: { value_mxn: holdingSummaries.filter(h => h.owner === OWNERS[0]).reduce((s, h) => s + h.value_mxn, 0) },
+          Laura: { value_mxn: holdingSummaries.filter(h => h.owner === OWNERS[1]).reduce((s, h) => s + h.value_mxn, 0) },
         },
         risks: {
           concentration: concentrationRisk ? { symbol: concentrationRisk.symbol, pct: concentrationRisk.allocation_pct } : null,

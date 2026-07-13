@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { TrendingDown, TrendingUp, Wallet, Percent, ChevronLeft, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
-import { ownersEqual } from '@/lib/owners'
+import { OWNERS, ownersEqual } from '@/lib/owners'
 import { GlassCard } from '@/components/ui/glass-card'
 import { AnimatedNumber } from '@/components/ui/animated-number'
 import { TrendBadge } from '@/components/ui/trend-badge'
@@ -85,10 +85,10 @@ export default function FinanceOverviewClient() {
   const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0
 
   // Per-owner breakdowns
-  const bernardoSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, 'Bernardo')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
-  const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, 'Laura')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
-  const bernardoIncome = useMemo(() => monthTxs.filter(t => t.type === 'income' && ownersEqual(t.owner, 'Bernardo')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
-  const lauraIncome = useMemo(() => monthTxs.filter(t => t.type === 'income' && ownersEqual(t.owner, 'Laura')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const bernardoSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, OWNERS[0])).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, OWNERS[1])).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const bernardoIncome = useMemo(() => monthTxs.filter(t => t.type === 'income' && ownersEqual(t.owner, OWNERS[0])).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const lauraIncome = useMemo(() => monthTxs.filter(t => t.type === 'income' && ownersEqual(t.owner, OWNERS[1])).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
   const expectedMonthlyIncome = useMemo(
     () => recurringIncome.filter(r => r.recurrence === 'monthly').reduce((s, r) => s + r.amount, 0),
     [recurringIncome]

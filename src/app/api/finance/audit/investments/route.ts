@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { OWNERS } from '@/lib/owners'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -307,7 +308,7 @@ function runRetirementFlags(retirementData: Array<Record<string, unknown>>, mont
           id: `afore-stale-${r.owner}`,
           severity: 'amber',
           category: 'retirement',
-          title: `${r.owner === 'bernardo' ? 'Bernardo' : 'Laura'}'s AFORE balance is ${daysSince} days old`,
+          title: `${r.owner === 'bernardo' ? OWNERS[0] : OWNERS[1]}'s AFORE balance is ${daysSince} days old`,
           detail: `Last updated: ${r.last_updated}. AFORE balances change monthly with employer contributions and returns.`,
           suggestion: 'Check afore.mx or your AFORE app for current balance.',
           action_url: '/finance/investments?tab=Retirement',
@@ -333,7 +334,7 @@ function runRetirementFlags(retirementData: Array<Record<string, unknown>>, mont
             id: `afore-projection-low-${r.owner}`,
             severity: 'amber',
             category: 'retirement',
-            title: `${r.owner === 'bernardo' ? 'Bernardo' : 'Laura'}'s AFORE projection may fall short`,
+            title: `${r.owner === 'bernardo' ? OWNERS[0] : OWNERS[1]}'s AFORE projection may fall short`,
             detail: `Projected $${projectedBase.toLocaleString('en-US', { maximumFractionDigits: 0 })} MXN at 65 (base 8.5%). Income replacement target (~$${(target70pct).toLocaleString('en-US', { maximumFractionDigits: 0 })} for 20yr) may require voluntary contributions.`,
             suggestion: 'Consider Aportaciones Voluntarias to AFORE — tax-deductible up to 10% of annual income.',
             action_url: '/finance/investments?tab=Retirement',

@@ -5,8 +5,9 @@ import { Plus, Pencil, Trash2, RefreshCw, DollarSign, TrendingUp } from 'lucide-
 import { GlassCard } from '@/components/ui/glass-card'
 import { FinanceRecurringIncome } from '@/lib/finance-types'
 import { cn } from '@/lib/utils'
+import { OWNERS } from '@/lib/owners'
 
-const OWNER_LABELS: Record<string, string> = { bernardo: 'Bernardo', laura: 'Laura', joint: 'Joint' }
+const OWNER_LABELS: Record<string, string> = { bernardo: OWNERS[0], laura: OWNERS[1], joint: 'Joint' }
 const CATEGORY_LABELS: Record<string, string> = {
   salary: 'Salary', freelance: 'Freelance', passive: 'Passive', bonus: 'Bonus', other: 'Other',
 }
@@ -284,8 +285,8 @@ export function IncomeClient() {
                     onChange={e => setForm(f => ({ ...f, owner: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))] text-sm"
                   >
-                    <option value="bernardo">Bernardo</option>
-                    <option value="laura">Laura</option>
+                    <option value="bernardo">{OWNERS[0]}</option>
+                    <option value="laura">{OWNERS[1]}</option>
                     <option value="joint">Joint</option>
                   </select>
                 </div>

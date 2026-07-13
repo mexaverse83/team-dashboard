@@ -21,7 +21,17 @@ export type CutRecommendation = {
   cut_amount: number
 }
 
-export const FERTILITY_TREATMENT_PLAN = {
+const DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === '1'
+
+export const FERTILITY_TREATMENT_PLAN = DEMO ? {
+  name: 'Family plan',
+  minTotal: 0,
+  maxTotal: 0,
+  planningTotal: 0,
+  startMonth: '2020-01',
+  endMonth: '2020-01',
+  events: [] as TreatmentEvent[],
+} : {
   name: 'Fertility treatment',
   minTotal: 260000,
   maxTotal: 260000,

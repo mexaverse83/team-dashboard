@@ -230,7 +230,8 @@ function FertilityCard({ plan }: { plan: Summary['fertility_plan'] }) {
 // ─── Plans section — one headline, two compact cards ─────────────────────────
 export function PlansSection({ summary }: { summary: Summary | null }) {
   const december = summary?.year_end_goal_plan
-  const fertility = summary?.fertility_plan
+  // A zeroed plan (demo mode / plan complete) has nothing to show
+  const fertility = (summary?.fertility_plan?.planning_total ?? 0) > 0 ? summary?.fertility_plan : null
   if (!december && !fertility) return null
 
   const onTrack = december?.on_track ?? true

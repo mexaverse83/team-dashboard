@@ -43,5 +43,17 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Demo clones have no answer daemon — reply instantly with a canned note
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === '1') {
+    await supabase.from('finance_wolff_chat').insert({
+      role: 'wolff',
+      content: 'This is the demo — in the live app I answer with the household\'s real numbers in about 20 seconds. 🐺 Ask Bernardo & Laura to show you the real thing.',
+      status: 'done',
+      reply_to: data.id,
+    })
+    await supabase.from('finance_wolff_chat').update({ status: 'answered' }).eq('id', data.id)
+  }
+
   return NextResponse.json({ ok: true, message: data })
 }

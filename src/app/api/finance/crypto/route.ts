@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { OWNERS } from '@/lib/owners'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
     avg_cost_basis_usd: avg_cost_basis_usd || null,
     wallet_address: wallet_address || null,
     notes: notes || null,
-    owner: owner || 'Bernardo',
+    owner: owner || OWNERS[0],
     cost_currency: cost_currency || 'MXN',
   }
 

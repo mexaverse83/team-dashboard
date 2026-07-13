@@ -8,6 +8,7 @@ import {
   ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from 'recharts'
 import { CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
+import { OWNERS } from '@/lib/owners'
 
 function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' ') }
 function fmt(n: number, d = 0) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n) }
@@ -242,7 +243,7 @@ function recalcProjection(data: WestData, rate: number, appreciationPct: number,
   let paid = data.current_status.amount_paid
   let inv = data.current_status.investment_value
   let crypto = data.current_status.crypto_value
-  const infonavit = data.current_status.infonavit_laura || 350000 // Laura's Infonavit — fixed, no compounding
+  const infonavit = data.current_status.infonavit_laura || 350000 // ${OWNERS[1]}'s Infonavit — fixed, no compounding
   const debtPayoff = data.assumptions.debt_payoff_total
   const saleRemaining = 7200000 - 750000
   let propVal = data.property?.current_market_value || data.target
@@ -344,10 +345,10 @@ export function WestTracker() {
   const lastProj = projection.months[projection.months.length - 1]
   const infonavitValue = data.current_status.infonavit_laura || 350000
   const fundingSources = [
-    { name: 'Direct Payments', current: amountPaid, atDelivery: lastProj?.paid || 0, dotColor: 'bg-emerald-500', status: 'on_track', owner: 'Bernardo' },
+    { name: 'Direct Payments', current: amountPaid, atDelivery: lastProj?.paid || 0, dotColor: 'bg-emerald-500', status: 'on_track', owner: OWNERS[0] },
     { name: 'GBM Investment', current: investmentValue, atDelivery: lastProj?.investments || 0, dotColor: 'bg-blue-500', status: 'growing', owner: 'shared' },
     { name: 'Crypto', current: cryptoValue, atDelivery: lastProj?.crypto || 0, dotColor: 'bg-amber-500', status: cryptoValue > 0 ? 'growing' : 'not_set', owner: 'shared' },
-    { name: "Laura's Infonavit", current: infonavitValue, atDelivery: infonavitValue, dotColor: 'bg-pink-500', status: 'on_track', owner: 'Laura' },
+    { name: "${OWNERS[1]}'s Infonavit", current: infonavitValue, atDelivery: infonavitValue, dotColor: 'bg-pink-500', status: 'on_track', owner: OWNERS[1] },
   ]
 
   return (
@@ -440,8 +441,8 @@ export function WestTracker() {
               <div className="col-span-1 text-center">
                 {src.owner === 'shared' ? (
                   <span className="flex items-center justify-center gap-0.5">
-                    <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" title="Bernardo" />
-                    <span className="h-2 w-2 rounded-full bg-pink-500 shrink-0" title="Laura" />
+                    <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" title={OWNERS[0]} />
+                    <span className="h-2 w-2 rounded-full bg-pink-500 shrink-0" title={OWNERS[1]} />
                   </span>
                 ) : (
                   <span className={cn("text-[10px] font-medium capitalize", src.owner === 'laura' ? 'text-pink-600' : 'text-blue-600')}>{src.owner}</span>

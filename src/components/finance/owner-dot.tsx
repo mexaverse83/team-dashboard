@@ -1,10 +1,11 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { OWNERS } from '@/lib/owners'
 
 const config: Record<string, { color: string; label: string; name: string }> = {
-  Bernardo: { color: 'bg-blue-500', label: 'B', name: 'Bernardo' },
-  Laura: { color: 'bg-pink-500', label: 'L', name: 'Laura' },
+  Bernardo: { color: 'bg-blue-500', label: 'B', name: OWNERS[0] },
+  Laura: { color: 'bg-pink-500', label: 'L', name: OWNERS[1] },
   shared: { color: 'bg-violet-500', label: '👥', name: 'Shared' },
 }
 

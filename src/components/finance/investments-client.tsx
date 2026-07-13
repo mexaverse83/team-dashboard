@@ -16,6 +16,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip, AreaChart, Area, XAxis, YAxis,
 } from 'recharts'
 import { CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
+import { OWNERS } from '@/lib/owners'
 
 // ─── Asset class colors ───
 const ASSET_COLORS: Record<string, string> = {
@@ -86,7 +87,7 @@ const TABS: Tab[] = ['Portfolio', 'Crypto', 'Stocks', 'Fixed Income', 'Real Esta
 function OwnerToggle({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="flex gap-1 p-1 bg-[hsl(var(--accent))] rounded-lg w-fit">
-      {['All', 'Bernardo', 'Laura'].map(f => (
+      {['All', OWNERS[0], OWNERS[1]].map(f => (
         <button key={f} onClick={() => onChange(f)}
           className={cn(
             "px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
@@ -186,11 +187,11 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   
   const [showAddFunds, setShowAddFunds] = useState(false)
   const [addFundsGroup, setAddFundsGroup] = useState<FIGroup | null>(null)
-  const [addFundsOwner, setAddFundsOwner] = useState('Bernardo')
+  const [addFundsOwner, setAddFundsOwner] = useState(OWNERS[0])
   const [addFundsAmount, setAddFundsAmount] = useState('')
 
   const openAddFunds = (group: FIGroup) => {
-    const defaultOwner = ownerFilter !== 'All' ? ownerFilter : 'Bernardo'
+    const defaultOwner = ownerFilter !== 'All' ? ownerFilter : OWNERS[0]
     setAddFundsGroup(group)
     setAddFundsOwner(defaultOwner)
     setAddFundsAmount('')
@@ -586,12 +587,12 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           {ownerFilter === 'All' && (stocksByOwner.bernardo > 0 || stocksByOwner.laura > 0) && (
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
               <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] border-l-2 border-l-blue-500">
-                <div className="flex items-center gap-2 mb-1"><OwnerDot owner="Bernardo" size="sm" /><span className="text-xs font-semibold">Bernardo</span></div>
+                <div className="flex items-center gap-2 mb-1"><OwnerDot owner={OWNERS[0]} size="sm" /><span className="text-xs font-semibold">{OWNERS[0]}</span></div>
                 <p className="text-lg font-bold tabular-nums">{fmtMXN(stocksByOwner.bernardo)}</p>
                 <p className="text-xs text-[hsl(var(--text-secondary))]">{stocksByOwner.bCount} position{stocksByOwner.bCount !== 1 ? 's' : ''}</p>
               </div>
               <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] border-l-2 border-l-pink-500">
-                <div className="flex items-center gap-2 mb-1"><OwnerDot owner="Laura" size="sm" /><span className="text-xs font-semibold">Laura</span></div>
+                <div className="flex items-center gap-2 mb-1"><OwnerDot owner={OWNERS[1]} size="sm" /><span className="text-xs font-semibold">{OWNERS[1]}</span></div>
                 <p className="text-lg font-bold tabular-nums">{fmtMXN(stocksByOwner.laura)}</p>
                 <p className="text-xs text-[hsl(var(--text-secondary))]">{stocksByOwner.lCount} position{stocksByOwner.lCount !== 1 ? 's' : ''}</p>
               </div>
@@ -618,7 +619,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
             )}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Stock Holdings</h2>
-            <button onClick={() => { setStockForm({ ticker: '', name: '', exchange: 'US', asset_type: 'stock', shares: 0, avg_cost_basis: 0, currency: 'MXN', broker: 'GBM', owner: 'Bernardo', notes: '' }); setShowStockForm(true) }}
+            <button onClick={() => { setStockForm({ ticker: '', name: '', exchange: 'US', asset_type: 'stock', shares: 0, avg_cost_basis: 0, currency: 'MXN', broker: 'GBM', owner: OWNERS[0], notes: '' }); setShowStockForm(true) }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
               <Plus className="h-3.5 w-3.5" /> Add Stock
             </button>
@@ -629,7 +630,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
               <BarChart3 className="h-10 w-10 text-[hsl(var(--text-tertiary))] mx-auto mb-3" />
               <p className="text-sm font-medium">No stock holdings yet</p>
               <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">Add stocks or ETFs you hold</p>
-              <button onClick={() => { setStockForm({ ticker: '', name: '', exchange: 'US', asset_type: 'stock', shares: 0, avg_cost_basis: 0, currency: 'MXN', broker: 'GBM', owner: 'Bernardo' }); setShowStockForm(true) }}
+              <button onClick={() => { setStockForm({ ticker: '', name: '', exchange: 'US', asset_type: 'stock', shares: 0, avg_cost_basis: 0, currency: 'MXN', broker: 'GBM', owner: OWNERS[0] }); setShowStockForm(true) }}
                 className="mt-4 px-4 py-2 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
                 Add Stock
               </button>
@@ -723,12 +724,12 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           {ownerFilter === 'All' && (fiByOwner.bernardo > 0 || fiByOwner.laura > 0) && (
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
               <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] border-l-2 border-l-blue-500">
-                <div className="flex items-center gap-2 mb-1"><OwnerDot owner="Bernardo" size="sm" /><span className="text-xs font-semibold">Bernardo</span></div>
+                <div className="flex items-center gap-2 mb-1"><OwnerDot owner={OWNERS[0]} size="sm" /><span className="text-xs font-semibold">{OWNERS[0]}</span></div>
                 <p className="text-lg font-bold tabular-nums">{fmtMXN(fiByOwner.bernardo)}</p>
                 <p className="text-xs text-[hsl(var(--text-secondary))]">{fiByOwner.bCount} position{fiByOwner.bCount !== 1 ? 's' : ''}</p>
               </div>
               <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] border-l-2 border-l-pink-500">
-                <div className="flex items-center gap-2 mb-1"><OwnerDot owner="Laura" size="sm" /><span className="text-xs font-semibold">Laura</span></div>
+                <div className="flex items-center gap-2 mb-1"><OwnerDot owner={OWNERS[1]} size="sm" /><span className="text-xs font-semibold">{OWNERS[1]}</span></div>
                 <p className="text-lg font-bold tabular-nums">{fmtMXN(fiByOwner.laura)}</p>
                 <p className="text-xs text-[hsl(var(--text-secondary))]">{fiByOwner.lCount} position{fiByOwner.lCount !== 1 ? 's' : ''}</p>
               </div>
@@ -759,7 +760,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           </div>
 
           <div className="flex justify-end">
-            <button onClick={() => { setFIForm({ instrument_type: 'cetes', name: '', institution: '', principal: 0, annual_rate: 0, term_days: null, maturity_date: null, is_liquid: false, auto_renew: false, owner: 'Bernardo', tier: 1 }); setShowFIForm(true) }}
+            <button onClick={() => { setFIForm({ instrument_type: 'cetes', name: '', institution: '', principal: 0, annual_rate: 0, term_days: null, maturity_date: null, is_liquid: false, auto_renew: false, owner: OWNERS[0], tier: 1 }); setShowFIForm(true) }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
               <Plus className="h-3.5 w-3.5" /> Add Instrument
             </button>
@@ -827,13 +828,13 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                         <div className="flex flex-col gap-1 p-2 rounded-lg bg-[hsl(var(--bg-elevated))]/40 border border-[hsl(var(--border))]">
                           {bernMember && (
                             <div className="flex items-center justify-between">
-                              <span className="flex items-center gap-1.5"><OwnerDot owner="Bernardo" size="sm" /><span className="text-[hsl(var(--text-secondary))]">Bernardo</span></span>
+                              <span className="flex items-center gap-1.5"><OwnerDot owner={OWNERS[0]} size="sm" /><span className="text-[hsl(var(--text-secondary))]">{OWNERS[0]}</span></span>
                               <span className="tabular-nums font-medium">{fmtMXN(bernMember.principal)} <span className="text-[hsl(var(--text-tertiary))]">({((bernMember.principal / group.totalPrincipal) * 100).toFixed(0)}%)</span></span>
                             </div>
                           )}
                           {lauraMember && (
                             <div className="flex items-center justify-between">
-                              <span className="flex items-center gap-1.5"><OwnerDot owner="Laura" size="sm" /><span className="text-[hsl(var(--text-secondary))]">Laura</span></span>
+                              <span className="flex items-center gap-1.5"><OwnerDot owner={OWNERS[1]} size="sm" /><span className="text-[hsl(var(--text-secondary))]">{OWNERS[1]}</span></span>
                               <span className="tabular-nums font-medium">{fmtMXN(lauraMember.principal)} <span className="text-[hsl(var(--text-tertiary))]">({((lauraMember.principal / group.totalPrincipal) * 100).toFixed(0)}%)</span></span>
                             </div>
                           )}
@@ -910,12 +911,12 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           {ownerFilter === 'All' && (reByOwner.bernardo > 0 || reByOwner.laura > 0) && (
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
               <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] border-l-2 border-l-blue-500">
-                <div className="flex items-center gap-2 mb-1"><OwnerDot owner="Bernardo" size="sm" /><span className="text-xs font-semibold">Bernardo</span></div>
+                <div className="flex items-center gap-2 mb-1"><OwnerDot owner={OWNERS[0]} size="sm" /><span className="text-xs font-semibold">{OWNERS[0]}</span></div>
                 <p className="text-lg font-bold tabular-nums">{fmtMXN(reByOwner.bernardo)}</p>
                 <p className="text-xs text-[hsl(var(--text-secondary))]">{reByOwner.bCount} propert{reByOwner.bCount !== 1 ? 'ies' : 'y'}</p>
               </div>
               <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] border-l-2 border-l-pink-500">
-                <div className="flex items-center gap-2 mb-1"><OwnerDot owner="Laura" size="sm" /><span className="text-xs font-semibold">Laura</span></div>
+                <div className="flex items-center gap-2 mb-1"><OwnerDot owner={OWNERS[1]} size="sm" /><span className="text-xs font-semibold">{OWNERS[1]}</span></div>
                 <p className="text-lg font-bold tabular-nums">{fmtMXN(reByOwner.laura)}</p>
                 <p className="text-xs text-[hsl(var(--text-secondary))]">
                   {reByOwner.lCount} propert{reByOwner.lCount !== 1 ? 'ies' : 'y'}
@@ -927,7 +928,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
 
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Properties</h2>
-            <button onClick={() => { setREForm({ name: '', property_type: 'apartment', purchase_price: 0, current_value: 0, owner: 'Bernardo' }); setShowREForm(true) }}
+            <button onClick={() => { setREForm({ name: '', property_type: 'apartment', purchase_price: 0, current_value: 0, owner: OWNERS[0] }); setShowREForm(true) }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-violet-600 hover:bg-violet-500 text-white transition-colors">
               <Plus className="h-3.5 w-3.5" /> Add Property
             </button>
@@ -1105,7 +1106,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                 <div>
                   <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Owner</label>
                   <div className="flex gap-2">
-                    {['Bernardo', 'Laura'].map(o => (
+                    {[OWNERS[0], OWNERS[1]].map(o => (
                       <button key={o} onClick={() => setStockForm(f => ({ ...f, owner: o }))}
                         className={cn("flex-1 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1", stockForm.owner === o ? "bg-blue-600 text-white" : "bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]")}>
                         <OwnerDot owner={o} size="sm" /> {o}
@@ -1234,7 +1235,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                 <div>
                   <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Owner</label>
                   <div className="flex gap-2">
-                    {['Bernardo', 'Laura'].map(o => (
+                    {[OWNERS[0], OWNERS[1]].map(o => (
                       <button key={o} onClick={() => setFIForm(f => ({ ...f, owner: o }))}
                         className={cn("flex-1 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1", fiForm.owner === o ? "bg-emerald-600 text-white" : "bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]")}>
                         <OwnerDot owner={o} size="sm" /> {o}
@@ -1486,7 +1487,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
               <div>
                 <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Owner</label>
                 <div className="flex gap-2">
-                  {['Bernardo', 'Laura'].map(o => (
+                  {[OWNERS[0], OWNERS[1]].map(o => (
                     <button key={o} onClick={() => setREForm(f => ({ ...f, owner: o }))}
                       className={cn("flex-1 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1", reForm.owner === o ? "bg-violet-600 text-white" : "bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]")}>
                       <OwnerDot owner={o} size="sm" /> {o}

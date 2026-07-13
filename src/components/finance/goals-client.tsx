@@ -324,7 +324,7 @@ export default function GoalsClient() {
               className={cn("cursor-pointer hover:ring-1 hover:ring-[hsl(var(--border))] transition-all group",
                 selectedGoal === g.id && "ring-1 ring-blue-500/50",
                 isCrypto ? `border-l-2 ${g.crypto_symbol === 'BTC' ? 'border-l-orange-500' : g.crypto_symbol === 'ETH' ? 'border-l-indigo-500' : 'border-l-purple-500'}` :
-                g.scope === 'shared' ? "border-l-2 border-l-violet-500" : g.owner === 'Laura' ? "border-l-2 border-l-pink-500" : g.owner === 'Bernardo' ? "border-l-2 border-l-blue-500" : ""
+                g.scope === 'shared' ? "border-l-2 border-l-violet-500" : g.owner === OWNERS[1] ? "border-l-2 border-l-pink-500" : g.owner === OWNERS[0] ? "border-l-2 border-l-blue-500" : ""
               )}
               onClick={() => setSelectedGoal(g.id === selectedGoal ? null : g.id)}>
               <div className="flex items-center justify-between mb-3">
@@ -573,8 +573,8 @@ export default function GoalsClient() {
           </div>
           {/* Legend */}
           <div className="flex items-center gap-4 mb-2">
-            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" /><span className="text-xs text-[hsl(var(--text-secondary))]">Bernardo</span></div>
-            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /><span className="text-xs text-[hsl(var(--text-secondary))]">Laura</span></div>
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block" /><span className="text-xs text-[hsl(var(--text-secondary))]">{OWNERS[0]}</span></div>
+            <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" /><span className="text-xs text-[hsl(var(--text-secondary))]">{OWNERS[1]}</span></div>
             <div className="flex items-center gap-1.5"><span className="w-3 h-0.5 border-t-2 border-dashed border-amber-400 inline-block" /><span className="text-xs text-[hsl(var(--text-secondary))]">Plan</span></div>
           </div>
           <div className="h-44">
@@ -587,7 +587,7 @@ export default function GoalsClient() {
                 <Tooltip
                   contentStyle={CHART_TOOLTIP_STYLE}
 
-                  formatter={((v: number, name: string) => [`$${(v || 0).toLocaleString()}`, name === 'bernardo' ? 'Bernardo' : 'Laura']) as any}
+                  formatter={((v: number, name: string) => [`$${(v || 0).toLocaleString()}`, name === 'bernardo' ? OWNERS[0] : OWNERS[1]]) as any}
                 />
                 <ReferenceLine y={lastTotal?.planned_contribution ?? 120000} stroke="hsl(var(--chart-5))" strokeDasharray="4 4" strokeWidth={1.5} />
                 <Bar dataKey="bernardo" stackId="savings" fill="hsl(225, 75%, 48%)" />

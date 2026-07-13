@@ -13,7 +13,7 @@ import { SafeToSpendCard } from '@/components/finance/safe-to-spend'
 import { MonthProjectionCard } from '@/components/finance/month-projection-card'
 import { InstallPrompt } from '@/components/finance/install-prompt'
 import { supabase } from '@/lib/supabase'
-import { ownersEqual } from '@/lib/owners'
+import { OWNERS, ownersEqual } from '@/lib/owners'
 import { cn } from '@/lib/utils'
 import type { FinanceTransaction, FinanceCategory } from '@/lib/finance-types'
 import { enrichTransactions, DEFAULT_CATEGORIES, monthKey } from '@/lib/finance-utils'
@@ -81,8 +81,8 @@ export default function CommandCenterClient() {
   // negative headline. Reverts automatically the moment income posts.
   const awaitingIncome = totalIncome === 0
 
-  const bernardoSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, 'Bernardo')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
-  const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, 'Laura')).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const bernardoSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, OWNERS[0])).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, OWNERS[1])).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
 
   // Daily spend sparkline
   const dailySpend = useMemo(() => {
@@ -155,7 +155,7 @@ export default function CommandCenterClient() {
           <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--text-secondary))]">
-                {greeting}, Bernardo · {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                {greeting}, {OWNERS[0]} · {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               </p>
               <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <span className={cn(

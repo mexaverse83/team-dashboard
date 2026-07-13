@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { Bitcoin, TrendingUp, TrendingDown, Plus, Pencil, Trash2, X, Wallet, RefreshCw } from 'lucide-react'
 import { OwnerDot } from '@/components/finance/owner-dot'
+import { OWNERS } from '@/lib/owners'
 
 interface Holding {
   id: string
@@ -56,11 +57,11 @@ interface TxFormData {
   transaction_date: string
 }
 
-const EMPTY_HOLDING_FORM: HoldingFormData = { symbol: 'BTC', owner: 'Bernardo', wallet_address: '', notes: '' }
+const EMPTY_HOLDING_FORM: HoldingFormData = { symbol: 'BTC', owner: OWNERS[0], wallet_address: '', notes: '' }
 
 const today = new Date().toISOString().slice(0, 10)
 const EMPTY_TX_FORM: TxFormData = {
-  holding_id: '', type: 'buy', symbol: 'BTC', owner: 'Bernardo',
+  holding_id: '', type: 'buy', symbol: 'BTC', owner: OWNERS[0],
   quantity: '', price_per_coin_mxn: '', price_currency: 'MXN', exchange: '', notes: '', transaction_date: today,
 }
 
@@ -103,7 +104,7 @@ export function CryptoClient() {
   const [holdingForm, setHoldingForm] = useState<HoldingFormData>(EMPTY_HOLDING_FORM)
   const [txForm, setTxForm] = useState<TxFormData>(EMPTY_TX_FORM)
   const [error, setError] = useState<string | null>(null)
-  const [ownerFilter, setOwnerFilter] = useState<'All' | 'Bernardo' | 'Laura'>('All')
+  const [ownerFilter, setOwnerFilter] = useState<string>('All')
 
   const fetchData = useCallback(async (bust = false) => {
     try {
@@ -184,7 +185,7 @@ export function CryptoClient() {
       })).filter(c => c.qty > 0).sort((a, b) => b.valueMXN - a.valueMXN)
       return { mxn, cost, pl, plPct, coins, count: owned.filter(h => h.quantity > 0).length }
     }
-    return { Bernardo: calc('Bernardo'), Laura: calc('Laura') }
+    return Object.fromEntries(OWNERS.map(o => [o, calc(o)]))
   }, [holdings, prices, usdToMxn])
 
   // Combined per-coin totals (both owners)
@@ -305,7 +306,7 @@ export function CryptoClient() {
     setTxForm({
       ...EMPTY_TX_FORM,
       symbol: symbol || 'BTC',
-      owner: owner || 'Bernardo',
+      owner: owner || OWNERS[0],
       holding_id: holdingId || '',
       price_currency: 'MXN',
       transaction_date: today,
@@ -431,11 +432,11 @@ export function CryptoClient() {
       {/* Owner Portfolios */}
       {holdings.length > 0 && ownerFilter === 'All' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {(['Bernardo', 'Laura'] as const).map(name => {
+          {OWNERS.map(name => {
             const o = ownerTotals[name]
             if (o.count === 0) return null
-            const ownerColor = name === 'Bernardo' ? 'border-blue-500/30' : 'border-pink-500/30'
-            const ownerBg = name === 'Bernardo' ? 'bg-blue-500/5' : 'bg-pink-500/5'
+            const ownerColor = name === OWNERS[0] ? 'border-blue-500/30' : 'border-pink-500/30'
+            const ownerBg = name === OWNERS[0] ? 'bg-blue-500/5' : 'bg-pink-500/5'
             return (
               <GlassCard key={name} className={`p-4 ${ownerBg} border ${ownerColor}`}>
                 <div className="flex items-center justify-between mb-3">
@@ -502,7 +503,7 @@ export function CryptoClient() {
 
       {/* Owner Filter Tabs */}
       <div className="flex gap-1 p-1 bg-[hsl(var(--accent))] rounded-lg w-fit">
-        {(['All', 'Bernardo', 'Laura'] as const).map(f => (
+        {(['All', OWNERS[0], OWNERS[1]] as const).map(f => (
           <button
             key={f}
             onClick={() => setOwnerFilter(f)}
@@ -742,7 +743,7 @@ export function CryptoClient() {
               <div>
                 <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Owner</label>
                 <div className="flex gap-2">
-                  {['Bernardo', 'Laura'].map(o => (
+                  {[OWNERS[0], OWNERS[1]].map(o => (
                     <button key={o} onClick={() => setHoldingForm(f => ({ ...f, owner: o }))}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${holdingForm.owner === o ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'}`}>
                       <OwnerDot owner={o} size="sm" /> {o}
@@ -809,7 +810,7 @@ export function CryptoClient() {
               <div>
                 <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Owner</label>
                 <div className="flex gap-2">
-                  {['Bernardo', 'Laura'].map(o => (
+                  {[OWNERS[0], OWNERS[1]].map(o => (
                     <button key={o} onClick={() => setTxForm(f => ({ ...f, owner: o }))}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${txForm.owner === o ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'}`}>
                       <OwnerDot owner={o} size="sm" /> {o}

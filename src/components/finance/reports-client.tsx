@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
-import { ownersEqual } from '@/lib/owners'
+import { OWNERS, ownersEqual } from '@/lib/owners'
 import { GlassCard } from '@/components/ui/glass-card'
 import { AnimatedNumber } from '@/components/ui/animated-number'
 import { TrendBadge } from '@/components/ui/trend-badge'
@@ -68,8 +68,8 @@ export default function ReportsClient() {
     transactions.filter(t => t.type === 'expense').forEach(t => {
       const m = t.transaction_date.slice(0, 7)
       if (!map[m]) map[m] = { bernardo: 0, laura: 0 }
-      if (ownersEqual(t.owner, 'Bernardo')) map[m].bernardo += t.amount_mxn
-      else if (ownersEqual(t.owner, 'Laura')) map[m].laura += t.amount_mxn
+      if (ownersEqual(t.owner, OWNERS[0])) map[m].bernardo += t.amount_mxn
+      else if (ownersEqual(t.owner, OWNERS[1])) map[m].laura += t.amount_mxn
     })
     return Object.entries(map).map(([month, d]) => ({ month, ...d })).sort((a, b) => a.month.localeCompare(b.month)).slice(-6)
   }, [transactions])
@@ -81,8 +81,8 @@ export default function ReportsClient() {
       const catName = t.category?.name || 'Other'
       const catIcon = t.category?.icon || '📦'
       if (!map[catName]) map[catName] = { name: catName, bernardo: 0, laura: 0, icon: catIcon }
-      if (ownersEqual(t.owner, 'Bernardo')) map[catName].bernardo += t.amount_mxn
-      else if (ownersEqual(t.owner, 'Laura')) map[catName].laura += t.amount_mxn
+      if (ownersEqual(t.owner, OWNERS[0])) map[catName].bernardo += t.amount_mxn
+      else if (ownersEqual(t.owner, OWNERS[1])) map[catName].laura += t.amount_mxn
     })
     return Object.values(map).sort((a, b) => (b.bernardo + b.laura) - (a.bernardo + a.laura)).slice(0, 8)
   }, [transactions])
@@ -395,8 +395,8 @@ export default function ReportsClient() {
                 <YAxis tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} formatter={(v: number | undefined) => [`$${(v ?? 0).toLocaleString()}`, '']} />
                 <Legend />
-                <Bar dataKey="bernardo" name="Bernardo" fill="#3B82F6" radius={[4,4,0,0]} />
-                <Bar dataKey="laura" name="Laura" fill="#EC4899" radius={[4,4,0,0]} />
+                <Bar dataKey="bernardo" name={OWNERS[0]} fill="#3B82F6" radius={[4,4,0,0]} />
+                <Bar dataKey="laura" name={OWNERS[1]} fill="#EC4899" radius={[4,4,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

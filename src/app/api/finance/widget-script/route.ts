@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response
 
   const apiKey = process.env.FINANCE_API_KEY || ''
-  const origin = 'https://finance.autonomis.co'
+  const origin = process.env.NEXT_PUBLIC_APP_ORIGIN || 'https://finance.autonomis.co'
 
   const script = `// Finance widget loader (Scriptable) — self-updating, generated ${new Date().toISOString().slice(0, 10)}
 // The widget's design/logic lives on the server and refreshes automatically.
