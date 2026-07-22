@@ -88,7 +88,7 @@ export default function AskWolffClient() {
         <WolffAvatar className="h-11 w-11 drop-shadow-sm" />
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">Ask Wolff</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Ask Mona</h1>
             <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">Live plan</span>
           </div>
           <p className="text-xs text-[hsl(var(--text-secondary))]">One verdict, the numbers behind it, and your next move.</p>
@@ -102,7 +102,7 @@ export default function AskWolffClient() {
           <div className="py-8 text-center">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--brand)/0.08)] text-xl">🐺</span>
             <p className="mt-3 text-sm font-semibold">Make the next decision simple.</p>
-            <p className="mt-1 text-xs text-[hsl(var(--text-tertiary))]">Wolff checks your live month, WEST target, treatment plan, goals, and budgets.</p>
+            <p className="mt-1 text-xs text-[hsl(var(--text-tertiary))]">Mona checks your live month, WEST target, treatment plan, goals, and budgets.</p>
             <div className="mx-auto mt-5 grid max-w-lg gap-2 sm:grid-cols-2">
               {SUGGESTIONS.map(s => (
                 <button key={s} onClick={() => send(s)}
@@ -129,7 +129,7 @@ export default function AskWolffClient() {
                 {m.role === 'wolff' && <span className="mr-1.5">🐺</span>}
                 {m.content}
                 {m.role === 'user' && m.status === 'failed' && (
-                  <span className="mt-1 block text-[10px] text-rose-200">⚠ Wolff couldn&apos;t answer this one — try again</span>
+                  <span className="mt-1 block text-[10px] text-rose-200">⚠ Mona couldn&apos;t answer this one — try again</span>
                 )}
               </div>
             </div>
@@ -138,7 +138,7 @@ export default function AskWolffClient() {
         {waiting && (
           <div className="flex justify-start">
             <div className="rounded-2xl rounded-bl-md border border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))]/60 px-3.5 py-2.5 text-sm text-[hsl(var(--text-secondary))]">
-              🐺 <span className="animate-pulse">Wolff is checking the numbers…</span>
+              🐕 <span className="animate-pulse">Mona is checking the numbers…</span>
             </div>
           </div>
         )}

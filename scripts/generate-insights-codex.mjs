@@ -91,7 +91,7 @@ async function main() {
   }
 
   try {
-    // 2. Fetch summary and build the WOLFF prompt
+    // 2. Fetch summary and build the MONA prompt
     console.log('Fetching finance summary ...')
     const data = await fetchSummary()
     const west = await fetchWestProjection()

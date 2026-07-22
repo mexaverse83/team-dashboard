@@ -44,7 +44,7 @@ async function buildDailyMessage() {
   }
   const top = (insights?.insights || []).find(i => i.priority === 'high')
   if (top) lines.push(`${top.icon} ${top.title}`)
-  return { title: '🐺 Wolff Daily Brief', body: lines.join('\n') || 'Open the dashboard for today\'s numbers.', url: '/finance' }
+  return { title: '🐕 Mona Daily Brief', body: lines.join('\n') || 'Open the dashboard for today\'s numbers.', url: '/finance' }
 }
 
 async function main() {

@@ -119,7 +119,7 @@ export function Sidebar() {
           >
             <Link href="/finance/ask" onClick={closeMobile} aria-current={isFinanceRouteActive(pathname, wolffNavItem.href) ? 'page' : undefined} className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-400/25 bg-gradient-to-r from-blue-500/15 to-emerald-500/[0.08] p-3 text-blue-100">
               <WolffAvatar className="h-10 w-10" />
-              <div className="min-w-0"><span className="block text-sm font-semibold">Talk to Wolff</span><span className="block truncate text-[10px] text-blue-200/60">Daily decisions, trade-offs, and motivation</span></div>
+              <div className="min-w-0"><span className="block text-sm font-semibold">Talk to Mona</span><span className="block truncate text-[10px] text-blue-200/60">Daily decisions, trade-offs, and motivation</span></div>
               <WolffIcon className="ml-auto h-4 w-4 text-blue-300" />
             </Link>
 
@@ -186,7 +186,7 @@ export function Sidebar() {
         </button>
 
         <Link href="/finance/ask" aria-current={isFinanceRouteActive(pathname, wolffNavItem.href) ? 'page' : undefined} className="mb-5 flex items-center gap-3 rounded-2xl border border-blue-400/20 bg-gradient-to-r from-blue-500/15 to-emerald-500/[0.07] p-3 text-blue-100 hover:border-blue-400/35 hover:bg-blue-500/20">
-          <WolffAvatar className="h-9 w-9" /><div className="min-w-0"><span className="block text-[12px] font-semibold">Talk to Wolff</span><span className="block truncate text-[9px] text-blue-200/55">Daily financial copilot</span></div><WolffIcon className="ml-auto h-4 w-4 text-blue-300" />
+          <WolffAvatar className="h-9 w-9" /><div className="min-w-0"><span className="block text-[12px] font-semibold">Talk to Mona</span><span className="block truncate text-[9px] text-blue-200/55">Daily financial copilot</span></div><WolffIcon className="ml-auto h-4 w-4 text-blue-300" />
         </Link>
 
         <nav aria-label="Primary finance navigation">
@@ -215,7 +215,7 @@ export function Sidebar() {
         <div className="sidebar-footer mt-auto space-y-3 border-t border-white/[0.08] pt-4">
           <FinanceAuthBadge collapsed={false} />
           <div className="flex items-center gap-2 px-2 text-[11px] text-white/55"><div className="relative h-2 w-2 rounded-full bg-emerald-500 animate-pulse before:absolute before:inset-[-3px] before:rounded-full before:border before:border-emerald-400/30" /><span>Connected</span></div>
-          <p className="px-2 text-[9px] uppercase tracking-[0.14em] text-white/25">v2.1 · Wolff Finance</p>
+          <p className="px-2 text-[9px] uppercase tracking-[0.14em] text-white/25">v2.1 · Mona Finance</p>
         </div>
       </aside>
     </>

@@ -35,8 +35,8 @@ export interface FinanceNavSection {
 
 export const wolffNavItem: FinanceNavItem = {
   href: '/finance/ask',
-  label: 'Ask Wolff',
-  shortLabel: 'Wolff',
+  label: 'Ask Mona',
+  shortLabel: 'Mona',
   icon: MessageCircle,
   description: 'Your daily financial copilot',
   keywords: ['ai', 'assistant', 'coach', 'question', 'decision'],
@@ -47,7 +47,7 @@ export const primaryFinanceSections: FinanceNavSection[] = [
     label: 'Daily',
     items: [
       { href: '/finance', label: 'Overview', shortLabel: 'Home', icon: Wallet, description: 'Today’s plan and financial pulse', keywords: ['home', 'dashboard'] },
-      { href: '/finance/insights', label: 'Insights', icon: Sparkles, description: 'Wolff’s complete decision brief', keywords: ['brief', 'alerts', 'recommendations'] },
+      { href: '/finance/insights', label: 'Insights', icon: Sparkles, description: 'Mona’s complete decision brief', keywords: ['brief', 'alerts', 'recommendations'] },
     ],
   },
   {

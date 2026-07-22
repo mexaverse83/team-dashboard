@@ -89,7 +89,7 @@ describe('Sidebar', () => {
 
   it('shows version', () => {
     render(<Sidebar />)
-    expect(screen.getByText('v2.1 · Wolff Finance')).toBeInTheDocument()
+    expect(screen.getByText('v2.1 · Mona Finance')).toBeInTheDocument()
   })
 
   it('shows connection indicator', () => {

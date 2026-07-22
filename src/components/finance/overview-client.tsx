@@ -263,7 +263,7 @@ export default function FinanceOverviewClient() {
         <WeekendBudgetCard transactions={transactions} categories={categories} />
       </div>
 
-      {/* WEST Target + Wolff Widget */}
+      {/* WEST Target + Mona Widget */}
       <WestCompactWidget />
       <WolffWidget />
 

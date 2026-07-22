@@ -4,8 +4,8 @@ import type { MetadataRoute } from 'next'
 // dashboard installable as a PWA on iOS ("Add to Home Screen") and Android.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Wolff Finance',
-    short_name: 'Wolff',
+    name: 'Mona Finance',
+    short_name: 'Mona',
     description: 'Bernardo and Laura’s household financial plan',
     start_url: '/finance',
     scope: '/',

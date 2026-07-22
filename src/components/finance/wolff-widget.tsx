@@ -119,7 +119,7 @@ export function WolffWidget() {
             <WolffAvatar className="h-11 w-11 sm:h-12 sm:w-12" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 id="wolff-command-title" className="text-base font-semibold sm:text-lg">Wolff · daily command</h2>
+                <h2 id="wolff-command-title" className="text-base font-semibold sm:text-lg">Mona · daily command</h2>
                 <span className="signal-blue hidden items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] sm:inline-flex">
                   <Activity className="h-2.5 w-2.5" /> Monitoring live
                 </span>
@@ -131,8 +131,8 @@ export function WolffWidget() {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="hidden sm:inline"><PushToggle /></span>
-            <Link href="/finance/ask" aria-label="Talk to Wolff" className="inline-flex h-10 w-10 items-center justify-center gap-1.5 rounded-xl bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-950/40 hover:bg-blue-400 sm:h-auto sm:w-auto sm:px-3 sm:py-2.5">
-              <MessageCircle className="h-3.5 w-3.5" /><span className="hidden sm:inline">Talk to Wolff</span>
+            <Link href="/finance/ask" aria-label="Talk to Mona" className="inline-flex h-10 w-10 items-center justify-center gap-1.5 rounded-xl bg-blue-500 text-xs font-semibold text-white shadow-lg shadow-blue-950/40 hover:bg-blue-400 sm:h-auto sm:w-auto sm:px-3 sm:py-2.5">
+              <MessageCircle className="h-3.5 w-3.5" /><span className="hidden sm:inline">Talk to Mona</span>
             </Link>
           </div>
         </div>
@@ -154,7 +154,7 @@ export function WolffWidget() {
                 {directive?.icon && <span className="mr-2">{directive.icon}</span>}{directive?.title || 'Keep today intentional'}
               </p>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[hsl(var(--text-secondary))]">
-                {directive?.detail || 'Wolff is reviewing the latest household numbers and will place the next action here.'}
+                {directive?.detail || 'Mona is reviewing the latest household numbers and will place the next action here.'}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {['Plan a date night', 'Review a purchase', 'Where can we cut?'].map(prompt => (
@@ -191,19 +191,19 @@ export function WolffWidget() {
                 <span className="signal-yellow rounded-full border px-2 py-0.5 text-[9px] font-semibold">{widget?.goal_coverage_pct || 0}% goal pace</span>
               </div>
               <p className="mt-1.5 text-sm font-semibold text-white">{week?.title || 'Protect the plan one decision at a time'}</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-[hsl(var(--text-secondary))]">{week?.detail || 'Stay inside the category envelopes and Wolff will keep adjusting the next move.'}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-[hsl(var(--text-secondary))]">{week?.detail || 'Stay inside the category envelopes and Mona will keep adjusting the next move.'}</p>
             </div>
 
             <div className={cn('rounded-xl border p-4', proactive ? 'signal-orange' : 'border-white/[0.07] bg-black/10')}>
               <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.15em]">
                 {proactive ? <AlertTriangle className="h-3 w-3" /> : <Target className="h-3 w-3 text-blue-300" />}
-                {proactive ? 'Transaction reviewed' : 'Wolff is watching'}
+                {proactive ? 'Transaction reviewed' : 'Mona is watching'}
               </p>
               <p className="mt-1.5 line-clamp-3 text-[11px] leading-relaxed text-[hsl(var(--text-secondary))]">
                 {proactive?.content || watch?.detail || 'Unexpected spending, goal risk, and upcoming commitments will appear here automatically.'}
               </p>
               <Link href={proactive ? '/finance/ask' : '/finance/insights'} className="mt-2.5 inline-flex items-center gap-1 text-[10px] font-semibold text-blue-300 hover:text-blue-200">
-                {proactive ? 'Discuss with Wolff' : 'Open full brief'} <ArrowRight className="h-3 w-3" />
+                {proactive ? 'Discuss with Mona' : 'Open full brief'} <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
           </div>

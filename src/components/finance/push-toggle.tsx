@@ -10,7 +10,7 @@ function urlB64ToUint8Array(base64: string) {
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
 }
 
-// Bell toggle: subscribes this device to the daily Wolff brief push.
+// Bell toggle: subscribes this device to the daily Mona brief push.
 // Hidden entirely when the browser doesn't support push (e.g. iOS Safari
 // tab — it works once the PWA is installed to the home screen).
 export function PushToggle() {

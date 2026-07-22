@@ -20,7 +20,7 @@ const FREQ_DAYS: Record<string, number> = {
  * 2. Income sources (finance_income_sources) → income transactions
  * 3. MSI installments (finance_installments) → expense transactions + increment payments_made
  *
- * Call daily via cron or WOLFF agent. Idempotent — won't double-post for same period.
+ * Call daily via cron or MONA agent. Idempotent — won't double-post for same period.
  */
 async function processRecurring(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req, { allowCron: true })

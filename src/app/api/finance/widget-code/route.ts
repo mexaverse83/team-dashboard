@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
 
-  const script = `// Palette — Wolff midnight
+  const script = `// Palette — Mona midnight
 const MINT = new Color('#34d399')
 const MINT_BRIGHT = new Color('#4ade80')
 const MINT_PALE = new Color('#d1fae5')
@@ -140,9 +140,9 @@ function barImage(wPt, hPt, pct, color) {
 function addHeader(w, d) {
   const s = w.addStack()
   s.centerAlignContent()
-  const wolf = s.addText('\\u{1F43A} ')
+  const wolf = s.addText('\\u{1F415} ')
   wolf.font = Font.systemFont(10)
-  const name = s.addText('WOLFF')
+  const name = s.addText('MONA')
   name.font = Font.boldSystemFont(9)
   name.textColor = BLUE
   s.addSpacer()
@@ -201,7 +201,7 @@ function addDirectivePill(w, d) {
   pill.borderWidth = 1
   pill.cornerRadius = 8
   pill.setPadding(5, 9, 5, 9)
-  const wolf = pill.addText('\\u{1F43A} ')
+  const wolf = pill.addText('\\u{1F415} ')
   wolf.font = Font.systemFont(10)
   const t = pill.addText(dir.title)
   t.font = Font.boldSystemFont(10.5)
@@ -222,14 +222,14 @@ function addMediumHeader(w, d, avatar) {
     image.borderColor = new Color('#60a5fa', 0.55)
     image.borderWidth = 1
   } else {
-    const fallback = row.addText('\u{1F43A}')
+    const fallback = row.addText('\u{1F415}')
     fallback.font = Font.systemFont(16)
   }
 
   row.addSpacer(6)
   const identity = row.addStack()
   identity.layoutVertically()
-  const name = identity.addText('WOLFF')
+  const name = identity.addText('MONA')
   name.font = Font.boldSystemFont(9.5)
   name.textColor = BLUE_PALE
   const household = identity.addText('B + L  ·  DAILY COACH')
@@ -277,7 +277,7 @@ function addMetricCard(parent, label, value, detail, color) {
 // ── Screens ──────────────────────────────────────────────
 
 // The default medium widget is intentionally a decision surface, not a
-// miniature dashboard: one action from Wolff, then the three numbers that
+// miniature dashboard: one action from Mona, then the three numbers that
 // define how much flexibility the household has today, this week, and against
 // its primary savings goal.
 function mediumScreen(w, d, avatar) {
@@ -307,7 +307,7 @@ function mediumScreen(w, d, avatar) {
   stateText.textColor = risk ? ROSE : MINT
 
   w.addSpacer(2)
-  const directive = w.addText(item ? ((item.icon ? item.icon + '  ' : '') + item.title) : 'Stay intentional — Wolff is refreshing your next move.')
+  const directive = w.addText(item ? ((item.icon ? item.icon + '  ' : '') + item.title) : 'Stay intentional — Mona is refreshing your next move.')
   directive.font = Font.boldRoundedSystemFont(13.5)
   directive.textColor = WHITE
   directive.lineLimit = 2
@@ -465,7 +465,7 @@ async function build() {
   try {
     d = await fetchData()
   } catch (e) {
-    const err = w.addText('\\u{1F43A} Finance')
+    const err = w.addText('\\u{1F415} Finance')
     err.textColor = MINT_PALE
     err.font = Font.boldSystemFont(12)
     w.addSpacer(4)

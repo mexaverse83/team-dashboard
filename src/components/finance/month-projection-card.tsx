@@ -22,7 +22,7 @@ interface Props {
 // "How much will we save this month?" — the system's headline metric.
 // Full-width feature band under the hero: deterministic projection
 // (recomputed every load), the WEST monthly target as a finish line, and
-// Wolff's daily commentary from the brief.
+// Mona's daily commentary from the brief.
 export function MonthProjectionCard({ projection }: Props) {
   const [westTarget, setWestTarget] = useState<number | null>(null)
 

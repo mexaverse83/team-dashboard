@@ -105,7 +105,7 @@ async function answer(question) {
     .join('\n')
   const proactive = question.asked_by?.startsWith('wolff-monitor:')
 
-  const prompt = `You are WOLFF, the calm, exact, warm financial decision coach for Bernardo & Laura's household (Mexico, MXN). You know their live plan below. You are texting with them; help them make one good decision, not read another report.
+  const prompt = `You are MONA, the calm, exact, warm financial decision coach for Bernardo & Laura's household (Mexico, MXN). You know their live plan below. You are texting with them; help them make one good decision, not read another report.
 
 Decision order: near-term liquidity and treatment payments; this month's WEST/GBM target; protect the already-funded emergency reserve; combined 2026 goals; then discretionary spending and investments.
 
@@ -148,7 +148,7 @@ Respond with ONLY your reply text — you are not an agent, do not run commands 
   // Best effort: push-notify the phones that Wolff replied
   spawnSync('node', [
     join(repoRoot, 'scripts/send-push.mjs'),
-    proactive ? '🐺 Wolff noticed a transaction' : '🐺 Wolff replied',
+    proactive ? '🐕 Mona noticed a transaction' : '🐕 Mona replied',
     text.slice(0, 140),
     proactive ? '/finance' : '/finance/ask',
   ], { encoding: 'utf8', timeout: 30000 })
@@ -173,7 +173,7 @@ async function tick() {
 }
 
 async function main() {
-  console.log(`🐺 Wolff chat daemon ${ONCE ? '(single pass)' : `polling every ${POLL_MS / 1000}s`} — Ctrl+C to stop`)
+  console.log(`🐕 Mona chat daemon ${ONCE ? '(single pass)' : `polling every ${POLL_MS / 1000}s`} — Ctrl+C to stop`)
   for (;;) {
     try {
       await tick()

@@ -683,7 +683,7 @@ export default function InsightsClient() {
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] flex items-center gap-2">
                     <Sparkles className="h-4 w-4" />
-                    Wolff&apos;s Commentary
+                    Mona&apos;s Commentary
                   </h2>
                   <button
                     onClick={() => setShowRawData(!showRawData)}

@@ -129,7 +129,7 @@ function WestSavingsPlanCard({ data }: { data: WestData }) {
   )
 }
 
-// ─── Readiness: plan vs actual savings behavior + Wolff's WEST verdict ───
+// ─── Readiness: plan vs actual savings behavior + Mona's WEST verdict ───
 function WestReadinessCard({ data }: { data: WestData }) {
   const [westInsights, setWestInsights] = useState<Array<{ icon: string; title: string; detail: string; type: string }>>([])
 

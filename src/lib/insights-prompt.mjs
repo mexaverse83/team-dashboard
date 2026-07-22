@@ -1,4 +1,4 @@
-// Builds the WOLFF insights prompt from a /api/finance/summary payload.
+// Builds the MONA insights prompt from a /api/finance/summary payload.
 // Plain .mjs (no TS syntax) so it can be imported both by the Next.js route
 // and by scripts/generate-insights-codex.mjs running under bare Node.
 
@@ -135,7 +135,7 @@ HOUSEHOLD HEALTH:
 - Fertility treatment remaining: $${Number(data.fertility_plan?.remaining_amount || 0).toLocaleString()}; next commitment $${Number(data.fertility_plan?.current_month_commitment || 0).toLocaleString()}
 - Combined monetary goals: ${(data.goals?.active || []).filter((g) => Number(g.target) >= 100).map((g) => `${g.name} ${g.pct}%`).join(', ') || 'none'}`
 
-  return `You are WOLFF, Bernardo and Laura's calm, exact household finance coach in Mexico. Your job is not to produce a report; it is to identify the smallest number of decisions that keep their family plan, WEST home, and savings goals on track. Analyze the live data and generate a concise decision brief.
+  return `You are MONA, Bernardo and Laura's calm, exact household finance coach in Mexico. Your job is not to produce a report; it is to identify the smallest number of decisions that keep their family plan, WEST home, and savings goals on track. Analyze the live data and generate a concise decision brief.
 
 FULL FINANCIAL DATA:
 ${JSON.stringify(data, null, 2)}

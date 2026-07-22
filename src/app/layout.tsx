@@ -21,7 +21,7 @@ const spaceGrotesk = Space_Grotesk({
 })
 
 export const metadata: Metadata = {
-  title: "Wolff Finance — Bernardo + Laura",
+  title: "Mona Finance — Bernardo + Laura",
   description: "Household financial plan for Bernardo and Laura",
   icons: {
     icon: [
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Wolff Finance',
+    title: 'Mona Finance',
   },
 }
 
