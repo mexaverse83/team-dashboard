@@ -96,21 +96,24 @@ export default function CommandCenterClient() {
     return Array.from({ length: today }, (_, i) => map[i + 1] || 0)
   }, [monthTxs])
 
-  // Status banner copy — uses this month's actuals (transactions) and projects
-  // month-end by linearly scaling spend with month progress.
+  // Status banner copy — quotes the summary endpoint's budget-aware projection
+  // (fixed categories capped at budget, variable at pace, scheduled treatment
+  // included) so the banner and the projection card can't disagree. Linear
+  // spend/progress scaling over-projects: rent and other fixed charges land
+  // early-month and aren't a daily rate.
   const statusBanner = useMemo(() => {
     if (!summary) return null
     const m = summary.current_month
-    const monthProgress = m.day_of_month / Math.max(m.days_in_month, 1)
     const enoughDaysElapsed = m.day_of_month >= 7
 
     const overshootCats = enoughDaysElapsed ? m.budget_vs_actual.filter(c =>
       !c.is_non_monthly && c.budget > 0 && c.projected_month_total > c.budget * 1.10 && c.pct_used > 50
     ) : []
 
-    const projectedSpend = monthProgress > 0 ? totalSpent / monthProgress : totalSpent
-    const projectedNet = totalIncome - projectedSpend
-    const projectedRate = (totalIncome > 0 && enoughDaysElapsed) ? Math.round((projectedNet / totalIncome) * 100) : null
+    const p = summary.month_projection
+    const projectedRate = (p && p.expected_income > 0 && enoughDaysElapsed)
+      ? Math.round((p.projected_savings / p.expected_income) * 100)
+      : null
 
     if (totalIncome === 0) {
       return { tone: 'info' as const, msg: `Day ${m.day_of_month} of ${m.days_in_month}. No income recorded yet — process recurring or add transactions.` }
@@ -126,7 +129,7 @@ export default function CommandCenterClient() {
       return { tone: 'warning' as const, msg: `${overshootCats.length} budget${overshootCats.length > 1 ? 's' : ''} projected to overshoot. ${rateText}` }
     }
     return { tone: 'info' as const, msg: `Projected savings rate ${projectedRate ?? 0}% this month. Day ${m.day_of_month} of ${m.days_in_month}.` }
-  }, [summary, totalIncome, totalSpent])
+  }, [summary, totalIncome])
 
   if (loading) {
     return (

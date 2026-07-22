@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
-import { buildFertilityCutRecommendations, FERTILITY_TREATMENT_PLAN, getRemainingTreatmentEvents, getTreatmentEventForMonth } from '@/lib/fertility-plan'
+import { buildFertilityCutRecommendations, FERTILITY_TREATMENT_PLAN, getRemainingTreatmentEvents, getTreatmentEventForMonth, getUnpaidTreatmentEventsForMonth } from '@/lib/fertility-plan'
 import { defaultBudgetType } from '@/lib/finance-utils'
 import { deriveIncomeBaseline, emergencyFundCoverage } from '@/lib/household-metrics'
 import { OWNERS } from '@/lib/owners'
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
     supabase.from('finance_crypto_holdings').select('*'),
     fetchAllRows((from, to) => supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').gte('transaction_date', incomeHistoryStart).lte('transaction_date', currentMonthEnd).eq('type', 'income').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
     supabase.from('finance_transactions').select('amount_mxn,amount').gte('transaction_date', currentMonthStart).lte('transaction_date', currentMonthEnd).eq('type', 'income'),
-    supabase.from('finance_transactions').select('amount_mxn,amount').contains('tags', ['fertility']).eq('type', 'expense'),
+    supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').contains('tags', ['fertility']).eq('type', 'expense'),
   ])
 
   const catMap = new Map((categories || []).map(c => [c.id, c]))
@@ -322,11 +322,25 @@ export async function GET(req: NextRequest) {
   }, 0)
   const budgetedSpentSoFar = budgetVsActual.reduce((s, b) => s + b.spent, 0)
   const unbudgetedSpent = Math.max(0, Math.round(totalCurrentMonthSpend) - budgetedSpentSoFar)
-  const todayKey = now.toISOString().slice(0, 10)
-  const treatmentRemainingThisMonth = FERTILITY_TREATMENT_PLAN.events
-    .filter(e => e.month === currentMonthStr && e.date > todayKey)
-    .reduce((s, e) => s + e.amount, 0)
-  const projectedMonthSpend = Math.round(projectedBudgetedSpend + unbudgetedSpent + treatmentRemainingThisMonth)
+  // Scheduled treatment milestones stay in the forecast until a matching
+  // fertility-tagged payment actually posts — a milestone due today (or
+  // overdue) is still money leaving this month.
+  const treatmentRemainingThisMonth = getUnpaidTreatmentEventsForMonth(
+    currentMonthStr,
+    (fertilityPaidTxs || []).map(t => ({ date: t.transaction_date, amount: t.amount_mxn || t.amount || 0 })),
+  ).reduce((s, e) => s + e.amount, 0)
+  // Fertility spend is plan-driven one-offs, not a trend — carry it at
+  // actuals. The rest of unbudgeted spending doesn't stop today: past day 7,
+  // project it at its daily pace like any variable category.
+  const budgetedCategoryIds = new Set(activeBudgetRows.map(b => b.category_id))
+  const unbudgetedFertilitySpent = Math.round(currentMonthTxs
+    .filter(t => Array.isArray(t.tags) && t.tags.includes('fertility') && !budgetedCategoryIds.has(t.category_id))
+    .reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0))
+  const trendedUnbudgeted = Math.max(0, unbudgetedSpent - unbudgetedFertilitySpent)
+  const projectedUnbudgeted = pastDay7 && dayOfMonth > 0
+    ? Math.round(trendedUnbudgeted / dayOfMonth * daysInMonth)
+    : trendedUnbudgeted
+  const projectedMonthSpend = Math.round(projectedBudgetedSpend + projectedUnbudgeted + unbudgetedFertilitySpent + treatmentRemainingThisMonth)
   const actualIncomeThisMonth = (currentMonthIncomeTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
   const expectedIncomeThisMonth = Math.round(Math.max(actualIncomeThisMonth, totalMonthlyIncome))
   const projectedMonthSavings = expectedIncomeThisMonth - projectedMonthSpend

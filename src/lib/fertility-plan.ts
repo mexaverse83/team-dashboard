@@ -89,6 +89,52 @@ export function getNextTreatmentEvent(asOf: Date = new Date()): TreatmentEvent |
   return getRemainingTreatmentEvents(asOf)[0] ?? null
 }
 
+export type TreatmentPaymentTx = {
+  date: string
+  amount: number
+}
+
+// Milestone-payment matching: clinics post a few days early or late and
+// amounts drift (June's 50k plan posted as 84.5k), while routine tagged spend
+// (meds, monitoring) is far smaller than any milestone. A transaction counts
+// as paying a milestone when it's at least half the planned amount and lands
+// between 10 days before the due date and the end of the event's month.
+const MILESTONE_MATCH_MIN_RATIO = 0.5
+const MILESTONE_MATCH_EARLY_DAYS = 10
+
+function shiftDay(day: string, delta: number): string {
+  const [y, m, d] = day.split('-').map(Number)
+  return dayKey(new Date(y, m - 1, d + delta))
+}
+
+/**
+ * Scheduled treatment events for `month` that no posted fertility payment
+ * accounts for yet. An unpaid milestone stays in the result even after its
+ * due date passes — the money is still owed and still leaves this month.
+ * Each transaction can settle at most one event.
+ */
+export function getUnpaidTreatmentEventsForMonth(
+  month: string,
+  paidTxs: TreatmentPaymentTx[],
+  events: TreatmentEvent[] = FERTILITY_TREATMENT_PLAN.events,
+): TreatmentEvent[] {
+  const monthEvents = events.filter(e => e.month === month)
+  if (monthEvents.length === 0) return []
+
+  const pool = [...paidTxs].sort((a, b) => b.amount - a.amount)
+  const unpaid: TreatmentEvent[] = []
+  for (const event of monthEvents) {
+    const earliest = shiftDay(event.date, -MILESTONE_MATCH_EARLY_DAYS)
+    const latest = `${event.month}-31`
+    const matched = pool.findIndex(tx =>
+      tx.amount >= event.amount * MILESTONE_MATCH_MIN_RATIO && tx.date >= earliest && tx.date <= latest
+    )
+    if (matched >= 0) pool.splice(matched, 1)
+    else unpaid.push(event)
+  }
+  return unpaid
+}
+
 export function buildFertilityCutRecommendations(
   candidates: CutCandidate[],
   targetCut: number,
