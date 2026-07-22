@@ -6,6 +6,7 @@ import { ArrowRight, HeartPulse, Home, ShieldCheck, Target } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { commitmentCoverage } from '@/lib/household-metrics'
 import { cn } from '@/lib/utils'
+import { fetchWestProjection } from '@/lib/west-projection-client'
 import { fmtMoney, type Summary } from './command-center/types'
 
 type WestSnapshot = {
@@ -99,8 +100,7 @@ export function HouseholdPriorities({ summary }: { summary: Summary }) {
   const [west, setWest] = useState<WestSnapshot | null>(null)
 
   useEffect(() => {
-    fetch('/api/finance/investments/west-projection')
-      .then(response => response.ok ? response.json() : null)
+    fetchWestProjection<WestSnapshot>()
       .then(setWest)
       .catch(() => setWest(null))
   }, [])

@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { monthKey } from '@/lib/finance-utils'
+import { fetchWestProjection, westMonthTarget } from '@/lib/west-projection-client'
 
 interface MonthProjection {
   expected_income: number
@@ -25,12 +27,10 @@ export function MonthProjectionCard({ projection }: Props) {
   const [westTarget, setWestTarget] = useState<number | null>(null)
 
   useEffect(() => {
-    fetch('/api/finance/investments/west-projection')
-      .then(r => (r.ok ? r.json() : null))
+    fetchWestProjection()
       .then(d => {
-        const monthKey = new Date().toISOString().slice(0, 7)
-        const m = d?.savings_plan?.months?.find((x: { month: string }) => x.month === monthKey)
-        if (m?.target) setWestTarget(m.target)
+        const target = westMonthTarget(d, monthKey(new Date()))
+        if (target) setWestTarget(target)
       })
       .catch(() => {})
   }, [])

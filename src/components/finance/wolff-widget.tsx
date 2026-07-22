@@ -6,6 +6,8 @@ import { Activity, AlertTriangle, ArrowRight, MessageCircle, Sparkles, Target, W
 import { PushToggle } from '@/components/finance/push-toggle'
 import { WolffAvatar } from '@/components/brand-logo'
 import { cn } from '@/lib/utils'
+import { monthKey } from '@/lib/finance-utils'
+import { fetchWestProjection, westMonthTarget } from '@/lib/west-projection-client'
 
 interface Insight {
   type: string
@@ -49,14 +51,19 @@ export function WolffWidget() {
   const [generatedAt, setGeneratedAt] = useState<string | null>(null)
   const [stale, setStale] = useState(false)
   const [loading, setLoading] = useState(true)
+  // The widget endpoint computes its own WEST target server-side; prefer the
+  // page-shared client fetch so this footer matches the projection card.
+  const [sharedWestTarget, setSharedWestTarget] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     const headers = { 'x-api-key': process.env.NEXT_PUBLIC_FINANCE_API_KEY || '' }
-    const [insightRes, widgetRes, chatRes] = await Promise.all([
+    const [insightRes, widgetRes, chatRes, westData] = await Promise.all([
       fetch('/api/finance/insights', { headers, cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/finance/widget', { headers, cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
       fetch('/api/finance/wolff-chat', { headers, cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetchWestProjection().catch(() => null),
     ])
+    setSharedWestTarget(westMonthTarget(westData, monthKey(new Date())))
 
     const all: Insight[] = insightRes?.insights || []
     const category = (insight: Insight) => (insight.category || '').toUpperCase()
@@ -203,7 +210,7 @@ export function WolffWidget() {
 
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/[0.06] pt-3 text-[10px] text-[hsl(var(--text-tertiary))]">
             <span className="inline-flex items-center gap-1.5"><Wallet className="h-3 w-3 text-green-400" /> Projected savings <strong className="text-[hsl(var(--text-secondary))]">{money(widget?.projected_savings)}</strong></span>
-            {widget?.west_month && <span>WEST target <strong className="text-[hsl(var(--text-secondary))]">{money(widget.west_month.target)}</strong></span>}
+            {widget?.west_month && <span>WEST target <strong className="text-[hsl(var(--text-secondary))]">{money(sharedWestTarget ?? widget.west_month.target)}</strong></span>}
             {risk && <span className="text-red-300">No room for unplanned spending without moving a goal</span>}
           </div>
         </div>

@@ -9,6 +9,7 @@ import {
 } from 'recharts'
 import { CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
 import { OWNERS } from '@/lib/owners'
+import { fetchWestProjection } from '@/lib/west-projection-client'
 
 function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' ') }
 function fmt(n: number, d = 0) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n) }
@@ -47,7 +48,7 @@ interface WestData {
     purchase_price: number; current_market_value: number; appreciation_rate: number
     projected_value_at_delivery: number; equity_at_delivery: number
   }
-  assumptions: { investment_return: number; appreciation_rate: number; debt_payoff_total: number }
+  assumptions: { investment_return: number; appreciation_rate: number; debt_payoff_total: number; crypto_growth?: number }
   behavioral?: {
     monthly_net_savings_history: Array<{ month: string; income: number; expenses: number; net: number }>
     avg_monthly_net_savings: number
@@ -297,8 +298,7 @@ export function WestTracker() {
   const [cryptoGrowth, setCryptoGrowth] = useState(15)
 
   useEffect(() => {
-    fetch('/api/finance/investments/west-projection')
-      .then(r => r.ok ? r.json() : null)
+    fetchWestProjection<WestData>()
       .then(d => {
         setData(d)
         if (d?.assumptions?.investment_return) setReturnRate(d.assumptions.investment_return * 100)
@@ -787,8 +787,7 @@ export function WestProjectionWithScenarios() {
   const [cryptoGrowth, setCryptoGrowth] = useState(15)
 
   useEffect(() => {
-    fetch('/api/finance/investments/west-projection')
-      .then(r => r.ok ? r.json() : null)
+    fetchWestProjection<WestData>()
       .then(d => {
         setData(d)
         if (d?.assumptions?.investment_return) setReturnRate(d.assumptions.investment_return * 100)
@@ -936,8 +935,7 @@ export function WestCompactWidget() {
   const [data, setData] = useState<WestData | null>(null)
 
   useEffect(() => {
-    fetch('/api/finance/investments/west-projection')
-      .then(r => r.ok ? r.json() : null)
+    fetchWestProjection<WestData>()
       .then(setData)
       .catch(() => null)
   }, [])

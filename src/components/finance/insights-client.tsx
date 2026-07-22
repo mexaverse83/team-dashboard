@@ -5,6 +5,7 @@ import { RefreshCw, Target, Lightbulb, Trophy, TrendingUp, Sparkles } from 'luci
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
 import { cn } from '@/lib/utils'
+import { fetchWestProjection } from '@/lib/west-projection-client'
 import Link from 'next/link'
 
 function fmtMXN(n: number) { return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)} MXN` }
@@ -13,6 +14,13 @@ function fmtUSD(n: number) { return `$${new Intl.NumberFormat('en-US', { maximum
 interface WestSnapshot {
   projectedTotal: number; target: number; gap: number; paidPct: number; investPct: number
   growthPct: number; fundedPct: number; monthsRemaining: number; nextMilestone?: { title: string; date: string }
+}
+interface WestProjectionData {
+  target?: number
+  months_to_delivery?: number
+  monthly_projection?: Array<{ total?: number }>
+  current_status?: { amount_paid?: number; investment_value?: number }
+  milestones?: Array<Record<string, string>>
 }
 interface NetWorthSnapshot {
   total: number; totalUSD: number; crypto: number; fixedIncome: number; realEstate: number; retirement: number
@@ -153,16 +161,16 @@ export default function InsightsClient() {
     else setLoading(true)
     setError(null)
     try {
-      const [insightsRes, summaryRes, westRes, auditRes] = await Promise.all([
+      const [insightsRes, summaryRes, westData, auditRes] = await Promise.all([
         fetch(`/api/finance/insights${refresh ? '?refresh=true' : ''}`, { cache: 'no-store' }),
         fetch('/api/finance/summary?months=3'),
-        fetch('/api/finance/investments/west-projection').catch(() => null),
+        fetchWestProjection<WestProjectionData>().catch(() => null),
         fetch('/api/finance/audit/investments').catch(() => null),
       ])
 
       // WEST snapshot
-      if (westRes?.ok) {
-        const wd = await westRes.json().catch(() => null)
+      {
+        const wd = westData
         if (wd) {
           const last = wd.monthly_projection?.[wd.monthly_projection.length - 1]
           const target = wd.target || 11204000
