@@ -52,6 +52,57 @@ export function deriveIncomeBaseline(
   }
 }
 
+type RecurringIncomeRow = {
+  name?: string | null
+  amount?: number | null
+  recurrence?: string | null
+}
+
+/**
+ * Income to expect for the current month: what has already posted, plus
+ * recurring income still due to land.
+ *
+ * A `max(actual, monthlyBaseline)` floor never releases — the baseline
+ * amortizes annual bonuses across every month and sums both income tables, so
+ * after payroll posts in full it keeps expecting income that can no longer
+ * arrive, and month-end savings project HIGHER than money already banked.
+ * The processor posts one transaction per recurring-income row per month
+ * (guarded by row name), so an unposted monthly row is exactly what's still
+ * coming — the income-side mirror of unpaid treatment milestones.
+ *
+ * With no recurring-income model to consult, falls back to the baseline floor
+ * rather than projecting a month with zero income.
+ */
+export function expectedMonthIncome({
+  actualIncome,
+  recurringIncome,
+  postedMerchants,
+  monthlyBaseline,
+}: {
+  actualIncome: number
+  recurringIncome: RecurringIncomeRow[]
+  postedMerchants: Iterable<string | null | undefined>
+  monthlyBaseline: number
+}) {
+  const posted = new Set(
+    [...postedMerchants].map(m => (m || '').trim().toLowerCase()).filter(Boolean),
+  )
+  const stillScheduled = recurringIncome
+    .filter(row => (row.recurrence || 'monthly') === 'monthly')
+    .filter(row => !posted.has(String(row.name || '').trim().toLowerCase()))
+    .reduce((sum, row) => sum + (row.amount || 0), 0)
+
+  const expected = recurringIncome.length > 0
+    ? actualIncome + stillScheduled
+    : Math.max(actualIncome, monthlyBaseline)
+
+  return {
+    expected: Math.round(expected),
+    received: Math.round(actualIncome),
+    stillScheduled: Math.max(0, Math.round(expected) - Math.round(actualIncome)),
+  }
+}
+
 export function emergencyFundCoverage({
   current,
   target,

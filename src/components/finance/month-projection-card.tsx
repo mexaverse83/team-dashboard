@@ -8,6 +8,8 @@ import { fetchWestProjection, westMonthTarget } from '@/lib/west-projection-clie
 
 interface MonthProjection {
   expected_income: number
+  income_received?: number
+  income_still_scheduled?: number
   spent_so_far: number
   projected_spend: number
   known_upcoming_treatment: number
@@ -17,13 +19,43 @@ interface MonthProjection {
 
 interface Props {
   projection?: MonthProjection | null
+  /** summary.goal_funding.total_monthly_needed — the 2026 GBM goals' monthly ask. */
+  goalMonthlyNeeded?: number
+}
+
+// One month's savings measured against two different bars. The WEST monthly
+// transfer and the combined 2026 goals both draw on the same GBM pot (the
+// projection counts the whole GBM balance as WEST funding, and both goals'
+// investment_vehicle IS that fund), so they are alternative readings of one
+// number — never additive, and never a bare ✓ on WEST while goals are short.
+function TargetBar({ label, target, savings, note }: { label: string; target: number; savings: number; note?: string }) {
+  const vsTarget = savings - target
+  const onTrack = vsTarget >= 0
+  const pct = Math.min(100, Math.round(Math.max(0, savings / target) * 100))
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[11px] font-semibold text-[hsl(var(--text-tertiary))]">{label} ${target.toLocaleString()}</span>
+        <span className={cn('text-xs font-bold', onTrack ? 'text-emerald-600' : 'text-amber-600')}>
+          {onTrack ? `+$${vsTarget.toLocaleString()} ahead` : `$${Math.abs(vsTarget).toLocaleString()} short · ${pct}%`}
+        </span>
+      </div>
+      <div className="mt-1.5 h-2.5 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
+        <div
+          className={cn('h-full rounded-full transition-all', onTrack ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-amber-400 to-amber-600')}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {note && <p className="mt-1 text-[10px] text-[hsl(var(--text-tertiary))]">{note}</p>}
+    </div>
+  )
 }
 
 // "How much will we save this month?" — the system's headline metric.
 // Full-width feature band under the hero: deterministic projection
-// (recomputed every load), the WEST monthly target as a finish line, and
-// Mona's daily commentary from the brief.
-export function MonthProjectionCard({ projection }: Props) {
+// (recomputed every load), both monthly finish lines, and Mona's daily
+// commentary from the brief.
+export function MonthProjectionCard({ projection, goalMonthlyNeeded }: Props) {
   const [westTarget, setWestTarget] = useState<number | null>(null)
 
   useEffect(() => {
@@ -38,9 +70,8 @@ export function MonthProjectionCard({ projection }: Props) {
   if (!projection) return null
   const p = projection
   const positive = p.projected_savings >= 0
-  const vsTarget = westTarget != null ? p.projected_savings - westTarget : null
-  const onTrack = (vsTarget ?? 0) >= 0
-  const pctOfTarget = westTarget ? Math.max(0, p.projected_savings / westTarget) : null
+  const goalNeed = goalMonthlyNeeded && goalMonthlyNeeded > 0 ? goalMonthlyNeeded : null
+  const showOverlapNote = westTarget != null && goalNeed != null
 
   return (
     <div className={cn(
@@ -66,26 +97,30 @@ export function MonthProjectionCard({ projection }: Props) {
             ${p.expected_income.toLocaleString()} income − ${p.projected_spend.toLocaleString()} projected spend
             {p.known_upcoming_treatment > 0 && <> · incl. ${p.known_upcoming_treatment.toLocaleString()} treatment</>}
           </p>
+          {/* The hero shows income actually received; this is a month-end
+              forecast. Name the difference so a forecast above today's banked
+              net is self-explanatory rather than looking impossible. */}
+          {(p.income_still_scheduled ?? 0) > 0 && (
+            <p className="mt-0.5 text-[11px] text-[hsl(var(--text-tertiary))]">
+              ${(p.income_received ?? 0).toLocaleString()} received · ${(p.income_still_scheduled ?? 0).toLocaleString()} still scheduled
+            </p>
+          )}
         </div>
 
-        {/* The finish line */}
-        {westTarget != null ? (
-          <div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-[11px] font-semibold text-[hsl(var(--text-tertiary))]">WEST target ${westTarget.toLocaleString()}</span>
-              <span className={cn('text-sm font-bold', onTrack ? 'text-emerald-600' : 'text-amber-600')}>
-                {onTrack ? `+$${(vsTarget ?? 0).toLocaleString()} ahead` : `$${Math.abs(vsTarget ?? 0).toLocaleString()} short`}
-              </span>
-            </div>
-            <div className="mt-2 h-3 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
-              <div
-                className={cn('h-full rounded-full transition-all', onTrack ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-amber-400 to-amber-600')}
-                style={{ width: `${Math.min(100, Math.round((pctOfTarget ?? 0) * 100))}%` }}
-              />
-            </div>
-            <p className="mt-1.5 text-[11px] text-[hsl(var(--text-tertiary))]">
-              {onTrack ? '✓ this month’s WEST transfer is covered' : 'projection below the monthly WEST transfer'}
-            </p>
+        {/* The finish lines — labelled, because they measure different asks */}
+        {westTarget != null || goalNeed != null ? (
+          <div className="space-y-2.5">
+            {westTarget != null && (
+              <TargetBar label="WEST transfer" target={westTarget} savings={p.projected_savings} />
+            )}
+            {goalNeed != null && (
+              <TargetBar label="All 2026 goals" target={goalNeed} savings={p.projected_savings} />
+            )}
+            {showOverlapNote && (
+              <p className="text-[10px] leading-snug text-[hsl(var(--text-tertiary))]">
+                Both draw on the same GBM pot — don’t add these targets.
+              </p>
+            )}
           </div>
         ) : <div className="hidden md:block" />}
       </div>

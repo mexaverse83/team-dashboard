@@ -26,6 +26,7 @@ interface WidgetData {
   over_committed_by: number
   projected_savings: number
   goal_coverage_pct: number
+  goal_monthly_needed?: number
   west_month?: { target: number; gap: number; pct: number } | null
 }
 
@@ -103,12 +104,23 @@ export function WolffWidget() {
     }
   }, [load])
 
-  const freshness = generatedAt
-    ? new Date(generatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  const stamp = (iso?: string | null) => iso
+    ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     : null
+  const freshness = stamp(generatedAt)
+  // Brief and chat copy quote pesos frozen at generation time, while the
+  // footer/projection card recompute on every load. Without an as-of stamp the
+  // stale figures read as current and silently disagree with the live ones.
+  const proactiveStamp = stamp(proactive?.created_at)
   const plannedToday = widget?.controllable_per_day ?? 0
   const extraSafe = widget?.safe_to_spend_day ?? 0
+  // `over_committed_by` tests the projection against EVERY 2026 goal plus all
+  // remaining budget headroom; the WEST transfer is a much lower bar that the
+  // same projection can clear. Track both so neither verdict is stated bare.
   const risk = (widget?.over_committed_by || 0) > 0
+  const goalNeed = widget?.goal_monthly_needed ?? 0
+  const westTarget = sharedWestTarget ?? widget?.west_month?.target ?? null
+  const westClears = westTarget != null && (widget?.projected_savings ?? 0) >= westTarget
 
   return (
     <section className="wolff-command relative overflow-hidden rounded-[1.5rem]" aria-labelledby="wolff-command-title">
@@ -156,6 +168,9 @@ export function WolffWidget() {
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[hsl(var(--text-secondary))]">
                 {directive?.detail || 'Mona is reviewing the latest household numbers and will place the next action here.'}
               </p>
+              {directive && freshness && (
+                <p className="mt-1.5 text-[10px] text-[hsl(var(--text-tertiary))]">Figures as of {freshness} — live totals below</p>
+              )}
               <div className="mt-4 flex flex-wrap gap-2">
                 {['Plan a date night', 'Review a purchase', 'Where can we cut?'].map(prompt => (
                   <Link key={prompt} href="/finance/ask" className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-[10px] font-medium text-[hsl(var(--text-secondary))] hover:border-blue-400/35 hover:bg-blue-400/10 hover:text-blue-200">
@@ -202,16 +217,29 @@ export function WolffWidget() {
               <p className="mt-1.5 line-clamp-3 text-[11px] leading-relaxed text-[hsl(var(--text-secondary))]">
                 {proactive?.content || watch?.detail || 'Unexpected spending, goal risk, and upcoming commitments will appear here automatically.'}
               </p>
+              {proactive && proactiveStamp && (
+                <p className="mt-1 text-[10px] opacity-70">Figures as of {proactiveStamp}</p>
+              )}
               <Link href={proactive ? '/finance/ask' : '/finance/insights'} className="mt-2.5 inline-flex items-center gap-1 text-[10px] font-semibold text-blue-300 hover:text-blue-200">
                 {proactive ? 'Discuss with Mona' : 'Open full brief'} <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
           </div>
 
+          {/* Both monthly asks, each named. The WEST transfer and the combined
+              2026 goals are funded from the same GBM pot, so one can clear
+              while the other is short — an unlabelled verdict here read as a
+              flat contradiction against the projection card's ✓. */}
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/[0.06] pt-3 text-[10px] text-[hsl(var(--text-tertiary))]">
             <span className="inline-flex items-center gap-1.5"><Wallet className="h-3 w-3 text-green-400" /> Projected savings <strong className="text-[hsl(var(--text-secondary))]">{money(widget?.projected_savings)}</strong></span>
-            {widget?.west_month && <span>WEST target <strong className="text-[hsl(var(--text-secondary))]">{money(sharedWestTarget ?? widget.west_month.target)}</strong></span>}
-            {risk && <span className="text-red-300">No room for unplanned spending without moving a goal</span>}
+            {westTarget != null && <span>WEST transfer <strong className="text-[hsl(var(--text-secondary))]">{money(westTarget)}</strong>{westClears ? ' ✓' : ''}</span>}
+            {goalNeed > 0 && <span>All 2026 goals <strong className="text-[hsl(var(--text-secondary))]">{money(goalNeed)}</strong> · {widget?.goal_coverage_pct || 0}%</span>}
+            {risk && (
+              <span className="text-red-300">
+                $0 unplanned once every 2026 goal is funded{goalNeed > 0 ? ` (${money(goalNeed)}/mo)` : ''}
+                {westClears ? ' — the WEST transfer alone still clears' : ''}
+              </span>
+            )}
           </div>
         </div>
       )}

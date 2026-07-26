@@ -87,6 +87,10 @@ export async function GET(req: NextRequest) {
     projected_savings: Math.round(projectedSavings),
     goal_coverage_pct: goalCoverage,
     goal_gap: Math.round(goalGap),
+    // The denominator behind goal_coverage_pct and over_committed_by. Exposed
+    // so the UI can name which ask it is failing — "no room" means "no room
+    // after every 2026 goal", not "no room after the WEST transfer".
+    goal_monthly_needed: Math.round(goalNeed),
     emergency_months: summary.emergency_fund?.months_covered || 0,
     west: west ? {
       month_target: planMonth?.target ?? null,

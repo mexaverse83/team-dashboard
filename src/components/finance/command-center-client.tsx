@@ -244,8 +244,8 @@ export default function CommandCenterClient() {
         {/* ── WOLFF: the daily decision layer comes before reporting ── */}
         <WolffWidget />
 
-        {/* ── MONTH PLAN: one deterministic finish line ─────────────── */}
-        <MonthProjectionCard projection={summary?.month_projection} />
+        {/* ── MONTH PLAN: the projection against both monthly asks ──── */}
+        <MonthProjectionCard projection={summary?.month_projection} goalMonthlyNeeded={monthlyGoalNeed} />
 
         {/* ── FINANCIAL PULSE: three durable health metrics ─ */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

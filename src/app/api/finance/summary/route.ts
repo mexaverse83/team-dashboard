@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { buildFertilityCutRecommendations, FERTILITY_TREATMENT_PLAN, getRemainingTreatmentEvents, getTreatmentEventForMonth, getUnpaidTreatmentEventsForMonth } from '@/lib/fertility-plan'
 import { defaultBudgetType } from '@/lib/finance-utils'
-import { deriveIncomeBaseline, emergencyFundCoverage } from '@/lib/household-metrics'
+import { deriveIncomeBaseline, emergencyFundCoverage, expectedMonthIncome } from '@/lib/household-metrics'
 import { OWNERS } from '@/lib/owners'
 
 const supabase = createClient(
@@ -67,7 +67,9 @@ export async function GET(req: NextRequest) {
     supabase.from('finance_recurring_income').select('*').eq('active', true),
     supabase.from('finance_crypto_holdings').select('*'),
     fetchAllRows((from, to) => supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').gte('transaction_date', incomeHistoryStart).lte('transaction_date', currentMonthEnd).eq('type', 'income').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
-    supabase.from('finance_transactions').select('amount_mxn,amount').gte('transaction_date', currentMonthStart).lte('transaction_date', currentMonthEnd).eq('type', 'income'),
+    // merchant is needed to tell which recurring-income rows have already
+    // landed this month — the processor posts one transaction per row name.
+    supabase.from('finance_transactions').select('amount_mxn,amount,merchant').gte('transaction_date', currentMonthStart).lte('transaction_date', currentMonthEnd).eq('type', 'income'),
     supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').contains('tags', ['fertility']).eq('type', 'expense'),
   ])
 
@@ -342,7 +344,18 @@ export async function GET(req: NextRequest) {
     : trendedUnbudgeted
   const projectedMonthSpend = Math.round(projectedBudgetedSpend + projectedUnbudgeted + unbudgetedFertilitySpent + treatmentRemainingThisMonth)
   const actualIncomeThisMonth = (currentMonthIncomeTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
-  const expectedIncomeThisMonth = Math.round(Math.max(actualIncomeThisMonth, totalMonthlyIncome))
+  // What has posted + recurring income still due to land. The old
+  // `max(actual, totalMonthlyIncome)` floor never released, so after payroll
+  // posted in full the projection kept expecting income that could no longer
+  // arrive — month-end savings read higher than money already banked
+  // ($75,532 projected vs $74,500 net on 2026-07-25, spend still to come).
+  const monthIncome = expectedMonthIncome({
+    actualIncome: actualIncomeThisMonth,
+    recurringIncome: currentRI,
+    postedMerchants: (currentMonthIncomeTxs || []).map(t => t.merchant),
+    monthlyBaseline: totalMonthlyIncome,
+  })
+  const expectedIncomeThisMonth = monthIncome.expected
   const projectedMonthSavings = expectedIncomeThisMonth - projectedMonthSpend
 
   // Goal funding gap
@@ -528,6 +541,10 @@ export async function GET(req: NextRequest) {
     },
     month_projection: {
       expected_income: expectedIncomeThisMonth,
+      // Split out so the hero's actual-to-date net and this month-end forecast
+      // can be reconciled on sight instead of looking like a contradiction.
+      income_received: monthIncome.received,
+      income_still_scheduled: monthIncome.stillScheduled,
       spent_so_far: Math.round(totalCurrentMonthSpend),
       projected_spend: projectedMonthSpend,
       known_upcoming_treatment: Math.round(treatmentRemainingThisMonth),
