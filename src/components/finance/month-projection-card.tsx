@@ -97,14 +97,15 @@ export function MonthProjectionCard({ projection, goalMonthlyNeeded }: Props) {
             ${p.expected_income.toLocaleString()} income − ${p.projected_spend.toLocaleString()} projected spend
             {p.known_upcoming_treatment > 0 && <> · incl. ${p.known_upcoming_treatment.toLocaleString()} treatment</>}
           </p>
-          {/* The hero shows income actually received; this is a month-end
-              forecast. Name the difference so a forecast above today's banked
-              net is self-explanatory rather than looking impossible. */}
-          {(p.income_still_scheduled ?? 0) > 0 && (
-            <p className="mt-0.5 text-[11px] text-[hsl(var(--text-tertiary))]">
-              ${(p.income_received ?? 0).toLocaleString()} received · ${(p.income_still_scheduled ?? 0).toLocaleString()} still scheduled
-            </p>
-          )}
+          {/* The hero shows income actually received and spend to date; this is
+              a month-end forecast. Naming both gaps makes a forecast that sits
+              above today's banked net self-explanatory rather than impossible. */}
+          <p className="mt-0.5 text-[11px] text-[hsl(var(--text-tertiary))]">
+            {(p.income_still_scheduled ?? 0) > 0 && (
+              <>${(p.income_received ?? 0).toLocaleString()} received · ${(p.income_still_scheduled ?? 0).toLocaleString()} still scheduled · </>
+            )}
+            ${p.spent_so_far.toLocaleString()} spent · ${Math.max(0, p.projected_spend - p.spent_so_far).toLocaleString()} more expected
+          </p>
         </div>
 
         {/* The finish lines — labelled, because they measure different asks */}

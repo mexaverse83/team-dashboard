@@ -5,6 +5,8 @@ import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { buildFertilityCutRecommendations, FERTILITY_TREATMENT_PLAN, getRemainingTreatmentEvents, getTreatmentEventForMonth, getUnpaidTreatmentEventsForMonth } from '@/lib/fertility-plan'
 import { defaultBudgetType } from '@/lib/finance-utils'
 import { deriveIncomeBaseline, emergencyFundCoverage, expectedMonthIncome } from '@/lib/household-metrics'
+import { projectCategoryMonthEnd, summarizeCategoryHistory } from '@/lib/spend-projection'
+import { mexicoCityDateParts } from '@/lib/insights-prompt.mjs'
 import { OWNERS } from '@/lib/owners'
 
 const supabase = createClient(
@@ -27,17 +29,29 @@ export async function GET(req: NextRequest) {
 
   const months = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get('months') || '3'), 1), 12)
   const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth() - months + 1, 1)
-  const startStr = start.toISOString().slice(0, 10)
-  const endStr = now.toISOString().slice(0, 10)
-  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  // Anchor every date on the household's Mexico City calendar. Vercel runs in
+  // UTC, which is already the next day after ~6pm local — that shifted
+  // day_of_month by one for six hours daily (the hero read "Day 26 of 31" on
+  // July 25) and skewed every pace divisor and remaining-days window with it.
+  const mx = mexicoCityDateParts(now)
+  /** Local calendar date `n` months from the current month, day `d`. */
+  const mxDate = (monthOffset: number, day: number) =>
+    new Date(Date.UTC(mx.year, mx.month - 1 + monthOffset, day)).toISOString().slice(0, 10)
+  const startStr = mxDate(-(months - 1), 1)
+  const endStr = mxDate(0, mx.day)
+  const currentMonthStr = `${mx.year}-${String(mx.month).padStart(2, '0')}`
   // Income needs a longer lookback than spending. Six months is enough to
   // distinguish normal salary cadence from a bonus-heavy month while keeping
   // the baseline responsive to a real compensation change.
-  const incomeHistoryStart = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString().slice(0, 10)
+  const incomeHistoryStart = mxDate(-5, 1)
+  // Per-category spend history needs its own lookback too: the widget calls
+  // this endpoint with months=1, which would leave the projection with no
+  // history at all and silently fall back to trusting stale budgets.
+  const spendHistoryStart = mxDate(-6, 1)
 
   const currentMonthStart = `${currentMonthStr}-01`
-  const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10)
+  // Day 0 of next month = last day of this one.
+  const currentMonthEnd = mxDate(1, 0)
 
   const [
     { data: transactions },
@@ -54,6 +68,7 @@ export async function GET(req: NextRequest) {
     { data: incomeTransactions },
     { data: currentMonthIncomeTxs },
     { data: fertilityPaidTxs },
+    { data: categoryHistoryTxs },
   ] = await Promise.all([
     fetchAllRows((from, to) => supabase.from('finance_transactions').select('*').gte('transaction_date', startStr).lte('transaction_date', endStr).eq('type', 'expense').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
     supabase.from('finance_categories').select('*'),
@@ -71,6 +86,9 @@ export async function GET(req: NextRequest) {
     // landed this month — the processor posts one transaction per row name.
     supabase.from('finance_transactions').select('amount_mxn,amount,merchant').gte('transaction_date', currentMonthStart).lte('transaction_date', currentMonthEnd).eq('type', 'income'),
     supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').contains('tags', ['fertility']).eq('type', 'expense'),
+    // Complete months only — `lt currentMonthStart` keeps the partial current
+    // month out of the medians it feeds.
+    fetchAllRows((from, to) => supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount,category_id').gte('transaction_date', spendHistoryStart).lt('transaction_date', currentMonthStart).eq('type', 'expense').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
   ])
 
   const catMap = new Map((categories || []).map(c => [c.id, c]))
@@ -101,7 +119,7 @@ export async function GET(req: NextRequest) {
   }))
   // Recurring income: monthly = amount, bimonthly = amount/2, annual = amount/12
   const RI_DIVISOR: Record<string, number> = { monthly: 1, bimonthly: 2, annual: 12 }
-  const todayStr = now.toISOString().slice(0, 10)
+  const todayStr = endStr
   // Split: current (started already) vs future (start_date in the future)
   const currentRI = (recurringIncome || []).filter(r => !r.start_date || r.start_date <= todayStr)
   const futureRI = (recurringIncome || []).filter(r => r.start_date && r.start_date > todayStr)
@@ -235,8 +253,8 @@ export async function GET(req: NextRequest) {
   const fixedCommitments = totalBudgeted + instMonthly + debtItems.reduce((s, d) => s + d.minimum, 0)
 
   // Current month budget vs actual with pace
-  const dayOfMonth = now.getDate()
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const dayOfMonth = mx.day
+  const daysInMonth = Number(currentMonthEnd.slice(8, 10))
   const monthProgress = dayOfMonth / daysInMonth
 
   // Billing cycle multipliers: how many months one payment covers
@@ -259,6 +277,26 @@ export async function GET(req: NextRequest) {
   // budget (duplicate charge or price increase) matters.
   const FIXED_CATEGORIES = new Set(['Rent/Mortgage', 'Utilities', 'Subscriptions'])
 
+  // Per-category totals for the six complete months before this one. This is
+  // what lets the projection prefer observed reality over a stale budget —
+  // Subscriptions carried an $1,800 budget after two of three services were
+  // cancelled in March, and the forecast kept adding the untouched $1,500.
+  const historyByCategoryMonth: Record<string, Record<string, number>> = {}
+  for (const t of categoryHistoryTxs || []) {
+    const historyMonth = (t.transaction_date || '').slice(0, 7)
+    if (!historyMonth) continue
+    const key = t.category_id || 'uncategorized'
+    historyByCategoryMonth[key] = historyByCategoryMonth[key] || {}
+    historyByCategoryMonth[key][historyMonth] =
+      (historyByCategoryMonth[key][historyMonth] || 0) + (t.amount_mxn || t.amount || 0)
+  }
+  const categoryHistoryFor = (categoryId: string, budget: number) => summarizeCategoryHistory(
+    Object.entries(historyByCategoryMonth[categoryId] || {})
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, total]) => Math.round(total)),
+    budget,
+  )
+
   const budgetVsActual = activeBudgetRows.map(b => {
     const cat = catMap.get(b.category_id)
     const billingCycle = cat?.billing_cycle || 'monthly'
@@ -272,20 +310,30 @@ export async function GET(req: NextRequest) {
     const effectiveBudget = isNonMonthly ? monthlyBudget * cycleMonths : monthlyBudget
     const pctUsed = effectiveBudget > 0 ? Math.round(spent / effectiveBudget * 100) : 0
 
-    // Pace calculation: skip for non-monthly (bimonthly bills aren't linear
-    // spending) and for fixed (the charge already landed; nothing accrues)
+    // Pace reporting: skip for non-monthly (bimonthly bills aren't linear
+    // spending) and for fixed (the charge lands whole; nothing accrues)
     let dailyPace = 0
     let budgetDailyPace = 0
     let paceVsBudget = 0
-    let projectedTotal = 0
 
     if (!isNonMonthly && !isFixed) {
       dailyPace = dayOfMonth > 0 ? spent / dayOfMonth : 0
       budgetDailyPace = daysInMonth > 0 ? effectiveBudget / daysInMonth : 0
       paceVsBudget = budgetDailyPace > 0 ? Math.round((dailyPace / budgetDailyPace - 1) * 100) : 0
-      projectedTotal = Math.round(dailyPace * daysInMonth)
     }
-    if (isFixed) projectedTotal = Math.round(spent)
+
+    // One place decides every category's month-end estimate, so the forecast
+    // total can't drift from the per-category numbers shown alongside it.
+    const history = categoryHistoryFor(b.category_id, effectiveBudget)
+    const projection = projectCategoryMonthEnd({
+      spent,
+      budget: effectiveBudget,
+      isFixed,
+      isNonMonthly,
+      dayOfMonth,
+      daysInMonth,
+      history,
+    })
 
     return {
       category: cat?.name || 'Unknown',
@@ -302,7 +350,13 @@ export async function GET(req: NextRequest) {
       daily_pace: Math.round(dailyPace),
       budget_daily_pace: Math.round(budgetDailyPace),
       pace_vs_budget_pct: paceVsBudget,
-      projected_month_total: projectedTotal,
+      projected_month_total: projection.projected,
+      expected_remaining: projection.expectedRemaining,
+      projection_basis: projection.basis,
+      history_median: history.median,
+      history_months: history.monthsObserved,
+      history_month_totals: history.monthTotals,
+      times_over_budget: history.timesOverBudget,
       is_non_monthly: isNonMonthly,
       is_fixed: isFixed,
       cycle_months: cycleMonths,
@@ -316,12 +370,9 @@ export async function GET(req: NextRequest) {
   // scheduled amount; bimonthly counts only what posted; variable categories
   // use budget until day 7 (pace is noise early), then daily pace.
   const pastDay7 = dayOfMonth >= 7
-  const projectedBudgetedSpend = budgetVsActual.reduce((s, b) => {
-    if (b.is_fixed) return s + Math.max(b.spent, b.budget)
-    if (b.is_non_monthly) return s + b.spent
-    if (!pastDay7) return s + Math.max(b.spent, b.budget)
-    return s + Math.max(b.spent, b.projected_month_total)
-  }, 0)
+  // Every per-category rule now lives in projectCategoryMonthEnd(), so the
+  // total is a plain sum — it cannot disagree with the numbers shown per row.
+  const projectedBudgetedSpend = budgetVsActual.reduce((s, b) => s + b.projected_month_total, 0)
   const budgetedSpentSoFar = budgetVsActual.reduce((s, b) => s + b.spent, 0)
   const unbudgetedSpent = Math.max(0, Math.round(totalCurrentMonthSpend) - budgetedSpentSoFar)
   // Scheduled treatment milestones stay in the forecast until a matching
@@ -549,7 +600,9 @@ export async function GET(req: NextRequest) {
       projected_spend: projectedMonthSpend,
       known_upcoming_treatment: Math.round(treatmentRemainingThisMonth),
       projected_savings: projectedMonthSavings,
-      method: pastDay7 ? 'pace' : 'budget-anchored (pace stabilizes after day 7)',
+      method: pastDay7
+        ? 'per-category pace blended with recent-month medians'
+        : 'history-anchored (pace stabilizes after day 7)',
     },
     goal_funding: {
       total_monthly_needed: totalGoalMonthlyNeeded,

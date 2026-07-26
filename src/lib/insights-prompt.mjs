@@ -15,7 +15,10 @@ export function remainingCalendarWeekEnvelope(totalRemaining, daysLeftMonth, day
   }
 }
 
-function mexicoCityDateParts(now = new Date()) {
+// The household's calendar lives in Mexico City. A UTC server's own clock is
+// already the next day every evening after ~6pm local, so anything deriving
+// "today" or "this month" must anchor here instead of on the server date.
+export function mexicoCityDateParts(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Mexico_City',
     year: 'numeric',
@@ -34,9 +37,22 @@ export function buildInsightsPrompt(data, west) {
   const bva = data.current_month?.budget_vs_actual || []
   const bvaSection = bva.length > 0 ? `
 BUDGET VS ACTUAL (Current Month - Day ${data.current_month?.day_of_month}/${data.current_month?.days_in_month}, ${data.current_month?.month_progress_pct}% through month):
-${bva.map((b) =>
-  `- ${b.category}${b.is_fixed ? ' [FIXED — known scheduled charges, cannot exceed budget by design]' : ''}${b.is_non_monthly ? ` [${b.billing_cycle} billing — amount is amortized monthly]` : ''}: Spent $${Number(b.spent).toLocaleString()} / Budget $${Number(b.budget).toLocaleString()} (${b.pct_used}% used)${(b.is_non_monthly || b.is_fixed) ? '' : ` | Daily pace: $${Number(b.daily_pace).toLocaleString()}/day vs budget $${Number(b.budget_daily_pace).toLocaleString()}/day (${Number(b.pace_vs_budget_pct) > 0 ? '+' : ''}${b.pace_vs_budget_pct}%) | Projected: $${Number(b.projected_month_total).toLocaleString()}`} | Status: ${b.status === 'ok' ? '✅' : b.status === 'warning' ? '⚠️' : '🔴'}`
-).join('\n')}` : ''
+${bva.map((b) => {
+  const history = (b.history_month_totals || []).length > 0
+    ? ` | Last ${b.history_month_totals.length} complete months: ${b.history_month_totals.map(t => '$' + Number(t).toLocaleString()).join(' → ')} (median $${Number(b.history_median || 0).toLocaleString()}, over budget in ${b.times_over_budget || 0}/${b.history_month_totals.length})`
+    : ' | No spending history yet'
+  const remaining = b.expected_remaining !== undefined
+    ? ` | Still expected before month end: $${Number(b.expected_remaining).toLocaleString()} [basis: ${b.projection_basis}]`
+    : ''
+  return `- ${b.category}${b.is_fixed ? ' [FIXED — known scheduled charges, cannot exceed budget by design]' : ''}${b.is_non_monthly ? ` [${b.billing_cycle} billing — amount is amortized monthly]` : ''}: Spent $${Number(b.spent).toLocaleString()} / Budget $${Number(b.budget).toLocaleString()} (${b.pct_used}% used)${(b.is_non_monthly || b.is_fixed) ? '' : ` | Daily pace: $${Number(b.daily_pace).toLocaleString()}/day vs budget $${Number(b.budget_daily_pace).toLocaleString()}/day (${Number(b.pace_vs_budget_pct) > 0 ? '+' : ''}${b.pace_vs_budget_pct}%)`} | Projected month-end: $${Number(b.projected_month_total).toLocaleString()}${remaining}${history} | Status: ${b.status === 'ok' ? '✅' : b.status === 'warning' ? '⚠️' : '🔴'}`
+}).join('\n')}
+
+HOW TO USE THE HISTORY ABOVE — you are expected to reason about it, not just repeat the projection:
+- A budget is a plan; the month-by-month history is what actually happens. When they disagree, trust the history and say so.
+- Judge whether a category will REALLY reach its budget. "Over budget in 2/6 months" means hitting it is the exception, not the expectation — don't warn as if it were likely.
+- Call out stale budgets explicitly: a budget far above the recent median is a budgeting error worth fixing, not a spending problem.
+- Read direction, not just level: three months of falling spend in a category is a habit forming — name it and credit it.
+- The projection already blends this month's pace with the recent median, so do NOT re-derive month-end totals yourself. Explain and challenge them instead.` : ''
 
   const msiSection = (data.msi_timeline || []).length > 0 ? `
 MSI PAYOFF TIMELINE:

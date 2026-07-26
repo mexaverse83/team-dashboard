@@ -1,5 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeInsights, parseInsightsResponse, remainingCalendarWeekEnvelope } from '@/lib/insights-prompt.mjs'
+import { mexicoCityDateParts, normalizeInsights, parseInsightsResponse, remainingCalendarWeekEnvelope } from '@/lib/insights-prompt.mjs'
+
+describe('mexicoCityDateParts', () => {
+  // Vercel runs in UTC. At 7pm on July 25 in Mexico City the server clock has
+  // already rolled to July 26, which shifted day_of_month for six hours daily
+  // and skewed every pace divisor built from it.
+  it('reports the household date, not the UTC date', () => {
+    const parts = mexicoCityDateParts(new Date('2026-07-26T01:30:00Z'))
+
+    expect(parts).toMatchObject({ year: 2026, month: 7, day: 25 })
+  })
+
+  it('keeps the household in the previous month across a month boundary', () => {
+    // 8pm July 31 in Mexico City = August 1 in UTC.
+    const parts = mexicoCityDateParts(new Date('2026-08-01T02:00:00Z'))
+
+    expect(parts).toMatchObject({ year: 2026, month: 7, day: 31 })
+  })
+
+  it('agrees with UTC during the Mexico City morning', () => {
+    const parts = mexicoCityDateParts(new Date('2026-07-25T18:00:00Z'))
+
+    expect(parts).toMatchObject({ year: 2026, month: 7, day: 25 })
+  })
+})
 
 const insight = (title: string, category: string, type = 'recommendation') => ({
   title,

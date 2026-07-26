@@ -37,6 +37,14 @@ describe('MonthProjectionCard', () => {
     await act(async () => {})
   })
 
+  // The whole point of the sub-line: reconcile the hero's spend-to-date with a
+  // month-end forecast, so neither number looks like it contradicts the other.
+  it('names the spend still expected before month end', async () => {
+    render(<MonthProjectionCard projection={projection} />)
+    expect(screen.getByText(/\$126,300 spent · \$8,085 more expected/)).toBeInTheDocument()
+    await act(async () => {})
+  })
+
   it('renders nothing without a projection', async () => {
     const { container } = render(<MonthProjectionCard projection={null} />)
     await act(async () => {})
