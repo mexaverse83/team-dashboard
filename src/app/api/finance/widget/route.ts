@@ -72,6 +72,15 @@ export async function GET(req: NextRequest) {
   const monthKey = cm.month
   const planMonth = west?.savings_plan?.months?.find((m: { month: string }) => m.month === monthKey)
 
+  // Live version of Mona's "tighten the envelope" directive: reserve the WEST
+  // shortfall out of the month's controllable pot before spreading it over the
+  // week. Spending week_envelope stays inside budgets; spending more than this
+  // number eats the WEST transfer.
+  const westGap = planMonth ? Math.max(0, planMonth.target - projectedSavings) : null
+  const westWeekEnvelope = westGap == null
+    ? null
+    : remainingCalendarWeekEnvelope(Math.max(0, ctrlRemaining - westGap), daysLeft, mexicoWeekday).weekEnvelope
+
   return NextResponse.json({
     updated_at: new Date().toISOString(),
     month: monthKey,
@@ -81,6 +90,7 @@ export async function GET(req: NextRequest) {
     over_committed_by: freeMonth < 0 ? Math.abs(Math.round(freeMonth)) : 0,
     controllable_per_day: calendarEnvelope.dailyEnvelope,
     week_envelope: calendarEnvelope.weekEnvelope,
+    week_envelope_west: westWeekEnvelope,
     days_left_in_week: calendarEnvelope.daysThroughSunday,
     week_envelope_basis: 'remaining planned category spending from today through Sunday',
     net_this_month: Math.round(income - spent),
@@ -108,7 +118,7 @@ export async function GET(req: NextRequest) {
       // the dashboard; income minus spend-to-date overstates progress early.
       surplus_so_far: Math.round(projectedSavings),
       projected_savings: Math.round(projectedSavings),
-      gap: Math.max(0, Math.round(planMonth.target - projectedSavings)),
+      gap: Math.round(westGap ?? 0),
       pct: planMonth.target > 0 ? Math.min(999, Math.max(0, Math.round((projectedSavings / planMonth.target) * 100))) : null,
     } : null,
     budget_pace: ctrl

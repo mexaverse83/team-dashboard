@@ -22,6 +22,7 @@ interface WidgetData {
   safe_to_spend_day: number
   controllable_per_day?: number
   week_envelope: number
+  week_envelope_west?: number | null
   days_left_in_week?: number
   over_committed_by: number
   projected_savings: number
@@ -121,6 +122,10 @@ export function WolffWidget() {
   const goalNeed = widget?.goal_monthly_needed ?? 0
   const westTarget = sharedWestTarget ?? widget?.west_month?.target ?? null
   const westClears = westTarget != null && (widget?.projected_savings ?? 0) >= westTarget
+  // Tighter envelope that also covers the WEST shortfall — only worth showing
+  // when it actually undercuts the budget-permitted number.
+  const westEnvelope = widget?.week_envelope_west
+  const westEnvelopeTight = westEnvelope != null && westEnvelope < (widget?.week_envelope ?? 0)
 
   return (
     <section className="wolff-command relative overflow-hidden rounded-[1.5rem]" aria-labelledby="wolff-command-title">
@@ -195,6 +200,9 @@ export function WolffWidget() {
                 <p className="text-[9px] font-bold uppercase tracking-[0.13em] opacity-75"><span className="sm:hidden">Week left</span><span className="hidden sm:inline">Through Sunday</span></p>
                 <p className="num-metric mt-1 text-lg font-bold sm:text-xl">{money(widget?.week_envelope)}</p>
                 <p className="mt-0.5 hidden text-[10px] opacity-70 sm:block">{widget?.days_left_in_week || 1} day plan</p>
+                {westEnvelopeTight && (
+                  <p className="mt-0.5 hidden text-[10px] font-semibold opacity-90 sm:block">{money(westEnvelope)} keeps WEST pace</p>
+                )}
               </div>
             </div>
           </div>
