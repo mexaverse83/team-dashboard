@@ -11,7 +11,7 @@ function ImageBadge({ src, className }: { src: string; className?: string }) {
 }
 
 export function BrandLogo({ className }: { className?: string }) {
-  return <ImageBadge src="/brand/household-logo.png" className={className} />
+  return <ImageBadge src="/brand/wolff-avatar.png" className={className} />
 }
 
 export function WolffAvatar({ className }: { className?: string }) {
