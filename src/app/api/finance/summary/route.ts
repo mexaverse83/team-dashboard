@@ -392,7 +392,7 @@ export async function GET(req: NextRequest) {
   const budgetedCategoryIds = new Set(activeBudgetRows.map(b => b.category_id))
   const unbudgetedAtActuals = Math.round(currentMonthTxs
     .filter(t => !budgetedCategoryIds.has(t.category_id)
-      && Array.isArray(t.tags) && t.tags.some(tag => UNTRENDED_TAGS.includes(tag)))
+      && Array.isArray(t.tags) && t.tags.some((tag: string) => UNTRENDED_TAGS.includes(tag)))
     .reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0))
   const trendedUnbudgeted = Math.max(0, unbudgetedSpent - unbudgetedAtActuals)
   const projectedUnbudgeted = pastDay7 && dayOfMonth > 0
