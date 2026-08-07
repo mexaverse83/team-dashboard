@@ -382,18 +382,23 @@ export async function GET(req: NextRequest) {
     currentMonthStr,
     (fertilityPaidTxs || []).map(t => ({ date: t.transaction_date, amount: t.amount_mxn || t.amount || 0 })),
   ).reduce((s, e) => s + e.amount, 0)
-  // Fertility spend is plan-driven one-offs, not a trend — carry it at
-  // actuals. The rest of unbudgeted spending doesn't stop today: past day 7,
-  // project it at its daily pace like any variable category.
+  // Carried at actuals, never trended: fertility spend is plan-driven
+  // one-offs, and the processor posts auto-recurring/auto-msi rows exactly
+  // once per month — a days-elapsed multiplier invents repeats that cannot
+  // happen (on day 7, $1,960 of posted MSI installments projected as $8,700).
+  // The rest of unbudgeted spending doesn't stop today: past day 7, project
+  // it at its daily pace like any variable category.
+  const UNTRENDED_TAGS = ['fertility', 'auto-recurring', 'auto-msi']
   const budgetedCategoryIds = new Set(activeBudgetRows.map(b => b.category_id))
-  const unbudgetedFertilitySpent = Math.round(currentMonthTxs
-    .filter(t => Array.isArray(t.tags) && t.tags.includes('fertility') && !budgetedCategoryIds.has(t.category_id))
+  const unbudgetedAtActuals = Math.round(currentMonthTxs
+    .filter(t => !budgetedCategoryIds.has(t.category_id)
+      && Array.isArray(t.tags) && t.tags.some(tag => UNTRENDED_TAGS.includes(tag)))
     .reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0))
-  const trendedUnbudgeted = Math.max(0, unbudgetedSpent - unbudgetedFertilitySpent)
+  const trendedUnbudgeted = Math.max(0, unbudgetedSpent - unbudgetedAtActuals)
   const projectedUnbudgeted = pastDay7 && dayOfMonth > 0
     ? Math.round(trendedUnbudgeted / dayOfMonth * daysInMonth)
     : trendedUnbudgeted
-  const projectedMonthSpend = Math.round(projectedBudgetedSpend + projectedUnbudgeted + unbudgetedFertilitySpent + treatmentRemainingThisMonth)
+  const projectedMonthSpend = Math.round(projectedBudgetedSpend + projectedUnbudgeted + unbudgetedAtActuals + treatmentRemainingThisMonth)
   const actualIncomeThisMonth = (currentMonthIncomeTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
   // What has posted + recurring income still due to land. The old
   // `max(actual, totalMonthlyIncome)` floor never released, so after payroll
