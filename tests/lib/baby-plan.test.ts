@@ -3,6 +3,7 @@ import {
   BABY_CHECKLIST,
   BABY_PLAN,
   EDUCATION_FUND_PLAN,
+  educationFundCurve,
   getActiveChecklistItems,
   getBabyEventForMonth,
   getNextBabyEvent,
@@ -98,6 +99,50 @@ describe('projectEducationFund', () => {
     const gain = withBalance.projected_value - base.projected_value
     expect(gain).toBeGreaterThan(400_000)
     expect(gain).toBeLessThan(460_000)
+  })
+})
+
+describe('educationFundCurve', () => {
+  it('spans 2027 through 2045 with one point per year', () => {
+    const curve = educationFundCurve()
+    expect(curve[0].year).toBe(2027)
+    expect(curve[curve.length - 1].year).toBe(2045)
+    expect(curve).toHaveLength(19)
+  })
+
+  it('final point matches the headline projection exactly', () => {
+    const curve = educationFundCurve()
+    const headline = projectEducationFund()
+    const final = curve[curve.length - 1]
+    expect(final.fund).toBe(headline.projected_value)
+    expect(final.tec_min).toBe(headline.tec_cost_min)
+    expect(final.tec_max).toBe(headline.tec_cost_max)
+  })
+
+  it('fund and Tec cost both increase monotonically', () => {
+    const curve = educationFundCurve()
+    for (let i = 1; i < curve.length; i++) {
+      expect(curve[i].fund).toBeGreaterThan(curve[i - 1].fund)
+      expect(curve[i].tec_max).toBeGreaterThan(curve[i - 1].tec_max)
+    }
+  })
+
+  it('scales with the scenario inputs', () => {
+    const base = educationFundCurve(7000, 0.08)
+    const lean = educationFundCurve(5000, 0.08)
+    const hot = educationFundCurve(7000, 0.10)
+    const last = (c: ReturnType<typeof educationFundCurve>) => c[c.length - 1].fund
+    expect(last(lean)).toBeLessThan(last(base))
+    expect(last(hot)).toBeGreaterThan(last(base))
+    // $5k/mo at 8% lands near $2.46M; $7k at 10% near $4.3M
+    expect(last(lean)).toBeGreaterThan(2_300_000)
+    expect(last(hot)).toBeGreaterThan(4_000_000)
+  })
+
+  it('compounds a starting balance', () => {
+    const withBalance = educationFundCurve(7000, 0.08, 100_000)
+    const without = educationFundCurve(7000, 0.08)
+    expect(withBalance[withBalance.length - 1].fund).toBeGreaterThan(without[without.length - 1].fund + 350_000)
   })
 })
 

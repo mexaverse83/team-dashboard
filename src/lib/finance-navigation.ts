@@ -1,5 +1,6 @@
 import {
   ArrowLeftRight,
+  Baby,
   Banknote,
   Bitcoin,
   Calculator,
@@ -62,6 +63,7 @@ export const primaryFinanceSections: FinanceNavSection[] = [
     items: [
       { href: '/finance/goals', label: 'Goals', icon: Target, description: 'Bernardo and Laura’s savings goals', keywords: ['savings', 'targets'] },
       { href: '/finance/investments', label: 'Investments', icon: TrendingUp, description: 'WEST and long-term portfolio', keywords: ['west', 'gbm', 'stocks', 'real estate'] },
+      { href: '/finance/family', label: 'Family', icon: Baby, description: 'Baby 2027 and the education fund', keywords: ['baby', 'education', 'tec', '2045', 'insurance', 'protection'] },
     ],
   },
 ]

@@ -18,8 +18,8 @@ describe('Sidebar', () => {
   it('renders all nav links (finance only)', () => {
     render(<Sidebar />)
     const links = screen.getAllByRole('link')
-    // Mobile dock (4 links + More button), mobile quick-add, and desktop finance (17 links)
-    expect(links.length).toBe(22)
+    // Mobile dock (4 links + More button), mobile quick-add, and desktop finance (18 links incl. Family)
+    expect(links.length).toBe(23)
   })
 
   it('has correct finance nav hrefs', () => {

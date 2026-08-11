@@ -6,6 +6,7 @@ import { GlassCard } from '@/components/ui/glass-card'
 import { OwnerDot, OwnerBar } from '@/components/finance/owner-dot'
 import { CryptoClient } from '@/components/finance/crypto-client'
 import { WestTracker, WestCompactWidget, WestProjectionWithScenarios } from '@/components/finance/west-tracker'
+import { FamilyFutureStrip } from '@/components/finance/family-tracker'
 import { RetirementTab } from '@/components/finance/retirement-client'
 import { PrivateEquityCard, type PrivateEquityHolding } from '@/components/finance/private-equity-card'
 import {
@@ -573,6 +574,8 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           </div>
           {/* WEST Apartment Projection + Scenarios — bottom of Portfolio */}
           <WestProjectionWithScenarios />
+          {/* The pot's claims after WEST: baby envelope + education fund 2045 */}
+          <FamilyFutureStrip />
         </div>
       )}
 

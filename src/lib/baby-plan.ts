@@ -158,6 +158,66 @@ export function projectEducationFund(
   }
 }
 
+export type EducationCurvePoint = {
+  year: number
+  fund: number
+  contributed: number
+  tec_min: number
+  tec_max: number
+}
+
+/**
+ * Yearly projection points (valued each August) from the fund's start year to
+ * the target year, for a given monthly contribution and nominal annual return.
+ * Drives the scenario chart on the family page; defaults reproduce
+ * projectEducationFund()'s headline number.
+ */
+export function educationFundCurve(
+  monthlyContribution: number = EDUCATION_FUND_PLAN.monthlyContribution,
+  annualReturnRate: number = EDUCATION_FUND_PLAN.annualReturnRate,
+  currentBalance = 0,
+): EducationCurvePoint[] {
+  const plan = EDUCATION_FUND_PLAN
+  if (plan.tecCostTodayMax <= 0) return [] // demo mode
+  const i = annualReturnRate / 12
+  const startYear = Number(plan.startMonth.slice(0, 4))
+  const startM = Number(plan.startMonth.slice(5, 7))
+  const targetYear = Number(plan.targetMonth.slice(0, 4))
+  const points: EducationCurvePoint[] = []
+  for (let year = startYear; year <= targetYear; year++) {
+    // Contribution months elapsed by August of `year` — same count as
+    // projectEducationFund's monthsBetween, so the 2045 point equals the
+    // headline projection exactly.
+    const n = Math.max(0, (year - startYear) * 12 + (8 - startM))
+    const annuityFv = n > 0 && i > 0 ? monthlyContribution * (((1 + i) ** n - 1) / i) : monthlyContribution * n
+    const balanceFv = currentBalance * (1 + i) ** n
+    const inflate = (1 + plan.educationInflationRate) ** (year - plan.baseYear)
+    points.push({
+      year,
+      fund: Math.round(annuityFv + balanceFv),
+      contributed: currentBalance + monthlyContribution * n,
+      tec_min: Math.round(plan.tecCostTodayMin * inflate),
+      tec_max: Math.round(plan.tecCostTodayMax * inflate),
+    })
+  }
+  return points
+}
+
+// ─── Protection plan — the numbers to beat when quoting ─────────────────────
+// Market research Aug 2026: no Mexican insurer publishes term-life rate cards
+// and identical profiles vary up to 40% across carriers, so these are sizing
+// targets and premium bands to negotiate against, not quotes.
+
+export const PROTECTION_PLAN = {
+  policies: [
+    { person: 'Bernardo', coverage_min: 12_000_000, coverage_max: 16_000_000, monthly_min: 1500, monthly_max: 3500, product: '20-yr term life + invalidez total y permanente rider' },
+    { person: 'Laura', coverage_min: 7_000_000, coverage_max: 9_000_000, monthly_min: 800, monthly_max: 1800, product: '20-yr term life + invalidez total y permanente rider' },
+  ],
+  insurers: ['GNP', 'Seguros Monterrey NYL', 'AXA', 'MetLife'],
+  sizing_rule: '10–15× annual income with a newborn; term matches the ~20-year dependency window',
+  estate_note: 'Both wills + tutor testamentario at a NL notaría — September is Mes del Testamento (~$3,500 each). Life-insurance payouts and account beneficiary designations bypass probate; keep GBM, bank, and Afore designations in sync.',
+}
+
 // ─── One-time checklist — the deadlines that decide years ────────────────────
 // Time-boxed action items surfaced as command-center alerts while their
 // window is open. Windows close on their own; completion tracking can move
