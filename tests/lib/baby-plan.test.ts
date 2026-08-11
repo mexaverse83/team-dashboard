@@ -25,10 +25,10 @@ describe('BABY_PLAN', () => {
     expect(months[months.length - 1] <= BABY_PLAN.endMonth).toBe(true)
   })
 
-  it('the birth envelope lands in the due month', () => {
+  it('the birth event lands in the due month at the 20% coinsurance share', () => {
     const birth = BABY_PLAN.events[BABY_PLAN.events.length - 1]
     expect(birth.month).toBe(BABY_PLAN.dueMonth)
-    expect(birth.amount).toBe(180000)
+    expect(birth.amount).toBe(45000)
   })
 })
 
@@ -54,7 +54,7 @@ describe('baby event windows', () => {
   })
 
   it('finds the event for a given month', () => {
-    expect(getBabyEventForMonth('2027-04')?.amount).toBe(180000)
+    expect(getBabyEventForMonth('2027-04')?.amount).toBe(45000)
     expect(getBabyEventForMonth('2026-08')).toBeNull()
   })
 })
@@ -155,7 +155,7 @@ describe('baby checklist windows', () => {
   it('surfaces the testamento and GMM items in late August 2026', () => {
     const active = getActiveChecklistItems(new Date(2026, 7, 20)).map(i => i.id)
     expect(active).toContain('baby-testamento')
-    expect(active).toContain('baby-gmm-verify')
+    expect(active).toContain('baby-gmm-preauth')
     expect(active).not.toContain('baby-gmm-newborn')
   })
 

@@ -6,6 +6,9 @@ import type { TreatmentEvent } from '@/lib/fertility-plan'
 // entries, while remaining-amount math is dynamic (planningTotal − tagged spend).
 // Market figures: Monterrey private care, Aug 2026 research (prenatal $15–45k
 // full pregnancy; delivery all-in incl. honorarios $55–135k; gear $12–50k).
+// Confirmed 2026-08-11: the couple's GMM covers the delivery at 80% of doctor
+// and hospital costs, so the birth event is the ~20% coinsurance share plus
+// deductible and non-covered extras — not the full sticker price.
 
 const DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === '1'
 
@@ -23,9 +26,9 @@ export const BABY_PLAN = DEMO ? {
 } : {
   name: 'Baby — April 2027',
   dueMonth: '2027-04',
-  minTotal: 130000,
-  maxTotal: 260000,
-  planningTotal: 233000,
+  minTotal: 46000,
+  maxTotal: 165500,
+  planningTotal: 98000,
   startMonth: '2026-09',
   endMonth: '2027-04',
   events: [
@@ -36,7 +39,7 @@ export const BABY_PLAN = DEMO ? {
     { date: '2027-01-15', month: '2027-01', amount: 4000, minAmount: 2000, maxAmount: 6500, label: 'Prenatal care' },
     { date: '2027-02-15', month: '2027-02', amount: 4000, minAmount: 2000, maxAmount: 6500, label: 'Prenatal care' },
     { date: '2027-03-15', month: '2027-03', amount: 29000, minAmount: 14000, maxAmount: 56500, label: 'Prenatal care + gear & setup' },
-    { date: '2027-04-15', month: '2027-04', amount: 180000, minAmount: 100000, maxAmount: 180000, label: 'Birth — hospital package + honorarios' },
+    { date: '2027-04-15', month: '2027-04', amount: 45000, minAmount: 20000, maxAmount: 70000, label: 'Birth — 20% coinsurance share + deductible & extras' },
   ] satisfies TreatmentEvent[],
 }
 
@@ -234,11 +237,11 @@ export type BabyChecklistItem = {
 
 export const BABY_CHECKLIST: BabyChecklistItem[] = DEMO ? [] : [
   {
-    id: 'baby-gmm-verify',
-    title: 'Verify Laura’s GMM policy for maternity coverage',
-    description: 'If a policy with maternity was issued before ~July 2026 the birth and newborn are covered; otherwise plan the delivery out of pocket (budgeted) and insure the baby within 30 days of birth. New policies can no longer cover this pregnancy (10-month waiting period).',
-    windowStart: '2026-08-01',
-    windowEnd: '2026-09-30',
+    id: 'baby-gmm-preauth',
+    title: 'Set up the GMM delivery claim: aviso de embarazo + network check',
+    description: 'Coverage confirmed — the policy pays 80% of doctor and hospital delivery costs. Now file the pregnancy notice (aviso de embarazo/maternidad) with the insurer, confirm which Monterrey hospitals and OB-GYNs are in-network (San José vs Zambrano changes your 20% a lot), and get the deductible and coinsurance cap in writing.',
+    windowStart: '2026-08-11',
+    windowEnd: '2026-11-30',
     severity: 'warning',
   },
   {
@@ -276,7 +279,7 @@ export const BABY_CHECKLIST: BabyChecklistItem[] = DEMO ? [] : [
   {
     id: 'baby-gmm-newborn',
     title: 'Enroll the baby in GMM within 30 days of birth',
-    description: 'Inside the 30-day window the newborn is accepted with minimal or no medical underwriting. Also: acta de nacimiento + CURP first.',
+    description: 'Because the pregnancy is covered, the newborn gets automatic provisional coverage (~90 days, typically no deductible) including congenital conditions and NICU — but the 30-day enrollment window is what locks in no-underwriting acceptance and inherited antigüedad. Acta de nacimiento + CURP first.',
     windowStart: '2027-04-01',
     windowEnd: '2027-05-31',
     severity: 'warning',
