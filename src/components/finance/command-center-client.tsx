@@ -20,6 +20,7 @@ import { enrichTransactions, DEFAULT_CATEGORIES, monthKey } from '@/lib/finance-
 import { type Summary, type Forecast, fmtMoney } from './command-center/types'
 import { KpiCard, SectionHeader } from './command-center/ui'
 import { BudgetPaceCard } from './command-center/budget-pace'
+import { BabyPlanCard, EducationFundCard } from './command-center/plans'
 
 export default function CommandCenterClient() {
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -246,6 +247,14 @@ export default function CommandCenterClient() {
 
         {/* ── MONTH PLAN: the projection against both monthly asks ──── */}
         <MonthProjectionCard projection={summary?.month_projection} goalMonthlyNeeded={monthlyGoalNeed} />
+
+        {/* ── BABY PLAN: envelope to April 2027 + the 2045 education fund ── */}
+        {summary?.baby_plan && summary.baby_plan.planning_total > 0 && (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <BabyPlanCard plan={summary.baby_plan} />
+            <EducationFundCard education={summary.baby_plan.education} />
+          </div>
+        )}
 
         {/* ── FINANCIAL PULSE: three durable health metrics ─ */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

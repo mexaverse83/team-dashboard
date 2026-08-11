@@ -66,6 +66,7 @@ async function financialContext() {
     goal_funding: summary.goal_funding,
     goals: summary.goals,
     fertility_plan: summary.fertility_plan,
+    baby_plan: summary.baby_plan,
     year_end_goal_plan: summary.year_end_goal_plan,
     installments: summary.installments,
     debts: summary.debts,

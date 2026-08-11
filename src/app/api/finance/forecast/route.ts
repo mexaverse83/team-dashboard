@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { getRemainingTreatmentEvents } from '@/lib/fertility-plan'
+import { getRemainingBabyEvents } from '@/lib/baby-plan'
 import { deriveIncomeBaseline } from '@/lib/household-metrics'
 
 const supabase = createClient(
@@ -259,6 +260,22 @@ export async function GET(req: NextRequest) {
       category_id: null,
       owner: null,
       source_id: 'fertility-treatment',
+    })
+  }
+
+  // 7. Baby plan milestones (prenatal care, gear, birth envelope) — planned
+  // one-offs, same treatment as the fertility events above.
+  for (const babyEvent of getRemainingBabyEvents(today)) {
+    const due = new Date(babyEvent.date + 'T00:00:00Z')
+    if (due > horizon) continue
+    events.push({
+      date: babyEvent.date,
+      type: 'planned_expense',
+      amount_mxn: -Math.abs(babyEvent.amount),
+      name: babyEvent.label,
+      category_id: null,
+      owner: null,
+      source_id: 'baby-plan',
     })
   }
 

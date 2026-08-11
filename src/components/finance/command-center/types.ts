@@ -7,6 +7,7 @@ export interface Summary {
     spent_so_far: number
     projected_spend: number
     known_upcoming_treatment: number
+    known_upcoming_baby?: number
     projected_savings: number
     method: string
   }
@@ -58,6 +59,7 @@ export interface Summary {
     current_saved: number
     goal_remaining: number
     treatment_remaining: number
+    baby_remaining_this_year?: number
     total_needed_by_december: number
     months_remaining: number
     monthly_free_cash: number
@@ -100,6 +102,38 @@ export interface Summary {
       recommended_cap: number
       cut_amount: number
     }>
+  }
+  baby_plan?: {
+    name: string
+    due_month: string
+    months_to_birth: number
+    range_min: number
+    range_max: number
+    planning_total: number
+    start_month: string
+    end_month: string
+    monthly_events: TreatmentEvent[]
+    remaining_events: TreatmentEvent[]
+    remaining_amount: number
+    spent_to_date: number
+    current_month_commitment: number
+    current_month_event: TreatmentEvent | null
+    education: {
+      name: string
+      monthly_contribution: number
+      start_month: string
+      target_month: string
+      annual_return_rate: number
+      education_inflation_rate: number
+      months: number
+      contributed: number
+      projected_value: number
+      tec_cost_min: number
+      tec_cost_max: number
+      coverage_pct_min: number
+      coverage_pct_max: number
+    }
+    checklist: Array<{ id: string; title: string; description: string; severity: 'info' | 'warning'; window_end: string }>
   }
   msi_timeline: Array<{ name: string; merchant: string; monthly_payment: number; payments_remaining: number; end_date: string }>
   crypto: null | {

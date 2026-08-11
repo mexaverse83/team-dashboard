@@ -67,6 +67,20 @@ export function buildAlerts(summary: Summary | null, forecast: Forecast | null, 
     })
   }
 
+  // 2c. Baby plan — time-boxed action items while their window is open.
+  // Warnings are date-critical (testamento season, GMM windows); the top one
+  // outranks budget noise, the rest surface as they get close to closing.
+  for (const item of summary.baby_plan?.checklist ?? []) {
+    alerts.push({
+      id: `baby-${item.id}`,
+      severity: item.severity,
+      title: item.title,
+      description: `${item.description} Window closes ${item.window_end}.`,
+      action: { label: 'See baby plan', href: '#plans' },
+      weight: item.severity === 'warning' ? 85 : 40,
+    })
+  }
+
   // 3. Cash flow forecast — projected to go negative or low
   if (forecast && forecast.summary.min_balance.balance < -20000) {
     alerts.push({

@@ -3,6 +3,7 @@ import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { buildFertilityCutRecommendations, FERTILITY_TREATMENT_PLAN, getRemainingTreatmentEvents, getTreatmentEventForMonth, getUnpaidTreatmentEventsForMonth } from '@/lib/fertility-plan'
+import { BABY_PLAN, BABY_PLAN_TAG, EDUCATION_FUND_PLAN, getActiveChecklistItems, getBabyEventForMonth, getRemainingBabyEvents, monthsUntilDue, projectEducationFund } from '@/lib/baby-plan'
 import { defaultBudgetType } from '@/lib/finance-utils'
 import { deriveIncomeBaseline, emergencyFundCoverage, expectedMonthIncome } from '@/lib/household-metrics'
 import { projectCategoryMonthEnd, summarizeCategoryHistory } from '@/lib/spend-projection'
@@ -68,6 +69,7 @@ export async function GET(req: NextRequest) {
     { data: incomeTransactions },
     { data: currentMonthIncomeTxs },
     { data: fertilityPaidTxs },
+    { data: babyPaidTxs },
     { data: categoryHistoryTxs },
   ] = await Promise.all([
     fetchAllRows((from, to) => supabase.from('finance_transactions').select('*').gte('transaction_date', startStr).lte('transaction_date', endStr).eq('type', 'expense').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
@@ -86,6 +88,7 @@ export async function GET(req: NextRequest) {
     // landed this month — the processor posts one transaction per row name.
     supabase.from('finance_transactions').select('amount_mxn,amount,merchant').gte('transaction_date', currentMonthStart).lte('transaction_date', currentMonthEnd).eq('type', 'income'),
     supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').contains('tags', ['fertility']).eq('type', 'expense'),
+    supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').contains('tags', [BABY_PLAN_TAG]).eq('type', 'expense'),
     // Complete months only — `lt currentMonthStart` keeps the partial current
     // month out of the medians it feeds.
     fetchAllRows((from, to) => supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount,category_id').gte('transaction_date', spendHistoryStart).lt('transaction_date', currentMonthStart).eq('type', 'expense').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
@@ -382,13 +385,20 @@ export async function GET(req: NextRequest) {
     currentMonthStr,
     (fertilityPaidTxs || []).map(t => ({ date: t.transaction_date, amount: t.amount_mxn || t.amount || 0 })),
   ).reduce((s, e) => s + e.amount, 0)
+  // Baby-plan milestones use the same unpaid-until-posted logic, keyed on the
+  // 'baby' tag.
+  const babyRemainingThisMonth = getUnpaidTreatmentEventsForMonth(
+    currentMonthStr,
+    (babyPaidTxs || []).map(t => ({ date: t.transaction_date, amount: t.amount_mxn || t.amount || 0 })),
+    BABY_PLAN.events,
+  ).reduce((s, e) => s + e.amount, 0)
   // Carried at actuals, never trended: fertility spend is plan-driven
   // one-offs, and the processor posts auto-recurring/auto-msi rows exactly
   // once per month — a days-elapsed multiplier invents repeats that cannot
   // happen (on day 7, $1,960 of posted MSI installments projected as $8,700).
   // The rest of unbudgeted spending doesn't stop today: past day 7, project
   // it at its daily pace like any variable category.
-  const UNTRENDED_TAGS = ['fertility', 'auto-recurring', 'auto-msi']
+  const UNTRENDED_TAGS = ['fertility', BABY_PLAN_TAG, 'auto-recurring', 'auto-msi']
   const budgetedCategoryIds = new Set(activeBudgetRows.map(b => b.category_id))
   const unbudgetedAtActuals = Math.round(currentMonthTxs
     .filter(t => !budgetedCategoryIds.has(t.category_id)
@@ -398,7 +408,7 @@ export async function GET(req: NextRequest) {
   const projectedUnbudgeted = pastDay7 && dayOfMonth > 0
     ? Math.round(trendedUnbudgeted / dayOfMonth * daysInMonth)
     : trendedUnbudgeted
-  const projectedMonthSpend = Math.round(projectedBudgetedSpend + projectedUnbudgeted + unbudgetedAtActuals + treatmentRemainingThisMonth)
+  const projectedMonthSpend = Math.round(projectedBudgetedSpend + projectedUnbudgeted + unbudgetedAtActuals + treatmentRemainingThisMonth + babyRemainingThisMonth)
   const actualIncomeThisMonth = (currentMonthIncomeTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
   // What has posted + recurring income still due to land. The old
   // `max(actual, totalMonthlyIncome)` floor never released, so after payroll
@@ -429,11 +439,24 @@ export async function GET(req: NextRequest) {
   const treatmentMonthlyGap = Math.max(0, totalGoalMonthlyNeeded + treatmentMonthlyCommitment - discretionary)
   const monthsAfterTreatment = 5 // Aug-Dec 2026
   const deferredCatchUpMonthly = Math.ceil((treatmentMonthlyGap * remainingTreatmentEvents.length) / monthsAfterTreatment)
+  // Baby plan: remaining = envelope minus everything already spent (baby-tagged txs).
+  const remainingBabyEvents = getRemainingBabyEvents(now)
+  const alreadyPaidBaby = (babyPaidTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
+  const remainingBabyAmount = Math.max(0, BABY_PLAN.planningTotal - alreadyPaidBaby)
+  const currentBabyEvent = getBabyEventForMonth(currentMonthStr) ?? remainingBabyEvents[0] ?? null
+  const babyMonthlyCommitment = getBabyEventForMonth(currentMonthStr)?.amount ?? 0
+  // Baby milestones landing before January compete with the December goal
+  // target the same way treatment payments did.
+  const babyRemainingThisYear = remainingBabyEvents
+    .filter(e => e.month.slice(0, 4) === String(now.getFullYear()))
+    .reduce((s, e) => s + e.amount, 0)
+  const educationProjection = projectEducationFund()
+
   const monthsToDecember = Math.max(1, 11 - now.getMonth()) // next month through December
   const totalGoalTarget = activeGoals.reduce((s, g) => s + (g.target || 0), 0)
   const totalGoalSaved = activeGoals.reduce((s, g) => s + (g.current || 0), 0)
   const totalGoalRemaining = Math.max(0, totalGoalTarget - totalGoalSaved)
-  const totalNeededByDecember = totalGoalRemaining + remainingTreatmentAmount
+  const totalNeededByDecember = totalGoalRemaining + remainingTreatmentAmount + babyRemainingThisYear
   // Extra income already received this month beyond what's in the recurring base
   const currentMonthActualIncome = incomeBaseline.currentMonthActual
   const currentMonthExtraIncome = Math.max(0, currentMonthActualIncome - totalMonthlyIncome)
@@ -604,6 +627,7 @@ export async function GET(req: NextRequest) {
       spent_so_far: Math.round(totalCurrentMonthSpend),
       projected_spend: projectedMonthSpend,
       known_upcoming_treatment: Math.round(treatmentRemainingThisMonth),
+      known_upcoming_baby: Math.round(babyRemainingThisMonth),
       projected_savings: projectedMonthSavings,
       method: pastDay7
         ? 'per-category pace blended with recent-month medians'
@@ -620,6 +644,7 @@ export async function GET(req: NextRequest) {
       current_saved: totalGoalSaved,
       goal_remaining: totalGoalRemaining,
       treatment_remaining: remainingTreatmentAmount,
+      baby_remaining_this_year: babyRemainingThisYear,
       total_needed_by_december: totalNeededByDecember,
       months_remaining: monthsToDecember,
       monthly_free_cash: discretionary,
@@ -655,6 +680,38 @@ export async function GET(req: NextRequest) {
       fully_funded_with_goals: treatmentMonthlyGap <= 0,
       deferred_catch_up_monthly: deferredCatchUpMonthly,
       recommended_cuts: cutRecommendations,
+    },
+    baby_plan: {
+      name: BABY_PLAN.name,
+      due_month: BABY_PLAN.dueMonth,
+      months_to_birth: Math.max(0, monthsUntilDue(now)),
+      range_min: BABY_PLAN.minTotal,
+      range_max: BABY_PLAN.maxTotal,
+      planning_total: BABY_PLAN.planningTotal,
+      start_month: BABY_PLAN.startMonth,
+      end_month: BABY_PLAN.endMonth,
+      monthly_events: BABY_PLAN.events,
+      remaining_events: remainingBabyEvents,
+      remaining_amount: remainingBabyAmount,
+      spent_to_date: Math.round(alreadyPaidBaby),
+      current_month_commitment: babyMonthlyCommitment,
+      current_month_event: currentBabyEvent,
+      education: {
+        name: EDUCATION_FUND_PLAN.name,
+        monthly_contribution: EDUCATION_FUND_PLAN.monthlyContribution,
+        start_month: EDUCATION_FUND_PLAN.startMonth,
+        target_month: EDUCATION_FUND_PLAN.targetMonth,
+        annual_return_rate: EDUCATION_FUND_PLAN.annualReturnRate,
+        education_inflation_rate: EDUCATION_FUND_PLAN.educationInflationRate,
+        ...educationProjection,
+      },
+      checklist: getActiveChecklistItems(now).map(item => ({
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        severity: item.severity,
+        window_end: item.windowEnd,
+      })),
     },
     msi_timeline: msiTimeline,
     crypto: cryptoSummary,
