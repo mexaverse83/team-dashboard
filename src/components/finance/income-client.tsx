@@ -17,8 +17,15 @@ const RECURRENCE_LABELS: Record<string, string> = {
 
 const empty: Omit<FinanceRecurringIncome, 'id' | 'created_at' | 'updated_at'> = {
   name: '', amount: 0, owner: 'bernardo', category: 'salary',
-  recurrence: 'monthly', day_of_month: 1, active: true, notes: null,
+  recurrence: 'monthly', day_of_month: 1, active: true, notes: null, start_date: null,
 }
+
+// Local YYYY-MM-DD — toISOString() would shift late-evening MX to tomorrow.
+const todayStr = () => new Date().toLocaleDateString('en-CA')
+
+// A row with a future start_date is configured but not yet earning — the
+// processor skips it and the summary excludes it, so totals here must too.
+const hasStarted = (i: FinanceRecurringIncome) => !i.start_date || i.start_date <= todayStr()
 
 export function IncomeClient() {
   const [items, setItems] = useState<FinanceRecurringIncome[]>([])
@@ -48,13 +55,13 @@ export function IncomeClient() {
   useEffect(() => { load() }, [])
 
   const totalActive = useMemo(
-    () => items.filter(i => i.active && i.recurrence === 'monthly').reduce((s, i) => s + i.amount, 0),
+    () => items.filter(i => i.active && i.recurrence === 'monthly' && hasStarted(i)).reduce((s, i) => s + i.amount, 0),
     [items]
   )
 
   const byOwner = useMemo(() => {
     const m: Record<string, number> = {}
-    for (const i of items.filter(i => i.active && i.recurrence === 'monthly')) {
+    for (const i of items.filter(i => i.active && i.recurrence === 'monthly' && hasStarted(i))) {
       m[i.owner] = (m[i.owner] || 0) + i.amount
     }
     return m
@@ -72,6 +79,7 @@ export function IncomeClient() {
       name: item.name, amount: item.amount, owner: item.owner,
       category: item.category, recurrence: item.recurrence,
       day_of_month: item.day_of_month, active: item.active, notes: item.notes,
+      start_date: item.start_date ?? null,
     })
     setShowForm(true)
   }
@@ -184,8 +192,13 @@ export function IncomeClient() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-[hsl(var(--foreground))] truncate">{item.name}</span>
-                    {item.active && (
+                    {item.active && hasStarted(item) && (
                       <span className="text-xs bg-emerald-500/20 text-emerald-600 px-2 py-0.5 rounded-full">Active</span>
+                    )}
+                    {item.active && !hasStarted(item) && (
+                      <span className="text-xs bg-sky-500/20 text-sky-700 px-2 py-0.5 rounded-full">
+                        Starts {new Date(item.start_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
                     )}
                     {!item.active && (
                       <span className="text-xs bg-zinc-500/20 text-zinc-600 px-2 py-0.5 rounded-full">Inactive</span>
@@ -328,6 +341,18 @@ export function IncomeClient() {
                     className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))] text-sm"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs text-[hsl(var(--text-secondary))] mb-1">Starts on (optional)</label>
+                <input
+                  type="date"
+                  value={form.start_date || ''}
+                  onChange={e => setForm(f => ({ ...f, start_date: e.target.value || null }))}
+                  className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] border border-[hsl(var(--border))] text-sm"
+                />
+                <p className="mt-1 text-[11px] text-[hsl(var(--text-tertiary))]">
+                  Until this date the income is ignored — it won&apos;t auto-post or count in projections. Use it for raises or income that begins next month.
+                </p>
               </div>
               <div>
                 <label className="block text-xs text-[hsl(var(--text-secondary))] mb-1">Notes (optional)</label>

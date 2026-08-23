@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { name, amount, owner, category, recurrence, day_of_month, active, notes } = body
+  const { name, amount, owner, category, recurrence, day_of_month, active, notes, start_date } = body
 
   if (!name || amount === undefined || !owner || !category || !recurrence || !day_of_month) {
     return NextResponse.json({ error: 'Missing required fields: name, amount, owner, category, recurrence, day_of_month' }, { status: 400 })
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       day_of_month: Number(day_of_month),
       active: active !== false,
       notes: notes || null,
+      start_date: start_date || null,
     })
     .select()
     .single()

@@ -22,7 +22,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const allowedFields = ['name', 'amount', 'owner', 'category', 'recurrence', 'day_of_month', 'active', 'notes']
+  const allowedFields = ['name', 'amount', 'owner', 'category', 'recurrence', 'day_of_month', 'active', 'notes', 'start_date']
   const update: Record<string, unknown> = {}
   for (const field of allowedFields) {
     if (field in body) update[field] = body[field]
