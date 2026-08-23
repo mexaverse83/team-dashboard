@@ -715,6 +715,9 @@ export async function GET(req: NextRequest) {
     },
     msi_timeline: msiTimeline,
     crypto: cryptoSummary,
-  }, { headers: { 'Cache-Control': 'private, max-age=300' } })
+  // no-store: the browser must never answer this from its HTTP cache — a
+  // 5-minute max-age let two cards on one screen show different projected
+  // savings, and made the visibility-change refetch a no-op.
+  }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 // 1771253121

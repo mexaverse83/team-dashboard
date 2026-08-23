@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       delta,
       delta_pct: deltaPct,
     },
-  }, { headers: { 'Cache-Control': 'private, max-age=1800' } })
+  }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
 // POST: write a snapshot for today (idempotent — replaces today's row)
