@@ -18,6 +18,7 @@ interface MonthProjection {
 }
 
 interface Props {
+  compact?: boolean
   westTarget?: number | null
   projection?: MonthProjection | null
   /** summary.goal_funding.total_monthly_needed — the 2026 GBM goals' monthly ask. */
@@ -32,7 +33,7 @@ interface Props {
 function TargetBar({ label, target, savings, note }: { label: string; target: number; savings: number; note?: string }) {
   const vsTarget = savings - target
   const onTrack = vsTarget >= 0
-  const pct = Math.min(100, Math.round(Math.max(0, savings / target) * 100))
+  const pct = target > 0 ? Math.min(100, Math.round(Math.max(0, savings / target) * 100)) : 100
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
@@ -41,7 +42,7 @@ function TargetBar({ label, target, savings, note }: { label: string; target: nu
           {onTrack ? `+$${vsTarget.toLocaleString()} ahead` : `$${Math.abs(vsTarget).toLocaleString()} short · ${pct}%`}
         </span>
       </div>
-      <div className="mt-1.5 h-2.5 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
+      <div role="progressbar" aria-label={label} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} className="mt-1.5 h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
         <div
           className={cn('h-full rounded-full transition-all', onTrack ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-amber-400 to-amber-600')}
           style={{ width: `${pct}%` }}
@@ -56,7 +57,7 @@ function TargetBar({ label, target, savings, note }: { label: string; target: nu
 // Full-width feature band under the hero: deterministic projection
 // (recomputed every load), both monthly finish lines, and Mona's daily
 // commentary from the brief.
-export function MonthProjectionCard({ projection, goalMonthlyNeeded, westTarget: pageWestTarget }: Props) {
+export function MonthProjectionCard({ projection, goalMonthlyNeeded, westTarget: pageWestTarget, compact = false }: Props) {
   const [fetchedWestTarget, setWestTarget] = useState<number | null>(null)
 
   useEffect(() => {
@@ -78,7 +79,8 @@ export function MonthProjectionCard({ projection, goalMonthlyNeeded, westTarget:
 
   return (
     <div className={cn(
-      'relative overflow-hidden rounded-2xl border p-4 sm:p-5 shadow-[var(--shadow-elevate)]',
+      'relative overflow-hidden rounded-2xl border p-5 sm:p-6 shadow-[var(--shadow-elevate)]',
+      compact && 'overview-projection-card',
       positive
         ? 'border-emerald-400/20 bg-gradient-to-br from-emerald-500/[0.09] via-[hsl(var(--card))] to-blue-500/[0.07]'
         : 'border-rose-400/30 bg-gradient-to-br from-rose-500/[0.10] via-[hsl(var(--card))] to-orange-500/[0.06]'
@@ -87,11 +89,11 @@ export function MonthProjectionCard({ projection, goalMonthlyNeeded, westTarget:
         className="pointer-events-none absolute inset-0"
         style={{ background: 'radial-gradient(45% 90% at 95% 0%, hsl(211 90% 60% / 0.10), transparent 60%)' }}
       />
-      <div className="relative grid gap-4 md:grid-cols-[1.1fr_1fr] md:items-center">
+      <div className={cn("relative grid gap-4", !compact && "md:grid-cols-[1.1fr_1fr] md:items-center")}>
         {/* The number */}
         <div>
           <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">
-            <TrendingUp className="h-3.5 w-3.5" /> Projected savings · {new Date().toLocaleDateString('en-US', { month: 'long' })}
+            <TrendingUp className="h-3.5 w-3.5" /> {compact ? 'At month end · projected' : `Projected savings · ${new Date().toLocaleDateString('en-US', { month: 'long' })}`}
           </p>
           <p className={cn('num-metric mt-1 text-3xl sm:text-4xl font-black tracking-tight', positive ? 'text-emerald-400' : 'text-rose-400')}>
             {positive ? '' : '−'}${Math.abs(p.projected_savings).toLocaleString()}

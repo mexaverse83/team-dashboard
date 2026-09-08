@@ -11,7 +11,8 @@ import { cn } from '@/lib/utils'
 // Accent is reserved for STATUS only (positive / negative). 'brand' is a neutral
 // emphasis used sparingly for the headline metric (net worth). Everything else
 // stays in the default foreground colour so colour keeps its meaning.
-export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineColor, accent, icon: Icon }: {
+export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineColor, accent, icon: Icon, href }: {
+  href?: string
   label: string
   value: string
   sublabel?: React.ReactNode
@@ -29,8 +30,8 @@ export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineCol
     : accent === 'negative' ? 'bg-rose-500/10 text-rose-700'
     : accent === 'brand' ? 'bg-teal-500/10 text-teal-700'
     : 'bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-secondary))]'
-  return (
-    <GlassCard>
+  const card = (
+    <GlassCard className="h-full">
       <div className="flex items-start justify-between mb-2.5">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">{label}</span>
         <span className="flex items-center gap-2">
@@ -42,7 +43,7 @@ export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineCol
           )}
         </span>
       </div>
-      <p className={cn('num-metric text-2xl sm:text-[28px] font-bold leading-none', accentClass)}>{value}</p>
+      <p className={cn('num-metric text-xl sm:text-[28px] font-bold leading-none', accentClass)}>{value}</p>
       {sublabel && <div className="mt-1.5 text-xs text-[hsl(var(--text-secondary))]">{sublabel}</div>}
       {sparkline && sparkline.length > 0 && (
         <div className="mt-3 -mx-1">
@@ -51,6 +52,7 @@ export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineCol
       )}
     </GlassCard>
   )
+  return href ? <Link href={href} className="block rounded-2xl transition-transform hover:-translate-y-0.5">{card}</Link> : card
 }
 
 // ─── Section header ──────────────────────────────────────────────────────────

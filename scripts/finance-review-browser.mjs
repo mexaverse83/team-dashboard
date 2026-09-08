@@ -41,6 +41,7 @@ try {
     }
     return data === undefined ? request.continue() : request.respond({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET, OPTIONS' }, body: JSON.stringify(data) })
   })
+  const layoutMetrics = []
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
   for (const width of [360, 390, 768, 1440]) {
@@ -48,6 +49,11 @@ try {
     await page.goto(`${origin}/finance`, { waitUntil: 'networkidle0' })
     await page.waitForFunction(() => document.body.textContent.includes('net this month'))
     await page.screenshot({ path: `${output}/dashboard-${width}.png`, fullPage: true })
+    layoutMetrics.push(await page.evaluate(() => ({
+      width: innerWidth,
+      pageHeight: document.documentElement.scrollHeight,
+      forecastTop: document.querySelector('.overview-projection-card')?.getBoundingClientRect().top ?? null,
+    })))
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)
     if (overflow) throw new Error(`Horizontal overflow at ${width}px`)
     console.log(`${width}px: dashboard loaded, no page overflow`)
@@ -55,6 +61,12 @@ try {
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1 })
   await page.goto(`${origin}/finance`, { waitUntil: 'networkidle0' })
   await page.waitForFunction(() => document.body.textContent.includes('net this month'))
+  if (await page.$('[aria-controls="daily-plan-explanation"]')) {
+    await page.click('[aria-controls="daily-plan-explanation"]')
+    await page.waitForSelector('#daily-plan-explanation')
+    await page.screenshot({ path: `${output}/spending-breakdown-390.png`, fullPage: true })
+    await page.click('[aria-controls="daily-plan-explanation"]')
+  }
   await page.evaluate(() => document.querySelector('[aria-controls="cash-flow-details"]').click())
   await page.waitForSelector('#cash-flow-details .recharts-wrapper')
   await page.screenshot({ path: `${output}/details-390.png`, fullPage: true })
@@ -68,8 +80,11 @@ try {
   })
   if (!modal.focusInside || !modal.fitsWidth) throw new Error(`Mobile modal failed: ${JSON.stringify(modal)}`)
   await page.screenshot({ path: `${output}/entry-390.png`, fullPage: true })
+  await page.goto(`${origin}/finance/ask?prompt=Help%20me%20plan%20dinner`, { waitUntil: 'networkidle0' })
+  await page.waitForFunction(() => document.querySelector('input[aria-label="Your question for Mona"]')?.value === 'Help me plan dinner')
+  await page.screenshot({ path: `${output}/chat-prompt-390.png`, fullPage: true })
   if (errors.length) throw new Error(errors.join('\n'))
-  console.log(JSON.stringify({ pageErrors: errors.length, summaryRequests: calls.filter(x => x.endsWith('/summary')).length, widgetRequests: calls.filter(x => x.endsWith('/widget')).length, modal }))
+  console.log(JSON.stringify({ pageErrors: errors.length, layoutMetrics, summaryRequests: calls.filter(x => x.endsWith('/summary')).length, widgetRequests: calls.filter(x => x.endsWith('/widget')).length, modal }))
 } finally {
   await browser.close()
 }

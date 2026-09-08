@@ -43,7 +43,12 @@ export default function AskWolffClient() {
   // Poll — faster while a question is waiting for Wolff
   const waiting = messages.some(m => m.role === 'user' && m.status === 'pending' && !m.asked_by?.startsWith('wolff-monitor:'))
   useEffect(() => {
-    load()
+    const initial = window.setTimeout(() => {
+      const prompt = new URLSearchParams(window.location.search).get('prompt')
+      if (prompt) setInput(prompt.slice(0, 1000))
+      void load()
+    }, 0)
+    return () => window.clearTimeout(initial)
   }, [load])
   useEffect(() => {
     const id = setInterval(load, waiting ? 3000 : 15000)
@@ -60,7 +65,7 @@ export default function AskWolffClient() {
     setSending(true)
     setInput('')
     // Optimistic append
-    const tmp: ChatMessage = { id: `tmp-${Date.now()}`, role: 'user', content, status: 'pending', created_at: new Date().toISOString() }
+    const tmp: ChatMessage = { id: `tmp-${crypto.randomUUID()}`, role: 'user', content, status: 'pending', created_at: new Date().toISOString() }
     setMessages(m => [...m, tmp])
     try {
       const res = await fetch('/api/finance/wolff-chat', {
@@ -150,6 +155,7 @@ export default function AskWolffClient() {
         className="mt-3 flex items-center gap-2"
       >
         <input
+          aria-label="Your question for Mona"
           value={input}
           onChange={e => setInput(e.target.value)}
           placeholder="Ask about your money…"

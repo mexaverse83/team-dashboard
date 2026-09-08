@@ -6,11 +6,13 @@ import dynamic from 'next/dynamic'
 import { fetchWestProjection, westMonthTarget } from '@/lib/west-projection-client'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { mexicoCityDateParts } from '@/lib/insights-prompt.mjs'
-import { Plus, Activity, Sparkles, Landmark, Bitcoin, Receipt, LockKeyhole, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Activity, Sparkles, Landmark, Bitcoin, ShieldCheck, LockKeyhole, ChevronDown, ChevronUp, RefreshCw, ArrowUpRight } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
 import { SkeletonKPI } from '@/components/ui/skeleton-card'
 import { BillsTimeline } from '@/components/finance/bills-timeline'
+import { DailySpendingPlan } from '@/components/finance/daily-spending-plan'
+import { BudgetWatch } from '@/components/finance/budget-watch'
 import { WolffWidget } from '@/components/finance/wolff-widget'
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend'
 import { MonthProjectionCard } from '@/components/finance/month-projection-card'
@@ -115,8 +117,6 @@ export default function CommandCenterClient() {
   const netSavings = totalIncome - totalSpent
   const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0
   const monthlyGoalNeed = summary?.goal_funding.total_monthly_needed || 0
-  const projectedSavings = summary?.month_projection?.projected_savings || 0
-  const goalCoveragePct = monthlyGoalNeed > 0 ? Math.max(0, Math.round(projectedSavings / monthlyGoalNeed * 100)) : 100
   // Before any income lands (typically the first of the month, until payroll
   // auto-posts) a "net savings / % rate" framing is meaningless — net is just
   // −spend and the rate is undefined. Present it neutrally instead of a red
@@ -125,18 +125,6 @@ export default function CommandCenterClient() {
 
   const bernardoSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, OWNERS[0])).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
   const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, OWNERS[1])).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
-
-  // Daily spend sparkline
-  const dailySpend = useMemo(() => {
-    const map: Record<number, number> = {}
-    for (const t of monthTxs) {
-      if (t.type !== 'expense') continue
-      const day = parseInt(t.transaction_date.slice(8, 10))
-      map[day] = (map[day] || 0) + t.amount_mxn
-    }
-    const today = mexicoCityDateParts(updatedAt ?? new Date()).day
-    return Array.from({ length: today }, (_, i) => map[i + 1] || 0)
-  }, [monthTxs, updatedAt])
 
   // Status banner copy — quotes the summary endpoint's budget-aware projection
   // (fixed categories capped at budget, variable at pace, scheduled treatment
@@ -196,125 +184,61 @@ export default function CommandCenterClient() {
   return (
     <PageTransition>
       <div className="space-y-5 sm:space-y-6" data-animate>
-        {/* ── Install banner (Android, only when installable) ── */}
-        <InstallPrompt />
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[hsl(var(--text-secondary))]">
-          <p role="status">{refreshing ? 'Refreshing your finances…' : updatedAt ? `Updated ${updatedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · MXN` : 'MXN'}</p>
-          <button type="button" onClick={() => void fetchData()} disabled={refreshing} className="min-h-11 rounded-xl border border-[hsl(var(--border))] px-4 font-semibold hover:bg-[hsl(var(--bg-elevated))] disabled:opacity-50">Refresh</button>
-        </div>
+        <header className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-[hsl(var(--text-secondary))]">{greeting}, {OWNERS[0]}</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{today.toLocaleDateString('en-US', { month: 'long', timeZone: 'America/Mexico_City' })} overview</h1>
+            <p role="status" className="mt-1.5 text-[11px] text-[hsl(var(--text-tertiary))]">{refreshing ? 'Refreshing your finances…' : updatedAt ? `Updated ${updatedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · MXN` : 'MXN'}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button type="button" aria-label="Refresh" title="Refresh balances" onClick={() => void fetchData()} disabled={refreshing} className="flex h-11 w-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:bg-white/5 disabled:opacity-50"><RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} aria-hidden="true" /></button>
+            <Link href="/finance/transactions?add=1" aria-label="New transaction" className="overview-primary-action hidden h-11 sm:inline-flex items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold sm:px-4"><Plus className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">New transaction</span></Link>
+          </div>
+        </header>
         {error && <p role="alert" className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-700">{error} {updatedAt && 'Showing the last successful update where available.'}</p>}
 
-        {/* ── Hero: the monthly answer ─────────────────────
-            Leads with the one number that matters (net this month) instead of
-            a uniform card grid; the status banner is its subline. */}
-        <div className="wealth-hero relative overflow-hidden rounded-[1.5rem] p-5 sm:p-6 lg:p-7">
-          <div className="wealth-hero-orbit absolute inset-0 pointer-events-none" />
-          <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--text-secondary))]">
-                {greeting}, {OWNERS[0]} · {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' })}
+        <div className="overview-summary-grid grid gap-4 xl:grid-cols-2">
+          <section className="overview-balance-card relative flex flex-col overflow-hidden rounded-2xl p-5 sm:p-6" aria-label="Month to date">
+            <div className="relative flex items-center justify-between gap-3">
+              <p className="text-xs font-medium text-[hsl(var(--text-secondary))]">{awaitingIncome ? 'Spent so far' : netSavings < 0 ? 'Month so far' : 'Saved so far'}</p>
+              <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-[hsl(var(--text-secondary))]">Day {summary.current_month.day_of_month} of {summary.current_month.days_in_month}</span>
+            </div>
+            <div className="relative mt-3 flex flex-wrap items-end gap-x-3 gap-y-2">
+              <p className={cn('num-metric text-[2.75rem] font-semibold leading-none tracking-tight sm:text-5xl', awaitingIncome ? 'text-[hsl(var(--text-secondary))]' : netSavings >= 0 ? 'text-white' : 'text-rose-300')}>
+                {netSavings >= 0 ? '+' : '−'}{fmtMoney(Math.abs(netSavings), { compact: true })}
               </p>
-              <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                <span className={cn(
-                  'num-metric text-4xl sm:text-5xl font-black tracking-tight leading-none',
-                  awaitingIncome ? 'text-[hsl(var(--text-secondary))]'
-                    : netSavings >= 0 ? 'text-hero-gradient' : 'text-rose-600',
-                )}>
-                  {netSavings >= 0 ? '+' : '−'}{fmtMoney(Math.abs(netSavings), { compact: true })}
-                </span>
-                <span className="text-sm text-[hsl(var(--text-secondary))]">
-                  {awaitingIncome ? 'spent so far' : 'net this month'}
-                  {awaitingIncome ? (
-                    <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-semibold align-middle bg-amber-500/15 text-amber-700">
-                      awaiting income
-                    </span>
-                  ) : (
-                    <span className={cn(
-                      'ml-2 px-2 py-0.5 rounded-full text-xs font-semibold align-middle',
-                      savingsRate >= 20 ? 'bg-emerald-500/15 text-emerald-700'
-                        : savingsRate >= 10 ? 'bg-amber-500/15 text-amber-700'
-                        : 'bg-rose-500/15 text-rose-700',
-                    )}>
-                      {savingsRate}% rate
-                    </span>
-                  )}
-                </span>
-              </div>
-              {statusBanner && (
-                <p className={cn(
-                  'mt-3 flex items-center gap-2 text-sm font-medium',
-                  statusBanner.tone === 'success' && 'text-emerald-700',
-                  statusBanner.tone === 'warning' && 'text-amber-700',
-                  statusBanner.tone === 'info' && 'text-[hsl(var(--text-secondary))]',
-                )}>
-                  <Activity className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0">{statusBanner.msg}</span>
-                </p>
-              )}
+              <span className="pb-1 text-xs text-[hsl(var(--text-secondary))]">{awaitingIncome ? 'awaiting income' : 'net this month'}</span>
             </div>
-
-            <div className="flex flex-col items-stretch sm:items-center lg:flex-col xl:flex-row gap-4 sm:gap-6 lg:shrink-0 w-full lg:w-auto">
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:flex sm:items-center sm:gap-6">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Income</p>
-                  <p className="num-metric text-lg font-bold tabular-nums text-emerald-600">+{fmtMoney(totalIncome, { compact: true })}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Spent</p>
-                  <p className="num-metric text-lg font-bold tabular-nums text-rose-600">−{fmtMoney(totalSpent, { compact: true })}</p>
-                </div>
-                {summary && (
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Goal coverage</p>
-                    <p className={cn('num-metric text-lg font-bold tabular-nums', goalCoveragePct >= 100 ? 'text-emerald-600' : 'text-amber-500')}>
-                      {goalCoveragePct}%
-                    </p>
-                  </div>
-                )}
-                {summary && (
-                  <div className="sm:min-w-[110px]">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">
-                      Day {summary.current_month.day_of_month} of {summary.current_month.days_in_month}
-                    </p>
-                    <div className="mt-1.5 h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500"
-                        style={{ width: `${Math.min(100, Math.round((summary.current_month.day_of_month / Math.max(summary.current_month.days_in_month, 1)) * 100))}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-              <Link
-                href="/finance/transactions?add=1"
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-emerald-900/30"
-              >
-                <Plus className="h-4 w-4" /> New transaction
-              </Link>
+            <div className="relative mt-5 grid grid-cols-2 gap-4 border-t border-white/[0.08] pt-4">
+              <div><p className="text-[11px] text-[hsl(var(--text-secondary))]">Income received</p><p className="num-metric mt-1 text-xl font-medium text-emerald-300">{fmtMoney(totalIncome, { compact: true })}</p></div>
+              <div><p className="text-[11px] text-[hsl(var(--text-secondary))]">Spent</p><p className="num-metric mt-1 text-xl font-medium text-[hsl(var(--foreground))]">{fmtMoney(totalSpent, { compact: true })}</p></div>
             </div>
-          </div>
+            <div className="relative mt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[hsl(var(--text-secondary))]">
+              <span>{awaitingIncome ? 'Income will complete the picture' : `${savingsRate}% of received income retained`}</span>
+              <Link href="/finance/transactions" className="inline-flex min-h-8 items-center gap-1 font-medium text-sky-300">Transactions <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
+            </div>
+          </section>
+          <MonthProjectionCard projection={summary.month_projection} goalMonthlyNeeded={monthlyGoalNeed} westTarget={westTarget} compact />
         </div>
 
-        {/* ── WOLFF: the daily decision layer comes before reporting ── */}
-        <WolffWidget summary={summary} westTarget={westTarget} />
+        <DailySpendingPlan summary={summary} westTarget={westTarget} />
 
-        {/* ── MONTH PLAN: the projection against both monthly asks ──── */}
-        <MonthProjectionCard projection={summary?.month_projection} goalMonthlyNeeded={monthlyGoalNeed} westTarget={westTarget} />
+        {statusBanner && <div className={cn('flex items-start gap-2 rounded-xl px-1 text-xs leading-relaxed', statusBanner.tone === 'warning' ? 'text-amber-300' : 'text-[hsl(var(--text-secondary))]')}><Activity className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" /><p>{statusBanner.msg}</p></div>}
 
-        {/* ── BABY PLAN: envelope to April 2027 + the 2045 education fund ── */}
-        {summary?.baby_plan && summary.baby_plan.planning_total > 0 && (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <BabyPlanCard plan={summary.baby_plan} />
-            <EducationFundCard education={summary.baby_plan.education} />
-          </div>
-        )}
+        <div className="grid items-start gap-4 lg:grid-cols-[1.2fr_1fr]">
+          <WolffWidget />
+          <BudgetWatch summary={summary} />
+        </div>
 
         {/* ── FINANCIAL PULSE: three durable health metrics ─ */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <section aria-label="Household snapshot">
+        <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold">Household snapshot</h2><Link href="/finance/reports" className="inline-flex min-h-9 items-center gap-1 text-xs text-[hsl(var(--text-secondary))]">Reports <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link></div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1">
           {netWorth ? (
             <KpiCard
               icon={Landmark}
               label="Net worth"
+              href="/finance/investments"
               value={fmtMoney(netWorth.net_worth, { compact: true })}
               sublabel={
                 <span className="flex items-center justify-between">
@@ -328,6 +252,7 @@ export default function CommandCenterClient() {
             <KpiCard
               icon={Bitcoin}
               label="Crypto position"
+              href="/finance/crypto"
               value={fmtMoney(summary?.crypto?.total_value_mxn || 0, { compact: true })}
               sublabel={
                 summary?.crypto ? (
@@ -344,23 +269,18 @@ export default function CommandCenterClient() {
           )}
 
           <KpiCard
-            icon={Receipt}
-            label="Spent this month"
-            value={fmtMoney(totalSpent, { compact: true })}
-            sublabel={
-              <span className="flex items-center justify-between">
-                <span><span className="text-blue-600">B</span> {fmtMoney(bernardoSpent, { compact: true })} · <span className="text-pink-600">L</span> {fmtMoney(lauraSpent, { compact: true })}</span>
-                <span className="text-[hsl(var(--text-tertiary))]">{fmtMoney(totalIncome, { compact: true })} in</span>
-              </span>
-            }
-            sparkline={dailySpend}
-            sparklineColor="hsl(350, 80%, 55%)"
-            accent="neutral"
+            icon={ShieldCheck}
+            label="Cash buffer"
+            href="/finance/emergency-fund"
+            value={`${summary.emergency_fund.months_covered.toFixed(1)} mo`}
+            sublabel={<span>{fmtMoney(summary.emergency_fund.current, { compact: true })} emergency fund</span>}
+            accent={summary.emergency_fund.months_covered >= 3 ? 'positive' : 'neutral'}
           />
 
           <KpiCard
             icon={LockKeyhole}
             label="Committed income"
+            href="/finance/budget-builder"
             value={summary && summary.cash_flow.monthly_income > 0
               ? `${Math.round(summary.cash_flow.fixed_commitments / summary.cash_flow.monthly_income * 100)}%`
               : '—'}
@@ -375,6 +295,16 @@ export default function CommandCenterClient() {
             accent={summary && summary.cash_flow.fixed_commitments / Math.max(summary.cash_flow.monthly_income, 1) <= 0.6 ? 'positive' : 'negative'}
           />
         </div>
+
+        </section>
+                {/* ── BABY PLAN: envelope to April 2027 + the 2045 education fund ── */}
+        {summary?.baby_plan && summary.baby_plan.planning_total > 0 && (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <BabyPlanCard plan={summary.baby_plan} />
+            <EducationFundCard education={summary.baby_plan.education} />
+          </div>
+        )}
+
 
         {/* ── SECONDARY DETAIL: available without dominating the page ─ */}
         <section className="overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))]/65 shadow-[var(--shadow-elevate)]">
@@ -427,6 +357,7 @@ export default function CommandCenterClient() {
 
               <GlassCard>
                 <SectionHeader title="Recent activity" subtitle={`${monthTxs.length} transactions this month`} action={{ label: 'View all', href: '/finance/transactions' }} />
+                <p className="mb-3 text-xs text-[hsl(var(--text-secondary))]">{OWNERS[0]} spent {fmtMoney(bernardoSpent, { compact: true })} · {OWNERS[1]} spent {fmtMoney(lauraSpent, { compact: true })}</p>
                 <div className="grid gap-x-6 sm:grid-cols-2">
                   {monthTxs.slice(0, 4).map(tx => (
                     <div key={tx.id} className="flex items-center gap-3 border-b border-[hsl(var(--border-subtle))] px-1 py-2.5 last:border-0">
@@ -440,6 +371,7 @@ export default function CommandCenterClient() {
             </div>
           )}
         </section>
+        <InstallPrompt />
       </div>
     </PageTransition>
   )
