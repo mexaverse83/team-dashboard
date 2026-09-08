@@ -503,3 +503,18 @@ input, textarea, select {
   background: linear-gradient(125deg, hsl(215 34% 15% / .8), hsl(226 32% 10%));
 }
 .overview-quiet-card { border: 1px solid hsl(var(--border)); background: hsl(224 29% 10%); }
+
+/* Native iPhone focus zoom also affects forms that do not use inputCls,
+   including portaled investment dialogs and the chat composer. */
+@media (max-width: 767px) {
+  .finance-app input:not([type='checkbox']):not([type='radio']),
+  .finance-app textarea,
+  .finance-app select,
+  [role='dialog'] input:not(#transaction-amount):not([type='checkbox']):not([type='radio']),
+  [role='dialog'] textarea,
+  [role='dialog'] select {
+    font-size: 16px;
+    min-width: 0;
+    max-width: 100%;
+  }
+}

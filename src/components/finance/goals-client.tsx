@@ -15,6 +15,7 @@ import { OwnerDot } from '@/components/finance/owner-dot'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar } from 'recharts'
 import type { FinanceMonthlySavings } from '@/lib/finance-types'
 
+import { parseLocalDateKey } from '@/lib/transaction-entry'
 import { inputCls } from '@/lib/form-style'
 import { tooltipStyle, CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
 
@@ -102,7 +103,7 @@ export default function GoalsClient() {
   const totalSaved = activeGoals.reduce((s, g) => s + g.current_amount, 0)
   const overallPct = totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0
   const totalMonthlyNeeded = activeGoals.reduce((s, g) => {
-    const months = monthsBetween(new Date(), new Date(g.target_date || '2027-01-01'))
+    const months = monthsBetween(new Date(), parseLocalDateKey(g.target_date || '2027-01-01'))
     const remaining = g.target_amount - g.current_amount
     return s + (months > 0 ? remaining / months : remaining)
   }, 0)
@@ -125,7 +126,7 @@ export default function GoalsClient() {
     if (g.goal_type !== 'savings' || !g.owner) return null
     const lastActual = getLastActual(g.owner)
     if (lastActual === null) return null
-    const monthsLeft = monthsBetween(new Date(), new Date(g.target_date || '2027-01-01'))
+    const monthsLeft = monthsBetween(new Date(), parseLocalDateKey(g.target_date || '2027-01-01'))
     const remaining = g.target_amount - g.current_amount
     const required = monthsLeft > 0 ? remaining / monthsLeft : remaining
     if (lastActual >= required) return 'on_track'
@@ -136,7 +137,7 @@ export default function GoalsClient() {
   // Selected goal detail
   const goal = goals.find(g => g.id === selectedGoal)
   const goalPct = goal ? (goal.current_amount / goal.target_amount) * 100 : 0
-  const goalMonthsLeft = goal ? monthsBetween(new Date(), new Date(goal.target_date || '2027-01-01')) : 0
+  const goalMonthsLeft = goal ? monthsBetween(new Date(), parseLocalDateKey(goal.target_date || '2027-01-01')) : 0
   const goalMonthlyNeeded = goal && goalMonthsLeft > 0 ? (goal.target_amount - goal.current_amount) / goalMonthsLeft : 0
 
   // What-if projections
@@ -183,7 +184,7 @@ export default function GoalsClient() {
     const isCrypto = form.goal_type === 'crypto'
     // For crypto goals, current_amount is auto-calculated from holdings
     const currentAmt = isCrypto ? getCryptoQty(form.crypto_symbol) : parseFloat(form.current_amount || '0')
-    const months = monthsBetween(new Date(), new Date(form.target_date))
+    const months = monthsBetween(new Date(), parseLocalDateKey(form.target_date))
     const vehicle = isCrypto ? `Crypto (${form.crypto_symbol})` : vehicleForHorizon(months)
     const record = {
       name: form.name, target_amount: targetAmt, current_amount: currentAmt,
@@ -206,7 +207,7 @@ export default function GoalsClient() {
     setDeleteConfirm(null); if (selectedGoal === id) setSelectedGoal(null); fetchData()
   }
 
-  const formMonthsLeft = form.target_date ? monthsBetween(new Date(), new Date(form.target_date)) : 0
+  const formMonthsLeft = form.target_date ? monthsBetween(new Date(), parseLocalDateKey(form.target_date)) : 0
   const formMonthlyNeeded = formMonthsLeft > 0 && form.target_amount ? (parseFloat(form.target_amount) - parseFloat(form.current_amount || '0')) / formMonthsLeft : 0
 
   if (loading) return <div className="h-8 w-48 rounded bg-[hsl(var(--muted))] animate-pulse" />
@@ -310,10 +311,10 @@ export default function GoalsClient() {
           const cryptoQty = isCrypto ? getCryptoQty(g.crypto_symbol!) : 0
           const currentVal = isCrypto ? cryptoQty : g.current_amount
           const pct = (currentVal / g.target_amount) * 100
-          const months = monthsBetween(new Date(), new Date(g.target_date || '2027-01-01'))
+          const months = monthsBetween(new Date(), parseLocalDateKey(g.target_date || '2027-01-01'))
           const remaining = g.target_amount - currentVal
           const needed = months > 0 ? remaining / months : remaining
-          const isOnTrack = isCrypto ? pct >= ((Date.now() - new Date(g.created_at).getTime()) / (new Date(g.target_date || '2027-01-01').getTime() - new Date(g.created_at).getTime())) * 100 : (g.monthly_contribution || 0) >= needed
+          const isOnTrack = isCrypto ? pct >= ((Date.now() - new Date(g.created_at).getTime()) / (parseLocalDateKey(g.target_date || '2027-01-01').getTime() - new Date(g.created_at).getTime())) * 100 : (g.monthly_contribution || 0) >= needed
           const goalStatus = !isCrypto ? getGoalStatus(g) : null
           const lastActual = !isCrypto && g.owner ? getLastActual(g.owner) : null
           const cryptoMXN = isCrypto ? getCryptoMXN(g.crypto_symbol!) : 0
@@ -391,7 +392,7 @@ export default function GoalsClient() {
 
               <div className="flex items-center justify-between mt-1">
                 <span className="text-lg font-bold tabular-nums">{Math.round(pct)}%</span>
-                <span className="text-xs text-[hsl(var(--text-tertiary))]">{g.target_date ? new Date(g.target_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}</span>
+                <span className="text-xs text-[hsl(var(--text-tertiary))]">{g.target_date ? parseLocalDateKey(g.target_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}</span>
               </div>
 
               <div className="mt-2 pt-2 border-t border-[hsl(var(--border))]">

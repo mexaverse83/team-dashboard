@@ -263,6 +263,28 @@ describe('Transactions Page', () => {
     setupSupabaseMock()
   })
 
+  it('preserves decimal-comma cents and the draft ID after a failed save', async () => {
+    const insert = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ error: null })
+    const original = vi.mocked(supabase.from).getMockImplementation()!
+    vi.mocked(supabase.from).mockImplementation(((table: string) => ({ ...original(table), ...(table === 'finance_transactions' ? { insert } : {}) })) as typeof supabase.from)
+    const Comp = (await import('@/components/finance/transactions-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Add transaction' }).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add transaction' })[0])
+    fireEvent.change(screen.getByLabelText('Amount *'), { target: { value: '12,50' } })
+    fireEvent.click(screen.getByRole('button', { name: /Groceries/ }))
+    fireEvent.submit(document.getElementById('tx-form')!)
+    fireEvent.submit(document.getElementById('tx-form')!)
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Could not confirm the save'))
+    expect(insert).toHaveBeenCalledTimes(1)
+    expect(screen.getByLabelText('Amount *')).toHaveValue('12,50')
+    expect(screen.getByRole('button', { name: 'Save expense' })).toBeEnabled()
+    fireEvent.submit(document.getElementById('tx-form')!)
+    await waitFor(() => expect(insert).toHaveBeenCalledTimes(2))
+    expect(insert.mock.calls[0][0]).toMatchObject({ amount: 12.5, amount_mxn: 12.5 })
+    expect(insert.mock.calls[0][0].id).toBe(insert.mock.calls[1][0].id)
+  })
+
   it('renders page header', async () => {
     const Comp = (await import('@/components/finance/transactions-client')).default
     render(<Comp />)

@@ -79,6 +79,9 @@ export default function AskWolffClient() {
         return
       }
       await load()
+    } catch {
+      setMessages(m => m.map(x => x.id === tmp.id ? { ...x, status: 'failed' } : x))
+      setInput(current => current || content)
     } finally {
       setSending(false)
     }
@@ -100,7 +103,7 @@ export default function AskWolffClient() {
         </div>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] p-4 shadow-[var(--shadow-elevate)]">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] p-4 shadow-[var(--shadow-elevate)]">
         {loading ? (
           <p className="py-10 text-center text-sm text-[hsl(var(--text-tertiary))]">Loading conversation…</p>
         ) : visibleMessages.length === 0 ? (
@@ -123,7 +126,7 @@ export default function AskWolffClient() {
             return (
             <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
               <div className={cn(
-                'max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
+                'max-w-[85%] break-words [overflow-wrap:anywhere] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
                 m.role === 'user'
                   ? 'rounded-br-md bg-blue-600 text-white'
                   : proactive
@@ -160,7 +163,7 @@ export default function AskWolffClient() {
           onChange={e => setInput(e.target.value)}
           placeholder="Ask about your money…"
           maxLength={1000}
-          className="flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] px-4 py-3 text-sm outline-none focus:border-emerald-500/50"
+          className="min-w-0 flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] px-4 py-3 text-sm outline-none focus:border-emerald-500/50"
         />
         <button
           type="submit"

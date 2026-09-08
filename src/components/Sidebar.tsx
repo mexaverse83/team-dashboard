@@ -45,18 +45,23 @@ function NavLink({ item, pathname, onNavigate, compact = false }: {
 }
 
 export function Sidebar() {
-  const [mobileOpen, setMobileOpen] = useState(false)
+  const [mobileRoute, setMobileRoute] = useState<string | null>(null)
   const pathname = usePathname()
+  const mobileOpen = mobileRoute === pathname
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const mobileNavRef = useRef<HTMLElement>(null)
   const currentItem = currentFinanceNavItem(pathname)
   const toolRouteActive = financeToolSections.some(section => section.items.some(item => isFinanceRouteActive(pathname, item.href)))
 
-  const closeMobile = useCallback(() => setMobileOpen(false), [])
-  const toggleMobile = () => setMobileOpen(open => !open)
+  const closeMobile = useCallback(() => setMobileRoute(null), [])
+  const toggleMobile = () => setMobileRoute(route => route === pathname ? null : pathname)
 
   useEffect(() => {
     if (!mobileOpen) return
+    const desktop = window.matchMedia('(min-width: 768px)')
+    const onResize = () => { if (desktop.matches) closeMobile() }
+    desktop.addEventListener('change', onResize)
+    onResize()
     const previousOverflow = document.documentElement.style.overflow
     document.documentElement.style.overflow = 'hidden'
     const main = document.querySelector('main')
@@ -74,6 +79,7 @@ export function Sidebar() {
       main?.removeAttribute('inert')
       window.cancelAnimationFrame(focusFrame)
       window.removeEventListener('keydown', onKeyDown)
+      desktop.removeEventListener('change', onResize)
     }
   }, [closeMobile, mobileOpen])
 
@@ -89,7 +95,7 @@ export function Sidebar() {
         </div>
         <div className="flex items-center gap-2">
           {pathname !== '/finance/login' && pathname !== '/finance/transactions' && (
-            <Link href="/finance/transactions?add=1" aria-label="Add transaction" className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-lg shadow-emerald-950/30 active:scale-95">
+            <Link onClick={closeMobile} href="/finance/transactions?add=1" aria-label="Add transaction" className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-lg shadow-emerald-950/30 active:scale-95">
               <Plus className="h-5 w-5" strokeWidth={2.5} />
             </Link>
           )}
@@ -153,6 +159,7 @@ export function Sidebar() {
           return (
             <Link
               key={item.href}
+              onClick={closeMobile}
               href={item.href}
               aria-current={active ? 'page' : undefined}
               className={`mobile-dock-link flex min-w-[56px] flex-col items-center gap-1 rounded-xl px-1.5 py-1.5 min-[360px]:min-w-[58px] min-[360px]:px-2 ${active ? 'mobile-dock-link-active' : ''} ${wolff ? 'mobile-dock-wolff' : ''}`}

@@ -354,12 +354,12 @@ export default function SubscriptionsClient() {
           {/* Mobile card list */}
           <div className="sm:hidden space-y-2">
             {recurring.map(sub => (
-              <div key={sub.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors"
+              <div key={sub.id} className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 px-3 py-2.5 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors"
                 onClick={() => openEdit(sub)}>
                 <span className="text-lg shrink-0">{sub.category?.icon}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium truncate flex items-center gap-1.5">{sub.name} <OwnerDot owner={sub.owner} size="md" /></p>
+                    <p className="text-sm font-medium min-w-0 break-words [overflow-wrap:anywhere] flex items-center gap-1.5">{sub.name} <OwnerDot owner={sub.owner} size="md" /></p>
                     <span className="text-sm font-semibold num-metric tabular-nums shrink-0 ml-2">${sub.amount.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -370,6 +370,8 @@ export default function SubscriptionsClient() {
                     )}
                   </div>
                 </div>
+                <div className="col-span-2 flex items-center justify-end gap-2 border-t border-[hsl(var(--border))] pt-2">
+                <button type="button" onClick={e => { e.stopPropagation(); openEdit(sub) }} className="mr-auto text-xs font-medium">Edit</button>
                 {loggedId === sub.id ? (
                   <span className="text-[10px] text-emerald-600 font-medium shrink-0">✓</span>
                 ) : (
@@ -379,6 +381,7 @@ export default function SubscriptionsClient() {
                   </button>
                 )}
                 <button onClick={(e) => { e.stopPropagation(); toggleActive(sub) }}
+                  aria-label={sub.is_active ? `Pause ${sub.name}` : `Resume ${sub.name}`}
                   className="p-1.5 rounded-md bg-[hsl(var(--bg-elevated))] shrink-0">
                   <Power className="h-3.5 w-3.5" />
                 </button>
@@ -386,6 +389,7 @@ export default function SubscriptionsClient() {
                   className="p-1.5 rounded-md hover:bg-rose-500/10 shrink-0" title="Delete">
                   <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                 </button>
+                </div>
               </div>
             ))}
           </div>

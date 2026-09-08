@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { localDateKey, prioritizeCategories, recentMerchantSuggestions, relativeLocalDateKey } from '@/lib/transaction-entry'
+import { parseLocalDateKey, parseEntryAmount, localDateKey, prioritizeCategories, recentMerchantSuggestions, relativeLocalDateKey } from '@/lib/transaction-entry'
 import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
 
 const history = [
@@ -17,6 +17,11 @@ const categories = [
 ] as FinanceCategory[]
 
 describe('transaction entry helpers', () => {
+  it('keeps a first-of-month goal deadline in its local calendar month', () => {
+    expect(parseLocalDateKey('2027-09-01').getMonth()).toBe(8)
+    expect(parseLocalDateKey('2027-09-01').getDate()).toBe(1)
+  })
+
   it('formats local dates without UTC rollover', () => {
     const lateLocalTime = new Date(2026, 6, 12, 23, 45)
     expect(localDateKey(lateLocalTime)).toBe('2026-07-12')
@@ -33,5 +38,14 @@ describe('transaction entry helpers', () => {
   it('puts frequently used categories first without removing unused choices', () => {
     expect(prioritizeCategories(categories, history, 'expense').map(category => category.id))
       .toEqual(['groceries', 'transport', 'other'])
+  })
+})
+
+describe('phone amount entry', () => {
+  it.each([['12,50', 12.5], ['1,250.50', 1250.5], ['1.250,50', 1250.5], ['1250', 1250], ['.50', 0.5]])('parses %s without losing cents', (input, expected) => {
+    expect(parseEntryAmount(input)).toBe(expected)
+  })
+  it.each(['12oops', '1,2,3', '', 'Infinity', '1e5', '-4', '12.3456'])('rejects malformed %s', input => {
+    expect(Number.isNaN(parseEntryAmount(input))).toBe(true)
   })
 })

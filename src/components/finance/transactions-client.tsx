@@ -12,13 +12,13 @@ import { cn } from '@/lib/utils'
 
 import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
 import { enrichTransactions, DEFAULT_CATEGORIES, suggestCoveragePeriod, CYCLE_LABELS } from '@/lib/finance-utils'
-import { parseBBVAPdf, detectBankFormat, type ParsedTransaction } from '@/lib/pdf-parser'
+import { type ParsedTransaction } from '@/lib/pdf-parser'
 import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
 import { OwnerDot } from '@/components/finance/owner-dot'
 import { applyRules, detectDuplicates, type FinanceRule } from '@/lib/finance-rules'
 
 import { inputCls } from '@/lib/form-style'
-import { localDateKey, prioritizeCategories, recentMerchantSuggestions, relativeLocalDateKey } from '@/lib/transaction-entry'
+import { parseEntryAmount, localDateKey, prioritizeCategories, recentMerchantSuggestions, relativeLocalDateKey } from '@/lib/transaction-entry'
 
 const labelCls = "text-xs text-[hsl(var(--text-secondary))] mb-1 block"
 
@@ -141,6 +141,10 @@ export default function TransactionsClient() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<TxForm>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const saveInFlight = useRef(false)
+  const draftId = useRef<string | null>(null)
+  const [dataError, setDataError] = useState('')
+  const refreshInFlight = useRef(false)
   const [saveError, setSaveError] = useState('')
   const [savedMessage, setSavedMessage] = useState('')
   const savedMessageTimer = useRef<number | null>(null)
@@ -166,17 +170,25 @@ export default function TransactionsClient() {
   const perPage = 25
 
   const fetchData = useCallback(async () => {
-    const [catRes, txRes] = await Promise.all([
-      supabase.from('finance_categories').select('*').order('sort_order'),
-      fetchAllRows<FinanceTransaction>((from, to) => supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
-    ])
-    
-    
-    const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
-    const txs = txRes.data || []
-    setCategories(cats)
-    setTransactions(enrichTransactions(txs, cats))
-    setLoading(false)
+    if (refreshInFlight.current) return
+    refreshInFlight.current = true
+    try {
+      const [catRes, txRes] = await Promise.all([
+        supabase.from('finance_categories').select('*').order('sort_order'),
+        fetchAllRows<FinanceTransaction>((from, to) => supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20000, true).then(rows => ({ data: rows })),
+      ])
+      if (catRes.error) throw catRes.error
+      const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
+      const txs = txRes.data || []
+      setCategories(cats)
+      setTransactions(enrichTransactions(txs, cats))
+      setDataError('')
+    } catch {
+      setDataError('Could not refresh transactions. Your last loaded list is still shown.')
+    } finally {
+      refreshInFlight.current = false
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
@@ -194,14 +206,14 @@ export default function TransactionsClient() {
     if (!modalOpen || editingId) return
     if (form.category_id) return
     if (!form.merchant || !form.amount) return
-    const amt = parseFloat(form.amount)
+    const amt = parseEntryAmount(form.currency === 'USD' ? form.amount_mxn : form.amount)
     if (!Number.isFinite(amt)) return
     const match = applyRules(rules, { merchant: form.merchant, amount_mxn: amt, owner: form.owner })
     if (match) {
       setForm(f => ({ ...f, category_id: match.category_id }))
       setAppliedRuleId(match.rule_id)
     }
-  }, [form.merchant, form.amount, form.owner, rules, modalOpen, editingId, form.category_id])
+  }, [form.merchant, form.amount, form.amount_mxn, form.currency, form.owner, rules, modalOpen, editingId, form.category_id])
 
   // Reset applied rule when modal closes
   useEffect(() => {
@@ -212,13 +224,13 @@ export default function TransactionsClient() {
   const possibleDuplicates = useMemo(() => {
     if (!modalOpen || editingId) return []
     if (!form.merchant || !form.amount || !form.transaction_date) return []
-    const amt = parseFloat(form.amount)
+    const amt = parseEntryAmount(form.currency === 'USD' ? form.amount_mxn : form.amount)
     if (!Number.isFinite(amt) || amt <= 0) return []
     return detectDuplicates(
       { transaction_date: form.transaction_date, merchant: form.merchant, amount_mxn: amt },
-      transactions.map(t => ({ id: t.id, transaction_date: t.transaction_date, merchant: t.merchant, amount_mxn: t.amount_mxn })),
+      transactions.filter(t => t.type === form.type).map(t => ({ id: t.id, transaction_date: t.transaction_date, merchant: t.merchant, amount_mxn: t.amount_mxn })),
     )
-  }, [form.merchant, form.amount, form.transaction_date, transactions, modalOpen, editingId])
+  }, [form.merchant, form.amount, form.amount_mxn, form.currency, form.type, form.transaction_date, transactions, modalOpen, editingId])
 
   const merchantSuggestions = useMemo(
     () => recentMerchantSuggestions(transactions, form.type),
@@ -245,13 +257,15 @@ export default function TransactionsClient() {
     })
   }, [transactions, typeFilter, categoryFilter, ownerFilter, search])
 
-  const totalPages = Math.ceil(filtered.length / perPage)
-  const paginated = filtered.slice((page - 1) * perPage, page * perPage)
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
+  const currentPage = Math.min(page, totalPages)
+  const paginated = filtered.slice((currentPage - 1) * perPage, currentPage * perPage)
 
   // Open modal for add
   const openAdd = useCallback(() => {
     setEditingId(null)
-    setForm({ ...emptyForm, owner: defaultOwner })
+    draftId.current = crypto.randomUUID()
+    setForm({ ...emptyForm, transaction_date: today(), owner: defaultOwner })
     setSaveError('')
     setSavedMessage('')
     if (savedMessageTimer.current) window.clearTimeout(savedMessageTimer.current)
@@ -305,8 +319,9 @@ export default function TransactionsClient() {
 
   // Save (create or update)
   const handleSave = async () => {
+    if (saveInFlight.current) return
     setSaveError('')
-    const amt = parseFloat(form.amount)
+    const amt = parseEntryAmount(form.amount)
     if (!Number.isFinite(amt) || amt <= 0) {
       setSaveError('Enter an amount greater than zero.')
       return
@@ -315,11 +330,11 @@ export default function TransactionsClient() {
       setSaveError('Choose a transaction date.')
       return
     }
-    if (!form.category_id) {
-      setSaveError('Choose a category.')
+    if (!categories.some(category => category.id === form.category_id && (category.type === form.type || category.type === 'both'))) {
+      setSaveError('Choose a category for this transaction type.')
       return
     }
-    if (form.currency === 'USD' && (!form.amount_mxn || parseFloat(form.amount_mxn) <= 0)) {
+    if (form.currency === 'USD' && (!Number.isFinite(parseEntryAmount(form.amount_mxn)) || parseEntryAmount(form.amount_mxn) <= 0)) {
       setSaveError('Enter the converted amount in MXN.')
       return
     }
@@ -327,83 +342,101 @@ export default function TransactionsClient() {
       setConfirmDuplicate(true)
       return
     }
+    saveInFlight.current = true
     setSaving(true)
+    try {
+      const amtMxn = form.currency === 'USD' && form.amount_mxn ? parseEntryAmount(form.amount_mxn) : amt
+      const tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
 
-    const amtMxn = form.currency === 'USD' && form.amount_mxn ? parseFloat(form.amount_mxn) : amt
-    const tags = form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : []
-
-    const record: Record<string, unknown> = {
-      type: form.type,
-      amount: amt,
-      currency: form.currency,
-      amount_mxn: amtMxn,
-      category_id: form.category_id || null,
-      merchant: form.merchant || null,
-      description: form.description || null,
-      transaction_date: form.transaction_date,
-      tags,
-      is_recurring: form.is_recurring,
-      owner: form.owner || null,
-    }
-    // Coverage period for arrears billing
-    if (form.coverage_start) record.coverage_start = form.coverage_start
-    if (form.coverage_end) record.coverage_end = form.coverage_end
-
-    if (editingId) {
-      const { error } = await supabase.from('finance_transactions').update(record).eq('id', editingId)
-      if (error) { console.error('Update error:', error); setSaveError(`Could not save: ${error.message}`); setSaving(false); return }
-      notifyWolff({
-        kind: 'updated',
+      const record: Record<string, unknown> = {
         type: form.type,
+        amount: amt,
+        currency: form.currency,
         amount_mxn: amtMxn,
         category_id: form.category_id || null,
-        category_name: categories.find(category => category.id === form.category_id)?.name || null,
-        merchant: form.merchant || null,
+        merchant: form.merchant.trim() || null,
+        description: form.description || null,
         transaction_date: form.transaction_date,
+        tags,
         is_recurring: form.is_recurring,
-      })
-    } else {
-      const { error } = await supabase.from('finance_transactions').insert(record)
-      if (error) { console.error('Insert error:', error); setSaveError(`Could not save: ${error.message}`); setSaving(false); return }
-      notifyWolff({
-        kind: 'created',
-        type: form.type,
-        amount_mxn: amtMxn,
-        category_id: form.category_id || null,
-        category_name: categories.find(category => category.id === form.category_id)?.name || null,
-        merchant: form.merchant || null,
-        transaction_date: form.transaction_date,
-        is_recurring: form.is_recurring,
-      })
-      // Increment match_count on the auto-applied rule (fire & forget)
-      if (appliedRuleId) {
-        const rule = rules.find(r => r.id === appliedRuleId)
-        if (rule) {
-          fetch('/api/finance/rules', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: appliedRuleId, match_count: rule.match_count + 1, last_matched_at: new Date().toISOString() }),
-          }).catch(() => {})
+        owner: form.owner || null,
+      }
+      // Coverage period for arrears billing
+      record.coverage_start = form.coverage_start || null
+      record.coverage_end = form.coverage_end || null
+
+      if (editingId) {
+        const { error } = await supabase.from('finance_transactions').update(record).eq('id', editingId)
+        if (error) { console.error('Update error:', error); setSaveError(`Could not save: ${error.message}`); setSaving(false); return }
+        notifyWolff({
+          kind: 'updated',
+          type: form.type,
+          amount_mxn: amtMxn,
+          category_id: form.category_id || null,
+          category_name: categories.find(category => category.id === form.category_id)?.name || null,
+          merchant: form.merchant.trim() || null,
+          transaction_date: form.transaction_date,
+          is_recurring: form.is_recurring,
+        })
+      } else {
+        const { error } = await supabase.from('finance_transactions').insert({ ...record, id: draftId.current ??= crypto.randomUUID() })
+        if (error) {
+          setSaveError(error.code === '23505' ? 'This transaction may already be saved. Close this form and check your history before adding another.' : `Could not save: ${error.message}`)
+          return
+        }
+        notifyWolff({
+          kind: 'created',
+          type: form.type,
+          amount_mxn: amtMxn,
+          category_id: form.category_id || null,
+          category_name: categories.find(category => category.id === form.category_id)?.name || null,
+          merchant: form.merchant.trim() || null,
+          transaction_date: form.transaction_date,
+          is_recurring: form.is_recurring,
+        })
+        // Increment match_count on the auto-applied rule (fire & forget)
+        if (appliedRuleId) {
+          const rule = rules.find(r => r.id === appliedRuleId)
+          if (rule) {
+            fetch('/api/finance/rules', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: appliedRuleId, match_count: rule.match_count + 1, last_matched_at: new Date().toISOString() }),
+            }).catch(() => {})
+          }
         }
       }
-    }
 
-    setModalOpen(false)
-    setSaving(false)
-    setSavedMessage(`${form.type === 'expense' ? 'Expense' : 'Income'} saved`)
-    if (savedMessageTimer.current) window.clearTimeout(savedMessageTimer.current)
-    savedMessageTimer.current = window.setTimeout(() => setSavedMessage(''), 4500)
-    fetchData()
+      setModalOpen(false)
+      setSaving(false)
+      setSavedMessage(`${form.type === 'expense' ? 'Expense' : 'Income'} saved`)
+      if (savedMessageTimer.current) window.clearTimeout(savedMessageTimer.current)
+      savedMessageTimer.current = window.setTimeout(() => setSavedMessage(''), 4500)
+      void fetchData()
+    } catch {
+      setSaveError('Could not confirm the save. Check your connection and transaction history before retrying.')
+    } finally {
+      saveInFlight.current = false
+      setSaving(false)
+    }
   }
 
   // Delete
   const handleDelete = async (id: string) => {
-    await supabase.from('finance_transactions').delete().eq('id', id)
-    setDeleteConfirm(null)
-    fetchData()
+    try {
+      const { error } = await supabase.from('finance_transactions').delete().eq('id', id)
+      if (error) throw error
+      setDeleteConfirm(null)
+      void fetchData()
+    } catch {
+      setDataError('Could not delete this transaction. Please check your connection and try again.')
+    }
   }
 
-  const updateForm = (patch: Partial<TxForm>) => setForm(f => ({ ...f, ...patch }))
+  const updateForm = (patch: Partial<TxForm>) => {
+    setConfirmDuplicate(false)
+    setForm(f => ({ ...f, ...patch }))
+  }
 
   // ── CSV Import ──────────────────────────────────
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -414,6 +447,7 @@ export default function TransactionsClient() {
     if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
       setPdfParsing(true)
       try {
+        const { detectBankFormat, parseBBVAPdf } = await import('@/lib/pdf-parser')
         const bank = await detectBankFormat(file)
         if (bank === 'bbva') {
           const rows = await parseBBVAPdf(file)
@@ -634,6 +668,9 @@ export default function TransactionsClient() {
   return (
     <PageTransition>
     <div className="space-y-6">
+      {dataError && <div role="alert" className="rounded-xl border border-amber-400/30 p-3 text-sm text-amber-200">
+        {dataError} <button type="button" onClick={() => void fetchData()} className="ml-2 underline">Retry</button>
+      </div>}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Transactions</h1>
@@ -818,9 +855,9 @@ export default function TransactionsClient() {
             <div className="flex items-center justify-between pt-4 border-t border-[hsl(var(--border))]">
               <span className="text-xs text-[hsl(var(--text-tertiary))]">{filtered.length} transactions</span>
               <div className="flex items-center gap-2">
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="px-3 py-1 rounded text-xs disabled:opacity-30">◀</button>
-                <span className="text-xs">Page {page} of {totalPages || 1}</span>
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1 rounded text-xs disabled:opacity-30">▶</button>
+                <button onClick={() => setPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="px-3 py-1 rounded text-xs disabled:opacity-30">◀</button>
+                <span className="text-xs">Page {currentPage} of {totalPages || 1}</span>
+                <button onClick={() => setPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage >= totalPages} className="px-3 py-1 rounded text-xs disabled:opacity-30">▶</button>
               </div>
             </div>
           </>
@@ -851,18 +888,18 @@ export default function TransactionsClient() {
         className="transaction-entry-surface sm:h-auto sm:max-w-lg"
         bodyClassName="transaction-entry-body overflow-y-auto overscroll-contain p-3 sm:p-4"
         footer={
+          <>
+          {saveError && <div role="alert" className="mb-2 text-sm text-rose-300">{saveError}</div>}
           <button type="submit" form="tx-form" disabled={saving || !form.amount || !form.category_id || !form.transaction_date}
             className={cn("w-full py-3 rounded-xl text-base font-semibold text-white transition-colors disabled:opacity-50",
               form.type === 'expense' ? "bg-rose-600 hover:bg-rose-500" : "bg-emerald-600 hover:bg-emerald-500"
             )}>
             {saving ? 'Saving…' : confirmDuplicate ? 'Save anyway' : editingId ? 'Update transaction' : form.type === 'expense' ? 'Save expense' : 'Save income'}
           </button>
+          </>
         }
       >
         <form id="tx-form" onSubmit={e => { e.preventDefault(); handleSave() }} className="mobile-compact-form transaction-entry-form space-y-2.5 sm:space-y-4" noValidate>
-          {saveError && (
-            <div role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{saveError}</div>
-          )}
           {/* Duplicate warning */}
           {possibleDuplicates.length > 0 && !editingId && (
             <div className={cn(
@@ -908,10 +945,10 @@ export default function TransactionsClient() {
             <label htmlFor="transaction-amount" className={cn(labelCls, 'tx-label')}>Amount *</label>
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg font-semibold text-[hsl(var(--text-tertiary))]">$</span>
-              <input id="transaction-amount" type="number" inputMode="decimal" step="0.01" min="0.01" required placeholder="0.00" value={form.amount}
+              <input id="transaction-amount" type="text" inputMode="decimal" step="0.01" min="0.01" required placeholder="0.00" value={form.amount}
                 autoFocus={!editingId}
                 onChange={e => { updateForm({ amount: e.target.value, amount_mxn: form.currency === 'MXN' ? e.target.value : form.amount_mxn }); setSaveError(''); setConfirmDuplicate(false) }}
-                className={cn(inputCls, "num-metric h-14 appearance-none pl-8 text-2xl font-bold sm:h-16 sm:text-3xl [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none")} />
+                className={cn(inputCls, "num-metric h-14 appearance-none pl-8 pr-14 text-2xl font-bold sm:h-16 sm:text-3xl [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none")} />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold tracking-wide text-[hsl(var(--text-tertiary))]">{form.currency}</span>
             </div>
           </div>
@@ -1063,7 +1100,7 @@ export default function TransactionsClient() {
           {form.currency === 'USD' && (
             <div>
               <label className={labelCls}>Amount in MXN *</label>
-              <input type="number" inputMode="decimal" step="0.01" min="0.01" placeholder="Converted amount" value={form.amount_mxn}
+              <input type="text" inputMode="decimal" placeholder="Converted amount" value={form.amount_mxn}
                 onChange={e => updateForm({ amount_mxn: e.target.value })} className={cn(inputCls, 'h-10')} />
             </div>
           )}
@@ -1126,7 +1163,7 @@ export default function TransactionsClient() {
                   const [sy, sm] = form.coverage_start.split('-').map(Number)
                   const [ey, em] = form.coverage_end.split('-').map(Number)
                   const covMonths = Math.max(1, (ey - sy) * 12 + (em - sm) + 1)
-                  const perMonth = parseFloat(form.amount) / covMonths
+                  const perMonth = parseEntryAmount(form.amount) / covMonths
                   return <p className="text-[10px] text-blue-400">${perMonth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo · {covMonths} months</p>
                 })()}
               </div>

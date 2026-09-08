@@ -137,7 +137,7 @@ export function IncomeClient() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="flex items-center gap-2.5 text-2xl font-bold text-[hsl(var(--foreground))]"><span className="section-tick" aria-hidden />Recurring Income</h1>
           <p className="text-sm text-[hsl(var(--text-secondary))] mt-0.5">
@@ -146,7 +146,7 @@ export function IncomeClient() {
         </div>
         <button
           onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-600 rounded-lg text-sm font-medium transition-colors"
+          className="flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-600 rounded-lg text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4" /> Add Source
         </button>

@@ -59,3 +59,20 @@ export function prioritizeCategories(
     .filter(category => category.type === type || category.type === 'both')
     .sort((a, b) => (usage.get(b.id) || 0) - (usage.get(a.id) || 0) || a.sort_order - b.sort_order)
 }
+
+/** Accept decimal keyboards and unambiguous grouped amounts; never truncate input. */
+export function parseEntryAmount(value: string): number {
+  const input = value.trim()
+  let normalized = input
+  if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(input)) normalized = input.replaceAll(',', '')
+  else if (/^\d{1,3}(\.\d{3})+,\d{1,2}$/.test(input)) normalized = input.replaceAll('.', '').replace(',', '.')
+  else if (/^\d+,\d{1,2}$/.test(input)) normalized = input.replace(',', '.')
+  if (!/^(\d+(\.\d{0,2})?|\.\d{1,2})$/.test(normalized)) return NaN
+  const amount = Number(normalized)
+  return Number.isFinite(amount) && Number.isSafeInteger(Math.round(amount * 100)) ? amount : NaN
+}
+
+/** Date-only database values represent a local calendar day, not UTC midnight. */
+export function parseLocalDateKey(value: string): Date {
+  return new Date(`${value}T12:00:00`)
+}

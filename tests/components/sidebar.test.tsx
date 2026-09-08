@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { Sidebar } from '@/components/Sidebar'
 
@@ -9,6 +9,9 @@ vi.mock('next/navigation', () => ({
 }))
 
 describe('Sidebar', () => {
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })
+  })
   it('renders expanded at fixed width (collapse feature removed)', () => {
     const { container } = render(<Sidebar />)
     const aside = container.querySelector('aside')!
@@ -124,6 +127,15 @@ describe('Sidebar', () => {
     render(<Sidebar />)
     const overviewLinks = screen.getAllByRole('link', { name: 'Overview' })
     expect(overviewLinks.every(link => link.getAttribute('aria-current') === 'page')).toBe(true)
+  })
+
+  it('releases the page when navigating through the mobile dock', () => {
+    const { container } = render(<><main>Finance content</main><Sidebar /></>)
+    fireEvent.click(screen.getByRole('button', { name: 'Open all finance tools' }))
+    expect(container.querySelector('main')).toHaveAttribute('inert')
+    fireEvent.click(screen.getByRole('navigation', { name: 'Quick finance navigation' }).querySelector('a')!)
+    expect(container.querySelector('main')).not.toHaveAttribute('inert')
+    expect(screen.queryByRole('navigation', { name: 'Finance navigation' })).not.toBeInTheDocument()
   })
 
   it('opens every specialist tool from the mobile More menu', () => {
