@@ -2,16 +2,16 @@
 // basic offline fallback. Network-first for everything cacheable; API calls
 // and non-GET requests pass straight through (finance data must never be
 // served stale from a SW cache).
-const CACHE = 'finance-pwa-v4'
+const CACHE = 'finance-pwa-v5'
 
-self.addEventListener('install', () => {
-  self.skipWaiting()
+self.addEventListener('install', (event) => {
+  event.waitUntil(caches.open(CACHE).then(cache => cache.add('/offline.html')).then(() => self.skipWaiting()))
 })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith('finance-pwa-') && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   )
 })
@@ -31,11 +31,12 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const url = (event.notification.data && event.notification.data.url) || '/finance'
+  const target = new URL((event.notification.data && event.notification.data.url) || '/finance', self.location.origin)
+  const url = target.origin === self.location.origin ? target.href : new URL('/finance', self.location.origin).href
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
       const existing = wins.find((w) => w.url.includes('/finance'))
-      return existing ? existing.focus() : clients.openWindow(url)
+      return existing ? existing.navigate(url).then(client => client?.focus()) : clients.openWindow(url)
     })
   )
 })
@@ -55,6 +56,9 @@ self.addEventListener('fetch', (event) => {
         }
         return res
       })
-      .catch(() => caches.match(event.request).then((hit) => hit || Response.error()))
+      .catch(() => {
+        if (event.request.mode === 'navigate') return caches.match('/offline.html').then(hit => hit || Response.error())
+        return caches.match(event.request).then(hit => hit || Response.error())
+      })
   )
 })

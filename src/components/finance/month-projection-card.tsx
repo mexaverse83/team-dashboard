@@ -18,6 +18,7 @@ interface MonthProjection {
 }
 
 interface Props {
+  westTarget?: number | null
   projection?: MonthProjection | null
   /** summary.goal_funding.total_monthly_needed — the 2026 GBM goals' monthly ask. */
   goalMonthlyNeeded?: number
@@ -55,18 +56,20 @@ function TargetBar({ label, target, savings, note }: { label: string; target: nu
 // Full-width feature band under the hero: deterministic projection
 // (recomputed every load), both monthly finish lines, and Mona's daily
 // commentary from the brief.
-export function MonthProjectionCard({ projection, goalMonthlyNeeded }: Props) {
-  const [westTarget, setWestTarget] = useState<number | null>(null)
+export function MonthProjectionCard({ projection, goalMonthlyNeeded, westTarget: pageWestTarget }: Props) {
+  const [fetchedWestTarget, setWestTarget] = useState<number | null>(null)
 
   useEffect(() => {
+    if (pageWestTarget !== undefined) return
     fetchWestProjection()
       .then(d => {
         const target = westMonthTarget(d, monthKey(new Date()))
         if (target) setWestTarget(target)
       })
       .catch(() => {})
-  }, [])
+  }, [pageWestTarget])
 
+  const westTarget = pageWestTarget !== undefined ? pageWestTarget : fetchedWestTarget
   if (!projection) return null
   const p = projection
   const positive = p.projected_savings >= 0

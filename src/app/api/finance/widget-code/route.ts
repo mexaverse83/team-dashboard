@@ -46,6 +46,8 @@ async function fetchData() {
   const status = req.response ? req.response.statusCode : '?'
   try {
     const data = JSON.parse(text)
+    if (typeof status === 'number' && (status < 200 || status >= 300)) throw new Error('API ' + status + ': unavailable')
+    if (!data || !data.updated_at || !Number.isFinite(data.safe_to_spend_day)) throw new Error('API ' + status + ': incomplete data')
     if (data && data.error) throw new Error('API ' + status + ': ' + data.error)
     return data
   } catch (e) {
@@ -460,6 +462,7 @@ async function build() {
   applyBackground(w)
   w.setPadding(12, 15, 11, 15)
   w.url = APP_URL
+  w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000)
 
   let d
   try {
@@ -469,7 +472,7 @@ async function build() {
     err.textColor = MINT_PALE
     err.font = Font.boldSystemFont(12)
     w.addSpacer(4)
-    const detail = w.addText(String(e && e.message ? e.message : e).slice(0, 140))
+    const detail = w.addText('Could not update. Tap to open your dashboard; retry scheduled in 5 minutes.')
     detail.textColor = TXT_DIM
     detail.font = Font.mediumSystemFont(9)
     detail.minimumScaleFactor = 0.7

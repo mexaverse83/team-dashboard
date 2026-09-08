@@ -3,7 +3,7 @@ export function SkeletonCard({ lines = 3 }: { lines?: number }) {
     <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 space-y-3 animate-pulse">
       <div className="h-4 w-1/3 rounded bg-[hsl(var(--muted))]" />
       {Array.from({ length: lines }).map((_, i) => (
-        <div key={i} className="h-3 rounded bg-[hsl(var(--muted))]" style={{ width: `${70 + Math.random() * 30}%` }} />
+        <div key={i} className="h-3 rounded bg-[hsl(var(--muted))]" style={{ width: `${70 + (i * 13) % 31}%` }} />
       ))}
     </div>
   )

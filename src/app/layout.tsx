@@ -50,11 +50,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <body className="finance-app min-h-screen">
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-emerald-600 focus:p-3 focus:text-white">Skip to content</a>
         <PwaRegister />
         <CommandPalette />
         <div className="flex min-h-screen min-w-0">
           <Sidebar />
-          <main className="min-h-screen min-w-0 flex-1 overflow-x-hidden px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))] min-[360px]:px-4 sm:px-5 md:p-7 lg:p-9 xl:p-10">
+          <main id="main-content" tabIndex={-1} className="min-h-screen min-w-0 flex-1 overflow-x-hidden px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))] min-[360px]:px-4 sm:px-5 md:p-7 lg:p-9 xl:p-10">
             <div className="mx-auto w-full max-w-[1560px]">
               {children}
             </div>

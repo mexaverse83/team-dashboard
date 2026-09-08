@@ -18,13 +18,21 @@ export async function fetchAllRows<T>(
   page: PageQuery<T>,
   pageSize = 1000,
   maxRows = 20000,
+  strict = false,
 ): Promise<T[]> {
+  if (!Number.isInteger(pageSize) || pageSize < 1 || !Number.isInteger(maxRows) || maxRows < 1) {
+    throw new Error("Invalid pagination limits")
+  }
   const rows: T[] = []
   for (let from = 0; from < maxRows; from += pageSize) {
     const { data, error } = await page(from, from + pageSize - 1)
-    if (error || !data) break
+    if (error || !data) {
+      if (strict) throw new Error(error?.message || 'Missing query data')
+      break
+    }
     rows.push(...data)
-    if (data.length < pageSize) break
+    if (data.length < pageSize) return rows
   }
+  if (strict && rows.length >= maxRows) throw new Error('Query exceeded the complete-data limit')
   return rows
 }

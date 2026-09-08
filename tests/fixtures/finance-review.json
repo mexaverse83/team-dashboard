@@ -1,0 +1,35 @@
+{
+  "summary": {
+    "income": {"total_monthly": 50000, "current_month_actual": 30000},
+    "spending": {"total_monthly_avg": 21000},
+    "budgets": {"total_budgeted": 25000},
+    "subscriptions": {"total_monthly": 1200, "total_annual": 14400},
+    "installments": {"total_monthly_commitment": 1000},
+    "debts": {"total_balance": 0, "total_minimums": 0},
+    "emergency_fund": {"current": 90000, "target": 150000, "months_covered": 3.6},
+    "goals": {"active": []},
+    "cash_flow": {"monthly_income": 50000, "fixed_commitments": 25000, "discretionary_available": 25000},
+    "goal_funding": {"total_monthly_needed": 20000, "discretionary_available": 25000, "gap": 0, "fully_funded": true},
+    "current_month": {"month": "2026-09", "day_of_month": 8, "days_in_month": 30, "month_progress_pct": 27, "total_spent": 8200, "budget_vs_actual": [
+      {"category": "Groceries", "icon": "🛒", "spent": 5200, "budget": 8000, "pct_used": 65, "projected_month_total": 10400, "pace_vs_budget_pct": 30, "status": "warning", "is_non_monthly": false, "cycle_months": 1},
+      {"category": "Dining Out", "icon": "🍽️", "spent": 3000, "budget": 6000, "pct_used": 50, "projected_month_total": 6500, "pace_vs_budget_pct": 8, "status": "ok", "is_non_monthly": false, "cycle_months": 1}
+    ]},
+    "month_projection": {"expected_income": 50000, "income_received": 30000, "income_still_scheduled": 20000, "spent_so_far": 8200, "projected_spend": 28000, "known_upcoming_treatment": 0, "projected_savings": 22000, "method": "history-anchored"},
+    "crypto": null
+  },
+  "forecast": {
+    "period": {"start": "2026-09-08", "end": "2026-11-07", "days": 60},
+    "series": [{"date":"2026-09-08","inflow":0,"outflow":1000,"net":-1000,"running_balance":-1000},{"date":"2026-09-15","inflow":20000,"outflow":0,"net":20000,"running_balance":19000}],
+    "events": [],
+    "summary": {"total_inflow":20000,"total_outflow":1000,"net_delta":19000,"ending_balance":19000,"min_balance":{"date":"2026-09-08","balance":-1000},"max_balance":{"date":"2026-09-15","balance":19000},"next_7_days":{"events":1,"net":19000},"next_30_days":{"events":1,"net":19000}}
+  },
+  "netWorth": {"summary":{"latest":{"net_worth":150000,"total_assets":150000,"total_liabilities":0,"date":"2026-09-08"}}},
+  "west": {"savings_plan":{"months":[{"month":"2026-09","target":18000}]}},
+  "insights": {"generated_at":"2026-09-08T15:00:00Z","stale":false,"insights":[{"type":"recommendation","icon":"🛒","title":"Keep groceries inside the monthly plan","detail":"Groceries are the largest budget exception. Review recent purchases before your next shop.","priority":"high","category":"WIDGET"}]},
+  "categories": [{"id":"groceries","name":"Groceries","icon":"🛒","color":"#10b981","type":"expense","sort_order":1}],
+  "transactions": [
+    {"id":"1","transaction_date":"2026-09-01","amount_mxn":30000,"amount":30000,"currency":"MXN","type":"income","merchant":"Monthly income","owner":"Bernardo","tags":[]},
+    {"id":"2","transaction_date":"2026-09-02","amount_mxn":5200,"amount":5200,"currency":"MXN","type":"expense","category_id":"groceries","merchant":"Weekly groceries","owner":"Bernardo","tags":[]},
+    {"id":"3","transaction_date":"2026-09-03","amount_mxn":3000,"amount":3000,"currency":"MXN","type":"expense","merchant":"Dining with family","owner":"Laura","tags":[]}
+  ]
+}

@@ -1,12 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
+import { fetchWestProjection, westMonthTarget } from '@/lib/west-projection-client'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
+import { mexicoCityDateParts } from '@/lib/insights-prompt.mjs'
 import { Plus, Activity, Sparkles, Landmark, Bitcoin, Receipt, LockKeyhole, ChevronDown, ChevronUp } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
 import { SkeletonKPI } from '@/components/ui/skeleton-card'
-import { ForecastChart } from '@/components/finance/forecast-chart'
 import { BillsTimeline } from '@/components/finance/bills-timeline'
 import { WolffWidget } from '@/components/finance/wolff-widget'
 import { SafeToSpendCard } from '@/components/finance/safe-to-spend'
@@ -15,55 +18,93 @@ import { InstallPrompt } from '@/components/finance/install-prompt'
 import { supabase } from '@/lib/supabase'
 import { OWNERS, ownersEqual } from '@/lib/owners'
 import { cn } from '@/lib/utils'
-import type { FinanceTransaction, FinanceCategory } from '@/lib/finance-types'
-import { enrichTransactions, DEFAULT_CATEGORIES, monthKey } from '@/lib/finance-utils'
+import type { FinanceTransaction } from '@/lib/finance-types'
+import { enrichTransactions, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import { type Summary, type Forecast, fmtMoney } from './command-center/types'
 import { KpiCard, SectionHeader } from './command-center/ui'
 import { BudgetPaceCard } from './command-center/budget-pace'
 import { BabyPlanCard, EducationFundCard } from './command-center/plans'
 
+const ForecastChart = dynamic(() => import('@/components/finance/forecast-chart').then(m => m.ForecastChart), { loading: () => <div className="h-[220px] animate-pulse" aria-label="Loading forecast chart" /> })
+
 export default function CommandCenterClient() {
   const [summary, setSummary] = useState<Summary | null>(null)
+  const [westTarget, setWestTarget] = useState<number | null>(null)
   const [forecast, setForecast] = useState<Forecast | null>(null)
   const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
-  const [categories, setCategories] = useState<FinanceCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [detailsOpen, setDetailsOpen] = useState(false)
   // Net assets snapshot — fetched with the initial batch; the KPI strip falls
   // back to the crypto-position card when unavailable
   const [netWorth, setNetWorth] = useState<{ net_worth: number; total_assets: number; total_liabilities: number; date: string } | null>(null)
 
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
+  const inFlight = useRef(false)
+  const mounted = useRef(false)
+  const [currentMonthStr, setCurrentMonthStr] = useState('')
+
   const fetchData = useCallback(async () => {
-    const [sum, fc, catRes, txRes, nw] = await Promise.all([
-      fetch('/api/finance/summary').then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/api/finance/forecast?days=60').then(r => r.ok ? r.json() : null).catch(() => null),
-      supabase.from('finance_categories').select('*').order('sort_order'),
-      supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }).limit(200),
-      fetch('/api/finance/net-worth?days=30').then(r => r.ok ? r.json() : null).catch(() => null),
-    ])
-    setSummary(sum)
-    setForecast(fc)
-    const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
-    setCategories(cats)
-    setTransactions(enrichTransactions(txRes.data || [], cats))
-    if (nw?.summary?.latest) {
-      setNetWorth({ net_worth: nw.summary.latest.net_worth, total_assets: nw.summary.latest.total_assets, total_liabilities: nw.summary.latest.total_liabilities, date: nw.summary.latest.date })
+    if (inFlight.current) return
+    inFlight.current = true
+    setRefreshing(true)
+    const mx = mexicoCityDateParts()
+    const month = `${mx.year}-${String(mx.month).padStart(2, '0')}`
+    const today = `${month}-${String(mx.day).padStart(2, '0')}`
+    const signal = AbortSignal.timeout(20000)
+    const read = async (url: string) => {
+      const response = await fetch(url, { cache: 'no-store', signal })
+      if (!response.ok) throw new Error('Request failed')
+      return response.json()
     }
-    setLoading(false)
+    try {
+      const [sum, fc, catRes, txs, nw, west] = await Promise.all([
+        read('/api/finance/summary'),
+        read('/api/finance/forecast?days=60').catch(() => null),
+        supabase.from('finance_categories').select('*').order('sort_order').abortSignal(signal),
+        fetchAllRows<FinanceTransaction>((from, to) => supabase.from('finance_transactions')
+          .select('*').gte('transaction_date', `${month}-01`).lte('transaction_date', today)
+          .order('transaction_date', { ascending: false }).order('id').range(from, to).abortSignal(signal), 1000, 20000, true),
+        read('/api/finance/net-worth?days=30').catch(() => null),
+        fetchWestProjection(true),
+      ])
+      if (!sum?.current_month || catRes.error) throw new Error('Incomplete dashboard data')
+      if (!mounted.current) return
+      const cats = catRes.data?.length ? catRes.data : DEFAULT_CATEGORIES
+      setSummary(sum)
+      setForecast(fc)
+      setWestTarget(westMonthTarget(west, month))
+      setTransactions(enrichTransactions(txs, cats))
+      setCurrentMonthStr(month)
+      setNetWorth(nw?.summary?.latest ?? null)
+      setUpdatedAt(new Date())
+      setError(fc && nw ? null : 'Some supporting data is unavailable. Refresh to retry.')
+    } catch {
+      if (mounted.current) setError('Could not refresh your finances. Check your connection and try again.')
+    } finally {
+      inFlight.current = false
+      if (mounted.current) {
+        setLoading(false)
+        setRefreshing(false)
+      }
+    }
   }, [])
 
-  // Re-fetch on mount and whenever the tab regains focus — so edits made
-  // elsewhere (e.g. tagging a transaction 'fertility') are reflected here
-  // without a hard reload, matching every other finance client.
   useEffect(() => {
-    fetchData()
-    const h = () => { if (document.visibilityState === 'visible') fetchData() }
-    document.addEventListener('visibilitychange', h)
-    return () => document.removeEventListener('visibilitychange', h)
+    mounted.current = true
+    const initial = window.setTimeout(() => void fetchData(), 0)
+    const refresh = () => { if (document.visibilityState === 'visible') void fetchData() }
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('online', refresh)
+    return () => {
+      mounted.current = false
+      window.clearTimeout(initial)
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('online', refresh)
+    }
   }, [fetchData])
 
-  // Current month transactions
-  const currentMonthStr = useMemo(() => monthKey(new Date()), [])
   const monthTxs = useMemo(
     () => transactions.filter(t => t.transaction_date.startsWith(currentMonthStr)),
     [transactions, currentMonthStr]
@@ -93,9 +134,9 @@ export default function CommandCenterClient() {
       const day = parseInt(t.transaction_date.slice(8, 10))
       map[day] = (map[day] || 0) + t.amount_mxn
     }
-    const today = new Date().getDate()
+    const today = mexicoCityDateParts(updatedAt ?? new Date()).day
     return Array.from({ length: today }, (_, i) => map[i + 1] || 0)
-  }, [monthTxs])
+  }, [monthTxs, updatedAt])
 
   // Status banner copy — quotes the summary endpoint's budget-aware projection
   // (fixed categories capped at budget, variable at pace, scheduled treatment
@@ -142,6 +183,13 @@ export default function CommandCenterClient() {
     )
   }
 
+  if (!summary) {
+    return <GlassCard><h1 className="text-xl font-semibold">Your finances are unavailable</h1>
+      <p role="alert" className="mt-2 text-sm text-[hsl(var(--text-secondary))]">{error}</p>
+      <button type="button" onClick={() => void fetchData()} disabled={refreshing} className="mt-4 min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{refreshing ? 'Retrying…' : 'Try again'}</button>
+    </GlassCard>
+  }
+
   const today = new Date()
   const greeting = today.getHours() < 12 ? 'Good morning' : today.getHours() < 18 ? 'Good afternoon' : 'Good evening'
 
@@ -150,6 +198,11 @@ export default function CommandCenterClient() {
       <div className="space-y-5 sm:space-y-6" data-animate>
         {/* ── Install banner (Android, only when installable) ── */}
         <InstallPrompt />
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[hsl(var(--text-secondary))]">
+          <p role="status">{refreshing ? 'Refreshing your finances…' : updatedAt ? `Updated ${updatedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · MXN` : 'MXN'}</p>
+          <button type="button" onClick={() => void fetchData()} disabled={refreshing} className="min-h-11 rounded-xl border border-[hsl(var(--border))] px-4 font-semibold hover:bg-[hsl(var(--bg-elevated))] disabled:opacity-50">Refresh</button>
+        </div>
+        {error && <p role="alert" className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-700">{error} {updatedAt && 'Showing the last successful update where available.'}</p>}
 
         {/* ── Hero: the monthly answer ─────────────────────
             Leads with the one number that matters (net this month) instead of
@@ -159,7 +212,7 @@ export default function CommandCenterClient() {
           <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--text-secondary))]">
-                {greeting}, {OWNERS[0]} · {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                {greeting}, {OWNERS[0]} · {today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'America/Mexico_City' })}
               </p>
               <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
                 <span className={cn(
@@ -233,7 +286,7 @@ export default function CommandCenterClient() {
                 )}
               </div>
               <Link
-                href="/finance/transactions"
+                href="/finance/transactions?add=1"
                 className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-emerald-900/30"
               >
                 <Plus className="h-4 w-4" /> New transaction
@@ -243,10 +296,10 @@ export default function CommandCenterClient() {
         </div>
 
         {/* ── WOLFF: the daily decision layer comes before reporting ── */}
-        <WolffWidget />
+        <WolffWidget summary={summary} westTarget={westTarget} />
 
         {/* ── MONTH PLAN: the projection against both monthly asks ──── */}
-        <MonthProjectionCard projection={summary?.month_projection} goalMonthlyNeeded={monthlyGoalNeed} />
+        <MonthProjectionCard projection={summary?.month_projection} goalMonthlyNeeded={monthlyGoalNeed} westTarget={westTarget} />
 
         {/* ── BABY PLAN: envelope to April 2027 + the 2045 education fund ── */}
         {summary?.baby_plan && summary.baby_plan.planning_total > 0 && (
@@ -329,6 +382,7 @@ export default function CommandCenterClient() {
             type="button"
             onClick={() => setDetailsOpen(open => !open)}
             aria-expanded={detailsOpen}
+            aria-controls="cash-flow-details"
             className="flex w-full flex-col gap-3 px-4 py-4 text-left hover:bg-[hsl(var(--brand)/0.025)] sm:flex-row sm:items-center sm:justify-between sm:px-5"
           >
             <div>
@@ -347,7 +401,7 @@ export default function CommandCenterClient() {
           </button>
 
           {detailsOpen && (
-            <div className="space-y-4 border-t border-[hsl(var(--border-subtle))] p-4 sm:p-5" data-animate>
+            <div id="cash-flow-details" className="space-y-4 border-t border-[hsl(var(--border-subtle))] p-4 sm:p-5" data-animate>
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <div className="space-y-4 lg:col-span-2">
                   <GlassCard>
@@ -366,7 +420,7 @@ export default function CommandCenterClient() {
                   <SafeToSpendCard summary={summary} />
                   <GlassCard>
                     <SectionHeader title="Next 30 days" subtitle="Scheduled bills & income" action={{ label: 'Manage', href: '/finance/subscriptions' }} />
-                    {forecast ? <BillsTimeline events={forecast.events} daysAhead={30} maxItems={7} /> : <p className="py-8 text-center text-sm text-[hsl(var(--text-tertiary))]">Loading…</p>}
+                    {forecast ? <BillsTimeline events={forecast.events} daysAhead={30} maxItems={7} /> : <p className="py-8 text-center text-sm text-[hsl(var(--text-tertiary))]">Upcoming bills unavailable. Refresh to retry.</p>}
                   </GlassCard>
                 </div>
               </div>

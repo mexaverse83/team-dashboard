@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { getRemainingTreatmentEvents } from '@/lib/fertility-plan'
 import { getRemainingBabyEvents } from '@/lib/baby-plan'
+import { advanceRecurringDate } from '@/lib/recurring-dates'
+import { mexicoCityDateParts } from '@/lib/insights-prompt.mjs'
+import { ownersEqual } from '@/lib/owners'
 import { deriveIncomeBaseline } from '@/lib/household-metrics'
 
 const supabase = createClient(
@@ -39,19 +42,13 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
-function advanceByFrequency(date: Date, frequency: string): Date {
-  const r = new Date(date)
-  switch (frequency) {
-    case 'weekly': r.setUTCDate(r.getUTCDate() + 7); break
-    case 'biweekly': r.setUTCDate(r.getUTCDate() + 14); break
-    case 'monthly': r.setUTCMonth(r.getUTCMonth() + 1); break
-    case 'quarterly': r.setUTCMonth(r.getUTCMonth() + 3); break
-    case 'semi-annual': r.setUTCMonth(r.getUTCMonth() + 6); break
-    case 'yearly':
-    case 'annual': r.setUTCFullYear(r.getUTCFullYear() + 1); break
-    default: r.setUTCMonth(r.getUTCMonth() + 1)
-  }
-  return r
+function advanceByFrequency(date: Date, frequency: string, anchorDay = date.getUTCDate()): Date {
+  return new Date(`${advanceRecurringDate(isoDate(date), frequency, anchorDay)}T00:00:00Z`)
+}
+
+function dateInMonth(year: number, month: number, day: number): Date {
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
+  return new Date(Date.UTC(year, month, Math.min(day, lastDay)))
 }
 
 const FREQ_DIVISOR: Record<string, number> = {
@@ -62,22 +59,18 @@ export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
 
-  const days = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get('days') || '60'), 7), 365)
-  const startingBalance = parseFloat(req.nextUrl.searchParams.get('balance') || '0')
+  const requestedDays = Number(req.nextUrl.searchParams.get('days') ?? 60)
+  const days = Number.isFinite(requestedDays) ? Math.min(Math.max(Math.trunc(requestedDays), 7), 365) : 60
+  const requestedBalance = Number(req.nextUrl.searchParams.get('balance') ?? 0)
+  const startingBalance = Number.isFinite(requestedBalance) ? requestedBalance : 0
   const owner = req.nextUrl.searchParams.get('owner') // optional filter
 
   const now = new Date()
-  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const mx = mexicoCityDateParts(now)
+  const today = new Date(Date.UTC(mx.year, mx.month - 1, mx.day))
   const horizon = addDays(today, days)
 
-  const [
-    { data: recurring },
-    { data: recurringIncome },
-    { data: incomeSources },
-    { data: incomeTransactions },
-    { data: installments },
-    { data: debts },
-  ] = await Promise.all([
+  const queryResults = await Promise.all([
     supabase.from('finance_recurring').select('*').eq('is_active', true),
     supabase.from('finance_recurring_income').select('*').eq('active', true),
     supabase.from('finance_income_sources').select('*').eq('is_active', true),
@@ -90,11 +83,23 @@ export async function GET(req: NextRequest) {
     supabase.from('finance_debts').select('*').eq('is_active', true),
   ])
 
+  if (queryResults.some(result => result.error)) {
+    return NextResponse.json({ error: 'Forecast data is temporarily unavailable' }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+  }
+  const [
+    { data: recurring },
+    { data: recurringIncome },
+    { data: incomeSources },
+    { data: incomeTransactions },
+    { data: installments },
+    { data: debts },
+  ] = queryResults
+
   const events: ForecastEvent[] = []
 
   // 1. Subscriptions / recurring expenses — walk next_due_date forward to horizon
   for (const sub of recurring || []) {
-    if (owner && sub.owner && sub.owner !== owner) continue
+    if (owner && sub.owner && !ownersEqual(sub.owner, owner)) continue
     if (!sub.next_due_date) continue
     let due = new Date(sub.next_due_date + 'T00:00:00Z')
     // Skip already-past due dates (process-recurring would have caught those)
@@ -102,7 +107,7 @@ export async function GET(req: NextRequest) {
       // advance until in the future
       let safety = 0
       while (due < today && safety++ < 50) {
-        due = advanceByFrequency(due, sub.frequency)
+        due = advanceByFrequency(due, sub.frequency, Number(sub.next_due_date.slice(8, 10)))
       }
     }
     let safety = 0
@@ -116,24 +121,28 @@ export async function GET(req: NextRequest) {
         owner: sub.owner,
         source_id: sub.id,
       })
-      due = advanceByFrequency(due, sub.frequency)
+      due = advanceByFrequency(due, sub.frequency, Number(sub.next_due_date.slice(8, 10)))
     }
   }
 
   // 2. Recurring income (finance_recurring_income — monthly with day_of_month)
   for (const ri of recurringIncome || []) {
-    if (owner && ri.owner && ri.owner !== owner) continue
+    if (owner && ri.owner && !ownersEqual(ri.owner, owner)) continue
     if (ri.recurrence !== 'monthly') {
       // Monthly only for now; bimonthly/annual could be approximated similarly
       continue
     }
-    const day = Math.min(Math.max(ri.day_of_month || 1, 1), 28)
-    let cursor = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), day))
+    const day = Math.min(Math.max(ri.day_of_month || 1, 1), 31)
+    let cursor = dateInMonth(today.getUTCFullYear(), today.getUTCMonth(), day)
     if (cursor < today) {
-      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, day))
+      cursor = dateInMonth(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, day)
     }
     let safety = 0
     while (cursor <= horizon && safety++ < 24) {
+      if (ri.start_date && isoDate(cursor) < ri.start_date) {
+        cursor = dateInMonth(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, day)
+        continue
+      }
       events.push({
         date: isoDate(cursor),
         type: 'recurring_income',
@@ -142,7 +151,7 @@ export async function GET(req: NextRequest) {
         owner: ri.owner,
         source_id: ri.id,
       })
-      cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, day))
+      cursor = dateInMonth(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, day)
     }
   }
 
@@ -151,20 +160,19 @@ export async function GET(req: NextRequest) {
     // Skip if already covered by recurring_income with same name
     if ((recurringIncome || []).some(ri => ri.name === inc.name && ri.active)) continue
     const freq = inc.frequency || 'monthly'
-    const monthly = inc.amount / (FREQ_DIVISOR[freq] || 1)
     // Schedule at the start of each cycle within horizon
     let cursor = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
-    if (cursor < today) cursor = new Date(today)
+    while (cursor < today) cursor = advanceByFrequency(cursor, freq, 1)
     let safety = 0
     while (cursor <= horizon && safety++ < 365) {
       events.push({
         date: isoDate(cursor),
         type: 'income',
-        amount_mxn: Math.abs(monthly),
+        amount_mxn: Math.abs(inc.amount),
         name: inc.name,
         source_id: inc.id,
       })
-      cursor = advanceByFrequency(cursor, freq)
+      cursor = advanceByFrequency(cursor, freq, 1)
     }
   }
 
@@ -201,7 +209,7 @@ export async function GET(req: NextRequest) {
 
   // 4. MSI installments — monthly until payments_remaining == 0 (or end_date)
   for (const msi of installments || []) {
-    if (owner && msi.owner && msi.owner !== owner) continue
+    if (owner && msi.owner && !ownersEqual(msi.owner, owner)) continue
     const remaining = msi.installment_count - (msi.payments_made || 0)
     if (remaining <= 0) continue
     // Use start_date + payments_made months as next due, or 1st of next month if missing

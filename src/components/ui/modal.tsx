@@ -1,9 +1,12 @@
 'use client'
 
 import { useEffect, useId, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
+
+const openDialogs: HTMLDivElement[] = []
 
 interface ModalProps {
   open: boolean
@@ -30,9 +33,34 @@ export function Modal({ open, onClose, title, children, className, bodyClassName
   }, [onClose])
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current() }
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const dialog = ref.current
+    const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ) ?? []).filter(el => !el.closest('[hidden], [aria-hidden="true"]') && getComputedStyle(el).display !== 'none')
+    const isTop = () => openDialogs[openDialogs.length - 1] === dialog
+    const handler = (e: KeyboardEvent) => {
+      if (!isTop()) return
+      if (e.key === 'Escape') { e.preventDefault(); onCloseRef.current() }
+      if (e.key === 'Tab') {
+        const elements = focusable()
+        const first = elements[0] ?? dialog
+        const last = elements[elements.length - 1] ?? dialog
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+          e.preventDefault(); last?.focus()
+        } else if (!e.shiftKey && (document.activeElement === last || document.activeElement === dialog)) {
+          e.preventDefault(); first?.focus()
+        }
+      }
+    }
+    const containFocus = (e: FocusEvent) => {
+      if (isTop() && dialog && !dialog.contains(e.target as Node)) dialog.focus()
+    }
     if (open) {
+      if (dialog) openDialogs.push(dialog)
+      dialog?.focus()
       document.addEventListener('keydown', handler)
+      document.addEventListener('focusin', containFocus)
       // iOS Safari can still move the page when only <html> is locked. Freeze
       // body position as well, then restore the exact scroll location.
       const scrollY = window.scrollY
@@ -50,7 +78,13 @@ export function Modal({ open, onClose, title, children, className, bodyClassName
       document.body.style.width = '100%'
 
       return () => {
+        if (dialog) {
+          const index = openDialogs.indexOf(dialog)
+          if (index >= 0) openDialogs.splice(index, 1)
+        }
         document.removeEventListener('keydown', handler)
+        document.removeEventListener('focusin', containFocus)
+        if (previousFocus?.isConnected) previousFocus.focus()
         document.documentElement.style.overflow = previousHtmlOverflow
         document.body.style.overflow = previousBody.overflow
         document.body.style.position = previousBody.position
@@ -61,22 +95,24 @@ export function Modal({ open, onClose, title, children, className, bodyClassName
     }
     return () => {
       document.removeEventListener('keydown', handler)
-      document.documentElement.style.overflow = ''
     }
   }, [open])
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
           // Bottom-anchored on mobile (sheet), centered on >=sm (dialog)
-          className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
+          className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center sm:p-4"
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
           <motion.div
             ref={ref}
             role="dialog"
+            tabIndex={-1}
             aria-modal="true"
             aria-labelledby={titleId}
             className={cn(
@@ -98,7 +134,7 @@ export function Modal({ open, onClose, title, children, className, bodyClassName
             </div>}
             <div className={cn("modal-header flex items-center justify-between border-b border-[hsl(var(--border))] px-4 py-3 sm:p-4", mobileFullScreen && "pt-[max(0.75rem,env(safe-area-inset-top))]")}>
               <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
-              <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-[hsl(var(--bg-elevated))] transition-colors">
+              <button onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-[hsl(var(--bg-elevated))] transition-colors">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -111,6 +147,7 @@ export function Modal({ open, onClose, title, children, className, bodyClassName
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }

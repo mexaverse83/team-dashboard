@@ -24,11 +24,12 @@ type SummaryBudgetRow = {
   budget_type?: string | null
 }
 
-export async function GET(req: NextRequest) {
+async function buildSummary(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
 
-  const months = Math.min(Math.max(parseInt(req.nextUrl.searchParams.get('months') || '3'), 1), 12)
+  const requestedMonths = Number(req.nextUrl.searchParams.get('months') ?? 3)
+  const months = Number.isFinite(requestedMonths) ? Math.min(Math.max(Math.trunc(requestedMonths), 1), 12) : 3
   const now = new Date()
   // Anchor every date on the household's Mexico City calendar. Vercel runs in
   // UTC, which is already the next day after ~6pm local — that shifted
@@ -52,8 +53,33 @@ export async function GET(req: NextRequest) {
 
   const currentMonthStart = `${currentMonthStr}-01`
   // Day 0 of next month = last day of this one.
-  const currentMonthEnd = mxDate(1, 0)
 
+  const queryResults = await Promise.all([
+    fetchAllRows((from, to) => supabase.from('finance_transactions').select('*').gte('transaction_date', startStr).lte('transaction_date', endStr).eq('type', 'expense').order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20000, true).then(rows => ({ data: rows })),
+    supabase.from('finance_categories').select('*'),
+    supabase.from('finance_budgets').select('*'),
+    supabase.from('finance_recurring').select('*').eq('is_active', true),
+    supabase.from('finance_installments').select('*').eq('is_active', true),
+    supabase.from('finance_debts').select('*').eq('is_active', true),
+    supabase.from('finance_emergency_fund').select('*').order('created_at', { ascending: false }).limit(1),
+    supabase.from('finance_goals').select('*').eq('is_completed', false),
+    supabase.from('finance_income_sources').select('*').eq('is_active', true),
+    supabase.from('finance_recurring_income').select('*').eq('active', true),
+    supabase.from('finance_crypto_holdings').select('*'),
+    fetchAllRows((from, to) => supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').gte('transaction_date', incomeHistoryStart).lte('transaction_date', endStr).eq('type', 'income').order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20000, true).then(rows => ({ data: rows })),
+    // merchant is needed to tell which recurring-income rows have already
+    // landed this month — the processor posts one transaction per row name.
+    supabase.from('finance_transactions').select('amount_mxn,amount,merchant').gte('transaction_date', currentMonthStart).lte('transaction_date', endStr).eq('type', 'income'),
+    supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').contains('tags', ['fertility']).eq('type', 'expense'),
+    supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').contains('tags', [BABY_PLAN_TAG]).eq('type', 'expense'),
+    // Complete months only — `lt currentMonthStart` keeps the partial current
+    // month out of the medians it feeds.
+    fetchAllRows((from, to) => supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount,category_id').gte('transaction_date', spendHistoryStart).lt('transaction_date', currentMonthStart).eq('type', 'expense').order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20000, true).then(rows => ({ data: rows })),
+  ])
+
+  if (queryResults.some(result => 'error' in result && result.error)) {
+    return NextResponse.json({ error: 'Financial data is temporarily unavailable' }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+  }
   const [
     { data: transactions },
     { data: categories },
@@ -71,28 +97,7 @@ export async function GET(req: NextRequest) {
     { data: fertilityPaidTxs },
     { data: babyPaidTxs },
     { data: categoryHistoryTxs },
-  ] = await Promise.all([
-    fetchAllRows((from, to) => supabase.from('finance_transactions').select('*').gte('transaction_date', startStr).lte('transaction_date', endStr).eq('type', 'expense').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
-    supabase.from('finance_categories').select('*'),
-    supabase.from('finance_budgets').select('*'),
-    supabase.from('finance_recurring').select('*').eq('is_active', true),
-    supabase.from('finance_installments').select('*').eq('is_active', true),
-    supabase.from('finance_debts').select('*').eq('is_active', true),
-    supabase.from('finance_emergency_fund').select('*').order('created_at', { ascending: false }).limit(1),
-    supabase.from('finance_goals').select('*').eq('is_completed', false),
-    supabase.from('finance_income_sources').select('*').eq('is_active', true),
-    supabase.from('finance_recurring_income').select('*').eq('active', true),
-    supabase.from('finance_crypto_holdings').select('*'),
-    fetchAllRows((from, to) => supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').gte('transaction_date', incomeHistoryStart).lte('transaction_date', currentMonthEnd).eq('type', 'income').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
-    // merchant is needed to tell which recurring-income rows have already
-    // landed this month — the processor posts one transaction per row name.
-    supabase.from('finance_transactions').select('amount_mxn,amount,merchant').gte('transaction_date', currentMonthStart).lte('transaction_date', currentMonthEnd).eq('type', 'income'),
-    supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').contains('tags', ['fertility']).eq('type', 'expense'),
-    supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').contains('tags', [BABY_PLAN_TAG]).eq('type', 'expense'),
-    // Complete months only — `lt currentMonthStart` keeps the partial current
-    // month out of the medians it feeds.
-    fetchAllRows((from, to) => supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount,category_id').gte('transaction_date', spendHistoryStart).lt('transaction_date', currentMonthStart).eq('type', 'expense').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
-  ])
+  ] = queryResults
 
   const catMap = new Map((categories || []).map(c => [c.id, c]))
   const budgetRows = (budgets || []) as SummaryBudgetRow[]
@@ -257,7 +262,7 @@ export async function GET(req: NextRequest) {
 
   // Current month budget vs actual with pace
   const dayOfMonth = mx.day
-  const daysInMonth = Number(currentMonthEnd.slice(8, 10))
+  const daysInMonth = Number(mxDate(1, 0).slice(8, 10))
   const monthProgress = dayOfMonth / daysInMonth
 
   // Billing cycle multipliers: how many months one payment covers
@@ -500,7 +505,7 @@ export async function GET(req: NextRequest) {
       const ids = [...new Set(holdings.map((h: Record<string, unknown>) => geckoIds[h.symbol as string]).filter(Boolean))].join(',')
       let prices: Record<string, { usd: number; mxn: number }> = {}
       try {
-        const pRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd,mxn`, { next: { revalidate: 300 } })
+        const pRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd,mxn`, { next: { revalidate: 300 }, signal: AbortSignal.timeout(5000) })
         if (pRes.ok) {
           const pData = await pRes.json()
           for (const [sym, gId] of Object.entries(geckoIds)) {
@@ -721,3 +726,13 @@ export async function GET(req: NextRequest) {
   }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 // 1771253121
+
+export async function GET(req: NextRequest) {
+  try {
+    return await buildSummary(req)
+  } catch {
+    return NextResponse.json({ error: 'Financial data is temporarily unavailable' }, {
+      status: 503, headers: { 'Cache-Control': 'no-store' },
+    })
+  }
+}

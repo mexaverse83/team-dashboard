@@ -1,5 +1,7 @@
 'use client'
 
+import { useId } from 'react'
+
 import {
   AreaChart, Area, ResponsiveContainer,
   RadialBarChart, RadialBar,
@@ -39,7 +41,7 @@ export function ThemedAreaChart({
   gradient = true,
 }: ThemedAreaChartProps) {
   const strokeColor = CHART_COLORS[color as keyof typeof CHART_COLORS] || color
-  const id = `gradient-${dataKey}-${Math.random().toString(36).slice(2, 6)}`
+  const id = `gradient-${useId().replace(/:/g, '')}`
 
   return (
     <ResponsiveContainer width="100%" height={height}>

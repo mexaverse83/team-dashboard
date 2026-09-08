@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
-import { remainingCalendarWeekEnvelope } from '@/lib/insights-prompt.mjs'
+import { calculateDailyPlan } from '@/lib/daily-plan'
 
 // Glanceable numbers for home-screen widgets (Scriptable on iOS).
 // Everything derives from the summary + west-projection endpoints so the
@@ -15,11 +15,11 @@ export async function GET(req: NextRequest) {
   const baseUrl = req.nextUrl.origin
 
   const [summary, west, insightsRes] = await Promise.all([
-    fetch(`${baseUrl}/api/finance/summary?months=1`, { headers: { 'x-api-key': authKey } })
+    fetch(`${baseUrl}/api/finance/summary?months=1`, { headers: { 'x-api-key': authKey }, cache: 'no-store', signal: AbortSignal.timeout(15000) })
       .then(r => (r.ok ? r.json() : null)).catch(() => null),
-    fetch(`${baseUrl}/api/finance/investments/west-projection`, { headers: { 'x-api-key': authKey } })
+    fetch(`${baseUrl}/api/finance/investments/west-projection`, { headers: { 'x-api-key': authKey }, cache: 'no-store', signal: AbortSignal.timeout(15000) })
       .then(r => (r.ok ? r.json() : null)).catch(() => null),
-    fetch(`${baseUrl}/api/finance/insights`, { headers: { 'x-api-key': authKey } })
+    fetch(`${baseUrl}/api/finance/insights`, { headers: { 'x-api-key': authKey }, cache: 'no-store', signal: AbortSignal.timeout(15000) })
       .then(r => (r.ok ? r.json() : null)).catch(() => null),
   ])
   if (!summary) return NextResponse.json({ error: 'summary unavailable' }, { status: 500 })
@@ -42,60 +42,26 @@ export async function GET(req: NextRequest) {
   const directive = trim(rawDirective, 110)
 
   const cm = summary.current_month || {}
-  const income = summary.cash_flow?.monthly_income || 0
-  const spent = cm.total_spent || 0
   const bva: Array<{ category: string; budget: number; spent: number; is_non_monthly: boolean }> = cm.budget_vs_actual || []
-  const daysLeft = Math.max(1, (cm.days_in_month || 30) - (cm.day_of_month || 1) + 1)
-  const mexicoWeekday = (() => {
-    const weekday = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Mexico_City',
-      weekday: 'short',
-    }).format(new Date())
-    return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday)
-  })()
-
-  // Same formula as the Safe-to-Spend card
-  const reserved = bva.reduce((s, b) => s + Math.max(0, (b.budget || 0) - (b.spent || 0)), 0)
-  const goalNeed = summary.goal_funding?.total_monthly_needed || 0
-  const projectedSavings = summary.month_projection?.projected_savings || 0
-  const goalGap = Math.max(0, goalNeed - projectedSavings)
-  const goalCoverage = goalNeed > 0 ? Math.max(0, Math.round((projectedSavings / goalNeed) * 100)) : 100
-  const freeMonth = income - spent - reserved - goalNeed
-  const safePerDay = freeMonth > 0 ? Math.floor(freeMonth / daysLeft) : 0
-
-  // Spread the remaining controllable budgets over the remaining month, then
-  // include only today through Sunday. Sunday is a one-day envelope.
   const ctrl = bva.filter(b => CONTROLLABLE.has(b.category) && !b.is_non_monthly)
-  const ctrlRemaining = ctrl.reduce((s, b) => s + Math.max(0, (b.budget || 0) - (b.spent || 0)), 0)
-  const calendarEnvelope = remainingCalendarWeekEnvelope(ctrlRemaining, daysLeft, mexicoWeekday)
-
+  const projectedSavings = summary.month_projection?.projected_savings || 0
+  const goalNeed = summary.goal_funding?.total_monthly_needed || 0
+  const goalGap = Math.max(0, goalNeed - projectedSavings)
   const monthKey = cm.month
   const planMonth = west?.savings_plan?.months?.find((m: { month: string }) => m.month === monthKey)
 
-  // Live version of Mona's "tighten the envelope" directive: reserve the WEST
-  // shortfall out of the month's controllable pot before spreading it over the
-  // week. Spending week_envelope stays inside budgets; spending more than this
-  // number eats the WEST transfer.
+  const dailyPlan = calculateDailyPlan(summary, planMonth?.target ?? null)
   const westGap = planMonth ? Math.max(0, planMonth.target - projectedSavings) : null
-  const westWeekEnvelope = westGap == null
-    ? null
-    : remainingCalendarWeekEnvelope(Math.max(0, ctrlRemaining - westGap), daysLeft, mexicoWeekday).weekEnvelope
 
   return NextResponse.json({
     updated_at: new Date().toISOString(),
     month: monthKey,
     day: cm.day_of_month,
     days_in_month: cm.days_in_month,
-    safe_to_spend_day: safePerDay,
-    over_committed_by: freeMonth < 0 ? Math.abs(Math.round(freeMonth)) : 0,
-    controllable_per_day: calendarEnvelope.dailyEnvelope,
-    week_envelope: calendarEnvelope.weekEnvelope,
-    week_envelope_west: westWeekEnvelope,
-    days_left_in_week: calendarEnvelope.daysThroughSunday,
+    ...dailyPlan,
     week_envelope_basis: 'remaining planned category spending from today through Sunday',
-    net_this_month: Math.round(income - spent),
+    net_this_month: Math.round((summary.income?.current_month_actual ?? 0) - (cm.total_spent ?? 0)),
     projected_savings: Math.round(projectedSavings),
-    goal_coverage_pct: goalCoverage,
     goal_gap: Math.round(goalGap),
     // The denominator behind goal_coverage_pct and over_committed_by. Exposed
     // so the UI can name which ask it is failing — "no room" means "no room

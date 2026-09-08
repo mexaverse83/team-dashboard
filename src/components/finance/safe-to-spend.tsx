@@ -5,28 +5,14 @@ import { Coins } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { cn } from '@/lib/utils'
 
-interface BudgetVsActual {
-  spent: number
-  budget: number
-}
-
-interface SummarySlice {
-  cash_flow: { monthly_income: number }
-  current_month: {
-    day_of_month: number
-    days_in_month: number
-    total_spent: number
-    budget_vs_actual: BudgetVsActual[]
-  }
-  goal_funding: { total_monthly_needed: number }
-}
+import { calculateSpendingRoom, type SpendingRoomSummary } from '@/lib/spending-room'
 
 // "Safe to spend today" = money not yet claimed by the plan, spread over the
 // days left in the month:
 //   income − spent so far − unspent budget still reserved − goal contributions
 // Deterministic on purpose — every input is visible in the breakdown rows.
-export function SafeToSpendCard({ summary }: { summary?: SummarySlice | null }) {
-  const [fetched, setFetched] = useState<SummarySlice | null>(null)
+export function SafeToSpendCard({ summary }: { summary?: SpendingRoomSummary | null }) {
+  const [fetched, setFetched] = useState<SpendingRoomSummary | null>(null)
   const [failed, setFailed] = useState(false)
 
   // Standalone use fetches its own data; pages that already hold the summary
@@ -56,16 +42,8 @@ export function SafeToSpendCard({ summary }: { summary?: SummarySlice | null }) 
     )
   }
 
-  const income = data.cash_flow?.monthly_income || 0
-  const spent = data.current_month?.total_spent || 0
-  const reservedBudgets = (data.current_month?.budget_vs_actual || [])
-    .reduce((s, b) => s + Math.max(0, (b.budget || 0) - (b.spent || 0)), 0)
-  const goalNeed = data.goal_funding?.total_monthly_needed || 0
-  const daysLeft = Math.max(1, (data.current_month?.days_in_month || 30) - (data.current_month?.day_of_month || 1) + 1)
-
-  const freeThisMonth = income - spent - reservedBudgets - goalNeed
-  const perDay = Math.floor(freeThisMonth / daysLeft)
-  const overCommitted = freeThisMonth < 0
+  const { income, spent, reserved: reservedBudgets, goalNeed, daysLeft,
+    freeMonth: freeThisMonth, perDay, overCommitted } = calculateSpendingRoom(data)
 
   return (
     <GlassCard>
@@ -92,11 +70,12 @@ export function SafeToSpendCard({ summary }: { summary?: SummarySlice | null }) 
         </>
       )}
 
+      <p className="mt-2 text-[11px] text-[hsl(var(--text-secondary))]">Extra room after planned spending and goals. Based on expected income; check your account before spending.</p>
       <div className="mt-3 space-y-1 border-t border-[hsl(var(--border))] pt-2">
         {[
           ['Expected income', income],
           ['Spent so far', -spent],
-          ['Budgets still reserved', -reservedBudgets],
+          ['Spending still reserved', -reservedBudgets],
           ['Goal contributions', -goalNeed],
         ].map(([label, val]) => (
           <div key={label as string} className="flex items-center justify-between text-[11px]">

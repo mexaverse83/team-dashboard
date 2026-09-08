@@ -1,12 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Activity, AlertTriangle, ArrowRight, MessageCircle, Sparkles, Target, Wallet } from 'lucide-react'
 import { PushToggle } from '@/components/finance/push-toggle'
 import { WolffAvatar } from '@/components/brand-logo'
 import { cn } from '@/lib/utils'
-import { monthKey } from '@/lib/finance-utils'
+import { mexicoCityDateParts } from '@/lib/insights-prompt.mjs'
+import { calculateDailyPlan } from '@/lib/daily-plan'
+import type { Summary } from './command-center/types'
 import { fetchWestProjection, westMonthTarget } from '@/lib/west-projection-client'
 
 interface Insight {
@@ -44,12 +46,15 @@ function money(value = 0) {
   return `$${Math.round(value).toLocaleString()}`
 }
 
-export function WolffWidget() {
+export function WolffWidget({ summary, westTarget: pageWestTarget }: { summary?: Summary; westTarget?: number | null }) {
+  const inFlight = useRef(false)
+  const hasPageWest = pageWestTarget !== undefined
+  const hasSummary = summary !== undefined
   const [directive, setDirective] = useState<Insight | null>(null)
   const [week, setWeek] = useState<Insight | null>(null)
   const [watch, setWatch] = useState<Insight | null>(null)
   const [proactive, setProactive] = useState<ChatMessage | null>(null)
-  const [widget, setWidget] = useState<WidgetData | null>(null)
+  const [fetchedWidget, setWidget] = useState<WidgetData | null>(null)
   const [generatedAt, setGeneratedAt] = useState<string | null>(null)
   const [stale, setStale] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -58,14 +63,17 @@ export function WolffWidget() {
   const [sharedWestTarget, setSharedWestTarget] = useState<number | null>(null)
 
   const load = useCallback(async () => {
+    if (inFlight.current) return
+    inFlight.current = true
     const headers = { 'x-api-key': process.env.NEXT_PUBLIC_FINANCE_API_KEY || '' }
     const [insightRes, widgetRes, chatRes, westData] = await Promise.all([
-      fetch('/api/finance/insights', { headers, cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/api/finance/widget', { headers, cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch('/api/finance/wolff-chat', { headers, cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetchWestProjection().catch(() => null),
+      fetch('/api/finance/insights', { headers, cache: 'no-store', signal: AbortSignal.timeout(15000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+      hasSummary ? Promise.resolve(null) : fetch('/api/finance/widget', { headers, cache: 'no-store', signal: AbortSignal.timeout(15000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/finance/wolff-chat', { headers, cache: 'no-store', signal: AbortSignal.timeout(15000) }).then(r => r.ok ? r.json() : null).catch(() => null),
+      hasPageWest ? Promise.resolve(null) : fetchWestProjection().catch(() => null),
     ])
-    setSharedWestTarget(westMonthTarget(westData, monthKey(new Date())))
+    const mx = mexicoCityDateParts()
+    if (!hasPageWest) setSharedWestTarget(westMonthTarget(westData, `${mx.year}-${String(mx.month).padStart(2, '0')}`))
 
     const all: Insight[] = insightRes?.insights || []
     const category = (insight: Insight) => (insight.category || '').toUpperCase()
@@ -91,11 +99,12 @@ export function WolffWidget() {
     setGeneratedAt(insightRes?.generated_at || widgetRes?.updated_at || null)
     setStale(Boolean(insightRes?.stale))
     setLoading(false)
-  }, [])
+    inFlight.current = false
+  }, [hasSummary, hasPageWest])
 
   useEffect(() => {
     const initial = window.setTimeout(load, 0)
-    const interval = window.setInterval(load, 30_000)
+    const interval = window.setInterval(() => { if (document.visibilityState === 'visible') void load() }, 60_000)
     const onVisible = () => { if (document.visibilityState === 'visible') load() }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
@@ -104,6 +113,9 @@ export function WolffWidget() {
       document.removeEventListener('visibilitychange', onVisible)
     }
   }, [load])
+
+  const effectiveWestTarget = pageWestTarget !== undefined ? pageWestTarget : sharedWestTarget
+  const widget: WidgetData | null = summary ? calculateDailyPlan(summary, effectiveWestTarget) : fetchedWidget
 
   const stamp = (iso?: string | null) => iso
     ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -120,7 +132,7 @@ export function WolffWidget() {
   // same projection can clear. Track both so neither verdict is stated bare.
   const risk = (widget?.over_committed_by || 0) > 0
   const goalNeed = widget?.goal_monthly_needed ?? 0
-  const westTarget = sharedWestTarget ?? widget?.west_month?.target ?? null
+  const westTarget = effectiveWestTarget ?? widget?.west_month?.target ?? null
   const westClears = westTarget != null && (widget?.projected_savings ?? 0) >= westTarget
   // Tighter envelope that also covers the WEST shortfall — only worth showing
   // when it actually undercuts the budget-permitted number.
@@ -187,21 +199,21 @@ export function WolffWidget() {
 
             <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
               <div className={cn('rounded-xl border p-3', risk ? 'signal-red' : 'signal-green')}>
-                <p className="text-[9px] font-bold uppercase tracking-[0.13em] opacity-75"><span className="sm:hidden">Extra</span><span className="hidden sm:inline">Extra safe</span></p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.13em] opacity-75"><span className="sm:hidden">Extra / day</span><span className="hidden sm:inline">Extra safe</span></p>
                 <p className="num-metric mt-1 text-lg font-bold sm:text-xl">{money(extraSafe)}</p>
                 <p className="mt-0.5 hidden text-[10px] opacity-70 sm:block">unplanned today</p>
               </div>
               <div className="signal-green rounded-xl border p-3">
-                <p className="text-[9px] font-bold uppercase tracking-[0.13em] opacity-75"><span className="sm:hidden">Planned</span><span className="hidden sm:inline">Planned today</span></p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.13em] opacity-75"><span className="sm:hidden">Plan / day</span><span className="hidden sm:inline">Planned today</span></p>
                 <p className="num-metric mt-1 text-lg font-bold sm:text-xl">{money(plannedToday)}</p>
                 <p className="mt-0.5 hidden text-[10px] opacity-70 sm:block">inside categories</p>
               </div>
               <div className="signal-orange rounded-xl border p-3">
-                <p className="text-[9px] font-bold uppercase tracking-[0.13em] opacity-75"><span className="sm:hidden">Week left</span><span className="hidden sm:inline">Through Sunday</span></p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.13em] opacity-75"><span className="sm:hidden">To Sunday</span><span className="hidden sm:inline">Through Sunday</span></p>
                 <p className="num-metric mt-1 text-lg font-bold sm:text-xl">{money(widget?.week_envelope)}</p>
                 <p className="mt-0.5 hidden text-[10px] opacity-70 sm:block">{widget?.days_left_in_week || 1} day plan</p>
                 {westEnvelopeTight && (
-                  <p className="mt-0.5 hidden text-[10px] font-semibold opacity-90 sm:block">{money(westEnvelope)} keeps WEST pace</p>
+                  <p className="mt-0.5 text-[10px] font-semibold opacity-90">{money(westEnvelope)} keeps WEST pace</p>
                 )}
               </div>
             </div>

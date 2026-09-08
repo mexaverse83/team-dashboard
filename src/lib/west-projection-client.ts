@@ -9,10 +9,10 @@
 let cache: { at: number; promise: Promise<unknown> } | null = null
 const TTL_MS = 300_000
 
-export function fetchWestProjection<T>(): Promise<T | null> {
+export function fetchWestProjection<T>(force = false): Promise<T | null> {
   const now = Date.now()
-  if (cache && now - cache.at < TTL_MS) return cache.promise as Promise<T | null>
-  const promise: Promise<unknown> = fetch('/api/finance/investments/west-projection')
+  if (!force && cache && now - cache.at < TTL_MS) return cache.promise as Promise<T | null>
+  const promise: Promise<unknown> = fetch('/api/finance/investments/west-projection', { cache: 'no-store', signal: AbortSignal.timeout(15000) })
     .then(r => (r.ok ? r.json() : null))
     .catch(() => null)
     .then(d => {
