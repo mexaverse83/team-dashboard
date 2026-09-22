@@ -66,6 +66,14 @@ const EMPTY_TX_FORM: TxFormData = {
 }
 
 const COIN_ICONS: Record<string, string> = { BTC: '₿', ETH: 'Ξ', SOL: '◎', KAS: 'K', LIT: 'L', AERO: 'A' }
+const COIN_LOGOS: Record<string, string> = {
+  BTC: 'https://coin-images.coingecko.com/coins/images/1/small/bitcoin.png?1696501400',
+  ETH: 'https://coin-images.coingecko.com/coins/images/279/small/ethereum.png?1696501628',
+  SOL: 'https://coin-images.coingecko.com/coins/images/4128/small/solana.png?1718769756',
+  KAS: 'https://coin-images.coingecko.com/coins/images/25751/small/kaspa-icon-exchanges.png?1696524837',
+  LIT: 'https://coin-images.coingecko.com/coins/images/71121/small/lighter.png?1765888098',
+  AERO: 'https://coin-images.coingecko.com/coins/images/31745/small/token.png?1696530564',
+}
 const COIN_COLORS: Record<string, string> = {
   BTC: 'from-orange-500 to-amber-600',
   ETH: 'from-indigo-400 to-blue-600',
@@ -416,8 +424,10 @@ export function CryptoClient() {
               {combinedCoins.map(c => (
                 <div key={c.symbol} className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className={`h-8 w-8 rounded-lg bg-gradient-to-br ${COIN_COLORS[c.symbol] || 'from-gray-500 to-gray-600'} flex items-center justify-center text-white font-bold text-sm`}>
-                      {COIN_ICONS[c.symbol]}
+                    <div className={`h-8 w-8 rounded-lg bg-gradient-to-br ${COIN_COLORS[c.symbol] || 'from-gray-500 to-gray-600'} flex items-center justify-center text-white font-bold text-sm overflow-hidden`}>
+                      {COIN_LOGOS[c.symbol]
+                        ? <img src={COIN_LOGOS[c.symbol]} alt={c.symbol} className="h-full w-full object-cover" />
+                        : COIN_ICONS[c.symbol]}
                     </div>
                     <div>
                       <p className="text-sm font-medium">{c.symbol}</p>
@@ -585,8 +595,10 @@ export function CryptoClient() {
                 </div>
 
                 <div className="flex items-center gap-3 mb-3">
-                  <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${COIN_COLORS[h.symbol] || 'from-gray-500 to-gray-600'} flex items-center justify-center text-white font-bold text-lg`}>
-                    {COIN_ICONS[h.symbol] || '?'}
+                  <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${COIN_COLORS[h.symbol] || 'from-gray-500 to-gray-600'} flex items-center justify-center text-white font-bold text-lg overflow-hidden`}>
+                    {COIN_LOGOS[h.symbol]
+                      ? <img src={COIN_LOGOS[h.symbol]} alt={h.symbol} className="h-full w-full object-cover" />
+                      : (COIN_ICONS[h.symbol] || '?')}
                   </div>
                   <div>
                     <p className="font-semibold text-sm flex items-center gap-1.5">{h.name} <OwnerDot owner={h.owner} size="sm" /></p>
@@ -740,8 +752,10 @@ export function CryptoClient() {
                 <div className="flex gap-2">
                   {['BTC', 'ETH', 'SOL', 'KAS', 'LIT', 'AERO'].map(s => (
                     <button key={s} onClick={() => setHoldingForm(f => ({ ...f, symbol: s }))}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${holdingForm.symbol === s ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'}`}>
-                      {COIN_ICONS[s]} {s}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${holdingForm.symbol === s ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'}`}>
+                      {COIN_LOGOS[s]
+                        ? <img src={COIN_LOGOS[s]} alt={s} className="h-4 w-4 rounded-full" />
+                        : COIN_ICONS[s]} {s}
                     </button>
                   ))}
                 </div>
@@ -806,8 +820,10 @@ export function CryptoClient() {
                 <div className="flex gap-2">
                   {['BTC', 'ETH', 'SOL', 'KAS', 'LIT', 'AERO'].map(s => (
                     <button key={s} onClick={() => setTxForm(f => ({ ...f, symbol: s }))}
-                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${txForm.symbol === s ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'}`}>
-                      {COIN_ICONS[s]} {s}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${txForm.symbol === s ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'}`}>
+                      {COIN_LOGOS[s]
+                        ? <img src={COIN_LOGOS[s]} alt={s} className="h-4 w-4 rounded-full" />
+                        : COIN_ICONS[s]} {s}
                     </button>
                   ))}
                 </div>
