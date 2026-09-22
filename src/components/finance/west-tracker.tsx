@@ -348,7 +348,7 @@ export function WestTracker() {
     { name: 'Direct Payments', current: amountPaid, atDelivery: lastProj?.paid || 0, dotColor: 'bg-emerald-500', status: 'on_track', owner: OWNERS[0] },
     { name: 'GBM Investment', current: investmentValue, atDelivery: lastProj?.investments || 0, dotColor: 'bg-blue-500', status: 'growing', owner: 'shared' },
     { name: 'Crypto', current: cryptoValue, atDelivery: lastProj?.crypto || 0, dotColor: 'bg-amber-500', status: cryptoValue > 0 ? 'growing' : 'not_set', owner: 'shared' },
-    { name: "${OWNERS[1]}'s Infonavit", current: infonavitValue, atDelivery: infonavitValue, dotColor: 'bg-pink-500', status: 'on_track', owner: OWNERS[1] },
+    { name: `${OWNERS[1]}'s Infonavit`, current: infonavitValue, atDelivery: infonavitValue, dotColor: 'bg-pink-500', status: 'on_track', owner: OWNERS[1] },
   ]
 
   return (
