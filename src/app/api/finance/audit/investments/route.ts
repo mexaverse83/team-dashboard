@@ -396,10 +396,10 @@ export async function GET(req: NextRequest) {
     let cryptoSummary: Record<string, unknown> | null = null
     if (cryptoRes.data && cryptoRes.data.length > 0) {
       const holdings = cryptoRes.data
-      const symbolMap: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana' }
+      const symbolMap: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', KAS: 'kaspa', LIT: 'lighter', AERO: 'aerodrome-finance' }
       let prices: Record<string, { mxn: number }> = {}
       try {
-        const priceRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=mxn', { next: { revalidate: 300 } })
+        const priceRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,kaspa,lighter,aerodrome-finance&vs_currencies=mxn', { next: { revalidate: 300 } })
         if (priceRes.ok) prices = await priceRes.json()
       } catch { /* use 0 prices */ }
 

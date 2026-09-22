@@ -65,16 +65,22 @@ const EMPTY_TX_FORM: TxFormData = {
   quantity: '', price_per_coin_mxn: '', price_currency: 'MXN', exchange: '', notes: '', transaction_date: today,
 }
 
-const COIN_ICONS: Record<string, string> = { BTC: '₿', ETH: 'Ξ', SOL: '◎' }
+const COIN_ICONS: Record<string, string> = { BTC: '₿', ETH: 'Ξ', SOL: '◎', KAS: 'K', LIT: 'L', AERO: 'A' }
 const COIN_COLORS: Record<string, string> = {
   BTC: 'from-orange-500 to-amber-600',
   ETH: 'from-indigo-400 to-blue-600',
   SOL: 'from-purple-400 to-fuchsia-600',
+  KAS: 'from-teal-400 to-cyan-600',
+  LIT: 'from-sky-400 to-blue-500',
+  AERO: 'from-blue-400 to-indigo-500',
 }
 const COIN_SOLIDS: Record<string, string> = {
   BTC: 'bg-orange-500',
   ETH: 'bg-indigo-500',
   SOL: 'bg-purple-500',
+  KAS: 'bg-teal-500',
+  LIT: 'bg-sky-500',
+  AERO: 'bg-blue-500',
 }
 
 function fmt(n: number, decimals = 2) {
@@ -732,7 +738,7 @@ export function CryptoClient() {
               <div>
                 <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Asset</label>
                 <div className="flex gap-2">
-                  {['BTC', 'ETH', 'SOL'].map(s => (
+                  {['BTC', 'ETH', 'SOL', 'KAS', 'LIT', 'AERO'].map(s => (
                     <button key={s} onClick={() => setHoldingForm(f => ({ ...f, symbol: s }))}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${holdingForm.symbol === s ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'}`}>
                       {COIN_ICONS[s]} {s}
@@ -798,7 +804,7 @@ export function CryptoClient() {
               <div>
                 <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Asset</label>
                 <div className="flex gap-2">
-                  {['BTC', 'ETH', 'SOL'].map(s => (
+                  {['BTC', 'ETH', 'SOL', 'KAS', 'LIT', 'AERO'].map(s => (
                     <button key={s} onClick={() => setTxForm(f => ({ ...f, symbol: s }))}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${txForm.symbol === s ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'}`}>
                       {COIN_ICONS[s]} {s}

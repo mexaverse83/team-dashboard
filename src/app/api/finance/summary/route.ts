@@ -501,7 +501,7 @@ async function buildSummary(req: NextRequest) {
   try {
     const holdings = (cryptoHoldings || []).filter((h: Record<string, unknown>) => (h.quantity as number) > 0)
     if (holdings.length > 0) {
-      const geckoIds: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana' }
+      const geckoIds: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', KAS: 'kaspa', LIT: 'lighter', AERO: 'aerodrome-finance' }
       const ids = [...new Set(holdings.map((h: Record<string, unknown>) => geckoIds[h.symbol as string]).filter(Boolean))].join(',')
       let prices: Record<string, { usd: number; mxn: number }> = {}
       try {

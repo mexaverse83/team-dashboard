@@ -16,12 +16,18 @@ const COINGECKO_IDS: Record<string, string> = {
   BTC: 'bitcoin',
   ETH: 'ethereum',
   SOL: 'solana',
+  KAS: 'kaspa',
+  LIT: 'lighter',
+  AERO: 'aerodrome-finance',
 }
 
 const COIN_NAMES: Record<string, string> = {
   BTC: 'Bitcoin',
   ETH: 'Ethereum',
   SOL: 'Solana',
+  KAS: 'Kaspa',
+  LIT: 'Lighter',
+  AERO: 'Aerodrome',
 }
 
 async function fetchPrices(bust = false) {

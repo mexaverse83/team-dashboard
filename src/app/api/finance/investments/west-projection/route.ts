@@ -24,14 +24,14 @@ async function getCryptoTotal(): Promise<number> {
     const { data: holdings } = await supabase.from('finance_crypto_holdings').select('symbol, quantity')
     if (!holdings || holdings.length === 0) return 0
 
-    const ids = ['bitcoin', 'ethereum', 'solana']
+    const ids = ['bitcoin', 'ethereum', 'solana', 'kaspa', 'lighter', 'aerodrome-finance']
     const res = await fetch(
       `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=mxn`,
       { next: { revalidate: 300 } }
     )
     if (!res.ok) return 0
     const prices = await res.json()
-    const symbolMap: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana' }
+    const symbolMap: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', KAS: 'kaspa', LIT: 'lighter', AERO: 'aerodrome-finance' }
 
     return holdings.reduce((total, h) => {
       const cgId = symbolMap[h.symbol]

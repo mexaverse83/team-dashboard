@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
   try {
     const holdings = (cryptoHoldings || []).filter((h: { quantity?: number }) => (h.quantity ?? 0) > 0)
     if (holdings.length > 0) {
-      const geckoIds: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana' }
+      const geckoIds: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', KAS: 'kaspa', LIT: 'lighter', AERO: 'aerodrome-finance' }
       const ids = [...new Set(holdings.map((h: { symbol: string }) => geckoIds[h.symbol]).filter(Boolean))].join(',')
       let prices: Record<string, number> = {}
       try {
