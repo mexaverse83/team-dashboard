@@ -101,6 +101,8 @@ function fmtCoinPriceMXN(n: number) {
   return `$${fmt(n, decimals)} MXN`
 }
 function fmtUSD(n: number) { return `$${fmt(n)} USD` }
+/** Per-coin USD prices: 2 decimals normally, 4 for sub-dollar coins like KAS. */
+function fmtCoinPriceUSD(n: number) { return `$${fmt(n, n >= 1 ? 2 : 4)} USD` }
 
 function getValueMXN(h: Holding, prices: Prices | null) {
   return h.quantity * (prices?.[h.symbol]?.mxn ?? 0)
@@ -620,7 +622,7 @@ export function CryptoClient() {
                     <>
                       <div className="flex justify-between text-xs">
                         <span className="text-[hsl(var(--text-secondary))]">Price</span>
-                        <span className="font-mono tabular-nums">{fmtUSD(price.usd)}</span>
+                        <span className="font-mono tabular-nums">{fmtCoinPriceUSD(price.usd)}</span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className="text-[hsl(var(--text-secondary))]">24h</span>
@@ -870,7 +872,7 @@ export function CryptoClient() {
                 </div>
                 {prices?.[txForm.symbol] && (
                   <p className="text-[10px] text-[hsl(var(--text-tertiary))] mt-1">
-                    Current: {txForm.price_currency === 'USD' ? fmtUSD(prices[txForm.symbol].usd) : fmtMXN(prices[txForm.symbol].mxn)}
+                    Current: {txForm.price_currency === 'USD' ? fmtCoinPriceUSD(prices[txForm.symbol].usd) : fmtCoinPriceMXN(prices[txForm.symbol].mxn)}
                   </p>
                 )}
               </div>
