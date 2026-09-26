@@ -231,26 +231,26 @@ export default function BudgetBuilderClient() {
       </div>
 
       {/* Hero KPIs */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-4">
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Income</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">${Math.round(totalIncome).toLocaleString()}</p>
+          <p className="num-metric text-xl min-[400px]:text-2xl sm:text-3xl font-bold tabular-nums mt-1">${Math.round(totalIncome).toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">{incomeIsActual ? '3-mo avg actual' : `${incomeSources.filter(s => s.is_active).length} configured`}</p>
         </GlassCard>
         <GlassCard className="border-l-2 border-l-blue-500">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Needs ({needsPct}%)</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-blue-600 mt-1">${needsTotal.toLocaleString()}</p>
-          <TrendBadge value={(needsPct - 50) * -1} suffix="% vs ideal 50%" />
+          <p className="num-metric text-xl min-[400px]:text-2xl sm:text-3xl font-bold tabular-nums text-blue-600 mt-1">${Math.round(needsTotal).toLocaleString()}</p>
+          <TrendBadge value={(needsPct - 50) * -1} suffix="% vs ideal 50%" className="mt-1 text-[10px] sm:text-xs leading-tight" />
         </GlassCard>
         <GlassCard className="border-l-2 border-l-amber-500">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Wants ({wantsPct}%)</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-600 mt-1">${wantsTotal.toLocaleString()}</p>
-          <TrendBadge value={(wantsPct - 30) * -1} suffix="% vs ideal 30%" />
+          <p className="num-metric text-xl min-[400px]:text-2xl sm:text-3xl font-bold tabular-nums text-amber-600 mt-1">${Math.round(wantsTotal).toLocaleString()}</p>
+          <TrendBadge value={(wantsPct - 30) * -1} suffix="% vs ideal 30%" className="mt-1 text-[10px] sm:text-xs leading-tight" />
         </GlassCard>
         <GlassCard className="border-l-2 border-l-emerald-500">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings ({savingsPct}%)</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">${savingsTotal.toLocaleString()}</p>
-          <TrendBadge value={savingsPct - 20} suffix="% vs ideal 20%" />
+          <p className="num-metric text-xl min-[400px]:text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">${Math.round(savingsTotal).toLocaleString()}</p>
+          <TrendBadge value={savingsPct - 20} suffix="% vs ideal 20%" className="mt-1 text-[10px] sm:text-xs leading-tight" />
         </GlassCard>
       </div>
 
@@ -266,13 +266,13 @@ export default function BudgetBuilderClient() {
             <div className="h-8 sm:h-10 rounded-lg overflow-hidden flex bg-[hsl(var(--bg-elevated))]">
               {totalIncome > 0 && <>
                 <motion.div className="bg-blue-500 flex items-center justify-center" initial={{ width: 0 }} animate={{ width: `${needsPct}%` }} transition={{ duration: 0.8 }}>
-                  {needsPct > 10 && <span className="text-[10px] sm:text-xs font-bold text-white">Needs {needsPct}%</span>}
+                  {needsPct > 10 && <span className="truncate whitespace-nowrap px-0.5 text-[10px] sm:text-xs font-bold text-white">Needs {needsPct}%</span>}
                 </motion.div>
                 <motion.div className="bg-amber-500 flex items-center justify-center" initial={{ width: 0 }} animate={{ width: `${wantsPct}%` }} transition={{ duration: 0.8, delay: 0.1 }}>
-                  {wantsPct > 10 && <span className="text-[10px] sm:text-xs font-bold text-white">Wants {wantsPct}%</span>}
+                  {wantsPct > 10 && <span className="truncate whitespace-nowrap px-0.5 text-[10px] sm:text-xs font-bold text-white"><span className={wantsPct < 20 ? 'hidden sm:inline' : ''}>Wants </span>{wantsPct}%</span>}
                 </motion.div>
                 <motion.div className="bg-emerald-500 flex items-center justify-center" initial={{ width: 0 }} animate={{ width: `${savingsPct}%` }} transition={{ duration: 0.8, delay: 0.2 }}>
-                  {savingsPct > 8 && <span className="text-[10px] sm:text-xs font-bold text-white">Save {savingsPct}%</span>}
+                  {savingsPct > 8 && <span className="truncate whitespace-nowrap px-0.5 text-[10px] sm:text-xs font-bold text-white"><span className={savingsPct < 20 ? 'hidden sm:inline' : ''}>Save </span>{savingsPct}%</span>}
                 </motion.div>
               </>}
             </div>
@@ -299,7 +299,7 @@ export default function BudgetBuilderClient() {
         <GlassCard>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-semibold">Income Sources</h3>
-            <button aria-label="Add" onClick={openAddIncome} className="p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))] transition-colors"><Plus className="h-4 w-4" /></button>
+            <button aria-label="Add" onClick={openAddIncome} className="inline-flex h-10 w-10 sm:h-auto sm:w-auto items-center justify-center p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))] transition-colors"><Plus className="h-4 w-4" /></button>
           </div>
           {incomeSources.length === 0 ? (
             <div className="text-center py-6">
@@ -309,22 +309,25 @@ export default function BudgetBuilderClient() {
           ) : (
             <div className="space-y-2">
               {incomeSources.map(src => (
-                <div key={src.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-[hsl(var(--bg-elevated))]/50 group">
-                  <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-sm">{INCOME_ICONS[src.type] || '💵'}</div>
+                <div key={src.id} className="flex items-center gap-2 sm:gap-3 p-2.5 rounded-lg bg-[hsl(var(--bg-elevated))]/50 group">
+                  <div className="h-8 w-8 shrink-0 rounded-lg bg-emerald-500/10 flex items-center justify-center text-sm">{INCOME_ICONS[src.type] || '💵'}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{src.name}</p>
-                    <p className="text-xs text-[hsl(var(--text-tertiary))] capitalize">{src.frequency}</p>
+                    <p className="text-xs text-[hsl(var(--text-tertiary))] capitalize">
+                      {src.frequency}
+                      <span className="sm:hidden font-semibold tabular-nums text-emerald-600 normal-case"> · ${Math.round(toMonthly(src.amount, src.frequency)).toLocaleString()}</span>
+                    </p>
                   </div>
-                  <span className="text-sm font-semibold tabular-nums text-emerald-600">${Math.round(toMonthly(src.amount, src.frequency)).toLocaleString()}</span>
-                  <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button aria-label="Edit" onClick={() => openEditIncome(src)} className="p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
+                  <span className="hidden sm:inline text-sm font-semibold tabular-nums text-emerald-600">${Math.round(toMonthly(src.amount, src.frequency)).toLocaleString()}</span>
+                  <div className="flex shrink-0 items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <button aria-label="Edit" onClick={() => openEditIncome(src)} className="inline-flex h-10 w-10 sm:h-auto sm:w-auto items-center justify-center p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
                     {deleteConfirm === src.id ? (
                       <div className="flex gap-0.5">
-                        <button onClick={() => handleDeleteIncome(src.id)} className="px-1.5 py-0.5 rounded text-[10px] bg-rose-600 text-white">Del</button>
-                        <button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--bg-elevated))]">No</button>
+                        <button onClick={() => handleDeleteIncome(src.id)} className="min-h-10 sm:min-h-0 px-2 sm:px-1.5 py-0.5 rounded text-xs sm:text-[10px] bg-rose-600 text-white">Del</button>
+                        <button onClick={() => setDeleteConfirm(null)} className="min-h-10 sm:min-h-0 px-2 sm:px-1.5 py-0.5 rounded text-xs sm:text-[10px] bg-[hsl(var(--bg-elevated))]">No</button>
                       </div>
                     ) : (
-                      <button aria-label="Delete" onClick={() => setDeleteConfirm(src.id)} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-600" /></button>
+                      <button aria-label="Delete" onClick={() => setDeleteConfirm(src.id)} className="inline-flex h-10 w-10 sm:h-auto sm:w-auto items-center justify-center p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-600" /></button>
                     )}
                   </div>
                 </div>
@@ -375,11 +378,11 @@ export default function BudgetBuilderClient() {
               <div className="sm:hidden space-y-2">
                 {budgetRows.map(row => (
                   <div key={row.categoryId} className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
-                    <span className="text-lg">{row.icon}</span>
+                    <span className="text-lg shrink-0">{row.icon}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">{row.name}</span>
-                        <span className={cn("text-sm font-semibold tabular-nums",
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium truncate">{row.name}</span>
+                        <span className={cn("text-sm font-semibold tabular-nums shrink-0",
                           row.variance < 0 ? "text-emerald-600" : row.variance > 0 ? "text-rose-600" : ""
                         )}>${row.actual.toLocaleString()}</span>
                       </div>
@@ -411,7 +414,7 @@ export default function BudgetBuilderClient() {
               action.priority === 'low' && "border-emerald-500/30 bg-emerald-500/5",
             )}>
               <span className="text-lg shrink-0">{action.priority === 'high' ? '🔴' : action.priority === 'medium' ? '🟡' : '🟢'}</span>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{action.title}</p>
                 <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{action.description}</p>
               </div>

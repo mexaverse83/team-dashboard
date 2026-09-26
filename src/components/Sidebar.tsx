@@ -45,6 +45,12 @@ function NavLink({ item, pathname, onNavigate, compact = false }: {
 }
 
 export function Sidebar() {
+  // The sign-in screen shouldn't offer navigation to pages it can't open yet.
+  if (usePathname() === '/finance/login') return null
+  return <SidebarNav />
+}
+
+function SidebarNav() {
   const [mobileRoute, setMobileRoute] = useState<string | null>(null)
   const pathname = usePathname()
   const mobileOpen = mobileRoute === pathname

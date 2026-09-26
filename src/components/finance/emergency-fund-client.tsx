@@ -181,7 +181,7 @@ export default function EmergencyFundClient() {
       <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
         <GlassCard className="flex flex-col items-center py-6 px-8 sm:px-6 overflow-visible">
           <h3 className="text-base font-semibold mb-4">Fund Progress</h3>
-          <div className="relative w-16 h-64 sm:h-80" style={{ overflow: 'visible' }}>
+          <div className="relative w-16 h-48 sm:h-80" style={{ overflow: 'visible' }}>
             <div className="absolute inset-x-2 inset-y-0 rounded-full bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))]" />
             <motion.div className="absolute inset-x-2 bottom-0 rounded-full bg-gradient-to-t from-indigo-600 to-indigo-400"
               initial={{ height: 0 }} animate={{ height: `${Math.min(fundPct, 100)}%` }} transition={{ duration: 1.2, type: 'spring', damping: 15 }} />
@@ -203,11 +203,11 @@ export default function EmergencyFundClient() {
             {QUESTIONS.map(q => (
               <div key={q.id}>
                 <label className="text-sm font-medium mb-2 block">{q.question}</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className={cn("grid sm:grid-cols-4 gap-2", q.options.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
                   {q.options.map(opt => (
                     <button key={opt.value} type="button"
                       onClick={() => setRiskAnswers(prev => ({ ...prev, [q.id]: opt.value }))}
-                      className={cn("p-2.5 rounded-lg border text-xs text-center transition-all",
+                      className={cn("p-2 sm:p-2.5 rounded-lg border text-xs text-center leading-tight sm:leading-normal transition-all",
                         riskAnswers[q.id as keyof RiskAnswers] === opt.value ? "border-indigo-500 bg-indigo-500/10" : "border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]"
                       )}>
                       <span className="text-lg block mb-0.5">{opt.icon}</span>{opt.label}
@@ -233,13 +233,13 @@ export default function EmergencyFundClient() {
       <GlassCard>
         <h3 className="text-base font-semibold mb-4">Liquidity Tiers</h3>
         <p className="text-xs text-[hsl(var(--text-tertiary))] mb-4">Distribute your fund across tiers for optimal access vs. returns.</p>
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
           {[
             { tier: 1, label: 'Instant Access', color: 'emerald', icon: '🟢', desc: 'Checking account — immediate emergencies', access: 'Instant', rec: '1 month expenses', amount: tier1, set: setTier1 },
             { tier: 2, label: 'Quick Access', color: 'blue', icon: '🔵', desc: 'High-yield savings (Nu, Hey Banco)', access: '1-3 days', rec: '2-3 months expenses', amount: tier2, set: setTier2 },
             { tier: 3, label: 'Growth Tier', color: 'violet', icon: '🟣', desc: 'CETES 28d, Supertasas — higher returns', access: '7-28 days', rec: '2-3+ months expenses', amount: tier3, set: setTier3 },
           ].map(t => (
-            <div key={t.tier} className="p-4 rounded-xl border-2 border-[hsl(var(--border))] transition-all">
+            <div key={t.tier} className="p-3 sm:p-4 rounded-xl border-2 border-[hsl(var(--border))] transition-all">
               <div className="flex items-center gap-2 mb-3"><span className="text-lg">{t.icon}</span><div><h4 className="text-sm font-semibold">Tier {t.tier}: {t.label}</h4><p className="text-[10px] text-[hsl(var(--text-tertiary))]">Access: {t.access}</p></div></div>
               <p className="text-xs text-[hsl(var(--text-secondary))] mb-3">{t.desc}</p>
               <div><label className="text-[10px] text-[hsl(var(--text-tertiary))] mb-0.5 block">Allocated</label><input type="number" step={1000} value={t.amount} onChange={e => t.set(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-lg font-bold tabular-nums outline-none focus:border-indigo-500 transition-colors text-sm" /></div>
@@ -274,8 +274,8 @@ export default function EmergencyFundClient() {
                 <Tooltip {...tooltipStyle} />
                 <defs><linearGradient id="fundGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.3} /><stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0} /></linearGradient></defs>
                 <Area type="monotone" dataKey="balance" stroke="hsl(var(--chart-3))" fill="url(#fundGrad)" strokeWidth={2} />
-                <ReferenceLine y={targetAmount} stroke="hsl(var(--chart-1))" strokeDasharray="5 5" label={{ value: `${recommendedMonths}mo target`, fill: 'hsl(var(--chart-1))', fontSize: 10 }} />
-                <ReferenceLine y={monthlyEssentials * 3} stroke="hsl(var(--chart-5))" strokeDasharray="3 3" label={{ value: '3mo', fill: 'hsl(var(--chart-5))', fontSize: 9 }} />
+                <ReferenceLine y={targetAmount} stroke="hsl(var(--chart-1))" strokeDasharray="5 5" label={{ value: `${recommendedMonths}mo target`, fill: 'hsl(var(--chart-1))', fontSize: 10, position: 'insideBottomRight' }} />
+                <ReferenceLine y={monthlyEssentials * 3} stroke="hsl(var(--chart-5))" strokeDasharray="3 3" label={{ value: '3mo', fill: 'hsl(var(--chart-5))', fontSize: 9, position: 'insideTopRight' }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -315,7 +315,7 @@ export default function EmergencyFundClient() {
         <p className="text-xs text-[hsl(var(--text-tertiary))] mb-4">Mexico-specific options by liquidity tier.</p>
         <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {ACCOUNTS.map(acct => (
-            <div key={acct.name} className="p-4 rounded-xl border border-[hsl(var(--border))] hover:border-indigo-500/30 transition-all">
+            <div key={acct.name} className="p-3 sm:p-4 rounded-xl border border-[hsl(var(--border))] hover:border-indigo-500/30 transition-all">
               <div className="flex items-center gap-2 mb-2"><span className="text-xl">{acct.icon}</span><div><h4 className="text-sm font-semibold">{acct.name}</h4><span className={cn("text-[10px] px-1.5 py-0.5 rounded-full", acct.color === 'emerald' ? 'bg-emerald-500/15 text-emerald-600' : acct.color === 'blue' ? 'bg-blue-500/15 text-blue-600' : 'bg-violet-500/15 text-violet-600')}>Tier {acct.tier}</span></div></div>
               <div className="space-y-1.5 mt-3">
                 <div className="flex items-center justify-between"><span className="text-xs text-[hsl(var(--text-tertiary))]">Rate</span><span className="text-sm font-bold tabular-nums text-emerald-600">{acct.rate}</span></div>

@@ -574,12 +574,12 @@ export function WestTracker() {
           ].map(preset => (
             <button key={preset.label} onClick={() => setReturnRate(preset.rate)}
               className={cn(
-                "flex-1 py-2 rounded-lg text-xs font-medium transition-all border",
+                "flex-1 px-1 py-2 rounded-lg text-xs font-medium leading-tight sm:leading-normal transition-all border",
                 Math.abs(returnRate - preset.rate) < 0.1
                   ? "border-blue-500 bg-blue-500/10 text-blue-600"
                   : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]"
               )}>
-              {preset.label} ({preset.rate}%)
+              <span className="block sm:inline">{preset.label}</span> <span className="block sm:inline">({preset.rate}%)</span>
             </button>
           ))}
         </div>
@@ -594,10 +594,10 @@ export function WestTracker() {
               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
               [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:shadow-lg
               [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
-          <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))]">
-            <span>5%</span>
+          <div className="flex justify-between gap-2 text-[10px] text-[hsl(var(--text-tertiary))]">
+            <span className="shrink-0">5%</span>
             <span className="text-center">Based on 2023–25 avg ~10.3% gross − 1.25% commission</span>
-            <span>13%</span>
+            <span className="shrink-0">13%</span>
           </div>
         </div>
 
@@ -630,20 +630,20 @@ export function WestTracker() {
               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
               [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:shadow-lg
               [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
-          <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))]">
+          <div className="flex justify-between gap-2 text-[10px] text-[hsl(var(--text-tertiary))]">
             <span>-20%</span><span>60%</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 mt-4 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-4 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
           <div>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Projected Total</span>
-            <p className="text-lg font-bold tabular-nums text-emerald-600">{fmtMXN(projectedTotal)}</p>
+            <p className="text-base sm:text-lg font-bold tabular-nums text-emerald-600 whitespace-nowrap">{fmtMXN(projectedTotal).replace(/ MXN$/, '')}<span className="text-[11px] sm:text-lg font-semibold sm:font-bold text-[hsl(var(--text-tertiary))] sm:text-current"> MXN</span></p>
           </div>
           <div>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Gap</span>
-            <p className={cn("text-lg font-bold tabular-nums", gap > 0 ? "text-red-600" : "text-emerald-600")}>
-              {gap > 0 ? fmtMXN(gap) : '✅ Fully funded!'}
+            <p className={cn("text-base sm:text-lg font-bold tabular-nums whitespace-nowrap", gap > 0 ? "text-red-600" : "text-emerald-600")}>
+              {gap > 0 ? <>{fmtMXN(gap).replace(/ MXN$/, '')}<span className="text-[11px] sm:text-lg font-semibold sm:font-bold text-[hsl(var(--text-tertiary))] sm:text-current"> MXN</span></> : '✅ Fully funded!'}
             </p>
           </div>
         </div>
@@ -708,21 +708,21 @@ export function WestTracker() {
           <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-4">Equity Outlook</h3>
 
           {/* Value progression */}
-          <div className="flex items-center gap-2 flex-wrap mb-4">
-            <div className="text-center px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
+          <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-1.5 sm:flex sm:gap-2 sm:flex-wrap mb-4">
+            <div className="text-center px-2 sm:px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Purchase</p>
               <p className="text-sm font-bold tabular-nums">{fmtShort(data.property.purchase_price)}</p>
             </div>
             <span className="text-[hsl(var(--text-tertiary))]">→</span>
-            <div className="text-center px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
+            <div className="text-center px-2 sm:px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Current</p>
               <p className="text-sm font-bold tabular-nums">{fmtShort(data.property.current_market_value)}</p>
               <p className="text-[10px] text-emerald-600">+{(((data.property.current_market_value - data.property.purchase_price) / data.property.purchase_price) * 100).toFixed(1)}%</p>
             </div>
             <span className="text-[hsl(var(--text-tertiary))]">→</span>
-            <div className="text-center px-4 py-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+            <div className="text-center px-2 sm:px-4 py-2 sm:py-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
               <p className="text-[10px] uppercase tracking-wider text-emerald-600">Projected</p>
-              <p className="text-lg font-bold tabular-nums text-emerald-600">{fmtShort(projection.projectedPropertyValue)}</p>
+              <p className="text-sm sm:text-lg font-bold tabular-nums text-emerald-600">{fmtShort(projection.projectedPropertyValue)}</p>
             </div>
           </div>
 
@@ -747,12 +747,12 @@ export function WestTracker() {
               ].map(preset => (
                 <button key={preset.label} onClick={() => setAppreciationRate(preset.rate)}
                   className={cn(
-                    "flex-1 py-2 rounded-lg text-xs font-medium transition-all border",
+                    "flex-1 px-1 py-2 rounded-lg text-xs font-medium leading-tight sm:leading-normal transition-all border",
                     Math.abs(appreciationRate - preset.rate) < 0.1
                       ? "border-emerald-500 bg-emerald-500/10 text-emerald-600"
                       : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]"
                   )}>
-                  {preset.label} ({preset.rate}%)
+                  <span className="block sm:inline">{preset.label}</span> <span className="block sm:inline">({preset.rate}%)</span>
                 </button>
               ))}
             </div>
@@ -766,7 +766,7 @@ export function WestTracker() {
                 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
                 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:shadow-lg
                 [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
-            <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))]">
+            <div className="flex justify-between gap-2 text-[10px] text-[hsl(var(--text-tertiary))]">
               <span>5%</span><span>20%</span>
             </div>
           </div>
@@ -811,7 +811,7 @@ export function WestProjectionWithScenarios() {
     <div className="space-y-4">
       {/* ── PROJECTION CHART ── */}
       <GlassCard className="p-4 sm:p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-4">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">Apartment Funding Projection</h3>
           <span className="text-xs text-[hsl(var(--text-tertiary))]">All funding sources · {data.months_to_delivery}mo to delivery · target {fmtMXN(target)}</span>
         </div>
@@ -871,11 +871,11 @@ export function WestProjectionWithScenarios() {
         <div className="flex gap-2 mb-4">
           {[{ label: 'Conservative', rate: 8.0 }, { label: 'Base', rate: 9.5 }, { label: 'Optimistic', rate: 11.0 }].map(p => (
             <button key={p.label} onClick={() => setReturnRate(p.rate)}
-              className={cn("flex-1 py-2 rounded-lg text-xs font-medium transition-all border",
+              className={cn("flex-1 px-1 py-2 rounded-lg text-xs font-medium leading-tight sm:leading-normal transition-all border",
                 Math.abs(returnRate - p.rate) < 0.1
                   ? "border-blue-500 bg-blue-500/10 text-blue-600"
                   : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]"
-              )}>{p.label} ({p.rate}%)</button>
+              )}><span className="block sm:inline">{p.label}</span> <span className="block sm:inline">({p.rate}%)</span></button>
           ))}
         </div>
         <div className="space-y-2">
@@ -889,7 +889,7 @@ export function WestProjectionWithScenarios() {
               [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:shadow-lg
               [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
           <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))]">
-            <span>5%</span><span>Based on 2023–25 avg ~10.3% gross − 1.25% commission</span><span>13%</span>
+            <span className="shrink-0">5%</span><span className="text-center">Based on 2023–25 avg ~10.3% gross − 1.25% commission</span><span className="shrink-0">13%</span>
           </div>
         </div>
         <div className="space-y-2 mt-4 pt-4 border-t border-[hsl(var(--border))]">
@@ -912,17 +912,17 @@ export function WestProjectionWithScenarios() {
               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
               [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-500 [&::-webkit-slider-thumb]:shadow-lg
               [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
-          <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))]"><span>-20%</span><span>60%</span></div>
+          <div className="flex justify-between gap-2 text-[10px] text-[hsl(var(--text-tertiary))]"><span>-20%</span><span>60%</span></div>
         </div>
-        <div className="grid grid-cols-2 gap-4 mt-4 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-4 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
           <div>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Projected Total</span>
-            <p className="text-lg font-bold tabular-nums text-emerald-600">{fmtMXN(projectedTotal)}</p>
+            <p className="text-base sm:text-lg font-bold tabular-nums text-emerald-600 whitespace-nowrap">{fmtMXN(projectedTotal).replace(/ MXN$/, '')}<span className="text-[11px] sm:text-lg font-semibold sm:font-bold text-[hsl(var(--text-tertiary))] sm:text-current"> MXN</span></p>
           </div>
           <div>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Gap</span>
-            <p className={cn("text-lg font-bold tabular-nums", gap > 0 ? "text-red-600" : "text-emerald-600")}>
-              {gap > 0 ? fmtMXN(gap) : '✅ Fully funded!'}
+            <p className={cn("text-base sm:text-lg font-bold tabular-nums whitespace-nowrap", gap > 0 ? "text-red-600" : "text-emerald-600")}>
+              {gap > 0 ? <>{fmtMXN(gap).replace(/ MXN$/, '')}<span className="text-[11px] sm:text-lg font-semibold sm:font-bold text-[hsl(var(--text-tertiary))] sm:text-current"> MXN</span></> : '✅ Fully funded!'}
             </p>
           </div>
         </div>

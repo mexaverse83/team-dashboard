@@ -319,7 +319,7 @@ export default function CommandCenterClient() {
               <p className="text-sm font-semibold">Cash flow &amp; activity</p>
               <p className="text-[11px] text-[hsl(var(--text-secondary))]">Forecast, budget exceptions, upcoming bills, and recent transactions</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-rose-500/8 px-2.5 py-1 text-[10px] font-semibold text-rose-700">
                 {summary?.current_month.budget_vs_actual.filter(cat => !cat.is_non_monthly && cat.projected_month_total > cat.budget * 1.1 && cat.pct_used > 50).length || 0} budget alert
               </span>
@@ -331,16 +331,16 @@ export default function CommandCenterClient() {
           </button>
 
           {detailsOpen && (
-            <div id="cash-flow-details" className="space-y-4 border-t border-[hsl(var(--border-subtle))] p-4 sm:p-5" data-animate>
+            <div id="cash-flow-details" className="space-y-4 border-t border-[hsl(var(--border-subtle))] p-3 sm:p-5" data-animate>
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <div className="space-y-4 lg:col-span-2">
                   <GlassCard>
-                    <div id="forecast" className="mb-3 flex items-end justify-between gap-4">
+                    <div id="forecast" className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1 sm:flex-nowrap">
                       <div>
                         <h3 className="flex items-center gap-2 text-base font-semibold"><Sparkles className="h-4 w-4 text-blue-600" /> Scheduled cash flow</h3>
                         <p className="mt-0.5 text-xs text-[hsl(var(--text-secondary))]">Known income, subscriptions, MSI, debt, and treatment events</p>
                       </div>
-                      {forecast && <p className={cn('text-lg font-bold tabular-nums', forecast.summary.net_delta >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{forecast.summary.net_delta >= 0 ? '+' : ''}{fmtMoney(forecast.summary.net_delta, { compact: true })}</p>}
+                      {forecast && <p className={cn('shrink-0 text-lg font-bold tabular-nums', forecast.summary.net_delta >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{forecast.summary.net_delta >= 0 ? '+' : ''}{fmtMoney(forecast.summary.net_delta, { compact: true })}</p>}
                     </div>
                     {forecast ? <ForecastChart data={forecast.series} height={220} /> : <p className="py-10 text-center text-sm text-[hsl(var(--text-tertiary))]">Forecast unavailable</p>}
                   </GlassCard>

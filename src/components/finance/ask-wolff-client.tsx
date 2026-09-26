@@ -91,7 +91,7 @@ export default function AskWolffClient() {
   const visibleMessages = messages.filter(m => !(m.role === 'user' && monitorIds.has(m.id)))
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-10rem)] min-h-96 max-w-2xl flex-col md:h-[calc(100vh-4rem)] md:min-h-[560px]">
+    <div className="mx-auto flex h-[calc(100dvh-11rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-96 max-w-2xl flex-col md:h-[calc(100vh-4rem)] md:min-h-[560px]">
       <div className="mb-4 flex items-center gap-3">
         <WolffAvatar className="h-11 w-11 drop-shadow-sm" />
         <div>
@@ -103,7 +103,7 @@ export default function AskWolffClient() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] p-4 shadow-[var(--shadow-elevate)]">
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] p-3 sm:p-4 shadow-[var(--shadow-elevate)]">
         {loading ? (
           <p className="py-10 text-center text-sm text-[hsl(var(--text-tertiary))]">Loading conversation…</p>
         ) : visibleMessages.length === 0 ? (
@@ -126,7 +126,7 @@ export default function AskWolffClient() {
             return (
             <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
               <div className={cn(
-                'max-w-[85%] break-words [overflow-wrap:anywhere] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
+                'max-w-[90%] sm:max-w-[85%] break-words [overflow-wrap:anywhere] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
                 m.role === 'user'
                   ? 'rounded-br-md bg-blue-600 text-white'
                   : proactive
@@ -163,13 +163,13 @@ export default function AskWolffClient() {
           onChange={e => setInput(e.target.value)}
           placeholder="Ask about your money…"
           maxLength={1000}
-          className="min-w-0 flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] px-4 py-3 text-sm outline-none focus:border-emerald-500/50"
+          className="min-w-0 flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] px-4 py-3 text-base outline-none sm:text-sm focus:border-emerald-500/50"
         />
         <button
           type="submit"
           disabled={!input.trim() || sending}
           aria-label="Send"
-          className="rounded-xl bg-emerald-600 p-3 text-white transition-colors hover:bg-emerald-500 disabled:opacity-40"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white sm:h-auto sm:w-auto sm:p-3 transition-colors hover:bg-emerald-500 disabled:opacity-40"
         >
           <Send className="h-4 w-4" />
         </button>

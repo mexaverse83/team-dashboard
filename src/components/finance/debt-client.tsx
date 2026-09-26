@@ -217,15 +217,15 @@ export default function DebtClient() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} label={{ value: 'Months', position: 'insideBottom', offset: -5, fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} />
-                <YAxis tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                <XAxis dataKey="month" interval="preserveStartEnd" minTickGap={12} tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} label={{ value: 'Months', position: 'insideBottom', offset: -5, fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} />
+                <YAxis width={48} tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
                 <Line type="monotone" dataKey="snowball" name="Snowball" stroke="hsl(var(--chart-3))" strokeWidth={2.5} dot={false} />
                 <Line type="monotone" dataKey="avalanche" name="Avalanche" stroke="hsl(var(--chart-5))" strokeWidth={2.5} dot={false} strokeDasharray="6 3" />
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex items-center justify-center gap-6 mt-2 mb-4">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1.5 mt-2 mb-4">
             <div className="flex items-center gap-1.5"><div className="h-2 w-6 rounded-full bg-blue-500" /><span className="text-xs text-[hsl(var(--text-secondary))]">Snowball (smallest first)</span></div>
             <div className="flex items-center gap-1.5"><div className="h-2 w-6 rounded-full bg-amber-500" /><span className="text-xs text-[hsl(var(--text-secondary))]">Avalanche (highest rate first)</span></div>
           </div>
@@ -275,7 +275,7 @@ export default function DebtClient() {
                   <button key={amt} onClick={() => setExtraPayment(amt)}
                     className={cn("flex-1 py-1.5 rounded-lg text-xs font-medium transition-all border",
                       extraPayment === amt ? "border-emerald-500 bg-emerald-500/10 text-emerald-600" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
-                    )}>+${(amt / 1000).toFixed(0)}k</button>
+                    )}>+${(amt / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}k</button>
                 ))}
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -356,16 +356,20 @@ export default function DebtClient() {
             <div className="sm:hidden space-y-2">
               {debts.map(debt => (
                 <div key={debt.id} className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
-                  <div className="flex items-center justify-between" onClick={() => openEdit(debt)}>
-                    <div className="flex items-center gap-2"><span className="text-lg">{DEBT_ICONS[debt.type] || '📄'}</span><div><p className="text-sm font-medium flex items-center gap-2">{debt.name} <OwnerDot owner={debt.owner} /></p><p className="text-xs text-[hsl(var(--text-tertiary))]">{debt.creditor}</p></div></div>
-                    <span className="text-sm font-bold tabular-nums text-rose-600">${debt.balance.toLocaleString()}</span>
+                  <div className="flex items-center justify-between gap-3" onClick={() => openEdit(debt)}>
+                    <div className="flex min-w-0 items-center gap-2"><span className="shrink-0 text-lg">{DEBT_ICONS[debt.type] || '📄'}</span><div className="min-w-0"><p className="text-sm font-medium flex min-w-0 items-center gap-2"><span className="truncate">{debt.name}</span> <OwnerDot owner={debt.owner} className="shrink-0" /></p>{debt.creditor && <p className="truncate text-xs text-[hsl(var(--text-tertiary))]">{debt.creditor}</p>}</div></div>
+                    <span className="shrink-0 whitespace-nowrap text-sm font-bold tabular-nums text-rose-600">${debt.balance.toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-tertiary))]"><span className={cn(debt.interest_rate >= 25 ? "text-rose-600" : debt.interest_rate >= 15 ? "text-amber-600" : "")}>{debt.interest_rate}% APR</span><span>Min: ${debt.minimum_payment.toLocaleString()}</span></div>
-                    <div className="flex gap-1">
+                  <div className="flex items-center justify-between gap-2 mt-1.5">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-[hsl(var(--text-tertiary))]"><span className={cn("whitespace-nowrap", debt.interest_rate >= 25 ? "text-rose-600" : debt.interest_rate >= 15 ? "text-amber-600" : "")}>{debt.interest_rate}% APR</span><span className="whitespace-nowrap">Min: ${debt.minimum_payment.toLocaleString()}</span></div>
+                    <div className="-mr-1.5 flex shrink-0 gap-0.5">
                       <button onClick={(e) => { e.stopPropagation(); setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }} className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-600" title="Log payment"><CreditCard className="h-3.5 w-3.5" /></button>
                       <button aria-label="Edit" onClick={() => openEdit(debt)} className="p-1.5 rounded-lg hover:bg-blue-500/10 text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
-                      <button aria-label="Delete" onClick={() => setDeleteConfirm(debt.id)} className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                      {deleteConfirm === debt.id ? (
+                        <div className="flex gap-1"><button onClick={() => handleDelete(debt.id)} className="px-2.5 rounded-lg text-xs font-semibold bg-rose-600 text-white">Del</button><button onClick={() => setDeleteConfirm(null)} className="px-2.5 rounded-lg text-xs bg-[hsl(var(--bg-elevated))]">No</button></div>
+                      ) : (
+                        <button aria-label="Delete" onClick={() => setDeleteConfirm(debt.id)} className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                      )}
                     </div>
                   </div>
                 </div>

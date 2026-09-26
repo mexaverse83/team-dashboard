@@ -358,15 +358,15 @@ export function CryptoClient() {
             {prices ? 'Live prices via CoinGecko' : 'Prices unavailable'}
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <button onClick={handleRefresh} disabled={refreshing} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-[hsl(var(--accent))] hover:bg-[hsl(var(--accent))]/80 transition-colors disabled:opacity-60">
+        <div className="flex w-full gap-2 sm:w-auto sm:flex-wrap">
+          <button onClick={handleRefresh} disabled={refreshing} className="flex grow sm:grow-0 items-center justify-center gap-1.5 whitespace-nowrap px-2 sm:px-3 py-2 sm:py-1.5 rounded-lg text-xs bg-[hsl(var(--accent))] hover:bg-[hsl(var(--accent))]/80 transition-colors disabled:opacity-60">
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
-          <button onClick={() => openTxForm()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
+          <button onClick={() => openTxForm()} className="flex grow sm:grow-0 items-center justify-center gap-1.5 whitespace-nowrap px-2 sm:px-3 py-2 sm:py-1.5 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-500 text-white transition-colors">
             <Plus className="h-3.5 w-3.5" /> Log Transaction
           </button>
-          <button onClick={() => { setHoldingForm(EMPTY_HOLDING_FORM); setShowHoldingForm(true) }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-[hsl(var(--accent))] hover:bg-[hsl(var(--accent))]/80 transition-colors">
+          <button onClick={() => { setHoldingForm(EMPTY_HOLDING_FORM); setShowHoldingForm(true) }} className="flex grow sm:grow-0 items-center justify-center gap-1.5 whitespace-nowrap px-2 sm:px-3 py-2 sm:py-1.5 rounded-lg text-xs bg-[hsl(var(--accent))] hover:bg-[hsl(var(--accent))]/80 transition-colors">
             <Plus className="h-3.5 w-3.5" /> Add Position
           </button>
         </div>
@@ -382,26 +382,26 @@ export function CryptoClient() {
           <Wallet className="h-4 w-4 text-emerald-600" />
           <span className="text-sm font-semibold">Portfolio Value</span>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 sm:gap-4">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total (MXN)</p>
-            <p className="text-lg font-bold text-emerald-600 tabular-nums">{fmtMXN(totalMXN)}</p>
+            <p className="text-base sm:text-lg font-bold text-emerald-600 tabular-nums">{fmtMXN(totalMXN)}</p>
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total (USD)</p>
-            <p className="text-lg font-bold tabular-nums">{fmtUSD(totalUSD)}</p>
+            <p className="text-base sm:text-lg font-bold tabular-nums">{fmtUSD(totalUSD)}</p>
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Cost Basis</p>
-            <p className="text-lg font-bold text-[hsl(var(--text-secondary))] tabular-nums">{totalCostMXN > 0 ? fmtMXN(totalCostMXN) : '—'}</p>
+            <p className="text-base sm:text-lg font-bold text-[hsl(var(--text-secondary))] tabular-nums">{totalCostMXN > 0 ? fmtMXN(totalCostMXN) : '—'}</p>
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">P&L</p>
             {totalPL !== null ? (
-              <p className={`text-lg font-bold flex items-center gap-1 tabular-nums whitespace-nowrap ${totalPL >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                {totalPL >= 0 ? <TrendingUp className="h-4 w-4 shrink-0" /> : <TrendingDown className="h-4 w-4 shrink-0" />}
-                {totalPL >= 0 ? '+' : ''}{fmtMXN(totalPL)}
-                {totalPLPct !== null && <span className="text-xs font-medium ml-1">({totalPLPct >= 0 ? '+' : ''}{totalPLPct.toFixed(1)}%)</span>}
+              <p className={`text-base sm:text-lg font-bold flex flex-wrap sm:flex-nowrap items-center gap-x-1 tabular-nums sm:whitespace-nowrap ${totalPL >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {totalPL >= 0 ? <TrendingUp className="hidden sm:block h-4 w-4 shrink-0" /> : <TrendingDown className="hidden sm:block h-4 w-4 shrink-0" />}
+                <span>{totalPL >= 0 ? '+' : ''}{fmtMXN(totalPL)}</span>
+                {totalPLPct !== null && <span className="text-xs font-medium sm:ml-1">({totalPLPct >= 0 ? '+' : ''}{totalPLPct.toFixed(1)}%)</span>}
               </p>
             ) : <p className="text-lg font-bold text-[hsl(var(--text-secondary))]">—</p>}
           </div>
@@ -548,9 +548,9 @@ export function CryptoClient() {
               )
             })}
           </div>
-          <div className="flex gap-4 mt-1.5">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 sm:gap-x-4 mt-1.5">
             {filtered.map(h => (
-              <span key={h.id} className="flex items-center gap-1.5 text-[11px] text-[hsl(var(--text-secondary))]">
+              <span key={h.id} className="flex items-center gap-1.5 whitespace-nowrap text-[11px] text-[hsl(var(--text-secondary))]">
                 <span className={`h-2 w-2 rounded-full ${COIN_SOLIDS[h.symbol] || 'bg-gray-500'}`} />
                 {h.symbol} {((getValueMXN(h, prices) / totalMXN) * 100).toFixed(0)}%
               </span>
@@ -583,25 +583,25 @@ export function CryptoClient() {
             return (
               <GlassCard key={h.id} className="p-4 relative group">
                 <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => openTxForm(h.symbol, h.owner, h.id)} className="p-1.5 rounded-md hover:bg-emerald-500/20" title="Log transaction">
+                  <button onClick={() => openTxForm(h.symbol, h.owner, h.id)} className="p-2 sm:p-1.5 rounded-md hover:bg-emerald-500/20" title="Log transaction">
                     <Plus className="h-3.5 w-3.5 text-emerald-600" />
                   </button>
-                  <button aria-label="Edit" onClick={() => editHolding(h)} className="p-1.5 rounded-md hover:bg-[hsl(var(--accent))]">
+                  <button aria-label="Edit" onClick={() => editHolding(h)} className="p-2 sm:p-1.5 rounded-md hover:bg-[hsl(var(--accent))]">
                     <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                   </button>
-                  <button aria-label="Delete" onClick={() => handleDeleteHolding(h.id)} className="p-1.5 rounded-md hover:bg-red-500/20">
+                  <button aria-label="Delete" onClick={() => handleDeleteHolding(h.id)} className="p-2 sm:p-1.5 rounded-md hover:bg-red-500/20">
                     <Trash2 className="h-3.5 w-3.5 text-red-600" />
                   </button>
                 </div>
 
-                <div className="flex items-center gap-3 mb-3">
-                  <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${COIN_COLORS[h.symbol] || 'from-gray-500 to-gray-600'} flex items-center justify-center text-white font-bold text-lg overflow-hidden`}>
+                <div className="flex items-center gap-3 mb-3 pr-28 sm:pr-0">
+                  <div className={`h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br ${COIN_COLORS[h.symbol] || 'from-gray-500 to-gray-600'} flex items-center justify-center text-white font-bold text-lg overflow-hidden`}>
                     {COIN_LOGOS[h.symbol]
                       ? <img src={COIN_LOGOS[h.symbol]} alt={h.symbol} className="h-full w-full object-cover" />
                       : (COIN_ICONS[h.symbol] || '?')}
                   </div>
-                  <div>
-                    <p className="font-semibold text-sm flex items-center gap-1.5">{h.name} <OwnerDot owner={h.owner} size="sm" /></p>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm flex items-center gap-1.5"><span className="truncate">{h.name}</span> <OwnerDot owner={h.owner} size="sm" /></p>
                     <p className="text-[10px] text-[hsl(var(--text-tertiary))]">{h.symbol}</p>
                   </div>
                 </div>
@@ -749,7 +749,7 @@ export function CryptoClient() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Asset</label>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-3 gap-2 sm:flex">
                   {['BTC', 'ETH', 'SOL', 'KAS', 'LIT', 'AERO'].map(s => (
                     <button key={s} onClick={() => setHoldingForm(f => ({ ...f, symbol: s }))}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${holdingForm.symbol === s ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'}`}>
@@ -817,7 +817,7 @@ export function CryptoClient() {
               {/* Asset */}
               <div>
                 <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Asset</label>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-3 gap-2 sm:flex">
                   {['BTC', 'ETH', 'SOL', 'KAS', 'LIT', 'AERO'].map(s => (
                     <button key={s} onClick={() => setTxForm(f => ({ ...f, symbol: s }))}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${txForm.symbol === s ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'}`}>

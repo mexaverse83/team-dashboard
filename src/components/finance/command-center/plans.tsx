@@ -12,7 +12,7 @@ function MiniStat({ label, value, tone }: { label: string; value: string; tone?:
     <div>
       <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">{label}</p>
       <p className={cn(
-        'text-sm font-bold tabular-nums',
+        'whitespace-nowrap text-sm font-bold tabular-nums',
         tone === 'good' && 'text-emerald-600',
         tone === 'bad' && 'text-rose-600',
       )}>{value}</p>
@@ -24,7 +24,7 @@ function ExpandToggle({ open, onClick }: { open: boolean; onClick: () => void })
   return (
     <button
       onClick={onClick}
-      className="mt-3 w-full inline-flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--muted))]/30 rounded-md transition-colors"
+      className="mt-3 w-full inline-flex min-h-10 items-center justify-center gap-1 py-1.5 text-xs sm:min-h-0 font-medium text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--muted))]/30 rounded-md transition-colors"
     >
       {open ? <>Hide detail <ChevronUp className="h-3 w-3" /></> : <>Show detail <ChevronDown className="h-3 w-3" /></>}
     </button>
@@ -79,12 +79,12 @@ function DecemberCard({ plan }: { plan: Summary['year_end_goal_plan'] }) {
 
       <div className="mt-3">
         <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly gap to stay on track</p>
-        <p className={cn('text-2xl font-bold tabular-nums leading-none', plan.on_track ? 'text-emerald-600' : 'text-rose-600')}>
+        <p className={cn('mt-1 text-2xl font-bold tabular-nums leading-none', plan.on_track ? 'text-emerald-600' : 'text-rose-600')}>
           {plan.on_track ? 'On track' : `${fmtMoney(plan.monthly_extra_needed, { compact: true })}/mo`}
         </p>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-3">
+      <div className="mt-3 flex justify-between gap-2 sm:grid sm:grid-cols-3 sm:gap-3">
         <MiniStat label="Saved" value={fmtMoney(plan.current_saved, { compact: true })} tone="good" />
         <MiniStat label="To save" value={fmtMoney(plan.goal_remaining, { compact: true })} />
         <MiniStat label="+ Plans" value={fmtMoney(plan.treatment_remaining + (plan.baby_remaining_this_year ?? 0), { compact: true })} />
@@ -155,10 +155,10 @@ function FertilityCard({ plan }: { plan: Summary['fertility_plan'] }) {
 
       <div className="mt-3">
         <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Remaining of {fmtMoney(plan.planning_total, { compact: true })} all-in</p>
-        <p className="text-2xl font-bold tabular-nums leading-none">{fmtMoney(plan.remaining_amount, { compact: true })}</p>
+        <p className="mt-1 text-2xl font-bold tabular-nums leading-none">{fmtMoney(plan.remaining_amount, { compact: true })}</p>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-3">
+      <div className="mt-3 flex justify-between gap-2 sm:grid sm:grid-cols-3 sm:gap-3">
         <MiniStat label="Next pay" value={next ? fmtMoney(nextPayment, { compact: true }) : '—'} />
         <MiniStat label="Mo. shortfall" value={hasGap ? fmtMoney(gap, { compact: true }) : '$0'} tone={hasGap ? 'bad' : 'good'} />
         <MiniStat label="Free after" value={fmtMoney(plan.discretionary_after_treatment, { compact: true })} tone={plan.discretionary_after_treatment >= 0 ? 'good' : 'bad'} />
@@ -244,10 +244,10 @@ export function BabyPlanCard({ plan }: { plan: NonNullable<Summary['baby_plan']>
 
       <div className="mt-3">
         <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Remaining of {fmtMoney(plan.planning_total, { compact: true })} envelope</p>
-        <p className="text-2xl font-bold tabular-nums leading-none">{fmtMoney(plan.remaining_amount, { compact: true })}</p>
+        <p className="mt-1 text-2xl font-bold tabular-nums leading-none">{fmtMoney(plan.remaining_amount, { compact: true })}</p>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-3">
+      <div className="mt-3 flex justify-between gap-2 sm:grid sm:grid-cols-3 sm:gap-3">
         <MiniStat label="Due" value={dueLabel} />
         <MiniStat label="To birth" value={`${plan.months_to_birth} mo`} />
         <MiniStat label="Next event" value={next ? fmtMoney(next.amount, { compact: true }) : '—'} />
@@ -327,10 +327,10 @@ export function EducationFundCard({ education }: { education: NonNullable<Summar
 
       <div className="mt-3">
         <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Projected at {education.target_month.slice(0, 4)}</p>
-        <p className="text-2xl font-bold tabular-nums leading-none text-violet-600">{fmtMoney(education.projected_value, { compact: true })}</p>
+        <p className="mt-1 text-2xl font-bold tabular-nums leading-none text-violet-600">{fmtMoney(education.projected_value, { compact: true })}</p>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-3">
+      <div className="mt-3 flex justify-between gap-2 sm:grid sm:grid-cols-3 sm:gap-3">
         <MiniStat label="Monthly" value={fmtMoney(education.monthly_contribution, { compact: true })} />
         <MiniStat label="Starts" value={startLabel} />
         <MiniStat label={`Tec in ${education.target_month.slice(0, 4)}`} value={`${fmtMoney(education.tec_cost_min, { compact: true })}–${fmtMoney(education.tec_cost_max, { compact: true })}`} />

@@ -41,9 +41,9 @@ export function OwnerBar({ bernardo, laura, className }: { bernardo: number; lau
         <div className="bg-blue-500 transition-all" style={{ width: `${bPct}%` }} />
         <div className="bg-pink-500 transition-all" style={{ width: `${lPct}%` }} />
       </div>
-      <div className="flex items-center justify-between text-xs text-[hsl(var(--text-tertiary))]">
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" />B: ${bernardo.toLocaleString()}</span>
-        <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-pink-500" />L: ${laura.toLocaleString()}</span>
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-[10px] sm:text-xs text-[hsl(var(--text-tertiary))]">
+        <span className="flex items-center gap-1 whitespace-nowrap"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" />B: ${Math.round(bernardo).toLocaleString()}</span>
+        <span className="flex items-center gap-1 whitespace-nowrap"><span className="h-1.5 w-1.5 rounded-full bg-pink-500" />L: ${Math.round(laura).toLocaleString()}</span>
       </div>
     </div>
   )

@@ -80,11 +80,11 @@ export function EducationProjectionWithScenarios() {
         <div className="flex gap-2 mb-4">
           {[{ label: 'Lean', amount: 5000 }, { label: 'Plan', amount: 7000 }, { label: 'Accelerated', amount: 10000 }].map(p => (
             <button key={p.label} onClick={() => setMonthly(p.amount)}
-              className={cn('flex-1 py-2 rounded-lg text-xs font-medium transition-all border',
+              className={cn('flex-1 px-1 py-2 rounded-lg text-xs font-medium leading-tight sm:leading-normal transition-all border',
                 monthly === p.amount
                   ? 'border-blue-500 bg-blue-500/10 text-blue-600'
                   : 'border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]'
-              )}>{p.label} (${(p.amount / 1000).toFixed(0)}k)</button>
+              )}><span className="block sm:inline">{p.label}</span> <span className="block sm:inline">(${(p.amount / 1000).toFixed(0)}k)</span></button>
           ))}
         </div>
         <div className="space-y-2">
@@ -97,18 +97,18 @@ export function EducationProjectionWithScenarios() {
               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
               [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:shadow-lg
               [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
-          <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))]"><span>$2k</span><span>Starting 5 years late costs ~72% more per month</span><span>$15k</span></div>
+          <div className="flex justify-between gap-2 text-[10px] text-[hsl(var(--text-tertiary))]"><span className="shrink-0">$2k</span><span className="text-center">Starting 5 years late costs ~72% more per month</span><span className="shrink-0">$15k</span></div>
         </div>
 
         <div className="space-y-2 mt-4 pt-4 border-t border-[hsl(var(--border))]">
           <div className="flex gap-2 mb-2">
             {[{ label: 'Conservative', rate: 7 }, { label: 'Base', rate: 8 }, { label: 'Equity-heavy', rate: 10 }].map(p => (
               <button key={p.label} onClick={() => setReturnRate(p.rate)}
-                className={cn('flex-1 py-1.5 rounded-lg text-[10px] font-medium transition-all border',
+                className={cn('flex-1 px-1 py-1.5 rounded-lg text-[10px] font-medium leading-tight sm:leading-normal transition-all border',
                   Math.abs(returnRate - p.rate) < 0.1
                     ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600'
                     : 'border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--foreground))]'
-                )}>{p.label} ({p.rate}%)</button>
+                )}><span className="block sm:inline">{p.label}</span> <span className="block sm:inline">({p.rate}%)</span></button>
             ))}
           </div>
           <div className="flex items-center justify-between">
@@ -120,24 +120,24 @@ export function EducationProjectionWithScenarios() {
               [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
               [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-emerald-500 [&::-webkit-slider-thumb]:shadow-lg
               [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
-          <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))]">
-            <span>4%</span><span>S&amp;P-like via GBM (CSPX/VOO), before the 10% definitive ISR · education inflates at {Math.round(EDUCATION_FUND_PLAN.educationInflationRate * 100)}%</span><span>12%</span>
+          <div className="flex justify-between gap-2 text-[10px] text-[hsl(var(--text-tertiary))]">
+            <span className="shrink-0">4%</span><span className="text-center">S&amp;P-like via GBM (CSPX/VOO), before the 10% definitive ISR · education inflates at {Math.round(EDUCATION_FUND_PLAN.educationInflationRate * 100)}%</span><span className="shrink-0">12%</span>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mt-4 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
+        <div className="grid grid-cols-3 items-end gap-3 sm:gap-4 mt-4 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/50">
           <div>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Fund at {final.year}</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-wider leading-tight text-[hsl(var(--text-tertiary))]">Fund at {final.year}</span>
             <p className="text-lg font-bold tabular-nums text-emerald-600">{fmtShort(final.fund)}</p>
           </div>
           <div>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Tuition covered</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-wider leading-tight text-[hsl(var(--text-tertiary))]">Tuition covered</span>
             <p className={cn('text-lg font-bold tabular-nums', coversTuition ? 'text-emerald-600' : 'text-red-600')}>
               {coversTuition ? '✅ Yes' : `${Math.round((final.fund / final.tec_min) * 100)}%`}
             </p>
           </div>
           <div>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">All-in gap</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-wider leading-tight text-[hsl(var(--text-tertiary))]">All-in gap</span>
             <p className={cn('text-lg font-bold tabular-nums', coversAllIn ? 'text-emerald-600' : 'text-amber-600')}>
               {coversAllIn ? '✅ Covered' : fmtShort(gapToAllIn)}
             </p>
@@ -207,9 +207,9 @@ export function FamilyFutureStrip() {
 
   return (
     <GlassCard className="p-4 sm:p-5">
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-start justify-between gap-3 mb-1">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">Family Future — this portfolio&rsquo;s next jobs</h3>
-        <Link href="/finance/family" className="inline-flex items-center gap-1 text-xs font-medium text-[hsl(var(--brand))] hover:underline">
+        <Link href="/finance/family" className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-[hsl(var(--brand))] hover:underline">
           Family plan <ArrowRight className="h-3 w-3" />
         </Link>
       </div>

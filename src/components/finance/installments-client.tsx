@@ -239,7 +239,7 @@ export function InstallmentsClient() {
             <h1 className="flex items-center gap-2.5 text-2xl font-bold"><span className="section-tick" aria-hidden />MSI Installments</h1>
             <p className="text-sm text-[hsl(var(--text-secondary))]">Meses Sin Intereses — interest-free installment plans</p>
           </div>
-          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
+          <button onClick={openAdd} className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
             <Plus className="h-4 w-4" /> Add MSI Plan
           </button>
         </div>
@@ -261,22 +261,22 @@ export function InstallmentsClient() {
         {/* KPI Cards */}
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           <GlassCard>
-            <p className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Monthly MSI</p>
+            <p className="truncate text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))] sm:text-xs">Monthly MSI</p>
             <div className="text-2xl sm:text-3xl font-bold num-metric tabular-nums mt-1">{fmt(totalMonthlyCommitment)}</div>
             <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">committed per month</p>
           </GlassCard>
           <GlassCard>
-            <p className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Active Plans</p>
+            <p className="truncate text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))] sm:text-xs">Active Plans</p>
             <AnimatedNumber value={active.length} className="text-2xl sm:text-3xl font-bold mt-1" />
             <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">{completed.length} completed</p>
           </GlassCard>
           <GlassCard>
-            <p className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Remaining Balance</p>
+            <p className="truncate text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))] sm:text-xs">Remaining Balance</p>
             <div className="text-2xl sm:text-3xl font-bold num-metric tabular-nums mt-1">{fmt(totalRemaining)}</div>
             <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">left to pay</p>
           </GlassCard>
           <GlassCard>
-            <p className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Next to Finish</p>
+            <p className="truncate text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))] sm:text-xs">Next to Finish</p>
             <div className="text-sm font-bold mt-1 truncate">{nextToFinish?.name ?? '—'}</div>
             {nextToFinish && (
               <p className="text-xs text-green-600 mt-1">
@@ -293,10 +293,10 @@ export function InstallmentsClient() {
             <p className="text-xs text-[hsl(var(--text-tertiary))] mb-4">When each plan ends — visualize when cash flow frees up</p>
             <div className="overflow-y-auto max-h-[300px] sm:max-h-none">
             <ResponsiveContainer width="100%" height={Math.max(200, timelineData.length * 44 + 40)}>
-              <BarChart data={timelineData} layout="vertical" margin={{ left: 0, right: 40 }}>
+              <BarChart data={timelineData} layout="vertical" margin={{ left: 0, right: 16 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border-subtle))" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 11, fill: 'hsl(var(--text-tertiary))' }} axisLine={false} tickLine={false} label={{ value: 'Months', position: 'insideBottomRight', fontSize: 11, fill: 'hsl(var(--text-tertiary))' }} />
-                <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11, fill: 'hsl(var(--text-secondary))' }} axisLine={false} tickLine={false} />
+                <XAxis type="number" height={40} tick={{ fontSize: 11, fill: 'hsl(var(--text-tertiary))' }} axisLine={false} tickLine={false} label={{ value: 'Months', position: 'insideBottom', offset: 0, fontSize: 11, fill: 'hsl(var(--text-tertiary))' }} />
+                <YAxis type="category" dataKey="name" width={Math.min(130, Math.max(56, Math.max(...timelineData.map(d => d.name.length)) * 7 + 12))} tick={{ fontSize: 11, fill: 'hsl(var(--text-secondary))' }} axisLine={false} tickLine={false} />
                 <Tooltip
                   {...tooltipStyle}
 
@@ -408,23 +408,26 @@ export function InstallmentsClient() {
                   const pct = (inst.payments_made / inst.installment_count) * 100
                   const remain = monthsRemaining(inst.end_date)
                   return (
-                    <div key={inst.id} className="p-4 rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--bg-elevated))]">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <p className="font-medium text-sm">{inst.name}</p>
-                          {inst.merchant && <p className="text-xs text-[hsl(var(--text-tertiary))]">{inst.merchant}</p>}
+                    <div key={inst.id} className="p-3.5 rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--bg-elevated))]">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="min-w-0">
+                          <p className="flex items-center gap-1.5 font-medium text-sm"><span className="truncate">{inst.name}</span> <OwnerDot owner={inst.owner} /></p>
+                          {inst.merchant && <p className="truncate text-xs text-[hsl(var(--text-tertiary))]">{inst.merchant}</p>}
                         </div>
-                        <span className="text-sm font-bold num-metric tabular-nums text-rose-600">{fmt(inst.installment_amount)}/mo</span>
+                        <span className="shrink-0 whitespace-nowrap text-sm font-bold num-metric tabular-nums text-rose-600">{fmt(inst.installment_amount)}/mo</span>
                       </div>
                       <div className="flex items-center gap-2 mb-2">
                         <div className="flex-1 h-2 rounded-full bg-[hsl(var(--bg-base))] overflow-hidden">
                           <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-xs text-[hsl(var(--text-tertiary))]">{inst.payments_made}/{inst.installment_count}</span>
+                        <span className="shrink-0 text-xs tabular-nums text-[hsl(var(--text-tertiary))]">{inst.payments_made}/{inst.installment_count}</span>
                       </div>
-                      <div className="flex items-center justify-between text-xs text-[hsl(var(--text-tertiary))]">
-                        <span>{inst.credit_card ? `💳 ${inst.credit_card}` : ''} · Ends {new Date(inst.end_date).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })} ({remain}mo)</span>
-                        <div className="flex gap-1">
+                      <div className="flex items-center justify-between gap-2 text-xs text-[hsl(var(--text-tertiary))]">
+                        <div className="min-w-0">
+                          {inst.credit_card && <p className="truncate">💳 {inst.credit_card}</p>}
+                          <p className="whitespace-nowrap">Ends {new Date(inst.end_date).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' })} ({remain}mo)</p>
+                        </div>
+                        <div className="-mr-2 flex shrink-0 gap-0.5">
                           <button aria-label="Mark as paid" onClick={() => handleMarkPayment(inst)} className="p-1 text-emerald-600"><CheckCircle2 className="h-4 w-4" /></button>
                           <button aria-label="Edit" onClick={() => openEdit(inst)} className="p-1 text-blue-600"><Pencil className="h-4 w-4" /></button>
                           <button aria-label="Delete" onClick={() => setDeleteConfirm(inst.id)} className="p-1 text-red-600"><Trash2 className="h-4 w-4" /></button>
@@ -444,14 +447,14 @@ export function InstallmentsClient() {
             <h2 className="text-base font-semibold mb-4 text-[hsl(var(--text-secondary))]">Completed ({completed.length})</h2>
             <div className="space-y-2">
               {completed.map(inst => (
-                <div key={inst.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-[hsl(var(--bg-elevated))] opacity-60 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors">
-                  <div>
+                <div key={inst.id} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-[hsl(var(--bg-elevated))] opacity-60 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors">
+                  <div className="min-w-0 truncate">
                     <span className="text-sm">{inst.name}</span>
                     {inst.merchant && <span className="text-xs text-[hsl(var(--text-tertiary))] ml-2">{inst.merchant}</span>}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-[hsl(var(--text-tertiary))]">
+                  <div className="flex shrink-0 items-center gap-2 text-xs text-[hsl(var(--text-tertiary))] sm:gap-3">
                     <span className="num-metric tabular-nums">{fmt(inst.total_amount)}</span>
-                    <span>✅ {inst.installment_count} payments</span>
+                    <span className="whitespace-nowrap">✅ {inst.installment_count}<span className="hidden sm:inline"> payments</span></span>
                     <button aria-label="Delete" onClick={() => setDeleteConfirm(inst.id)} className="p-1 text-red-600 hover:bg-red-500/20 rounded">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -481,17 +484,17 @@ export function InstallmentsClient() {
               <datalist id="msi-cards"><option value="BBVA Infinite" /><option value="American Express" /></datalist>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className="text-xs font-medium text-[hsl(var(--text-secondary))]">Total Amount (MXN) *</label>
               <input type="number" className={inputCls} value={form.total_amount} onChange={e => setForm(f => ({ ...f, total_amount: e.target.value }))} placeholder="25000" />
             </div>
             <div>
               <label className="text-xs font-medium text-[hsl(var(--text-secondary))]">MSI Months *</label>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mt-1">
+              <div className="grid grid-cols-6 gap-1.5 mt-1">
                 {MSI_PRESETS.map(n => (
                   <button key={n} onClick={() => setForm(f => ({ ...f, installment_count: String(n) }))}
-                    className={cn("py-2 rounded-lg text-xs font-medium transition-all text-center",
+                    className={cn("py-2.5 rounded-lg text-xs font-medium transition-all text-center sm:py-2",
                       form.installment_count === String(n) && MSI_PRESETS.includes(parseInt(form.installment_count))
                         ? "bg-blue-600 text-white"
                         : "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))]/80"
@@ -501,13 +504,13 @@ export function InstallmentsClient() {
                 ))}
               </div>
               <div className="flex items-center gap-2 mt-2">
-                <span className="text-xs text-[hsl(var(--text-tertiary))]">or custom:</span>
+                <span className="shrink-0 text-xs text-[hsl(var(--text-tertiary))]">or custom:</span>
                 <input
                   type="number"
                   min="1"
                   max="48"
                   placeholder="Custom"
-                  className={cn(inputCls, "w-20 text-center")}
+                  className={cn(inputCls, "min-w-0 flex-1 text-center sm:w-20 sm:flex-none")}
                   value={MSI_PRESETS.includes(parseInt(form.installment_count)) ? '' : form.installment_count}
                   onChange={e => setForm(f => ({ ...f, installment_count: e.target.value }))}
                 />

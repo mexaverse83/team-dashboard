@@ -245,7 +245,7 @@ export default function RulesClient() {
           />
         ) : (
           <GlassCard>
-            <div className="grid grid-cols-12 gap-3 text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] pb-3 border-b border-[hsl(var(--border))]">
+            <div className="hidden sm:grid grid-cols-12 gap-3 text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] pb-3 border-b border-[hsl(var(--border))]">
               <div className="col-span-4">Merchant pattern</div>
               <div className="col-span-3">Category</div>
               <div className="col-span-1 text-center">Owner</div>
@@ -258,13 +258,13 @@ export default function RulesClient() {
               return (
                 <div
                   key={rule.id}
-                  className="grid grid-cols-12 gap-3 items-center py-3 border-b border-[hsl(var(--border))] last:border-0 text-sm"
+                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 items-center py-3 border-b border-[hsl(var(--border))] last:border-0 text-sm sm:grid-cols-12 sm:gap-3"
                 >
-                  <div className="col-span-4">
-                    <p className="font-medium flex items-center gap-2">
-                      <code className="px-1.5 py-0.5 rounded bg-[hsl(var(--muted))] text-xs font-mono">{rule.merchant_pattern}</code>
+                  <div className="col-start-1 row-span-2 row-start-1 min-w-0 sm:col-span-4 sm:col-start-auto sm:row-span-1 sm:row-start-auto">
+                    <p className="font-medium flex min-w-0 items-center gap-2">
+                      <code className="min-w-0 truncate px-1.5 py-0.5 rounded bg-[hsl(var(--muted))] text-xs font-mono">{rule.merchant_pattern}</code>
                       {rule.learned && (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-600">
+                        <span className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-600">
                           <Sparkles className="h-2.5 w-2.5" /> Learned
                         </span>
                       )}
@@ -275,8 +275,12 @@ export default function RulesClient() {
                       {rule.amount_max != null && ` · max $${rule.amount_max}`}
                       {rule.notes && ` · ${rule.notes}`}
                     </p>
+                    <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))] sm:hidden">
+                      {cat ? <span className="min-w-0 truncate">{cat.icon} {cat.name}</span> : <span className="text-[hsl(var(--text-tertiary))]">—</span>}
+                      <span className="shrink-0 text-[hsl(var(--text-tertiary))]">· {rule.owner || 'all'} · {rule.match_count} matches</span>
+                    </p>
                   </div>
-                  <div className="col-span-3">
+                  <div className="hidden sm:block col-span-3">
                     {cat ? (
                       <span className="inline-flex items-center gap-1.5 text-sm">
                         <span>{cat.icon}</span>
@@ -286,30 +290,32 @@ export default function RulesClient() {
                       <span className="text-[hsl(var(--text-tertiary))]">—</span>
                     )}
                   </div>
-                  <div className="col-span-1 text-center text-xs">
+                  <div className="hidden sm:block col-span-1 text-center text-xs">
                     {rule.owner || <span className="text-[hsl(var(--text-tertiary))]">all</span>}
                   </div>
-                  <div className="col-span-1 text-right tabular-nums text-xs text-[hsl(var(--text-secondary))]">
+                  <div className="hidden sm:block col-span-1 text-right tabular-nums text-xs text-[hsl(var(--text-secondary))]">
                     {rule.match_count}
                   </div>
-                  <div className="col-span-1 text-center">
+                  <div className="col-start-2 row-start-1 flex justify-end sm:col-span-1 sm:col-start-auto sm:row-start-auto sm:justify-center">
                     <button
                       onClick={() => toggle(rule.id, rule.is_active)}
-                      className={cn(
-                        'h-5 w-9 rounded-full relative transition-colors',
-                        rule.is_active ? 'bg-emerald-500/30' : 'bg-[hsl(var(--muted))]'
-                      )}
+                      className="flex items-center justify-center"
                       aria-label={rule.is_active ? 'Disable' : 'Enable'}
                     >
-                      <span
-                        className={cn(
-                          'absolute top-0.5 h-4 w-4 rounded-full transition-all',
-                          rule.is_active ? 'left-4 bg-emerald-400' : 'left-0.5 bg-[hsl(var(--text-tertiary))]'
-                        )}
-                      />
+                      <span className={cn(
+                        'relative block h-5 w-9 rounded-full transition-colors',
+                        rule.is_active ? 'bg-emerald-500/30' : 'bg-[hsl(var(--muted))]'
+                      )}>
+                        <span
+                          className={cn(
+                            'absolute top-0.5 h-4 w-4 rounded-full transition-all',
+                            rule.is_active ? 'left-4 bg-emerald-400' : 'left-0.5 bg-[hsl(var(--text-tertiary))]'
+                          )}
+                        />
+                      </span>
                     </button>
                   </div>
-                  <div className="col-span-2 flex justify-end gap-1">
+                  <div className="col-start-2 row-start-2 -mr-1.5 flex justify-end gap-1 sm:col-span-2 sm:col-start-auto sm:row-start-auto sm:mr-0">
                     <button
                       onClick={() => openEdit(rule)}
                       className="h-7 w-7 rounded hover:bg-[hsl(var(--muted))] flex items-center justify-center text-[hsl(var(--text-secondary))]"

@@ -71,9 +71,9 @@ export function LoginClient() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))] p-4">
+    <div className="min-h-[calc(100dvh-11rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] md:min-h-screen flex items-center justify-center bg-[hsl(var(--background))] py-4 md:p-4">
       <div className="w-full max-w-sm">
-        <GlassCard className="p-8">
+        <GlassCard className="p-6 sm:p-8">
           <div className="flex flex-col items-center text-center mb-6">
             <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-4">
               <Lock className="h-7 w-7 text-white" />

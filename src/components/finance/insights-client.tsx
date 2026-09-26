@@ -281,22 +281,22 @@ export default function InsightsClient() {
     <PageTransition>
       <div className="max-w-3xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
+        <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 mb-8">
+          <div className="min-w-0 col-start-1 row-start-1">
             <div className="flex items-center gap-2.5">
               <span className="text-2xl">🐺</span>
               <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Daily Brief</h1>
             </div>
-            <p className="text-sm text-[hsl(var(--text-secondary))] mt-1">
-              {generatedAt ? formatTime(generatedAt) : 'No insights yet'} 
-              {cached && !stale && ' · Cached'}
-              {stale && ' · Stale (>24h old)'}
-            </p>
           </div>
+          <p className="col-span-2 row-start-2 sm:col-span-1 sm:col-start-1 text-sm text-[hsl(var(--text-secondary))] mt-1">
+            {generatedAt ? formatTime(generatedAt) : 'No insights yet'} 
+            {cached && !stale && ' · Cached'}
+            {stale && <span className="whitespace-nowrap"> · Stale (&gt;24h old)</span>}
+          </p>
           <button
             onClick={handleRefresh}
             disabled={loading || generating}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[hsl(var(--border))] text-xs font-medium hover:bg-[hsl(var(--bg-elevated))] disabled:opacity-50 transition-colors"
+            className="col-start-2 row-start-1 sm:row-span-2 flex shrink-0 items-center gap-1.5 min-h-10 sm:min-h-0 px-3 py-1.5 rounded-lg border border-[hsl(var(--border))] text-xs font-medium hover:bg-[hsl(var(--bg-elevated))] disabled:opacity-50 transition-colors"
           >
             <RefreshCw className={cn('h-3.5 w-3.5', generating && 'animate-spin')} />
             {generating ? 'Generating...' : 'Generate'}
@@ -445,11 +445,11 @@ export default function InsightsClient() {
                       row.status === 'over' && 'bg-red-500/5 border-red-500/20',
                       row.status === 'warning' && 'bg-yellow-500/5 border-yellow-500/20',
                     )}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm">{row.icon}</span>
-                          <span className="text-sm font-medium">{row.category}</span>
-                          {row.is_non_monthly && <span className="text-[10px] font-medium text-blue-600 bg-blue-400/10 px-1.5 py-0.5 rounded">📅 {row.billing_cycle}</span>}
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-sm shrink-0">{row.icon}</span>
+                          <span className="text-sm font-medium truncate">{row.category}</span>
+                          {row.is_non_monthly && <span className="shrink-0 whitespace-nowrap text-[10px] font-medium text-blue-600 bg-blue-400/10 px-1.5 py-0.5 rounded">📅 {row.billing_cycle}</span>}
                         </div>
                         <StatusBadge status={row.status} pct={row.pct_used} />
                       </div>
@@ -499,25 +499,25 @@ export default function InsightsClient() {
                     <div className="h-full bg-blue-500" style={{ width: `${Math.max(0, westSnapshot.investPct)}%` }} />
                     <div className="h-full bg-amber-500/60" style={{ width: `${Math.max(0, westSnapshot.growthPct)}%` }} />
                   </div>
-                  <div className="grid grid-cols-2 gap-x-4 text-xs">
-                    <div>
+                  <div className="grid grid-cols-[1fr_auto] gap-x-4 text-xs">
+                    <div className="min-w-0">
                       <span className="text-[hsl(var(--text-secondary))]">Projected: </span>
                       <span className="font-semibold tabular-nums">{fmtMXN(westSnapshot.projectedTotal)}</span>
-                      <span className="text-[hsl(var(--text-secondary))]"> / {fmtMXN(westSnapshot.target)}</span>
+                      <span className="text-[hsl(var(--text-secondary))] whitespace-nowrap"> / {fmtMXN(westSnapshot.target)}</span>
                     </div>
-                    <div className="text-right">
+                    <div className="text-right whitespace-nowrap">
                       <span className="font-semibold tabular-nums text-emerald-600">{westSnapshot.fundedPct.toFixed(0)}%</span>
                       <span className="text-[hsl(var(--text-secondary))]"> funded</span>
                     </div>
                     <div className="mt-1"><span className="text-red-600 tabular-nums">Gap: {fmtMXN(westSnapshot.gap)}</span></div>
-                    <div className="text-right mt-1"><span className="text-[hsl(var(--text-secondary))]">{westSnapshot.monthsRemaining}mo to delivery</span></div>
+                    <div className="text-right mt-1 whitespace-nowrap"><span className="text-[hsl(var(--text-secondary))]">{westSnapshot.monthsRemaining}mo to delivery</span></div>
                   </div>
                   {westSnapshot.nextMilestone && (
                     <div className="mt-3 pt-3 border-t border-[hsl(var(--border))] flex items-center gap-2 text-xs">
                       <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
                       <span className="text-[hsl(var(--text-secondary))]">Next: </span>
-                      <span className="font-medium">{westSnapshot.nextMilestone.title}</span>
-                      <span className="text-[hsl(var(--text-secondary))] ml-auto">{westSnapshot.nextMilestone.date}</span>
+                      <span className="font-medium min-w-0 truncate">{westSnapshot.nextMilestone.title}</span>
+                      <span className="text-[hsl(var(--text-secondary))] ml-auto shrink-0 tabular-nums">{westSnapshot.nextMilestone.date}</span>
                     </div>
                   )}
                 </GlassCard>
@@ -687,7 +687,7 @@ export default function InsightsClient() {
                   </h2>
                   <button
                     onClick={() => setShowRawData(!showRawData)}
-                    className="text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
+                    className="inline-flex min-h-10 sm:min-h-0 items-center text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
                   >
                     {showRawData ? 'Hide data' : 'Show data'}
                   </button>
@@ -706,8 +706,8 @@ export default function InsightsClient() {
                             <div key={i} className="flex items-center justify-between text-sm">
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">{m.name}</p>
-                                <p className="text-sm text-[hsl(var(--text-secondary))]">
-                                  {m.merchant} · {m.payments_remaining} payments left · ends {m.end_date}
+                                <p className="text-xs sm:text-sm text-[hsl(var(--text-secondary))]">
+                                  {m.merchant && <>{m.merchant} · </>}{m.payments_remaining} payments left · <span className="whitespace-nowrap">ends {m.end_date}</span>
                                 </p>
                               </div>
                               <div className="text-right shrink-0 ml-3 min-w-[80px]">

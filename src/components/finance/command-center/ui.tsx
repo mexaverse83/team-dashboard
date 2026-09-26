@@ -32,12 +32,12 @@ export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineCol
     : 'bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-secondary))]'
   const card = (
     <GlassCard className="h-full">
-      <div className="flex items-start justify-between mb-2.5">
+      <div className="flex items-start justify-between gap-2 mb-2.5">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">{label}</span>
         <span className="flex items-center gap-2">
           {trend !== undefined && <TrendBadge value={trend} />}
           {Icon && (
-            <span className={cn('flex h-7 w-7 items-center justify-center rounded-lg -mt-1', chipClass)}>
+            <span className={cn('hidden h-7 w-7 items-center justify-center rounded-lg -mt-1 sm:flex', chipClass)}>
               <Icon className="h-3.5 w-3.5" />
             </span>
           )}
@@ -58,8 +58,8 @@ export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineCol
 // ─── Section header ──────────────────────────────────────────────────────────
 export function SectionHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: { label: string; href: string } }) {
   return (
-    <div className="flex items-end justify-between mb-3">
-      <div>
+    <div className="flex items-end justify-between gap-3 mb-3">
+      <div className="min-w-0">
         <h3 className="flex items-center gap-2 text-base font-semibold leading-tight">
           <span className="section-tick" aria-hidden />
           {title}
@@ -67,7 +67,7 @@ export function SectionHeader({ title, subtitle, action }: { title: string; subt
         {subtitle && <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5 ml-3">{subtitle}</p>}
       </div>
       {action && (
-        <Link href={action.href} className="text-xs text-blue-600 hover:underline inline-flex items-center gap-1">
+        <Link href={action.href} className="text-xs text-blue-600 hover:underline inline-flex shrink-0 items-center gap-1 whitespace-nowrap min-h-9 sm:min-h-0">
           {action.label} <ArrowRight className="h-3 w-3" />
         </Link>
       )}

@@ -260,11 +260,11 @@ export default function SubscriptionsClient() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={processNow} disabled={processing}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
+            className="flex flex-1 items-center justify-center gap-2 whitespace-nowrap px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-50 sm:flex-none">
             {processing ? 'Processing...' : 'Process Due'}
           </button>
           <button onClick={openAdd}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
+            className="flex flex-[1.4] items-center justify-center gap-2 whitespace-nowrap px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors sm:flex-none">
             <Plus className="h-4 w-4" /> Add Subscription
           </button>
         </div>
@@ -279,18 +279,18 @@ export default function SubscriptionsClient() {
       )}
 
       {/* KPIs */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Monthly Burn</span>
+          <span className="block truncate text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))] sm:text-xs">Monthly Burn</span>
           <p className="text-2xl sm:text-3xl font-bold num-metric tabular-nums text-rose-600 mt-1">${Math.round(monthlyBurn).toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Annual Projection</span>
+          <span className="block truncate text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))] sm:text-xs">Annual Projection</span>
           <p className="text-2xl sm:text-3xl font-bold num-metric tabular-nums text-amber-600 mt-1">${Math.round(annualBurn).toLocaleString()}</p>
         </GlassCard>
-        <GlassCard>
-          <span className="block text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Active</span>
-          <AnimatedNumber value={active.length} className="num-metric block text-2xl sm:text-3xl font-bold mt-1" />
+        <GlassCard className="col-span-2 flex items-center justify-between py-3 sm:col-span-1 sm:block sm:py-5">
+          <span className="block text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))] sm:text-xs">Active</span>
+          <AnimatedNumber value={active.length} className="num-metric block text-xl sm:text-3xl font-bold sm:mt-1" />
         </GlassCard>
       </div>
 
@@ -367,20 +367,20 @@ export default function SubscriptionsClient() {
                 <span className="text-lg shrink-0">{sub.category?.icon}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium min-w-0 break-words [overflow-wrap:anywhere] flex items-center gap-1.5">{sub.name} <OwnerDot owner={sub.owner} size="md" /></p>
-                    <span className="text-sm font-semibold num-metric tabular-nums shrink-0 ml-2">${sub.amount.toLocaleString()}</span>
+                    <p className="text-sm font-medium min-w-0 flex items-center gap-1.5"><span className="truncate">{sub.name}</span> <OwnerDot owner={sub.owner} size="md" /></p>
+                    <span className="text-sm font-semibold num-metric tabular-nums shrink-0 whitespace-nowrap ml-2">${sub.amount.toLocaleString()}</span>
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 whitespace-nowrap">
                     <span className="text-xs capitalize text-[hsl(var(--text-tertiary))]">{sub.frequency}</span>
                     {getPaymentMethod(sub.payment_method) && <span className="text-xs text-[hsl(var(--text-tertiary))]">{getPaymentMethod(sub.payment_method)!.short}</span>}
-                    <span className={cn("h-1.5 w-1.5 rounded-full", sub.is_active ? "bg-emerald-500" : "bg-gray-500")} />
+                    <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", sub.is_active ? "bg-emerald-500" : "bg-gray-500")} />
                     {sub.next_due_date && (
                       <span className="text-xs text-[hsl(var(--text-tertiary))]">Due {sub.next_due_date.slice(5)}</span>
                     )}
                   </div>
                 </div>
-                <div className="col-span-2 flex items-center justify-end gap-2 border-t border-[hsl(var(--border))] pt-2">
-                <button type="button" onClick={e => { e.stopPropagation(); openEdit(sub) }} className="mr-auto text-xs font-medium">Edit</button>
+                <div className="col-span-2 -mb-1 flex items-center justify-end gap-1.5 border-t border-[hsl(var(--border))] pt-1.5">
+                <button type="button" onClick={e => { e.stopPropagation(); openEdit(sub) }} className="mr-auto -ml-1 rounded-md px-2 text-xs font-medium">Edit</button>
                 {loggedId === sub.id ? (
                   <span className="text-[10px] text-emerald-600 font-medium shrink-0">✓</span>
                 ) : (
@@ -395,7 +395,7 @@ export default function SubscriptionsClient() {
                   <Power className="h-3.5 w-3.5" />
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(sub.id) }}
-                  className="p-1.5 rounded-md hover:bg-rose-500/10 shrink-0" title="Delete">
+                  className="p-1.5 rounded-md bg-rose-500/10 shrink-0" title="Delete">
                   <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                 </button>
                 </div>
@@ -415,10 +415,10 @@ export default function SubscriptionsClient() {
           <div className="space-y-2">
             {upcoming.map(sub => (
               <div key={sub.id} className="flex items-center gap-3 px-2 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors">
-                <span className="text-sm">{sub.category?.icon}</span>
-                <span className="text-sm font-medium flex-1">{sub.name}</span>
-                <span className="text-xs text-[hsl(var(--text-secondary))] tabular-nums">{sub.next_due_date?.slice(5)}</span>
-                <span className="text-sm font-semibold num-metric tabular-nums text-rose-600 text-right">${sub.amount.toLocaleString()}</span>
+                <span className="text-sm shrink-0">{sub.category?.icon}</span>
+                <span className="text-sm font-medium flex-1 min-w-0 truncate">{sub.name}</span>
+                <span className="shrink-0 text-xs text-[hsl(var(--text-secondary))] tabular-nums">{sub.next_due_date?.slice(5)}</span>
+                <span className="min-w-[4.5rem] shrink-0 whitespace-nowrap text-sm font-semibold num-metric tabular-nums text-rose-600 text-right">${sub.amount.toLocaleString()}</span>
               </div>
             ))}
           </div>
@@ -434,12 +434,12 @@ export default function SubscriptionsClient() {
               onChange={e => updateForm({ name: e.target.value })} className={inputCls} />
           </div>
           <div className="flex gap-2">
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Amount *</label>
               <input type="number" step="0.01" min="0" required placeholder="0.00" value={form.amount}
                 onChange={e => updateForm({ amount: e.target.value })} className={cn(inputCls, "font-semibold")} />
             </div>
-            <div className="w-20">
+            <div className="w-24 shrink-0">
               <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Currency</label>
               <select value={form.currency} onChange={e => updateForm({ currency: e.target.value })} className={inputCls}>
                 <option>MXN</option><option>USD</option>

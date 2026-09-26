@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const securityHeaders = [
@@ -9,6 +10,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // A stray lockfile in the parent folder otherwise makes Turbopack treat it
+  // as the workspace root, which stalls dev compiles.
+  turbopack: { root: path.join(__dirname) },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

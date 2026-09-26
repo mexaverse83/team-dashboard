@@ -45,19 +45,19 @@ export function BbvaStatementCard({ transactions }: { transactions: CycleTransac
           <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--text-tertiary))]">
             <CreditCard className="h-3.5 w-3.5" aria-hidden /> BBVA Infinite
           </p>
-          <p className="mt-1 text-sm font-semibold">
-            Pay by {shortDate(cycle.due)}
-            <span className={cn('ml-2 text-xs font-medium', !isOpen && daysToDue >= 0 && daysToDue <= 5 ? 'text-amber-400' : 'text-[hsl(var(--text-secondary))]')}>{status}</span>
+          <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-sm font-semibold">
+            <span className="whitespace-nowrap">Pay by {shortDate(cycle.due)}</span>
+            <span className={cn('whitespace-nowrap text-xs font-medium', !isOpen && daysToDue >= 0 && daysToDue <= 5 ? 'text-amber-400' : 'text-[hsl(var(--text-secondary))]')}>{status}</span>
           </p>
           <p className="text-xs text-[hsl(var(--text-tertiary))]">Purchases {shortDate(cycle.start)} – {shortDate(cycle.cut)}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="-mr-1.5 -mt-1 flex shrink-0 items-center gap-0.5 sm:mr-0 sm:mt-0 sm:gap-1">
           <button type="button" onClick={() => setOffset(o => o - 1)} aria-label="Previous statement"
-            className="rounded-lg p-1.5 text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))]">
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))] sm:h-auto sm:w-auto sm:p-1.5">
             <ChevronLeft className="h-4 w-4" />
           </button>
           <button type="button" onClick={() => setOffset(o => o + 1)} aria-label="Next statement" disabled={isOpen}
-            className="rounded-lg p-1.5 text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))] disabled:opacity-30">
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))] disabled:opacity-30 sm:h-auto sm:w-auto sm:p-1.5">
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
@@ -65,14 +65,14 @@ export function BbvaStatementCard({ transactions }: { transactions: CycleTransac
 
       <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(0,1fr))] overflow-hidden rounded-xl border border-[hsl(var(--border))]">
         {summary.byOwner.map(({ owner, amount }, index) => (
-          <div key={owner} className={cn('min-w-0 px-3 py-2.5', index > 0 && 'border-l border-[hsl(var(--border))]')}>
+          <div key={owner} className={cn('min-w-0 px-2.5 py-2.5 sm:px-3', index > 0 && 'border-l border-[hsl(var(--border))]')}>
             <p className="flex items-center gap-1.5 truncate text-xs text-[hsl(var(--text-secondary))]">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: getOwnerColor(owner) }} />{owner}
             </p>
             <p className="mt-0.5 truncate text-base font-bold tabular-nums">{money(amount)}</p>
           </div>
         ))}
-        <div className="min-w-0 border-l border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))]/40 px-3 py-2.5">
+        <div className="min-w-0 border-l border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))]/40 px-2.5 py-2.5 sm:px-3">
           <p className="truncate text-xs text-[hsl(var(--text-secondary))]">Total</p>
           <p className="mt-0.5 truncate text-base font-bold tabular-nums text-rose-500">{money(summary.total)}</p>
         </div>

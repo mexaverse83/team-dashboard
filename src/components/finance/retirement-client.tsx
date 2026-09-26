@@ -61,13 +61,13 @@ function AforeCard({ record, onEdit }: { record: RetirementRecord; onEdit: (r: R
   return (
     <GlassCard className="p-4 relative group border-l-2 border-slate-600">
       <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-        <button aria-label="Edit" onClick={() => onEdit(record)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
+        <button aria-label="Edit" onClick={() => onEdit(record)} className="p-2 sm:p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
           <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
         </button>
       </div>
 
       {/* Header */}
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-3 mb-3 pr-9 sm:pr-0">
         <div className="h-10 w-10 rounded-xl bg-slate-700/50 border border-slate-600/50 flex items-center justify-center text-lg shrink-0">
           🔒
         </div>
@@ -120,13 +120,13 @@ function InfonavitCard({ record, onEdit }: { record: RetirementRecord; onEdit: (
   return (
     <GlassCard className="p-4 relative group border-l-2 border-emerald-500">
       <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-        <button aria-label="Edit" onClick={() => onEdit(record)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
+        <button aria-label="Edit" onClick={() => onEdit(record)} className="p-2 sm:p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
           <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
         </button>
       </div>
 
       {/* Header */}
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-3 mb-3 pr-9 sm:pr-0">
         <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white text-lg shrink-0">
           🏗️
         </div>
@@ -316,21 +316,21 @@ export function RetirementTab({ ownerFilter }: RetirementTabProps) {
       {/* KPIs */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Retirement</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums mt-1">{fmtMXN(totalRetirement)}</p>
+          <span className="block text-[10px] sm:text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Retirement</span>
+          <p className="text-lg sm:text-3xl font-bold tabular-nums mt-1 whitespace-nowrap">{fmtMXN(totalRetirement).replace(/ MXN$/, '')}<span className="text-[11px] sm:text-3xl font-semibold sm:font-bold text-[hsl(var(--text-tertiary))] sm:text-current"> MXN</span></p>
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">Net worth contribution</p>
         </GlassCard>
 
         <GlassCard>
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">AFORE Combined</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums mt-1">{fmtMXN(aforeTotal)}</p>
+          <span className="block text-[10px] sm:text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">AFORE Combined</span>
+          <p className="text-lg sm:text-3xl font-bold tabular-nums mt-1 whitespace-nowrap">{fmtMXN(aforeTotal).replace(/ MXN$/, '')}<span className="text-[11px] sm:text-3xl font-semibold sm:font-bold text-[hsl(var(--text-tertiary))] sm:text-current"> MXN</span></p>
           <div className="flex items-center gap-1 mt-1">
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-500/10 text-slate-600 font-medium">🔒 Locked</span>
           </div>
         </GlassCard>
 
         <GlassCard className="col-span-2 sm:col-span-1">
-          <span className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Available for WEST</span>
+          <span className="block text-[10px] sm:text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Available for WEST</span>
           <p className="text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">{fmtMXN(westEarmarked)}</p>
           <div className="flex items-center gap-1 mt-1">
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-medium">✅ Laura&apos;s Infonavit</span>
@@ -404,19 +404,20 @@ export function RetirementTab({ ownerFilter }: RetirementTabProps) {
                   <OwnerDot owner={row.owner} size="sm" />
                   <span className="text-sm font-semibold">{row.name}</span>
                   <span className="text-xs text-[hsl(var(--text-secondary))]">{row.yearsToRetirement}yr to 65</span>
+                  <span className="ml-auto text-[10px] text-[hsl(var(--text-tertiary))]">MXN</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <p className="text-[10px] text-amber-600 uppercase">Conservative</p>
-                    <p className="text-sm font-semibold tabular-nums">{fmtMXN(row.conservative)}</p>
+                    <p className="text-sm font-semibold tabular-nums">{fmtMXN(row.conservative).replace(/ MXN$/, '')}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-[hsl(var(--text-secondary))] uppercase">Base</p>
-                    <p className="text-sm font-bold tabular-nums">{fmtMXN(row.base)}</p>
+                    <p className="text-sm font-bold tabular-nums">{fmtMXN(row.base).replace(/ MXN$/, '')}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-emerald-600 uppercase">Optimistic</p>
-                    <p className="text-sm font-semibold tabular-nums">{fmtMXN(row.optimistic)}</p>
+                    <p className="text-sm font-semibold tabular-nums">{fmtMXN(row.optimistic).replace(/ MXN$/, '')}</p>
                   </div>
                 </div>
               </div>

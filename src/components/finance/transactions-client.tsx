@@ -706,9 +706,9 @@ export default function TransactionsClient() {
           ['This week', periodSummary.week],
           ['This month', periodSummary.month],
         ].map(([label, amount], index) => (
-          <div key={label as string} className={cn('min-w-0 px-3 py-3 sm:px-4', index > 0 && 'border-l border-[hsl(var(--border))]')}>
+          <div key={label as string} className={cn('min-w-0 px-2.5 py-3 sm:px-4', index > 0 && 'border-l border-[hsl(var(--border))]')}>
             <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--text-tertiary))]">{label}</p>
-            <p className="mt-1 truncate text-sm font-bold tabular-nums text-rose-500 sm:text-lg">${(amount as number).toLocaleString()}</p>
+            <p className="mt-1 truncate text-sm font-bold tabular-nums text-rose-500 sm:text-lg">${Math.round(amount as number).toLocaleString()}</p>
           </div>
         ))}
       </div>
@@ -723,21 +723,21 @@ export default function TransactionsClient() {
             onChange={e => { setSearch(e.target.value); setPage(1) }}
             className="bg-transparent text-base sm:text-sm flex-1 outline-none min-w-0" />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 p-1 rounded-lg bg-[hsl(var(--bg-elevated))]">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <div className="col-span-2 flex items-center gap-1 p-1 rounded-lg bg-[hsl(var(--bg-elevated))] sm:col-span-1">
             {['all', 'expense', 'income'].map(t => (
               <button key={t} onClick={() => { setTypeFilter(t); setPage(1) }}
-                className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                className={cn("flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all sm:flex-none",
                   typeFilter === t ? "bg-blue-600 text-white" : "text-[hsl(var(--text-secondary))]"
                 )}>
                 {t === 'all' ? 'All' : t === 'expense' ? '↓ Out' : '↑ In'}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1 p-1 rounded-lg bg-[hsl(var(--bg-elevated))]">
+          <div className="col-span-2 flex items-center gap-1 p-1 rounded-lg bg-[hsl(var(--bg-elevated))] sm:col-span-1">
             {['all', ...OWNERS].map(o => (
               <button key={o} onClick={() => { setOwnerFilter(o); setPage(1) }}
-                className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                className={cn("flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-all sm:flex-none",
                   ownerFilter === o ? "bg-blue-600 text-white" : "text-[hsl(var(--text-secondary))]"
                 )}>
                 {o === 'all' ? 'Both' : o}
@@ -745,13 +745,13 @@ export default function TransactionsClient() {
             ))}
           </div>
           <select value={categoryFilter} onChange={e => { setCategoryFilter(e.target.value); setPage(1) }}
-            className="px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] text-xs border-none outline-none flex-1 min-w-[130px]">
+            className="w-full min-w-0 px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] text-xs border-none outline-none sm:w-auto sm:flex-1 sm:min-w-[130px]">
             <option value="">All Categories</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
           </select>
           <select value={methodFilter} onChange={e => { setMethodFilter(e.target.value); setPage(1) }} aria-label="Filter by payment method"
-            className="px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] text-xs border-none outline-none flex-1 min-w-[130px]">
-            <option value="">All payment methods</option>
+            className="w-full min-w-0 px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] text-xs border-none outline-none sm:w-auto sm:flex-1 sm:min-w-[130px]">
+            <option value="">All methods</option>
             {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.icon} {m.label}</option>)}
           </select>
         </div>
@@ -825,33 +825,33 @@ export default function TransactionsClient() {
             {/* Mobile card list */}
             <div className="sm:hidden space-y-2">
               {paginated.map(tx => (
-                <div key={tx.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors">
+                <div key={tx.id} className="flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))] hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors">
                   <div className="h-9 w-9 rounded-lg flex items-center justify-center text-sm shrink-0"
                     style={{ background: `${tx.category?.color || '#6B7280'}20` }}
                     onClick={() => openEdit(tx)}>
                     {tx.category?.icon || '📦'}
                   </div>
                   <div className="flex-1 min-w-0" onClick={() => openEdit(tx)}>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium truncate flex items-center gap-1">
-                        {tx.merchant || '—'}
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="flex min-w-0 items-center gap-1 text-sm font-medium">
+                        <span className="truncate">{tx.merchant || '—'}</span>
                         {(tx.source === 'recurring_income' || tx.tags?.includes('auto-income')) && (
-                          <span title="Auto-registered" className="text-emerald-600 text-xs">🔁</span>
+                          <span title="Auto-registered" className="shrink-0 text-emerald-600 text-xs">🔁</span>
                         )}
                       </p>
-                      <span className={cn("text-sm font-semibold num-metric tabular-nums shrink-0 ml-2 text-right",
+                      <span className={cn("text-sm font-semibold num-metric tabular-nums shrink-0 whitespace-nowrap text-right",
                         tx.type === 'income' ? "text-emerald-600" : "text-rose-600")}>
                         {tx.type === 'income' ? '+' : '-'}${tx.amount_mxn.toLocaleString()}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-[hsl(var(--text-tertiary))] tabular-nums">{tx.transaction_date.slice(5)}</span>
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px]"
+                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+                      <span className="shrink-0 text-xs text-[hsl(var(--text-tertiary))] tabular-nums">{tx.transaction_date.slice(5)}</span>
+                      {tx.category?.name && <span className="min-w-0 truncate px-1.5 py-0.5 rounded-md text-[11px] leading-4"
                         style={{ background: `${tx.category?.color}20`, color: tx.category?.color }}>
                         {tx.category?.name}
-                      </span>
-                      <OwnerDot owner={tx.owner} size="md" showLabel />
-                      {getPaymentMethod(tx.payment_method) && <span className="truncate text-[11px] text-[hsl(var(--text-tertiary))]">{getPaymentMethod(tx.payment_method)!.short}</span>}
+                      </span>}
+                      <OwnerDot owner={tx.owner} size="md" className="shrink-0" />
+                      {getPaymentMethod(tx.payment_method) && <span className="shrink-0 text-[11px] text-[hsl(var(--text-tertiary))]">{getPaymentMethod(tx.payment_method)!.short}</span>}
                     </div>
                   </div>
                   {deleteConfirm === tx.id ? (
@@ -860,7 +860,7 @@ export default function TransactionsClient() {
                       <button onClick={() => setDeleteConfirm(null)} className="rounded-md px-2 py-1 text-[11px] text-[hsl(var(--text-secondary))]">Cancel</button>
                     </div>
                   ) : (
-                    <button onClick={() => setDeleteConfirm(tx.id)} aria-label={`Delete ${tx.merchant || 'transaction'}`} className="shrink-0 rounded-lg p-2 text-[hsl(var(--text-tertiary))] transition-colors hover:bg-rose-500/10 hover:text-rose-500">
+                    <button onClick={() => setDeleteConfirm(tx.id)} aria-label={`Delete ${tx.merchant || 'transaction'}`} className="-mr-1 shrink-0 rounded-lg p-2 text-[hsl(var(--text-tertiary))] transition-colors hover:bg-rose-500/10 hover:text-rose-500">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   )}
@@ -881,8 +881,8 @@ export default function TransactionsClient() {
 
       {!modalOpen && !savedMessage && (
         <button onClick={openAdd} aria-label="Add transaction"
-          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex h-12 items-center gap-2 rounded-full bg-emerald-600 px-4 text-sm font-bold text-white shadow-xl shadow-black/40 sm:hidden">
-          <Plus className="h-5 w-5" /> Add
+          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-white shadow-xl shadow-black/40 sm:hidden">
+          <Plus className="h-6 w-6" />
         </button>
       )}
 

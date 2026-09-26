@@ -242,21 +242,21 @@ export default function GoalsClient() {
           <AnimatedNumber value={activeGoals.length} className="num-metric block text-2xl sm:text-3xl font-bold mt-1" />
         </GlassCard>
         <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Target</span>
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Target</span>
           <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">${totalTarget.toLocaleString()}</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Saved</span>
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Saved</span>
           <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">${Math.round(totalSaved).toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{overallPct}% of all goals</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Needed</span>
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Needed</span>
           <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-600 mt-1">${Math.round(totalMonthlyNeeded).toLocaleString()}</p>
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">across all goals</p>
         </GlassCard>
         <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Last Month Net</span>
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Last Month Net</span>
           {lastTotal ? (
             <>
               <p className={cn("num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1",
@@ -272,7 +272,7 @@ export default function GoalsClient() {
           )}
         </GlassCard>
         <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Rate</span>
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Rate</span>
           {lastTotal ? (
             <>
               <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-cyan-600 mt-1">
@@ -286,8 +286,8 @@ export default function GoalsClient() {
             <p className="text-sm text-[hsl(var(--text-tertiary))] mt-2">No data yet</p>
           )}
         </GlassCard>
-        <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Variance vs Plan</span>
+        <GlassCard className="col-span-2 sm:col-span-1">
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Variance vs Plan</span>
           {lastTotal ? (
             <>
               <p className={cn("num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1",
@@ -328,24 +328,24 @@ export default function GoalsClient() {
                 g.scope === 'shared' ? "border-l-2 border-l-violet-500" : g.owner === OWNERS[1] ? "border-l-2 border-l-pink-500" : g.owner === OWNERS[0] ? "border-l-2 border-l-blue-500" : ""
               )}
               onClick={() => setSelectedGoal(g.id === selectedGoal ? null : g.id)}>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                  <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0",
                     i === 0 && "bg-indigo-500/20 text-indigo-600",
                     i === 1 && "bg-blue-500/20 text-blue-600",
                     i === 2 && "bg-emerald-500/20 text-emerald-600",
                     i > 2 && "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))]",
                   )}>#{g.priority || i + 1}</span>
                   {isCrypto ? (
-                    <span className={cn("h-6 w-6 rounded-md flex items-center justify-center text-white text-xs font-bold", COIN_SOLIDS[g.crypto_symbol!] || 'bg-gray-500')}>{COIN_ICONS[g.crypto_symbol!] || '?'}</span>
+                    <span className={cn("h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-white text-xs font-bold", COIN_SOLIDS[g.crypto_symbol!] || 'bg-gray-500')}>{COIN_ICONS[g.crypto_symbol!] || '?'}</span>
                   ) : (
-                    <span className="text-lg">🎯</span>
+                    <span className="hidden sm:inline text-lg">🎯</span>
                   )}
                   <OwnerDot owner={g.scope === 'shared' ? 'shared' : g.owner} size="md" showLabel />
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   {goalStatus ? (
-                    <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full",
+                    <span className={cn("text-[11px] sm:text-xs font-medium px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap",
                       goalStatus === 'on_track' && "bg-emerald-500/15 text-emerald-600",
                       goalStatus === 'slightly_behind' && "bg-amber-500/15 text-amber-600",
                       goalStatus === 'behind' && "bg-rose-500/15 text-rose-600",
@@ -355,7 +355,7 @@ export default function GoalsClient() {
                       {goalStatus === 'behind' && '🔴 Behind'}
                     </span>
                   ) : (
-                    <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full",
+                    <span className={cn("text-[11px] sm:text-xs font-medium px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap",
                       isOnTrack ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600"
                     )}>{isOnTrack ? '✓ On track' : '⚡ Needs boost'}</span>
                   )}

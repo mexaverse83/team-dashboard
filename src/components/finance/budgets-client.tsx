@@ -113,6 +113,24 @@ export default function BudgetsClient() {
 
   if (loading) return <div className="h-8 w-32 rounded bg-[hsl(var(--muted))] animate-pulse" />
 
+  const renderActions = (id: string, b: FinanceBudget & { spent: number; pct: number }) => (
+    <>
+      <button aria-label="Edit" onClick={() => openEdit(b)} className="flex items-center justify-center rounded p-2 hover:bg-[hsl(var(--bg-elevated))] sm:p-1">
+        <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" />
+      </button>
+      {deleteConfirm === id ? (
+        <div className="flex gap-1">
+          <button onClick={() => handleDelete(id)} className="px-2.5 py-1 rounded text-xs bg-rose-600 text-white sm:px-1.5 sm:py-0.5 sm:text-[10px]">Del</button>
+          <button onClick={() => setDeleteConfirm(null)} className="px-2.5 py-1 rounded text-xs bg-[hsl(var(--bg-elevated))] sm:px-1.5 sm:py-0.5 sm:text-[10px]">No</button>
+        </div>
+      ) : (
+        <button aria-label="Delete" onClick={() => setDeleteConfirm(id)} className="flex items-center justify-center rounded p-2 hover:bg-rose-500/10 sm:p-1">
+          <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+        </button>
+      )}
+    </>
+  )
+
   return (
     <PageTransition>
     <div className="space-y-6">
@@ -158,47 +176,40 @@ export default function BudgetsClient() {
               <GlassCard key={b.id} className={cn("relative overflow-hidden group", b.pct >= 100 && "ring-1 ring-rose-500/30")}>
                 {b.pct >= 100 && <div className="absolute inset-0 bg-rose-500/5 pointer-events-none" />}
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="h-10 w-10 rounded-xl flex items-center justify-center text-lg" style={{ background: `${b.category?.color}20` }}>
+                  <div className="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center text-lg" style={{ background: `${b.category?.color}20` }}>
                     {b.category?.icon}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <h4 className="text-sm font-semibold">{b.category?.name}</h4>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <h4 className="truncate text-sm font-semibold">{b.category?.name}</h4>
                       {b.cycle && b.cycle !== 'monthly' && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-600 font-medium">{CYCLE_LABELS[b.cycle as keyof typeof CYCLE_LABELS]}</span>
+                        <span className="shrink-0 whitespace-nowrap text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-600 font-medium">{CYCLE_LABELS[b.cycle as keyof typeof CYCLE_LABELS]}</span>
                       )}
                     </div>
-                    <p className="text-xs text-[hsl(var(--text-tertiary))]">
+                    <p className="text-xs text-[hsl(var(--text-tertiary))] tabular-nums">
                       {b.cycle && b.cycle !== 'monthly'
-                        ? `~$${Math.round(b.monthlyAvg).toLocaleString()}/mo avg of $${b.amount.toLocaleString()} budget`
-                        : `$${b.spent.toLocaleString()} of $${b.amount.toLocaleString()}`}
+                        ? <>~${Math.round(b.monthlyAvg).toLocaleString()}/mo avg of ${b.amount.toLocaleString()}<span className="hidden sm:inline"> budget</span></>
+                        : `$${Math.round(b.spent).toLocaleString()} of $${b.amount.toLocaleString()}`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button aria-label="Edit" onClick={() => openEdit(b)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
-                      <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" />
-                    </button>
-                    {deleteConfirm === b.id ? (
-                      <div className="flex gap-1">
-                        <button onClick={() => handleDelete(b.id)} className="px-1.5 py-0.5 rounded text-[10px] bg-rose-600 text-white">Del</button>
-                        <button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--bg-elevated))]">No</button>
-                      </div>
-                    ) : (
-                      <button aria-label="Delete" onClick={() => setDeleteConfirm(b.id)} className="p-1 rounded hover:bg-rose-500/10">
-                        <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-                      </button>
-                    )}
+                  <div className="hidden sm:flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    {renderActions(b.id, b)}
                   </div>
-                  <span className={cn("text-lg font-bold",
+                  <span className={cn("shrink-0 text-lg font-bold tabular-nums",
                     b.pct < 60 ? "text-emerald-600" : b.pct < 80 ? "text-yellow-600" : b.pct < 100 ? "text-orange-600" : "text-rose-600"
                   )}>{Math.round(b.pct)}%</span>
                 </div>
                 <div className="h-2.5 rounded-full bg-[hsl(var(--bg-elevated))]">
                   <motion.div className={cn("h-2.5 rounded-full", barColor)} initial={{ width: 0 }} animate={{ width: `${Math.min(b.pct, 100)}%` }} transition={{ duration: 0.6 }} />
                 </div>
-                <p className="text-xs mt-2 text-[hsl(var(--text-tertiary))]">
-                  {b.pct < 100 ? `$${Math.round(b.amount - b.spent).toLocaleString()} remaining` : b.pct <= 100 ? 'On budget' : `$${Math.round(b.spent - b.amount).toLocaleString()} over budget`}
-                </p>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <p className="text-xs text-[hsl(var(--text-tertiary))]">
+                    {b.pct < 100 ? `$${Math.round(b.amount - b.spent).toLocaleString()} remaining` : b.pct <= 100 ? 'On budget' : `$${Math.round(b.spent - b.amount).toLocaleString()} over budget`}
+                  </p>
+                  <div className="-my-2 -mr-2 flex shrink-0 items-center sm:hidden">
+                    {renderActions(b.id, b)}
+                  </div>
+                </div>
               </GlassCard>
             )
           })}

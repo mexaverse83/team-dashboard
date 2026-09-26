@@ -26,12 +26,12 @@ export function DailySpendingPlan({ summary, westTarget }: { summary: Summary; w
         {items.map(item => (
           <button key={item.id} type="button" aria-expanded={expanded === item.id} aria-controls="daily-plan-explanation"
             onClick={() => setExpanded(value => value === item.id ? null : item.id)}
-            className={cn('group min-w-0 p-3 text-left transition-colors hover:bg-white/[0.04] sm:px-5 sm:py-4', expanded === item.id && 'bg-white/[0.04]')}>
+            className={cn('group min-w-0 px-2.5 py-3 text-left transition-colors hover:bg-white/[0.04] sm:px-5 sm:py-4', expanded === item.id && 'bg-white/[0.04]')}>
             <span className="mb-2 flex items-center justify-between gap-1">
               <item.icon aria-hidden="true" className={cn('h-4 w-4', item.color)} />
               <ChevronDown aria-hidden="true" className={cn('h-3.5 w-3.5 text-[hsl(var(--text-tertiary))] transition-transform', expanded === item.id && 'rotate-180')} />
             </span>
-            <span className="block text-[11px] font-medium text-[hsl(var(--text-secondary))] sm:text-xs">{item.label}</span>
+            <span className="block whitespace-nowrap text-[11px] font-medium text-[hsl(var(--text-secondary))] sm:text-xs">{item.label}</span>
             <span className={cn('num-metric mt-1 block text-xl font-semibold tracking-tight sm:text-3xl', item.color)}>{money(item.amount)}</span>
             <span className="mt-1 hidden text-xs text-[hsl(var(--text-tertiary))] sm:block">{item.note}</span>
           </button>

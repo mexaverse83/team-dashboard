@@ -542,8 +542,8 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
 
             {/* Asset Class Cards */}
             <div className={cn("grid grid-cols-2 gap-3", allocationData.length > 0 ? "lg:col-span-3" : "lg:col-span-5")}>
-              {assetClasses.map(ac => (
-                <button key={ac.name} onClick={() => setActiveTab(ac.tab)} className="text-left">
+              {assetClasses.map((ac, i) => (
+                <button key={ac.name} onClick={() => setActiveTab(ac.tab)} className={cn("text-left", i === assetClasses.length - 1 && assetClasses.length % 2 === 1 && "col-span-2 sm:col-span-1")}>
                   <GlassCard className={cn("p-4 h-full hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors cursor-pointer border-l-2", ac.borderColor)}>
                     <div className="flex items-center gap-2 mb-2">
                       <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center bg-gradient-to-br text-white", ac.gradient)}>
@@ -551,7 +551,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       </div>
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">{ac.name}</span>
                     </div>
-                    <p className="text-lg font-bold tabular-nums">{fmtMXN(ac.totalMXN)}</p>
+                    <p className="text-base sm:text-lg font-bold tabular-nums whitespace-nowrap">{fmtMXN(ac.totalMXN).replace(/ MXN$/, '')}<span className="text-[11px] sm:text-lg font-semibold sm:font-bold text-[hsl(var(--text-tertiary))] sm:text-current"> MXN</span></p>
                     <div className="flex items-center justify-between mt-1">
                       {ac.locked ? (
                         <span className="text-xs text-[hsl(var(--text-secondary))]">🔒 locked until 65</span>
@@ -701,9 +701,9 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       </div>
                       <span className="text-sm font-semibold tabular-nums">{fmtMXN(s.shares * s.avg_cost_basis)}</span>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-[hsl(var(--text-secondary))]">
-                      <span>{s.name} · {s.broker}</span>
-                      <span className="tabular-nums">{fmt(s.shares, 2)} shares</span>
+                    <div className="flex items-center justify-between gap-3 text-xs text-[hsl(var(--text-secondary))]">
+                      <span className="min-w-0 truncate">{s.name} · {s.broker}</span>
+                      <span className="shrink-0 tabular-nums">{fmt(s.shares, 2)} shares</span>
                     </div>
                   </div>
                 ))}
@@ -741,7 +741,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
 
           {/* KPIs */}
           <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
-            <GlassCard>
+            <GlassCard className="col-span-2 sm:col-span-1">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Est. Value</span>
               <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-600 mt-1 tabular-nums">{fmtMXN(fiTotal)}</p>
               <p className="text-[11px] text-[hsl(var(--text-tertiary))] mt-1">
@@ -750,13 +750,13 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
             </GlassCard>
             <GlassCard>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Avg Yield</span>
-              <p className="num-metric text-2xl sm:text-3xl font-bold mt-1 tabular-nums">
+              <p className="num-metric text-xl sm:text-3xl font-bold mt-1 tabular-nums">
                 {filteredFI.length > 0 ? `${(filteredFI.reduce((s, i) => s + i.annual_rate * i.principal, 0) / Math.max(fiTotal, 1) * 100).toFixed(2)}%` : '—'}
               </p>
             </GlassCard>
-            <GlassCard className="col-span-2 sm:col-span-1">
+            <GlassCard>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Interest</span>
-              <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-600 mt-1 tabular-nums">
+              <p className="num-metric text-xl sm:text-3xl whitespace-nowrap font-bold text-emerald-600 mt-1 tabular-nums">
                 {fmtMXN(filteredFI.reduce((s, i) => s + (i.principal * i.annual_rate) / 12, 0))}
               </p>
             </GlassCard>
@@ -788,28 +788,28 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                     <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       {/* For merged (multi-owner) cards: open group edit; single-owner: use standard form */}
                       {group.allMembers.length > 1 ? (
-                        <button onClick={() => openFIGroupEdit(group)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]" title="Edit ownership split">
+                        <button onClick={() => openFIGroupEdit(group)} className="p-2 sm:p-1 rounded hover:bg-[hsl(var(--bg-elevated))]" title="Edit ownership split">
                           <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                         </button>
                       ) : (
                         <>
-                          <button aria-label="Edit" onClick={() => { setFIForm(group.filtered[0]); setShowFIForm(true) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
+                          <button aria-label="Edit" onClick={() => { setFIForm(group.filtered[0]); setShowFIForm(true) }} className="p-2 sm:p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
                             <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                           </button>
-                          <button aria-label="Delete" onClick={() => deleteFI(group.filtered[0].id)} className="p-1 rounded hover:bg-rose-500/10">
+                          <button aria-label="Delete" onClick={() => deleteFI(group.filtered[0].id)} className="p-2 sm:p-1 rounded hover:bg-rose-500/10">
                             <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                           </button>
                         </>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm">
+                    <div className="flex items-center gap-3 mb-3 pr-20 sm:pr-0">
+                      <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold text-sm">
                         {inst.institution.slice(0, 2).toUpperCase()}
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-semibold flex items-center gap-1.5">
-                          {inst.name.trim()}
+                          <span className="truncate sm:whitespace-normal">{inst.name.trim()}</span>
                           {/* Show all owners' dots when multi-owner */}
                           {isMultiOwner
                             ? group.allMembers.map(i => <OwnerDot key={i.id} owner={i.owner} size="sm" />)
@@ -962,21 +962,21 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                 return (
                   <GlassCard key={prop.id} className="p-4 relative group border-l-2 border-violet-500">
                     <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                      <button aria-label="Edit" onClick={() => { setREForm(prop); setShowREForm(true) }} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
+                      <button aria-label="Edit" onClick={() => { setREForm(prop); setShowREForm(true) }} className="p-2 sm:p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
                         <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
                       </button>
-                      <button aria-label="Delete" onClick={() => deleteRE(prop.id)} className="p-1 rounded hover:bg-rose-500/10">
+                      <button aria-label="Delete" onClick={() => deleteRE(prop.id)} className="p-2 sm:p-1 rounded hover:bg-rose-500/10">
                         <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center text-white">
+                    <div className="flex items-center gap-3 mb-4 pr-20 sm:pr-0">
+                      <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center text-white">
                         <Home className="h-5 w-5" />
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-semibold flex items-center gap-1.5">
-                          {prop.name} <OwnerDot owner={prop.owner} size="sm" />
+                          <span className="truncate sm:whitespace-normal">{prop.name}</span> <OwnerDot owner={prop.owner} size="sm" />
                         </h4>
                         <div className="flex items-center gap-2">
                           <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize", propertyTypeColor)}>{propertyTypeLabel}</span>
@@ -987,10 +987,10 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-3">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-3">
                       <div>
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Current Value</span>
-                        <p className="text-lg font-bold tabular-nums">{fmtMXN(prop.current_value)}</p>
+                        <p className="text-base sm:text-lg font-bold tabular-nums whitespace-nowrap">{fmtMXN(prop.current_value).replace(/ MXN$/, '')}<span className="text-[11px] sm:text-lg font-semibold sm:font-bold text-[hsl(var(--text-tertiary))] sm:text-current"> MXN</span></p>
                         {appreciation !== null && (
                           <span className={cn("text-xs font-medium", appreciation >= 0 ? "text-emerald-600" : "text-red-600")}>
                             {appreciation >= 0 ? '↑' : '↓'} {Math.abs(appreciation).toFixed(1)}% from purchase
@@ -999,7 +999,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                       </div>
                       <div>
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">{equityLabelText}</span>
-                        <p className="text-lg font-bold text-violet-600 tabular-nums">{fmtMXN(equity)}</p>
+                        <p className="text-base sm:text-lg font-bold text-violet-600 tabular-nums whitespace-nowrap">{fmtMXN(equity).replace(/ MXN$/, '')}<span className="text-[11px] sm:text-lg font-semibold sm:font-bold text-[hsl(var(--text-tertiary))] sm:text-current"> MXN</span></p>
                       </div>
                     </div>
 
@@ -1100,7 +1100,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                     className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Broker</label>
                   <input type="text" placeholder="GBM" value={stockForm.broker || ''} onChange={e => setStockForm(f => ({ ...f, broker: e.target.value }))}
@@ -1175,7 +1175,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                     className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Term (days)</label>
                   <input type="number" placeholder="28" value={fiForm.term_days ?? ''} onChange={e => setFIForm(f => ({ ...f, term_days: e.target.value ? parseInt(e.target.value) : null }))}
@@ -1225,7 +1225,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
                   Auto-renew
                 </label>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Tier</label>
                   <select value={fiForm.tier || 1} onChange={e => setFIForm(f => ({ ...f, tier: parseInt(e.target.value) }))}

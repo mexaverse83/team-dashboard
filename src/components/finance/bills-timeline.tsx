@@ -81,8 +81,8 @@ export function BillsTimeline({ events, daysAhead = 30, maxItems = 12 }: BillsTi
         const dateLabel = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : fmtDate(date)
         const inDays = days > 1 && days <= 7 ? ` · in ${days}d` : ''
         return (
-          <div key={date} className="flex gap-3">
-            <div className="w-16 shrink-0 text-right">
+          <div key={date} className="flex gap-2 sm:gap-3">
+            <div className="w-12 shrink-0 text-right sm:w-16">
               <p className="text-xs font-semibold">{dateLabel}</p>
               <p className="text-[10px] text-[hsl(var(--text-tertiary))]">{inDays || (days > 7 ? `in ${days}d` : '')}</p>
             </div>
@@ -93,7 +93,7 @@ export function BillsTimeline({ events, daysAhead = 30, maxItems = 12 }: BillsTi
                 return (
                   <div
                     key={`${date}-${i}`}
-                    className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-[hsl(var(--muted))/0.4] transition-colors"
+                    className="flex items-center gap-2 py-1.5 px-1 sm:px-2 rounded-md hover:bg-[hsl(var(--muted))/0.4] transition-colors"
                   >
                     <div
                       className="h-7 w-7 rounded-full flex items-center justify-center shrink-0"
@@ -107,7 +107,7 @@ export function BillsTimeline({ events, daysAhead = 30, maxItems = 12 }: BillsTi
                         {TYPE_LABELS[ev.type]}{ev.owner ? ` · ${ev.owner}` : ''}
                       </p>
                     </div>
-                    <span className={cn('text-sm font-semibold tabular-nums', isInflow ? 'text-emerald-600' : 'text-rose-600')}>
+                    <span className={cn('shrink-0 whitespace-nowrap text-sm font-semibold tabular-nums', isInflow ? 'text-emerald-600' : 'text-rose-600')}>
                       {isInflow ? '+' : '-'}${Math.abs(Math.round(ev.amount_mxn)).toLocaleString()}
                     </span>
                   </div>

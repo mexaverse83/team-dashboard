@@ -21,12 +21,12 @@ function BudgetRow({ cat }: { cat: BudgetCat }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-sm font-medium">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <span className="min-w-0 truncate text-sm font-medium">
           {cat.icon} {cat.category}
           {cat.is_non_monthly && <span className="text-blue-600 text-[10px] ml-1">({cat.cycle_months}mo cycle)</span>}
         </span>
-        <span className="text-xs tabular-nums text-[hsl(var(--text-secondary))]">
+        <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-[hsl(var(--text-secondary))]">
           {fmtMoney(cat.spent, { compact: true })} / {fmtMoney(cat.budget, { compact: true })}
           {monthly && cat.budget > 0 && (
             <span className={cn('ml-2', overshoot ? 'text-rose-600' : 'text-emerald-600')}>
@@ -108,7 +108,7 @@ export function BudgetPaceCard({ summary }: { summary: Summary | null }) {
             key={chip.key}
             onClick={() => { setFilter(chip.key as FilterMode); setExpanded(false) }}
             className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors',
+              'inline-flex min-h-9 items-center gap-1.5 px-2.5 py-1 rounded-full sm:min-h-0 text-[11px] font-medium border transition-colors',
               filter === chip.key
                 ? chip.color
                 : 'border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--muted))]/40'

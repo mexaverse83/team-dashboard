@@ -71,12 +71,12 @@ export function PrivateEquityCard({ holding, fxRate }: Props) {
 
       <div className="relative">
         {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-xl border border-slate-600/50">
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-11 w-11 shrink-0 rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center text-xl border border-slate-600/50">
               🏢
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-base font-bold">{holding.name}</h3>
                 <OwnerDot owner={holding.owner} size="sm" />

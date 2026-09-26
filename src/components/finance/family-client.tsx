@@ -131,7 +131,7 @@ export function FamilyClient() {
                     isPast ? 'border-sky-500/30 bg-sky-500/5' : 'border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30'
                   )}>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{event.label}</p>
+                      <p className="text-sm font-medium line-clamp-2 sm:line-clamp-none sm:truncate">{event.label}</p>
                       <p className="text-[10px] text-[hsl(var(--text-tertiary))]">{fmtMonthYear(event.month)}{isPast ? ' · elapsed' : ''}</p>
                     </div>
                     <span className="text-sm font-bold tabular-nums shrink-0 ml-3">{fmtMoney(event.amount, { compact: true })}</span>
@@ -158,10 +158,10 @@ export function FamilyClient() {
                   item.state === 'upcoming' && 'border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 opacity-70',
                   item.state === 'closed' && 'border-[hsl(var(--border))] opacity-45',
                 )}>
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-col-reverse items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
                     <p className={cn('text-sm font-medium', item.state === 'closed' && 'line-through')}>{item.title}</p>
                     <span className={cn(
-                      'shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide',
+                      'shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide whitespace-nowrap',
                       item.state === 'open' && item.severity === 'warning' && 'bg-amber-500/15 text-amber-700',
                       item.state === 'open' && item.severity === 'info' && 'bg-sky-500/15 text-sky-700',
                       item.state === 'upcoming' && 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]',
@@ -194,7 +194,25 @@ export function FamilyClient() {
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
             <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">Protection Plan</h3>
           </div>
-          <div className="overflow-x-auto">
+          <div className="space-y-2 sm:hidden">
+            {PROTECTION_PLAN.policies.map(p => (
+              <div key={p.person} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30 px-3 py-2.5">
+                <p className="text-sm font-medium">{p.person}</p>
+                <p className="mt-0.5 text-xs text-[hsl(var(--text-secondary))]">{p.product}</p>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Coverage target</span>
+                    <span className="text-sm font-semibold tabular-nums">{fmtMoney(p.coverage_min, { compact: true })}–{fmtMoney(p.coverage_max, { compact: true })}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Est. premium</span>
+                    <span className="text-sm font-semibold tabular-nums">{fmtMoney(p.monthly_min, { compact: true })}–{fmtMoney(p.monthly_max, { compact: true })}/mo</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[10px] uppercase tracking-wider text-[hsl(var(--text-tertiary))]">

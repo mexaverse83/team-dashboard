@@ -93,7 +93,7 @@ export function WolffWidget() {
           <WolffAvatar className="h-10 w-10 shrink-0" />
           <div className="min-w-0">
             <h2 id="wolff-command-title" className="text-sm font-semibold">Mona’s take</h2>
-            <p className="mt-0.5 text-[11px] text-[hsl(var(--text-secondary))]">{failed ? 'Brief unavailable' : stale ? 'Brief refresh pending' : 'Your daily brief'}{stamp ? ` · ${stamp}` : ''}</p>
+            <p className="mt-0.5 text-[11px] text-[hsl(var(--text-secondary))]">{failed ? 'Brief unavailable' : stale ? 'Brief refresh pending' : 'Your daily brief'}{stamp && <> · <span className="whitespace-nowrap">{stamp}</span></>}</p>
           </div>
         </div>
         <Link href="/finance/ask" aria-label="Talk to Mona" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-sky-400/20 bg-sky-400/10 text-sky-300 hover:bg-sky-400/20"><MessageCircle className="h-4 w-4" aria-hidden="true" /></Link>
@@ -106,7 +106,7 @@ export function WolffWidget() {
         </div>
       )}
       <div className="mt-4 flex flex-wrap gap-2">
-        {suggestions.map(({ label, prompt }) => <Link key={label} href={`/finance/ask?prompt=${encodeURIComponent(prompt)}`} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-white/10 px-3 text-xs font-medium text-[hsl(var(--text-secondary))] hover:border-sky-400/40 hover:text-sky-200">{label}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>)}
+        {suggestions.map(({ label, prompt }) => <Link key={label} href={`/finance/ask?prompt=${encodeURIComponent(prompt)}`} className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl sm:flex-none sm:justify-start border border-white/10 px-3 text-xs font-medium text-[hsl(var(--text-secondary))] hover:border-sky-400/40 hover:text-sky-200">{label}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>)}
       </div>
       <div className="mt-3 flex items-center justify-between gap-2"><Link href="/finance/insights" className="inline-flex min-h-9 items-center gap-1 text-xs font-medium text-sky-300">Read full brief <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link><PushToggle /></div>
       {(week || watch || proactive) && (

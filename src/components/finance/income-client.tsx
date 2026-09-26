@@ -146,15 +146,15 @@ export function IncomeClient() {
         </div>
         <button
           onClick={openAdd}
-          className="flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-600 rounded-lg text-sm font-medium transition-colors"
+          className="flex w-full shrink-0 items-center justify-center gap-2 whitespace-nowrap px-4 py-2 sm:w-auto bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-600 rounded-lg text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4" /> Add Source
         </button>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <GlassCard className="p-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <GlassCard className="col-span-2 p-4 sm:col-span-1">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="w-4 h-4 text-emerald-600" />
             <span className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Monthly</span>
@@ -166,7 +166,7 @@ export function IncomeClient() {
           <GlassCard key={owner} className="p-4">
             <div className="flex items-center gap-2 mb-1">
               <DollarSign className="w-4 h-4 text-[hsl(var(--text-secondary))]" />
-              <span className="text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">{OWNER_LABELS[owner] || owner}</span>
+              <span className="truncate text-xs uppercase tracking-wider text-[hsl(var(--text-secondary))]">{OWNER_LABELS[owner] || owner}</span>
             </div>
             <p className="text-2xl font-bold num-metric tabular-nums text-[hsl(var(--foreground))]">${amt.toLocaleString()}</p>
             <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">{Math.round((amt / totalActive) * 100)}% of household</p>
@@ -188,8 +188,8 @@ export function IncomeClient() {
         ) : (
           <div className="divide-y divide-[hsl(var(--border))]">
             {items.map(item => (
-              <div key={item.id} className={cn("flex items-center gap-4 px-4 py-2.5 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors", !item.active && "opacity-50")}>
-                <div className="flex-1 min-w-0">
+              <div key={item.id} className={cn("grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-1 py-3 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors sm:flex sm:gap-4 sm:px-4 sm:py-2.5", !item.active && "opacity-50")}>
+                <div className="row-span-2 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-[hsl(var(--foreground))] truncate">{item.name}</span>
                     {item.active && hasStarted(item) && (
@@ -213,26 +213,28 @@ export function IncomeClient() {
                     <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5 italic">{item.notes}</p>
                   )}
                 </div>
-                <div className="text-right shrink-0">
-                  <p className={cn("text-lg font-bold num-metric tabular-nums", item.active ? "text-emerald-600" : "text-[hsl(var(--text-secondary))]")}>
+                <div className="text-right shrink-0 self-end sm:self-auto">
+                  <p className={cn("whitespace-nowrap text-base font-bold num-metric tabular-nums sm:text-lg", item.active ? "text-emerald-600" : "text-[hsl(var(--text-secondary))]")}>
                     +${item.amount.toLocaleString()}
                   </p>
                   <p className="text-xs text-[hsl(var(--text-tertiary))]">/mo</p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {/* Toggle active */}
+                <div className="-mr-1.5 flex items-center justify-end gap-0.5 shrink-0 self-start sm:mr-0 sm:gap-1 sm:self-auto">
+                  {/* Toggle active — 40px touch target wrapping the 40×20 track */}
                   <button
                     onClick={() => handleToggle(item)}
                     title={item.active ? 'Deactivate' : 'Activate'}
-                    className={cn(
-                      "w-10 h-5 rounded-full relative transition-colors",
-                      item.active ? "bg-emerald-500" : "bg-zinc-700"
-                    )}
+                    className="flex items-center justify-center"
                   >
                     <span className={cn(
-                      "absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all",
-                      item.active ? "left-5" : "left-0.5"
-                    )} />
+                      "relative block w-10 h-5 rounded-full transition-colors",
+                      item.active ? "bg-emerald-500" : "bg-zinc-700"
+                    )}>
+                      <span className={cn(
+                        "absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all",
+                        item.active ? "left-5" : "left-0.5"
+                      )} />
+                    </span>
                   </button>
                   <button aria-label="Edit"
                     onClick={() => openEdit(item)}
@@ -251,11 +253,11 @@ export function IncomeClient() {
               </div>
             ))}
             {/* Footer total */}
-            <div className="flex items-center justify-between px-5 py-3 bg-[hsl(var(--accent))]/40">
+            <div className="flex items-center justify-between gap-3 px-3 py-3 bg-[hsl(var(--accent))]/40 sm:px-5">
               <span className="text-sm font-medium text-[hsl(var(--text-secondary))]">
                 Total active monthly income
               </span>
-              <span className="text-lg font-bold num-metric tabular-nums text-emerald-600">+${totalActive.toLocaleString()}</span>
+              <span className="shrink-0 whitespace-nowrap text-lg font-bold num-metric tabular-nums text-emerald-600">+${totalActive.toLocaleString()}</span>
             </div>
           </div>
         )}
@@ -264,7 +266,7 @@ export function IncomeClient() {
       {/* Add/Edit form modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <GlassCard className="w-full max-w-md space-y-4 p-4 sm:p-6">
+          <GlassCard className="w-full max-w-md max-h-full overflow-y-auto overscroll-contain space-y-4 p-4 sm:p-6">
             <h2 className="text-lg font-bold text-[hsl(var(--foreground))]">
               {editing ? 'Edit Income Source' : 'Add Income Source'}
             </h2>

@@ -152,22 +152,22 @@ export default function ReportsClient() {
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Income</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold text-emerald-600 mt-1">${totalIncome.toLocaleString()}</p>
+          <p className="num-metric text-lg min-[400px]:text-xl sm:text-3xl font-bold text-emerald-600 mt-1">${totalIncome.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Expenses</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold text-rose-600 mt-1">${totalExpenses.toLocaleString()}</p>
+          <p className="num-metric text-lg min-[400px]:text-xl sm:text-3xl font-bold text-rose-600 mt-1">${totalExpenses.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Net</span>
-          <p className={cn("num-metric text-2xl sm:text-3xl font-bold mt-1", net >= 0 ? "text-emerald-600" : "text-rose-600")}>${Math.abs(net).toLocaleString()}</p>
+          <p className={cn("num-metric text-lg min-[400px]:text-xl sm:text-3xl font-bold mt-1", net >= 0 ? "text-emerald-600" : "text-rose-600")}>${Math.abs(net).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
         </GlassCard>
         <GlassCard>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Rate</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold mt-1">{savingsRate}%</p>
+          <p className="num-metric text-lg min-[400px]:text-xl sm:text-3xl font-bold mt-1">{savingsRate}%</p>
         </GlassCard>
       </div>
 
@@ -221,17 +221,17 @@ export default function ReportsClient() {
           <h3 className="text-base font-semibold mb-4">Top Merchants</h3>
           <div className="space-y-3">
             {topMerchants.map((m, i) => (
-              <div key={m.merchant} className="flex items-center gap-3">
-                <span className="text-sm font-bold text-[hsl(var(--text-tertiary))] w-7">{i + 1}</span>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{m.merchant}</p>
+              <div key={m.merchant} className="flex items-center gap-2 sm:gap-3">
+                <span className="text-sm font-bold text-[hsl(var(--text-tertiary))] w-5 sm:w-7 shrink-0">{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{m.merchant}</p>
                   <div className="h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] mt-1">
                     <div className="h-1.5 rounded-full bg-gradient-to-r from-rose-400/60 to-rose-600/60"
                       style={{ width: `${topMerchants[0] ? (m.total / topMerchants[0].total) * 100 : 0}%` }} />
                   </div>
                 </div>
-                <span className="text-sm font-semibold">${m.total.toLocaleString()}</span>
-                <span className="text-xs text-[hsl(var(--text-tertiary))]">{m.count} txns</span>
+                <span className="text-sm font-semibold tabular-nums shrink-0">${m.total.toLocaleString()}</span>
+                <span className="text-xs text-[hsl(var(--text-tertiary))] shrink-0 w-12 text-right">{m.count} txns</span>
               </div>
             ))}
           </div>
@@ -266,20 +266,20 @@ export default function ReportsClient() {
               <h3 className="text-sm font-semibold mb-4">Net Worth Statement</h3>
               <div className="space-y-2 text-sm">
                 {nwItems.map(item => (
-                  <div key={item.label} className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-[hsl(var(--text-secondary))]">
+                  <div key={item.label} className="flex items-center justify-between gap-3">
+                    <span className="flex min-w-0 items-center gap-2 text-[hsl(var(--text-secondary))]">
                       <span className={`h-2 w-2 rounded-full shrink-0 ${item.color}`} />
                       {item.label}
                     </span>
-                    <div className="text-right">
+                    <div className="text-right shrink-0 flex flex-col items-end sm:block">
                       <span className="font-medium tabular-nums">{fmtN(item.value)}</span>
-                      <span className="text-xs text-[hsl(var(--text-secondary))] ml-2 tabular-nums">
+                      <span className="text-xs text-[hsl(var(--text-secondary))] sm:ml-2 tabular-nums">
                         ({nw.total > 0 ? ((item.value / nw.total) * 100).toFixed(1) : 0}%)
                       </span>
                     </div>
                   </div>
                 ))}
-                <div className="pt-2 mt-1 border-t border-[hsl(var(--border))] flex justify-between font-bold">
+                <div className="pt-2 mt-1 border-t border-[hsl(var(--border))] flex justify-between gap-3 font-bold">
                   <span>Total Net Worth</span>
                   <span className="tabular-nums">{fmtN(nw.total)}</span>
                 </div>
@@ -297,7 +297,7 @@ export default function ReportsClient() {
                 <div className="h-full bg-blue-500" style={{ width: '6.7%' }} />
                 <div className="h-full bg-amber-500/60" style={{ width: '62.1%' }} />
               </div>
-              <div className="flex justify-between text-xs text-[hsl(var(--text-secondary))]">
+              <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 text-xs text-[hsl(var(--text-secondary))]">
                 <span>Projected $10,213,365 / $11,204,000</span>
                 <span className="text-red-600">Gap $990,635</span>
               </div>
@@ -344,8 +344,8 @@ export default function ReportsClient() {
               {/* Mobile stacked */}
               <div className="sm:hidden space-y-2">
                 {investmentRows.map(row => (
-                  <div key={row.asset} className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
-                    <div className="flex items-center gap-2">
+                  <div key={row.asset} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
+                    <div className="flex min-w-0 items-center gap-2">
                       <span className={`h-2 w-2 rounded-full shrink-0 ${row.color}`} />
                       <span className="text-sm font-medium">{row.asset}</span>
                     </div>
@@ -363,7 +363,7 @@ export default function ReportsClient() {
               <GlassCard className="mb-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold">Top Audit Findings</h3>
-                  <a href="/finance/audit" className="text-xs text-blue-600 hover:underline">View all →</a>
+                  <a href="/finance/audit" className="inline-flex min-h-10 sm:min-h-0 items-center text-xs text-blue-600 hover:underline">View all →</a>
                 </div>
                 <div className="space-y-2">
                   {topFindings.map((f, i) => (
