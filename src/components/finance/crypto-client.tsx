@@ -95,6 +95,11 @@ function fmt(n: number, decimals = 2) {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(n)
 }
 function fmtMXN(n: number) { return `$${fmt(n, 0)} MXN` }
+/** Per-coin prices: whole pesos for BTC-sized prices, more decimals for sub-peso coins like KAS. */
+function fmtCoinPriceMXN(n: number) {
+  const decimals = n >= 100 ? 0 : n >= 1 ? 2 : 4
+  return `$${fmt(n, decimals)} MXN`
+}
 function fmtUSD(n: number) { return `$${fmt(n)} USD` }
 
 function getValueMXN(h: Holding, prices: Prices | null) {
@@ -693,7 +698,7 @@ export function CryptoClient() {
                       {tx.symbol}
                     </td>
                     <td className="py-3 px-2 text-right font-mono tabular-nums">{fmt(tx.quantity, 8).replace(/\.?0+$/, '')}</td>
-                    <td className="py-3 px-2 text-right tabular-nums">{fmtMXN(tx.price_per_coin_mxn)}</td>
+                    <td className="py-3 px-2 text-right tabular-nums">{fmtCoinPriceMXN(tx.price_per_coin_mxn)}</td>
                     <td className="py-3 px-2 text-right font-semibold tabular-nums">{fmtMXN(tx.total_mxn)}</td>
                     <td className="py-3 px-2 text-xs text-[hsl(var(--text-secondary))]">{tx.exchange || '—'}</td>
                     <td className="py-3 px-2 text-center"><OwnerDot owner={tx.owner} size="sm" /></td>
@@ -730,7 +735,7 @@ export function CryptoClient() {
                 </div>
                 <div className="flex items-center justify-between text-xs text-[hsl(var(--text-secondary))]">
                   <span>{tx.transaction_date.slice(5)} · {tx.exchange || 'No exchange'}</span>
-                  <span className="tabular-nums">{fmt(tx.quantity, 8).replace(/\.?0+$/, '')} @ {fmtMXN(tx.price_per_coin_mxn)}</span>
+                  <span className="tabular-nums">{fmt(tx.quantity, 8).replace(/\.?0+$/, '')} @ {fmtCoinPriceMXN(tx.price_per_coin_mxn)}</span>
                 </div>
               </div>
             ))}

@@ -25,7 +25,8 @@ async function recalcHolding(holdingId: string) {
 
   for (const tx of txs) {
     if (tx.type === 'buy') {
-      totalCost += tx.quantity * tx.price_per_coin_mxn
+      // total_mxn is the exact amount paid; price_per_coin_mxn may be rounded
+      totalCost += Number(tx.total_mxn ?? tx.quantity * tx.price_per_coin_mxn)
       qty += tx.quantity
     } else {
       // sell — proportionally reduce cost basis
