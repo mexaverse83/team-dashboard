@@ -15,6 +15,8 @@ import { enrichTransactions, DEFAULT_CATEGORIES, suggestCoveragePeriod, CYCLE_LA
 import { type ParsedTransaction } from '@/lib/pdf-parser'
 import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
 import { OwnerDot } from '@/components/finance/owner-dot'
+import { BbvaStatementCard } from '@/components/finance/card-statement'
+import { PAYMENT_METHODS, getPaymentMethod } from '@/lib/payment-methods'
 import { applyRules, detectDuplicates, type FinanceRule } from '@/lib/finance-rules'
 
 import { inputCls } from '@/lib/form-style'
@@ -114,9 +116,10 @@ interface TxForm {
   coverage_start: string
   coverage_end: string
   owner: string
+  payment_method: string
 }
 
-const emptyForm: TxForm = { type: 'expense', amount: '', currency: 'MXN', amount_mxn: '', category_id: '', merchant: '', description: '', transaction_date: today(), tags: '', is_recurring: false, coverage_start: '', coverage_end: '', owner: '' }
+const emptyForm: TxForm = { type: 'expense', amount: '', currency: 'MXN', amount_mxn: '', category_id: '', merchant: '', description: '', transaction_date: today(), tags: '', is_recurring: false, coverage_start: '', coverage_end: '', owner: '', payment_method: '' }
 
 export default function TransactionsClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
@@ -124,6 +127,7 @@ export default function TransactionsClient() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [ownerFilter, setOwnerFilter] = useState('all')
+  const [methodFilter, setMethodFilter] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
@@ -249,13 +253,14 @@ export default function TransactionsClient() {
       if (typeFilter !== 'all' && t.type !== typeFilter) return false
       if (categoryFilter && t.category_id !== categoryFilter) return false
       if (ownerFilter !== 'all' && (t.owner || '') !== ownerFilter) return false
+      if (methodFilter && (t.payment_method || '') !== methodFilter) return false
       if (search) {
         const q = search.toLowerCase()
         if (!(t.merchant?.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q) || t.category?.name.toLowerCase().includes(q))) return false
       }
       return true
     })
-  }, [transactions, typeFilter, categoryFilter, ownerFilter, search])
+  }, [transactions, typeFilter, categoryFilter, ownerFilter, methodFilter, search])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage))
   const currentPage = Math.min(page, totalPages)
@@ -313,6 +318,7 @@ export default function TransactionsClient() {
       coverage_start: tx.coverage_start || '',
       coverage_end: tx.coverage_end || '',
       owner: tx.owner || defaultOwner,
+      payment_method: tx.payment_method || '',
     })
     setModalOpen(true)
   }
@@ -360,6 +366,7 @@ export default function TransactionsClient() {
         tags,
         is_recurring: form.is_recurring,
         owner: form.owner || null,
+        payment_method: form.payment_method || null,
       }
       // Coverage period for arrears billing
       record.coverage_start = form.coverage_start || null
@@ -707,6 +714,8 @@ export default function TransactionsClient() {
         ))}
       </div>
 
+      <BbvaStatementCard transactions={transactions} />
+
       {/* Filter Bar — search leads, controls wrap below (one row on desktop) */}
       <div className="sticky top-0 z-10 flex flex-col gap-2 p-3 rounded-xl bg-[hsl(var(--background))]/90 backdrop-blur-sm border border-[hsl(var(--border))]">
         <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-[hsl(var(--bg-elevated))]">
@@ -741,6 +750,11 @@ export default function TransactionsClient() {
             <option value="">All Categories</option>
             {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
           </select>
+          <select value={methodFilter} onChange={e => { setMethodFilter(e.target.value); setPage(1) }} aria-label="Filter by payment method"
+            className="px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))] text-xs border-none outline-none flex-1 min-w-[130px]">
+            <option value="">All payment methods</option>
+            {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.icon} {m.label}</option>)}
+          </select>
         </div>
       </div>
 
@@ -772,6 +786,7 @@ export default function TransactionsClient() {
                           )}
                         </p>
                         {tx.description && <p className="text-xs text-[hsl(var(--text-tertiary))] truncate max-w-[200px]">{tx.description}</p>}
+                        {getPaymentMethod(tx.payment_method) && <p className="text-[11px] text-[hsl(var(--text-tertiary))]">{getPaymentMethod(tx.payment_method)!.icon} {getPaymentMethod(tx.payment_method)!.label}</p>}
                       </td>
                       <td className="py-2 px-4 text-right">
                         <span className={cn("text-sm font-semibold num-metric tabular-nums", tx.type === 'income' ? "text-emerald-600" : "text-rose-600")}>
@@ -837,6 +852,7 @@ export default function TransactionsClient() {
                         {tx.category?.name}
                       </span>
                       <OwnerDot owner={tx.owner} size="md" showLabel />
+                      {getPaymentMethod(tx.payment_method) && <span className="truncate text-[11px] text-[hsl(var(--text-tertiary))]">{getPaymentMethod(tx.payment_method)!.short}</span>}
                     </div>
                   </div>
                   {deleteConfirm === tx.id ? (
@@ -1079,6 +1095,20 @@ export default function TransactionsClient() {
                 </button>
               ))}
             </div>
+            </div>
+          </div>
+
+          <div className="tx-payment-field">
+            <span className={cn(labelCls, 'tx-label')}>{form.type === 'expense' ? 'Paid with' : 'Received via'}</span>
+            <div className="grid grid-cols-4 gap-1 rounded-xl bg-[hsl(var(--bg-elevated))] p-1" role="group" aria-label="Payment method">
+              {PAYMENT_METHODS.map(m => (
+                <button key={m.value} type="button" aria-pressed={form.payment_method === m.value} title={m.label}
+                  onClick={() => updateForm({ payment_method: form.payment_method === m.value ? '' : m.value })}
+                  className={cn('min-w-0 truncate rounded-lg px-1 py-2 text-[11px] font-semibold transition-colors sm:text-xs',
+                    form.payment_method === m.value ? 'bg-blue-500/20 text-blue-300' : 'text-[hsl(var(--text-secondary))]')}>
+                  <span className="sm:hidden">{m.short}</span><span className="hidden sm:inline">{m.label}</span>
+                </button>
+              ))}
             </div>
           </div>
 

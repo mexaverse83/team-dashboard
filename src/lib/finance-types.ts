@@ -29,6 +29,7 @@ export interface FinanceTransaction {
   coverage_end: string | null
   owner: string | null
   source?: string | null  // 'recurring_income' | 'recurring_expense' | null (manual)
+  payment_method?: string | null  // 'bbva_infinite' | 'amex' | 'cash' | 'transfer' — see payment-methods.ts
   created_at: string
   updated_at: string
   // Joined
