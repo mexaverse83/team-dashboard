@@ -4,6 +4,7 @@ import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { advanceRecurringDate } from '@/lib/recurring-dates'
 import { mexicoCityDateParts } from '@/lib/insights-prompt.mjs'
 import { canonicalOwner } from '@/lib/owners'
+import { paymentMethodFromCard } from '@/lib/payment-methods'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -111,6 +112,7 @@ async function processRecurring(req: NextRequest) {
         tags: ['auto-recurring'],
         flags: flags.length > 0 ? flags : null,
         owner: canonicalOwner(sub.owner),
+        payment_method: sub.payment_method ?? null,
       })
       if (error) {
         // Do NOT advance date on failure — allow retry on next cron run
@@ -357,6 +359,7 @@ async function processRecurring(req: NextRequest) {
       is_recurring: true,
       tags: ['auto-msi'],
       owner: canonicalOwner(msi.owner),
+      payment_method: paymentMethodFromCard(msi.credit_card),
       installment_id: msi.id,   // requires finance-installments-sync migration
     })
 

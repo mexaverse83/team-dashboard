@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Plus, Pencil, Trash2, CreditCard, Calendar, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { paymentMethodFromCard } from '@/lib/payment-methods'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
 import { Modal } from '@/components/ui/modal'
@@ -149,6 +150,7 @@ export function InstallmentsClient() {
       installment_id: inst.id,
       tags: ['auto-msi'],
       owner: inst.owner || null,
+      payment_method: paymentMethodFromCard(inst.credit_card),
     })
   }
 
@@ -475,7 +477,8 @@ export function InstallmentsClient() {
             </div>
             <div>
               <label className="text-xs font-medium text-[hsl(var(--text-secondary))]">Credit Card</label>
-              <input className={inputCls} value={form.credit_card} onChange={e => setForm(f => ({ ...f, credit_card: e.target.value }))} placeholder="e.g. BBVA Platinum" />
+              <input className={inputCls} list="msi-cards" value={form.credit_card} onChange={e => setForm(f => ({ ...f, credit_card: e.target.value }))} placeholder="e.g. BBVA Infinite" />
+              <datalist id="msi-cards"><option value="BBVA Infinite" /><option value="American Express" /></datalist>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

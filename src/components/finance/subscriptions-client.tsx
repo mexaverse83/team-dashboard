@@ -13,7 +13,8 @@ import { cn } from '@/lib/utils'
 
 import type { FinanceCategory, FinanceRecurring } from '@/lib/finance-types'
 import { enrichRecurring, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
-import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
+import { OWNERS, getOwnerName, getOwnerColor, canonicalOwner } from '@/lib/owners'
+import { PAYMENT_METHODS, getPaymentMethod } from '@/lib/payment-methods'
 import { OwnerDot } from '@/components/finance/owner-dot'
 
 import { inputCls } from '@/lib/form-style'
@@ -52,11 +53,12 @@ interface SubForm {
   notes: string
   owner: string
   debt_id: string
+  payment_method: string
 }
 
 interface Debt { id: string; name: string; balance: number }
 
-const emptyForm: SubForm = { name: '', amount: '', currency: 'MXN', category_id: '', frequency: 'monthly', next_due_date: '', merchant: '', notes: '', owner: '', debt_id: '' }
+const emptyForm: SubForm = { name: '', amount: '', currency: 'MXN', category_id: '', frequency: 'monthly', next_due_date: '', merchant: '', notes: '', owner: '', debt_id: '', payment_method: '' }
 
 export default function SubscriptionsClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
@@ -124,6 +126,7 @@ export default function SubscriptionsClient() {
       notes: sub.notes || '',
       owner: sub.owner || defaultOwner,
       debt_id: (sub as any).debt_id || '',
+      payment_method: sub.payment_method || '',
     })
     setModalOpen(true)
   }
@@ -178,6 +181,7 @@ export default function SubscriptionsClient() {
       notes: form.notes || null,
       owner: form.owner || null,
       debt_id: form.debt_id || null,
+      payment_method: form.payment_method || null,
       is_active: true,
     }
     if (editingId) {
@@ -199,6 +203,8 @@ export default function SubscriptionsClient() {
           transaction_date: todayStr,
           is_recurring: true,
           recurring_id: data.id,
+          owner: canonicalOwner(form.owner),
+          payment_method: form.payment_method || null,
         })
       }
     }
@@ -220,6 +226,8 @@ export default function SubscriptionsClient() {
       transaction_date: new Date().toISOString().slice(0, 10),
       is_recurring: true,
       recurring_id: sub.id,
+      owner: canonicalOwner(sub.owner),
+      payment_method: sub.payment_method || null,
     })
     setLoggedId(sub.id)
     setTimeout(() => setLoggedId(null), 2000)
@@ -308,7 +316,7 @@ export default function SubscriptionsClient() {
                     <td className="py-2 px-4 text-lg">{sub.category?.icon}</td>
                     <td className="py-2 px-4">
                       <p className="text-sm font-medium flex items-center gap-2">{sub.name} <OwnerDot owner={sub.owner} /></p>
-                      <p className="text-xs text-[hsl(var(--text-tertiary))]">{sub.merchant}</p>
+                      <p className="text-xs text-[hsl(var(--text-tertiary))]">{sub.merchant}{getPaymentMethod(sub.payment_method) && ` · ${getPaymentMethod(sub.payment_method)!.label}`}</p>
                     </td>
                     <td className="py-2 px-4 text-sm font-semibold text-right num-metric tabular-nums whitespace-nowrap">${sub.amount.toLocaleString()} <span className="text-[hsl(var(--text-tertiary))] font-normal">{sub.currency}</span></td>
                     <td className="py-2 px-4">
@@ -364,6 +372,7 @@ export default function SubscriptionsClient() {
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs capitalize text-[hsl(var(--text-tertiary))]">{sub.frequency}</span>
+                    {getPaymentMethod(sub.payment_method) && <span className="text-xs text-[hsl(var(--text-tertiary))]">{getPaymentMethod(sub.payment_method)!.short}</span>}
                     <span className={cn("h-1.5 w-1.5 rounded-full", sub.is_active ? "bg-emerald-500" : "bg-gray-500")} />
                     {sub.next_due_date && (
                       <span className="text-xs text-[hsl(var(--text-tertiary))]">Due {sub.next_due_date.slice(5)}</span>
@@ -474,6 +483,19 @@ export default function SubscriptionsClient() {
                     form.owner === name ? "border-blue-500 bg-blue-500/10 text-blue-600" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
                   )}>
                   <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ background: getOwnerColor(name) }} />{name}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Paid with</label>
+            <div className="grid grid-cols-4 gap-1 rounded-xl bg-[hsl(var(--bg-elevated))] p-1" role="group" aria-label="Payment method">
+              {PAYMENT_METHODS.map(m => (
+                <button key={m.value} type="button" aria-pressed={form.payment_method === m.value} title={m.label}
+                  onClick={() => updateForm({ payment_method: form.payment_method === m.value ? '' : m.value })}
+                  className={cn('min-w-0 truncate rounded-lg px-1 py-2 text-xs font-semibold transition-colors',
+                    form.payment_method === m.value ? 'bg-blue-500/20 text-blue-600' : 'text-[hsl(var(--text-secondary))]')}>
+                  {m.short}
                 </button>
               ))}
             </div>

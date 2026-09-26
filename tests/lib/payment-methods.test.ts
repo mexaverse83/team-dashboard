@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bbvaCycleFor, bbvaCycleToPay, shiftCycle, summarizeCycle, getPaymentMethod } from '@/lib/payment-methods'
+import { bbvaCycleFor, bbvaCycleToPay, shiftCycle, summarizeCycle, getPaymentMethod, paymentMethodFromCard } from '@/lib/payment-methods'
 
 describe('bbvaCycleFor', () => {
   it('puts purchases through the 9th on that month\'s statement, due the 29th', () => {
@@ -50,5 +50,15 @@ describe('getPaymentMethod', () => {
   it('looks up labels and tolerates unknown values', () => {
     expect(getPaymentMethod('amex')?.label).toBe('American Express')
     expect(getPaymentMethod(null)).toBeNull()
+  })
+})
+
+describe('paymentMethodFromCard', () => {
+  it('recognizes BBVA Infinite and Amex card names, ignores others', () => {
+    expect(paymentMethodFromCard('BBVA Infinite')).toBe('bbva_infinite')
+    expect(paymentMethodFromCard('bbva infinita')).toBe('bbva_infinite')
+    expect(paymentMethodFromCard('Amex Platinum')).toBe('amex')
+    expect(paymentMethodFromCard('BBVA Platinum')).toBeNull()
+    expect(paymentMethodFromCard(null)).toBeNull()
   })
 })

@@ -215,5 +215,16 @@ ALTER TABLE finance_transactions
 CREATE INDEX IF NOT EXISTS idx_transactions_payment_method
   ON finance_transactions(payment_method, transaction_date) WHERE payment_method IS NOT NULL;
 
+-- Payment method on subscriptions, copied onto the transactions the
+-- recurring processor creates (so BBVA-charged subscriptions hit the card).
+ALTER TABLE finance_recurring
+  ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT NULL;
+
+ALTER TABLE finance_recurring
+  DROP CONSTRAINT IF EXISTS finance_recurring_payment_method_check;
+ALTER TABLE finance_recurring
+  ADD CONSTRAINT finance_recurring_payment_method_check
+  CHECK (payment_method IS NULL OR payment_method IN ('bbva_infinite', 'amex', 'cash', 'transfer'));
+
 -- ─── DONE ─────────────────────────────────────────────────────
 SELECT 'All pending migrations applied successfully' AS result;

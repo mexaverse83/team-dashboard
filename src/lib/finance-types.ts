@@ -73,6 +73,7 @@ export interface FinanceRecurring {
   merchant: string | null
   notes: string | null
   owner: string | null
+  payment_method?: string | null
   // Joined
   category?: FinanceCategory
 }

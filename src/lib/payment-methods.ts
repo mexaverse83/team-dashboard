@@ -19,6 +19,18 @@ export function getPaymentMethod(value?: string | null) {
   return PAYMENT_METHODS.find(m => m.value === value) ?? null
 }
 
+/**
+ * Installments store the card as free text (credit_card). Map the names we
+ * recognize to a payment method; anything else stays untracked.
+ */
+export function paymentMethodFromCard(card?: string | null): PaymentMethod | null {
+  const text = (card || '').toLowerCase()
+  if (!text) return null
+  if (text.includes('infinit')) return 'bbva_infinite'
+  if (text.includes('amex') || text.includes('american express')) return 'amex'
+  return null
+}
+
 export const BBVA_CUT_DAY = 9
 export const BBVA_DUE_DAY = 29
 
