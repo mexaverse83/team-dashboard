@@ -152,7 +152,6 @@ export default function TransactionsClient() {
   const [saveError, setSaveError] = useState('')
   const [savedMessage, setSavedMessage] = useState('')
   const savedMessageTimer = useRef<number | null>(null)
-  const mobileDateInputRef = useRef<HTMLInputElement>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   // Auto-categorization rules + duplicate detection
@@ -1029,27 +1028,31 @@ export default function TransactionsClient() {
           <div className="tx-mobile-date-owner grid grid-cols-[minmax(0,1.45fr)_minmax(0,0.8fr)] gap-1.5 sm:hidden">
             <div className="min-w-0">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--text-tertiary))]">Date</span>
-              <div className="grid h-10 grid-cols-[1fr_0.8fr_2.25rem] gap-1 rounded-xl bg-[hsl(var(--bg-elevated))] p-1">
+              <div className="grid h-10 grid-cols-[1fr_0.8fr_minmax(2.25rem,auto)] gap-1 rounded-xl bg-[hsl(var(--bg-elevated))] p-1">
                 <button type="button" onClick={() => { updateForm({ transaction_date: relativeLocalDateKey(-1) }); setConfirmDuplicate(false) }}
                   aria-pressed={form.transaction_date === relativeLocalDateKey(-1)}
                   className={cn('min-w-0 rounded-lg px-1 text-[10px] font-semibold transition-colors', form.transaction_date === relativeLocalDateKey(-1) ? 'bg-blue-500/20 text-blue-300' : 'text-[hsl(var(--text-secondary))]')}>Yesterday</button>
                 <button type="button" onClick={() => { updateForm({ transaction_date: today() }); setConfirmDuplicate(false) }}
                   aria-pressed={form.transaction_date === today()}
                   className={cn('min-w-0 rounded-lg px-1 text-[10px] font-semibold transition-colors', form.transaction_date === today() ? 'bg-blue-500/20 text-blue-300' : 'text-[hsl(var(--text-secondary))]')}>Today</button>
-                <button type="button" title="Choose another date" aria-label="Choose another transaction date"
-                  onClick={() => {
-                    const picker = mobileDateInputRef.current
-                    if (!picker) return
-                    try { picker.showPicker() } catch { picker.click() }
-                  }}
-                  className={cn('flex items-center justify-center rounded-lg transition-colors', ![today(), relativeLocalDateKey(-1)].includes(form.transaction_date) ? 'bg-blue-500/20 text-blue-300' : 'text-[hsl(var(--text-tertiary))]')}>
-                  <CalendarDays className="h-4 w-4" aria-hidden="true" />
-                </button>
+                {/* A real date input stretched over the calendar chip: tapping it
+                    opens the native picker directly. iOS Safari won't open a
+                    hidden input via showPicker()/click(). */}
+                {(() => {
+                  const custom = ![today(), relativeLocalDateKey(-1)].includes(form.transaction_date)
+                  const [y, m, d] = form.transaction_date.split('-').map(Number)
+                  return (
+                    <div className={cn('relative flex min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 transition-colors', custom ? 'bg-blue-500/20 text-blue-300' : 'text-[hsl(var(--text-tertiary))]')}>
+                      <CalendarDays className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      {custom && y && <span className="whitespace-nowrap text-[10px] font-semibold">{new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
+                      <input id="transaction-date-mobile" type="date" required value={form.transaction_date} max={today()}
+                        aria-label="Choose transaction date" title="Choose another date"
+                        onChange={e => { if (e.target.value) { updateForm({ transaction_date: e.target.value }); setConfirmDuplicate(false) } }}
+                        className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 text-base [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full" />
+                    </div>
+                  )
+                })()}
               </div>
-              <input ref={mobileDateInputRef} id="transaction-date-mobile" type="date" required value={form.transaction_date} max={today()}
-                tabIndex={-1} aria-label="Choose transaction date"
-                onChange={e => { updateForm({ transaction_date: e.target.value }); setConfirmDuplicate(false) }}
-                className="pointer-events-none fixed bottom-0 left-0 h-px w-px opacity-0" />
             </div>
             <div className="min-w-0">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-[hsl(var(--text-tertiary))]">Owner</span>

@@ -412,6 +412,20 @@ describe('Transactions Page', () => {
     expect(laura).toHaveAttribute('aria-pressed', 'true')
     expect(dateClick).not.toHaveBeenCalled()
   })
+
+  it('picks a custom date from the mobile calendar and shows it on the chip', async () => {
+    const Comp = (await import('@/components/finance/transactions-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Add transaction' }).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add transaction' })[0])
+
+    const dateInput = screen.getByLabelText('Choose transaction date') as HTMLInputElement
+    fireEvent.change(dateInput, { target: { value: '2026-01-15' } })
+
+    expect(dateInput).toHaveValue('2026-01-15')
+    expect(screen.getByText('Jan 15')).toBeInTheDocument()
+    expect(screen.getByLabelText('Date *')).toHaveValue('2026-01-15')
+  })
 })
 
 // ==========================================
