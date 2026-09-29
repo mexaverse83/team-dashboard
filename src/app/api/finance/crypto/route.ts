@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { OWNERS } from '@/lib/owners'
+import { fetchCryptoPrices } from '@/lib/crypto-prices'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -12,15 +13,6 @@ function getSupabase() {
   return createClient(url, key)
 }
 
-const COINGECKO_IDS: Record<string, string> = {
-  BTC: 'bitcoin',
-  ETH: 'ethereum',
-  SOL: 'solana',
-  KAS: 'kaspa',
-  LIT: 'lighter',
-  AERO: 'aerodrome-finance',
-}
-
 const COIN_NAMES: Record<string, string> = {
   BTC: 'Bitcoin',
   ETH: 'Ethereum',
@@ -28,33 +20,6 @@ const COIN_NAMES: Record<string, string> = {
   KAS: 'Kaspa',
   LIT: 'Lighter',
   AERO: 'Aerodrome',
-}
-
-async function fetchPrices(bust = false) {
-  try {
-    const ids = Object.values(COINGECKO_IDS).join(',')
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd,mxn&include_24hr_change=true`,
-      bust ? { cache: 'no-store' } : { next: { revalidate: 300 } }
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    const prices: Record<string, { usd: number; mxn: number; change24h: number }> = {}
-    for (const [symbol, geckoId] of Object.entries(COINGECKO_IDS)) {
-      const coin = data[geckoId]
-      if (coin) {
-        prices[symbol] = {
-          usd: coin.usd ?? 0,
-          mxn: coin.mxn ?? 0,
-          change24h: coin.usd_24h_change ?? 0,
-        }
-      }
-    }
-    return prices
-  } catch (e) {
-    console.error('CoinGecko fetch error:', e)
-    return null
-  }
 }
 
 // GET: return holdings + live prices
@@ -83,7 +48,7 @@ export async function GET(req: NextRequest) {
     dbError = e instanceof Error ? e.message : 'Database unavailable'
   }
 
-  const prices = await fetchPrices(bust)
+  const prices = await fetchCryptoPrices(undefined, { bust })
 
   return NextResponse.json({ holdings, prices, dbError })
 }

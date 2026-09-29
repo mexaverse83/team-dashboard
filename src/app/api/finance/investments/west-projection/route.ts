@@ -4,6 +4,7 @@ import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { accruedValue } from '@/lib/fixed-income'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { FERTILITY_TREATMENT_PLAN, getTreatmentEventForMonth } from '@/lib/fertility-plan'
+import { fetchCryptoPrices } from '@/lib/crypto-prices'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -14,7 +15,7 @@ function getSupabase() {
   return createClient(url, key)
 }
 
-// CoinGecko proxy for crypto total
+// Live crypto total (CoinGecko with Coinpaprika fallback)
 async function getCryptoTotal(): Promise<number> {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -24,18 +25,11 @@ async function getCryptoTotal(): Promise<number> {
     const { data: holdings } = await supabase.from('finance_crypto_holdings').select('symbol, quantity')
     if (!holdings || holdings.length === 0) return 0
 
-    const ids = ['bitcoin', 'ethereum', 'solana', 'kaspa', 'lighter', 'aerodrome-finance']
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=mxn`,
-      { next: { revalidate: 300 } }
-    )
-    if (!res.ok) return 0
-    const prices = await res.json()
-    const symbolMap: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', KAS: 'kaspa', LIT: 'lighter', AERO: 'aerodrome-finance' }
+    const prices = await fetchCryptoPrices(holdings.map(h => h.symbol))
+    if (!prices) return 0
 
     return holdings.reduce((total, h) => {
-      const cgId = symbolMap[h.symbol]
-      const price = cgId ? prices[cgId]?.mxn || 0 : 0
+      const price = prices[h.symbol]?.mxn || 0
       return total + (h.quantity || 0) * price
     }, 0)
   } catch {

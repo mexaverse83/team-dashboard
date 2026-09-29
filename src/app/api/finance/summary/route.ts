@@ -9,6 +9,7 @@ import { deriveIncomeBaseline, emergencyFundCoverage, expectedMonthIncome } from
 import { projectCategoryMonthEnd, summarizeCategoryHistory } from '@/lib/spend-projection'
 import { mexicoCityDateParts } from '@/lib/insights-prompt.mjs'
 import { OWNERS } from '@/lib/owners'
+import { fetchCryptoPrices } from '@/lib/crypto-prices'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -501,19 +502,7 @@ async function buildSummary(req: NextRequest) {
   try {
     const holdings = (cryptoHoldings || []).filter((h: Record<string, unknown>) => (h.quantity as number) > 0)
     if (holdings.length > 0) {
-      const geckoIds: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', KAS: 'kaspa', LIT: 'lighter', AERO: 'aerodrome-finance' }
-      const ids = [...new Set(holdings.map((h: Record<string, unknown>) => geckoIds[h.symbol as string]).filter(Boolean))].join(',')
-      let prices: Record<string, { usd: number; mxn: number }> = {}
-      try {
-        const pRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd,mxn`, { next: { revalidate: 300 }, signal: AbortSignal.timeout(5000) })
-        if (pRes.ok) {
-          const pData = await pRes.json()
-          for (const [sym, gId] of Object.entries(geckoIds)) {
-            const coin = pData[gId as string]
-            if (coin) prices[sym] = { usd: coin.usd ?? 0, mxn: coin.mxn ?? 0 }
-          }
-        }
-      } catch { /* CoinGecko unavailable */ }
+      const prices = await fetchCryptoPrices(holdings.map((h: Record<string, unknown>) => h.symbol as string)) ?? {}
 
       const usdToMxn = Object.values(prices).find(p => p.usd > 0 && p.mxn > 0)
         ? Object.values(prices).find(p => p.usd > 0)!.mxn / Object.values(prices).find(p => p.usd > 0)!.usd

@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { accruedValue } from '@/lib/fixed-income'
+import { fetchCryptoPrices } from '@/lib/crypto-prices'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -81,26 +82,14 @@ export async function POST(req: NextRequest) {
   try {
     const holdings = (cryptoHoldings || []).filter((h: { quantity?: number }) => (h.quantity ?? 0) > 0)
     if (holdings.length > 0) {
-      const geckoIds: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', KAS: 'kaspa', LIT: 'lighter', AERO: 'aerodrome-finance' }
-      const ids = [...new Set(holdings.map((h: { symbol: string }) => geckoIds[h.symbol]).filter(Boolean))].join(',')
-      let prices: Record<string, number> = {}
-      try {
-        const pRes = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=mxn`, { next: { revalidate: 300 } })
-        if (pRes.ok) {
-          const pData = await pRes.json()
-          for (const [sym, gId] of Object.entries(geckoIds)) {
-            const coin = pData[gId]
-            if (coin) prices[sym] = coin.mxn ?? 0
-          }
-        }
-      } catch { /* ignore — fall back below */ }
+      const prices = await fetchCryptoPrices(holdings.map((h: { symbol: string }) => h.symbol)) ?? {}
       for (const h of holdings) {
-        const priceMXN = prices[h.symbol] ?? 0
+        const priceMXN = prices[h.symbol]?.mxn ?? 0
         if (priceMXN > 0) {
           cryptoTotalMXN += h.quantity * priceMXN
         } else if (h.avg_cost_basis_usd) {
-          // Fallback to USD cost basis * 17 MXN/USD
-          cryptoTotalMXN += h.quantity * h.avg_cost_basis_usd * 17
+          // No live price: fall back to cost basis (avg_cost_basis_usd stores MXN despite its name)
+          cryptoTotalMXN += h.quantity * h.avg_cost_basis_usd
         }
       }
     }

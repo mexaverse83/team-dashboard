@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { OWNERS } from '@/lib/owners'
+import { fetchCryptoPrices } from '@/lib/crypto-prices'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -396,19 +397,13 @@ export async function GET(req: NextRequest) {
     let cryptoSummary: Record<string, unknown> | null = null
     if (cryptoRes.data && cryptoRes.data.length > 0) {
       const holdings = cryptoRes.data
-      const symbolMap: Record<string, string> = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', KAS: 'kaspa', LIT: 'lighter', AERO: 'aerodrome-finance' }
-      let prices: Record<string, { mxn: number }> = {}
-      try {
-        const priceRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,kaspa,lighter,aerodrome-finance&vs_currencies=mxn', { next: { revalidate: 300 } })
-        if (priceRes.ok) prices = await priceRes.json()
-      } catch { /* use 0 prices */ }
+      const prices = await fetchCryptoPrices(holdings.map(h => h.symbol as string)) ?? {}
 
       let totalMXN = 0; let totalCost = 0
       const holdingsSummary = holdings.map(h => {
-        const cgId = symbolMap[h.symbol as string]
-        const price = cgId ? (prices[cgId]?.mxn || 0) : 0
+        const price = prices[h.symbol as string]?.mxn || 0
         const value = (h.quantity as number) * price
-        const cost = (h.avg_cost_basis_mxn as number || 0) * (h.quantity as number)
+        const cost = (h.avg_cost_basis_usd as number || 0) * (h.quantity as number)
         totalMXN += value; totalCost += cost
         return { symbol: h.symbol, qty: h.quantity, value, cost, allocation_pct: 0 }
       })
