@@ -40,6 +40,26 @@ export const HISTORY_WINDOW_MONTHS = 3
  */
 export const THIS_MONTH_WEIGHT = 0.6
 
+/**
+ * One-off charges are counted once, never trended. On 2026-10-07 an $11,100
+ * gym payment in "Other" (typical month ≈ $2,500) was read as daily spending
+ * and projected the category to $41,802, wiping ~$28k off projected savings.
+ * A single charge counts as a lump when it is at least LUMP_FLOOR_MXN and at
+ * least LUMP_SHARE_OF_TYPICAL of the category's typical month.
+ */
+export const LUMP_FLOOR_MXN = 2_500
+export const LUMP_SHARE_OF_TYPICAL = 0.5
+
+export function lumpThreshold(typicalMonth: number): number {
+  return Math.max(LUMP_FLOOR_MXN, typicalMonth * LUMP_SHARE_OF_TYPICAL)
+}
+
+/** Sum of the charges large enough to be one-offs for a category with this typical month. */
+export function lumpSum(amounts: number[], typicalMonth: number): number {
+  const threshold = lumpThreshold(typicalMonth)
+  return amounts.filter(amount => amount >= threshold).reduce((sum, amount) => sum + amount, 0)
+}
+
 export function summarizeCategoryHistory(monthTotals: number[], budget = 0): CategoryHistory {
   const recent = monthTotals.slice(-HISTORY_WINDOW_MONTHS)
   return {
@@ -71,6 +91,7 @@ export function projectCategoryMonthEnd({
   dayOfMonth,
   daysInMonth,
   history,
+  lumpSpent = 0,
 }: {
   spent: number
   budget: number
@@ -79,6 +100,8 @@ export function projectCategoryMonthEnd({
   dayOfMonth: number
   daysInMonth: number
   history?: CategoryHistory | null
+  /** Part of `spent` made of one-off charges (see lumpSum) — counted once, not trended. */
+  lumpSpent?: number
 }): CategoryProjection {
   const spentRounded = Math.round(spent)
   const trustHistory = !!history && history.monthsObserved >= MIN_HISTORY_MONTHS
@@ -113,7 +136,8 @@ export function projectCategoryMonthEnd({
   // either running away or erasing a consistent habit — and it cuts both ways:
   // a quiet month projects lower, a category the household reliably overspends
   // projects higher than its own slow start suggests.
-  const thisMonthRate = dayOfMonth > 0 ? spent / dayOfMonth : 0
+  const routineSpent = Math.max(0, spent - lumpSpent)
+  const thisMonthRate = dayOfMonth > 0 ? routineSpent / dayOfMonth : 0
   const historyRate = trustHistory && daysInMonth > 0 ? history.median / daysInMonth : 0
   const rate = trustHistory
     ? THIS_MONTH_WEIGHT * thisMonthRate + (1 - THIS_MONTH_WEIGHT) * historyRate

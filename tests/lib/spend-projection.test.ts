@@ -3,6 +3,7 @@ import {
   HISTORY_WINDOW_MONTHS,
   MIN_HISTORY_MONTHS,
   projectCategoryMonthEnd,
+  lumpSum,
   summarizeCategoryHistory,
 } from '@/lib/spend-projection'
 
@@ -167,5 +168,31 @@ describe('projectCategoryMonthEnd', () => {
     })
 
     expect(result.expectedRemaining).toBe(0)
+  })
+})
+
+describe('one-off charges', () => {
+  it('treats a charge as a lump only when large for its category', () => {
+    // Other: typical month ~$2,546 → threshold is the $2,500 floor
+    expect(lumpSum([11_100, 2_000, 316], 2_546)).toBe(11_100)
+    // Dining Out: typical ~$12,865 → threshold ~$6,432, so a $3k dinner is routine
+    expect(lumpSum([3_000, 6_500], 12_865)).toBe(6_500)
+  })
+
+  it('counts a lump once instead of trending it (2026-10-07 gym charge)', () => {
+    const history = summarizeCategoryHistory([8_229, 2_546, 2_423, 2_941], 5_000)
+    const trended = projectCategoryMonthEnd({
+      spent: 13_416, budget: 5_000, isFixed: false, isNonMonthly: false,
+      dayOfMonth: 7, daysInMonth: 31, history,
+    })
+    const withLump = projectCategoryMonthEnd({
+      spent: 13_416, budget: 5_000, isFixed: false, isNonMonthly: false,
+      dayOfMonth: 7, daysInMonth: 31, history, lumpSpent: 11_100,
+    })
+
+    expect(trended.projected).toBeGreaterThan(40_000)
+    // $11,100 once + routine $2,316 trended with history over 24 days
+    expect(withLump.projected).toBeGreaterThan(17_000)
+    expect(withLump.projected).toBeLessThan(20_000)
   })
 })

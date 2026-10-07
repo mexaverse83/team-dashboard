@@ -6,7 +6,7 @@ import { buildFertilityCutRecommendations, FERTILITY_TREATMENT_PLAN, getRemainin
 import { BABY_PLAN, BABY_PLAN_TAG, EDUCATION_FUND_PLAN, getActiveChecklistItems, getBabyEventForMonth, getRemainingBabyEvents, monthsUntilDue, projectEducationFund } from '@/lib/baby-plan'
 import { defaultBudgetType } from '@/lib/finance-utils'
 import { deriveIncomeBaseline, emergencyFundCoverage, expectedMonthIncome } from '@/lib/household-metrics'
-import { projectCategoryMonthEnd, summarizeCategoryHistory } from '@/lib/spend-projection'
+import { lumpSum, MIN_HISTORY_MONTHS, projectCategoryMonthEnd, summarizeCategoryHistory } from '@/lib/spend-projection'
 import { mexicoCityDateParts } from '@/lib/insights-prompt.mjs'
 import { OWNERS } from '@/lib/owners'
 import { fetchCryptoPrices } from '@/lib/crypto-prices'
@@ -334,6 +334,11 @@ async function buildSummary(req: NextRequest) {
     // One place decides every category's month-end estimate, so the forecast
     // total can't drift from the per-category numbers shown alongside it.
     const history = categoryHistoryFor(b.category_id, effectiveBudget)
+    const typicalMonth = history.monthsObserved >= MIN_HISTORY_MONTHS ? history.median : effectiveBudget
+    const lumpSpent = lumpSum(
+      currentMonthTxs.filter(t => t.category_id === b.category_id).map(t => t.amount_mxn || t.amount || 0),
+      typicalMonth,
+    )
     const projection = projectCategoryMonthEnd({
       spent,
       budget: effectiveBudget,
@@ -342,6 +347,7 @@ async function buildSummary(req: NextRequest) {
       dayOfMonth,
       daysInMonth,
       history,
+      lumpSpent,
     })
 
     return {
@@ -410,10 +416,19 @@ async function buildSummary(req: NextRequest) {
     .filter(t => !budgetedCategoryIds.has(t.category_id)
       && Array.isArray(t.tags) && t.tags.some((tag: string) => UNTRENDED_TAGS.includes(tag)))
     .reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0))
-  const trendedUnbudgeted = Math.max(0, unbudgetedSpent - unbudgetedAtActuals)
-  const projectedUnbudgeted = pastDay7 && dayOfMonth > 0
+  // One-off charges (e.g. a $2,800 baby purchase) land once; only routine
+  // unbudgeted spending runs at its daily pace.
+  const unbudgetedLumps = lumpSum(
+    currentMonthTxs
+      .filter(t => !budgetedCategoryIds.has(t.category_id)
+        && !(Array.isArray(t.tags) && t.tags.some((tag: string) => UNTRENDED_TAGS.includes(tag))))
+      .map(t => t.amount_mxn || t.amount || 0),
+    0,
+  )
+  const trendedUnbudgeted = Math.max(0, unbudgetedSpent - unbudgetedAtActuals - unbudgetedLumps)
+  const projectedUnbudgeted = (pastDay7 && dayOfMonth > 0
     ? Math.round(trendedUnbudgeted / dayOfMonth * daysInMonth)
-    : trendedUnbudgeted
+    : trendedUnbudgeted) + unbudgetedLumps
   const projectedMonthSpend = Math.round(projectedBudgetedSpend + projectedUnbudgeted + unbudgetedAtActuals + treatmentRemainingThisMonth + babyRemainingThisMonth)
   const actualIncomeThisMonth = (currentMonthIncomeTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
   // What has posted + recurring income still due to land. The old
