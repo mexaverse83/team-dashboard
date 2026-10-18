@@ -73,6 +73,7 @@ const COIN_LOGOS: Record<string, string> = {
   KAS: 'https://coin-images.coingecko.com/coins/images/25751/small/kaspa-icon-exchanges.png?1696524837',
   LIT: 'https://coin-images.coingecko.com/coins/images/71121/small/lighter.png?1765888098',
   AERO: 'https://coin-images.coingecko.com/coins/images/31745/small/token.png?1696530564',
+  HYPE: 'https://coin-images.coingecko.com/coins/images/50882/small/hyperliquid.jpg?1729431300',
 }
 const COIN_COLORS: Record<string, string> = {
   BTC: 'from-orange-500 to-amber-600',
