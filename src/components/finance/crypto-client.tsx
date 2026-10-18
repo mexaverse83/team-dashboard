@@ -65,7 +65,7 @@ const EMPTY_TX_FORM: TxFormData = {
   quantity: '', price_per_coin_mxn: '', price_currency: 'MXN', exchange: '', notes: '', transaction_date: today,
 }
 
-const COIN_ICONS: Record<string, string> = { BTC: '₿', ETH: 'Ξ', SOL: '◎', KAS: 'K', LIT: 'L', AERO: 'A' }
+const COIN_ICONS: Record<string, string> = { BTC: '₿', ETH: 'Ξ', SOL: '◎', KAS: 'K', LIT: 'L', AERO: 'A', HYPE: 'H' }
 const COIN_LOGOS: Record<string, string> = {
   BTC: 'https://coin-images.coingecko.com/coins/images/1/small/bitcoin.png?1696501400',
   ETH: 'https://coin-images.coingecko.com/coins/images/279/small/ethereum.png?1696501628',
@@ -81,6 +81,7 @@ const COIN_COLORS: Record<string, string> = {
   KAS: 'from-teal-400 to-cyan-600',
   LIT: 'from-sky-400 to-blue-500',
   AERO: 'from-blue-400 to-indigo-500',
+  HYPE: 'from-emerald-300 to-teal-600',
 }
 const COIN_SOLIDS: Record<string, string> = {
   BTC: 'bg-orange-500',
@@ -89,6 +90,7 @@ const COIN_SOLIDS: Record<string, string> = {
   KAS: 'bg-teal-500',
   LIT: 'bg-sky-500',
   AERO: 'bg-blue-500',
+  HYPE: 'bg-emerald-400',
 }
 
 function fmt(n: number, decimals = 2) {
@@ -756,8 +758,8 @@ export function CryptoClient() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Asset</label>
-                <div className="grid grid-cols-3 gap-2 sm:flex">
-                  {['BTC', 'ETH', 'SOL', 'KAS', 'LIT', 'AERO'].map(s => (
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {['BTC', 'ETH', 'SOL', 'KAS', 'LIT', 'AERO', 'HYPE'].map(s => (
                     <button key={s} onClick={() => setHoldingForm(f => ({ ...f, symbol: s }))}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${holdingForm.symbol === s ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'}`}>
                       {COIN_LOGOS[s]
@@ -824,8 +826,8 @@ export function CryptoClient() {
               {/* Asset */}
               <div>
                 <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Asset</label>
-                <div className="grid grid-cols-3 gap-2 sm:flex">
-                  {['BTC', 'ETH', 'SOL', 'KAS', 'LIT', 'AERO'].map(s => (
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {['BTC', 'ETH', 'SOL', 'KAS', 'LIT', 'AERO', 'HYPE'].map(s => (
                     <button key={s} onClick={() => setTxForm(f => ({ ...f, symbol: s }))}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${txForm.symbol === s ? 'bg-emerald-600 text-white' : 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]'}`}>
                       {COIN_LOGOS[s]

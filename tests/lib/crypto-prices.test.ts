@@ -7,6 +7,19 @@ const paprika = (usd: number, mxn: number) => json({ quotes: { USD: { price: usd
 afterEach(() => vi.unstubAllGlobals())
 
 describe('fetchCryptoPrices', () => {
+  it('quotes HYPE from CoinGecko and falls back to its Hyperliquid ticker', async () => {
+    const fetchMock = vi.fn(async (url: string) => url.includes('coingecko')
+      ? json({ hyperliquid: { usd: 78.56, mxn: 1451.7888, usd_24h_change: 1 } })
+      : paprika(78.56, 1451.7888))
+    vi.stubGlobal('fetch', fetchMock)
+    expect((await fetchCryptoPrices(['HYPE']))?.HYPE.usd).toBe(78.56)
+    expect(fetchMock.mock.calls[0][0]).toContain('ids=hyperliquid&')
+
+    fetchMock.mockImplementation(async (url: string) => url.includes('coingecko') ? json('blocked', false) : paprika(78.56, 1451.7888))
+    expect((await fetchCryptoPrices(['HYPE']))?.HYPE.mxn).toBe(1451.7888)
+    expect(fetchMock.mock.calls.at(-1)?.[0]).toContain('/tickers/hype-hyperliquid?')
+  })
+
   it('uses CoinGecko when it answers', async () => {
     const fetchMock = vi.fn(async () => json({ kaspa: { usd: 0.05, mxn: 0.9, usd_24h_change: 3 } }))
     vi.stubGlobal('fetch', fetchMock)

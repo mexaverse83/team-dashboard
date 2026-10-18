@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS finance_crypto_holdings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id),
-  symbol TEXT NOT NULL CHECK (symbol IN ('BTC', 'ETH', 'SOL')),
+  symbol TEXT NOT NULL CHECK (symbol IN ('BTC', 'ETH', 'SOL', 'KAS', 'LIT', 'AERO', 'HYPE')),
   name TEXT NOT NULL,
   quantity NUMERIC(18,8) NOT NULL DEFAULT 0,
   avg_cost_basis_usd NUMERIC(12,2),

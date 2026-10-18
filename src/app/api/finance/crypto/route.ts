@@ -20,6 +20,7 @@ const COIN_NAMES: Record<string, string> = {
   KAS: 'Kaspa',
   LIT: 'Lighter',
   AERO: 'Aerodrome',
+  HYPE: 'Hyperliquid',
 }
 
 // GET: return holdings + live prices

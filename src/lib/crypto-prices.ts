@@ -20,6 +20,7 @@ export const COINGECKO_IDS: Record<string, string> = {
   KAS: 'kaspa',
   LIT: 'lighter',
   AERO: 'aerodrome-finance',
+  HYPE: 'hyperliquid',
 }
 
 const COINPAPRIKA_IDS: Record<string, string> = {
@@ -29,6 +30,7 @@ const COINPAPRIKA_IDS: Record<string, string> = {
   KAS: 'kas-kaspa',
   LIT: 'lit-lighter',
   AERO: 'aero-aerodrome-finance',
+  HYPE: 'hype-hyperliquid',
 }
 
 const TIMEOUT_MS = 5000
