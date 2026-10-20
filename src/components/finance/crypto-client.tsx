@@ -134,9 +134,10 @@ export function CryptoClient() {
     try {
       const bust_qs = bust ? `?t=${Date.now()}` : ''
       const [holdingsRes, txRes] = await Promise.all([
-        fetch(`/api/finance/crypto${bust_qs}`),
-        fetch('/api/finance/crypto/transactions'),
+        fetch(`/api/finance/crypto${bust_qs}`, { cache: 'no-store' }),
+        fetch('/api/finance/crypto/transactions', { cache: 'no-store' }),
       ])
+      if (!holdingsRes.ok || !txRes.ok) throw new Error('Crypto data is unavailable')
       const hText = await holdingsRes.text()
       const tText = await txRes.text()
 
@@ -149,6 +150,7 @@ export function CryptoClient() {
         const tData = JSON.parse(tText)
         setTransactions(tData.transactions || [])
       }
+      setError(null)
     } catch (e) {
       console.error('Crypto fetch error:', e)
       setError('Failed to load crypto data')
@@ -157,7 +159,19 @@ export function CryptoClient() {
     }
   }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void fetchData() }, 0)
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void fetchData()
+    }
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.clearTimeout(initial)
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [fetchData])
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -367,6 +381,11 @@ export function CryptoClient() {
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
             {prices ? 'Live prices via CoinGecko' : 'Prices unavailable'}
           </p>
+          {filteredTx.length > 0 && (
+            <a href="#crypto-transactions" className="mt-1 inline-block text-xs font-medium text-emerald-600 hover:underline">
+              View transaction history ({filteredTx.length})
+            </a>
+          )}
         </div>
         <div className="flex w-full gap-2 sm:w-auto sm:flex-wrap">
           <button onClick={handleRefresh} disabled={refreshing} className="flex grow sm:grow-0 items-center justify-center gap-1.5 whitespace-nowrap px-2 sm:px-3 py-2 sm:py-1.5 rounded-lg text-xs bg-[hsl(var(--accent))] hover:bg-[hsl(var(--accent))]/80 transition-colors disabled:opacity-60">
@@ -665,7 +684,7 @@ export function CryptoClient() {
       {filteredTx.length > 0 && (
         <GlassCard className="p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold">Transaction History</h3>
+            <h3 id="crypto-transactions" className="scroll-mt-6 text-base font-semibold">Transaction History</h3>
             <button onClick={() => openTxForm()} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-500 text-white">
               <Plus className="h-3.5 w-3.5" /> Log Transaction
             </button>

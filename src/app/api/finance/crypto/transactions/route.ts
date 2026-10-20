@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  return NextResponse.json({ transactions: txs })
+  return NextResponse.json({ transactions: txs }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 // POST: log a new transaction and recalculate holding
