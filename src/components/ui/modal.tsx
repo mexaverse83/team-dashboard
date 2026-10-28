@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const openDialogs: HTMLDivElement[] = []
+const SHEET_DISMISS_PX = 120
+const SHEET_DISMISS_VELOCITY = 600
 
 function isVisible(element: HTMLElement, dialog: HTMLElement | null): boolean {
   for (let node: HTMLElement | null = element; node && node !== dialog; node = node.parentElement) {
@@ -107,6 +109,40 @@ export function Modal({ open, onClose, title, children, className, bodyClassName
     }
   }, [open])
 
+  // Drag-to-dismiss for the mobile sheet (MOB-18): only the handle/header start
+  // a drag, so the form body keeps scrolling normally. CSS `translate` composes
+  // with framer's transform, so the exit animation continues from the drag.
+  const drag = useRef<{ startY: number; dy: number; t: number; id: number } | null>(null)
+  const onDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (mobileFullScreen || e.button > 0) return
+    if ((e.target as HTMLElement).closest('button, a, input, select, textarea')) return
+    if (typeof window.matchMedia === 'function' && window.matchMedia('(min-width: 640px)').matches) return
+    drag.current = { startY: e.clientY, dy: 0, t: e.timeStamp, id: e.pointerId }
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* jsdom / synthetic pointers */ }
+    if (ref.current) ref.current.style.transition = 'none'
+  }
+  const onDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current
+    if (!d || e.pointerId !== d.id) return
+    d.dy = Math.max(0, e.clientY - d.startY)
+    if (ref.current) ref.current.style.translate = `0 ${d.dy}px`
+  }
+  const onDragEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current
+    if (!d) return
+    drag.current = null
+    const velocity = (d.dy / Math.max(1, e.timeStamp - d.t)) * 1000
+    if (d.dy > SHEET_DISMISS_PX || (d.dy > 48 && velocity > SHEET_DISMISS_VELOCITY)) {
+      onCloseRef.current()
+      return
+    }
+    const el = ref.current
+    if (el) {
+      el.style.transition = 'translate 0.2s ease-out'
+      el.style.translate = ''
+    }
+  }
+
   useEffect(() => {
     if (!open) return
     const viewport = window.visualViewport
@@ -146,9 +182,9 @@ export function Modal({ open, onClose, title, children, className, bodyClassName
             aria-modal="true"
             aria-labelledby={titleId}
             className={cn(
-              "relative flex flex-col bg-[hsl(var(--bg-surface))] border border-[hsl(var(--border))] shadow-2xl",
+              "relative flex flex-col bg-surface border border-border shadow-2xl",
               mobileFullScreen
-                ? "h-full w-full max-h-full rounded-none border-0 bg-[#080d19]"
+                ? "h-full w-full max-h-full rounded-none border-0 bg-[hsl(var(--background))]"
                 : "w-full max-h-[92%] rounded-t-2xl",
               "sm:max-w-md sm:max-h-[85%] sm:rounded-xl",      // desktop dialog
               className
@@ -158,19 +194,28 @@ export function Modal({ open, onClose, title, children, className, bodyClassName
             exit={mobileFullScreen ? { y: 12, opacity: 0 } : { y: '100%', opacity: 0 }}
             transition={{ type: 'spring', damping: 32, stiffness: 360 }}
           >
-            {/* Grab handle (mobile affordance) */}
-            {!mobileFullScreen && <div className="sm:hidden flex justify-center pt-2.5 pb-1">
-              <div className="h-1 w-9 rounded-full bg-[hsl(var(--border))]" />
-            </div>}
-            <div className={cn("modal-header shrink-0 flex items-center justify-between border-b border-[hsl(var(--border))] px-4 py-3 sm:p-4", mobileFullScreen && "pt-[max(0.75rem,env(safe-area-inset-top))]")}>
-              <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
-              <button onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-[hsl(var(--bg-elevated))] transition-colors">
-                <X className="h-5 w-5" />
-              </button>
+            <div
+              data-testid="modal-drag-area"
+              className={cn("shrink-0", !mobileFullScreen && "touch-none sm:touch-auto")}
+              onPointerDown={onDragStart}
+              onPointerMove={onDragMove}
+              onPointerUp={onDragEnd}
+              onPointerCancel={onDragEnd}
+            >
+              {/* Grab handle (mobile affordance) */}
+              {!mobileFullScreen && <div className="sm:hidden flex justify-center pt-2.5 pb-1 cursor-grab" aria-hidden="true">
+                <div className="h-1 w-9 rounded-full bg-border-strong" />
+              </div>}
+              <div className={cn("modal-header flex items-center justify-between border-b border-border px-4 py-3 sm:p-4", mobileFullScreen && "pt-[max(0.75rem,env(safe-area-inset-top))]")}>
+                <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
+                <button type="button" onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-surface-2 transition-colors">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
             <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain p-4", bodyClassName)}>{children}</div>
             {footer && (
-              <div className="modal-footer shrink-0 border-t border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+              <div className="modal-footer shrink-0 border-t border-border bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                 {footer}
               </div>
             )}

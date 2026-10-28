@@ -61,4 +61,16 @@ describe('theme preference', () => {
     new Function(THEME_INIT_SCRIPT)()
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
   })
+
+  it('init script also syncs the theme-color meta for a saved Light choice', () => {
+    const meta = document.createElement('meta')
+    meta.name = 'theme-color'
+    meta.content = '#080d19'
+    document.head.appendChild(meta)
+    localStorage.setItem(THEME_STORAGE_KEY, 'light')
+    new Function(THEME_INIT_SCRIPT)()
+    expect(meta.getAttribute('content')).toBe('#f9fafb')
+    expect(document.documentElement.style.colorScheme).toBe('light')
+    meta.remove()
+  })
 })

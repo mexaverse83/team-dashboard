@@ -4,8 +4,12 @@ const A_NAME = process.env.NEXT_PUBLIC_OWNER_A_NAME || 'Bernardo'
 const B_NAME = process.env.NEXT_PUBLIC_OWNER_B_NAME || 'Laura'
 const A_EMAIL = (process.env.NEXT_PUBLIC_OWNER_A_EMAIL || 'bernardo.gza83@gmail.com').toLowerCase()
 const B_EMAIL = (process.env.NEXT_PUBLIC_OWNER_B_EMAIL || 'lcampomtz89@gmail.com').toLowerCase()
-const A_COLOR = process.env.NEXT_PUBLIC_OWNER_A_COLOR || '#3B82F6'
-const B_COLOR = process.env.NEXT_PUBLIC_OWNER_B_COLOR || '#EC4899'
+// Optional hex overrides for demo clones; by default owner colours come from
+// the theme tokens (--owner-a / --owner-b) so they adapt to light and dark.
+const A_COLOR_OVERRIDE = process.env.NEXT_PUBLIC_OWNER_A_COLOR || ''
+const B_COLOR_OVERRIDE = process.env.NEXT_PUBLIC_OWNER_B_COLOR || ''
+const A_COLOR = A_COLOR_OVERRIDE || '#3B82F6'
+const B_COLOR = B_COLOR_OVERRIDE || '#EC4899'
 
 // Owner mapping: email → display name
 export const OWNER_MAP: Record<string, string> = {
@@ -25,8 +29,8 @@ export const OWNER_COLORS: Record<string, string> = {
   [B_NAME]: B_COLOR,
 }
 
-export function getOwnerColor(name: string): string {
-  return OWNER_COLORS[name] || '#6B7280'
+export function getOwnerColor(name: string | null | undefined): string {
+  return ownerColor(name)
 }
 
 /** Case-insensitive owner comparison — the DB holds mixed casing
@@ -41,4 +45,13 @@ export function ownersEqual(a?: string | null, b?: string | null): boolean {
 export function canonicalOwner(owner?: string | null): string | null {
   if (!owner) return null
   return OWNERS.find(o => o.toLowerCase() === owner.toLowerCase()) || owner
+}
+
+/** Theme-aware CSS colour for an owner in any casing ('bernardo' → --owner-a);
+ * unknown/joint/null → --owner-shared. Env hex overrides win when set. */
+export function ownerColor(owner?: string | null): string {
+  const canonical = canonicalOwner(owner)
+  if (canonical === A_NAME) return A_COLOR_OVERRIDE || 'hsl(var(--owner-a))'
+  if (canonical === B_NAME) return B_COLOR_OVERRIDE || 'hsl(var(--owner-b))'
+  return 'hsl(var(--owner-shared))'
 }

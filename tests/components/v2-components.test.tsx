@@ -54,7 +54,7 @@ describe('TrendBadge', () => {
 
   it('renders negative value with red color', () => {
     render(<TrendBadge value={-3} />)
-    expect(screen.getByText('-3%')).toBeInTheDocument()
+    expect(screen.getByText('\u22123%')).toBeInTheDocument()
   })
 
   it('renders zero value as neutral', () => {
@@ -69,12 +69,18 @@ describe('TrendBadge', () => {
 
   it('applies positive styling', () => {
     const { container } = render(<TrendBadge value={10} />)
-    expect(container.firstChild).toHaveClass('text-emerald-600')
+    expect(container.firstChild).toHaveClass('text-positive')
   })
 
   it('applies negative styling', () => {
     const { container } = render(<TrendBadge value={-10} />)
-    expect(container.firstChild).toHaveClass('text-red-600')
+    expect(container.firstChild).toHaveClass('text-negative')
+  })
+
+  it('clamps runaway percentages', () => {
+    render(<><TrendBadge value={3401} /><TrendBadge value={-1200} suffix="% vs last month" /></>)
+    expect(screen.getByText('>10×')).toBeInTheDocument()
+    expect(screen.getByText('>10× vs last month')).toBeInTheDocument()
   })
 })
 

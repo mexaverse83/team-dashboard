@@ -11,7 +11,7 @@ export function StatusPill({ tone = 'neutral', className, children, ...props }: 
   return (
     <span
       data-tone={tone}
-      className={cn('inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-label font-medium', TONE_BG_CLASS[tone], TONE_TEXT_CLASS[tone], className)}
+      className={cn('inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-[0.75rem]/4 font-medium', TONE_BG_CLASS[tone], TONE_TEXT_CLASS[tone], className)}
       {...props}
     >
       <span aria-hidden="true" className={cn('h-1.5 w-1.5 shrink-0 rounded-full', TONE_FILL_CLASS[tone])} />

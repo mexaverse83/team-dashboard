@@ -151,6 +151,19 @@ export function formatPct(n: number | null | undefined, opts: FormatPctOptions =
 }
 
 /**
+ * Period-over-period change for badges: '+45%', '−12%', clamped to ±999%,
+ * and '>10×' beyond that (a tiny previous month can't print '+3401%').
+ */
+export function formatTrendPct(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return EMPTY_VALUE
+  const r = Math.round(n)
+  if (r >= 1000) return '>10×'
+  if (r <= -1000) return `${MINUS}999%`
+  if (r === 0) return '0%'
+  return `${r > 0 ? '+' : MINUS}${Math.abs(r)}%`
+}
+
+/**
  * Crypto unit prices keep their precision so sub-dollar coins don't read $0:
  * USD 2 decimals (4 below $1); MXN 0 decimals ≥ $100, 2 ≥ $1, else 4.
  */
@@ -200,6 +213,13 @@ export function formatMonthShort(input: DateInput, opts: { withYear?: boolean | 
   const name = d.toLocaleDateString(APP_LOCALE, { month: 'short' })
   const showYear = withYear === true || (withYear === 'auto' && d.getMonth() === 0)
   return showYear ? `${name} '${String(d.getFullYear()).slice(2)}` : name
+}
+
+/** Period headers: '2026-09' → 'September 2026'; `short` → 'Sep 2026'. */
+export function formatMonthLong(input: DateInput, opts: { short?: boolean } = {}): string {
+  const d = toLocalDate(input)
+  if (!d) return EMPTY_VALUE
+  return d.toLocaleDateString(APP_LOCALE, { month: opts.short ? 'short' : 'long', year: 'numeric' })
 }
 
 /** 'today' · 'tomorrow' · 'in 4 days' · 'yesterday' · '3 days ago', by local calendar day. */

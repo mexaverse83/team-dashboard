@@ -2,32 +2,104 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  ArrowRight, BarChart3, Bitcoin, ChevronLeft, ChevronRight, ClipboardList, Flag, Ghost, House,
+  Landmark, Lock, Receipt, Repeat, Scale, ShieldAlert, Store, TrendingDown,
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
+import { Page, PageHeader } from '@/components/ui/page'
+import { Card, CardHeader } from '@/components/ui/card'
+import { Stat } from '@/components/ui/stat'
+import { StatusPill } from '@/components/ui/status-pill'
+import { ProgressBar } from '@/components/ui/progress-bar'
+import { CategoryIcon } from '@/components/ui/category-icon'
+import { ErrorState } from '@/components/ui/error-state'
 import { TrendBadge } from '@/components/ui/trend-badge'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { motion } from 'framer-motion'
 import { DEFAULT_CATEGORIES } from '@/lib/finance-utils'
+import { addMonthsKey, daysInMonth, monthKey, nextMonthStartKey, parseLocalDateKey } from '@/lib/dates'
+import { formatDateShort, formatMoney, formatMonthLong, formatPct, formatTrendPct } from '@/lib/format'
+import { categoryColor } from '@/lib/category-icons'
+import type { Tone } from '@/lib/budget-tone'
 import type { FinanceTransaction, FinanceRecurring, FinanceBudget } from '@/lib/finance-types'
 
 // ── Helpers ──────────────────────────────────────────
-function gradeColor(g: string) {
-  return g === 'A' ? 'text-emerald-600' : g === 'B' ? 'text-blue-600' : g === 'C' ? 'text-amber-600' : g === 'D' ? 'text-orange-600' : 'text-rose-600'
+// Grades carry meaning through the tone palette only (no blue/indigo, VIS-03).
+function gradeTone(g: string): Tone {
+  return g === 'A' || g === 'B' ? 'positive' : g === 'C' ? 'warning' : 'negative'
 }
-function gradeBg(g: string) {
-  return g === 'A' ? 'bg-emerald-500' : g === 'B' ? 'bg-blue-500' : g === 'C' ? 'bg-amber-500' : g === 'D' ? 'bg-orange-500' : 'bg-rose-500'
-}
+const GRADE_TEXT: Record<Tone, string> = { positive: 'text-positive', warning: 'text-warning', negative: 'text-negative', neutral: 'text-fg-secondary' }
+const GRADE_FILL: Record<Tone, string> = { positive: 'bg-positive', warning: 'bg-warning', negative: 'bg-negative', neutral: 'bg-fg-tertiary' }
 function gradeLabel(g: string) {
   return g === 'A' ? 'Excellent' : g === 'B' ? 'Good' : g === 'C' ? 'Average' : g === 'D' ? 'Below average' : 'Critical'
 }
 function gradeFromScore(s: number) { return s >= 85 ? 'A' : s >= 70 ? 'B' : s >= 50 ? 'C' : s >= 30 ? 'D' : 'F' }
 
+const FREQ_DIVISOR: Record<string, number> = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 }
+const monthlyEquivalent = (r: Pick<FinanceRecurring, 'amount' | 'frequency'>) => r.amount / (FREQ_DIVISOR[r.frequency] || 1)
+
+/** Weekday rows, Monday first; JS getDay() index for each. */
+export const HEATMAP_WEEKDAYS = [
+  { label: 'Mon', day: 1 }, { label: 'Tue', day: 2 }, { label: 'Wed', day: 3 }, { label: 'Thu', day: 4 },
+  { label: 'Fri', day: 5 }, { label: 'Sat', day: 6 }, { label: 'Sun', day: 0 },
+] as const
+
+export interface HeatmapCell { date: string; day: number; weekday: string; amount: number; count: number; intensity: number }
+
+/**
+ * Day-of-week × week-of-month grid (VIS-08, F16). Transactions are date-only,
+ * so dates are parsed as LOCAL calendar days — `new Date('YYYY-MM-DD')` is UTC
+ * midnight and lands on the previous weekday in Mexico City.
+ */
+export function buildSpendingHeatmap(month: string, rows: Array<Pick<FinanceTransaction, 'transaction_date' | 'amount_mxn'>>) {
+  const [y, m] = month.split('-').map(Number)
+  const totals = new Map<string, { amount: number; count: number }>()
+  for (const t of rows) {
+    const key = t.transaction_date.slice(0, 10)
+    const cur = totals.get(key) || { amount: 0, count: 0 }
+    cur.amount += Number(t.amount_mxn) || 0
+    cur.count++
+    totals.set(key, cur)
+  }
+  const days = daysInMonth(y, m)
+  const firstWeekday = (parseLocalDateKey(`${month}-01`).getDay() + 6) % 7 // Monday = 0
+  const weeks = Math.ceil((firstWeekday + days) / 7)
+  const grid: Array<Array<HeatmapCell | null>> = Array.from({ length: weeks }, () => Array(7).fill(null))
+  let max = 0
+  for (const v of totals.values()) max = Math.max(max, v.amount)
+  for (let d = 1; d <= days; d++) {
+    const date = `${month}-${String(d).padStart(2, '0')}`
+    const local = parseLocalDateKey(date)
+    const col = (local.getDay() + 6) % 7
+    const row = Math.floor((firstWeekday + d - 1) / 7)
+    const v = totals.get(date) || { amount: 0, count: 0 }
+    grid[row][col] = { date, day: d, weekday: HEATMAP_WEEKDAYS[col].label, amount: v.amount, count: v.count, intensity: max > 0 ? v.amount / max : 0 }
+  }
+  const byWeekday = HEATMAP_WEEKDAYS.map((w, col) => ({
+    label: w.label,
+    amount: grid.reduce((s, week) => s + (week[col]?.amount || 0), 0),
+  }))
+  return { grid, byWeekday, max }
+}
+
 interface Leak { type: string; title: string; description: string; monthlyAmount: number; action: string; severity: 'high' | 'medium' | 'low'; recurringId?: string }
-interface CategoryScore { id: string; name: string; icon: string; spent: number; budget: number; grade: string; trend: number; txCount: number; budgetScore: number; trendScore: number; freqScore: number }
+interface CategoryScore { id: string; name: string; icon: string; colorIndex: number; spent: number; budget: number; grade: string; trend: number; txCount: number; budgetScore: number; trendScore: number; freqScore: number }
 interface MerchantGroup { merchant: string; count: number; total: number }
-interface CatConcentration { name: string; icon: string; total: number; merchants: { name: string; pct: number; amount: number }[] }
+interface CatConcentration { name: string; icon: string; colorIndex: number; total: number; merchants: { name: string; pct: number; amount: number }[] }
+type Risk = { type: string; title: string; detail: string; severity: 'high' | 'medium' | 'low' }
+
+const SEVERITY_TONE: Record<string, Tone> = { red: 'negative', amber: 'warning', green: 'positive', high: 'negative', medium: 'warning', low: 'neutral' }
+const SEVERITY_WORD: Record<string, string> = { red: 'Act', amber: 'Watch', green: 'OK', high: 'High', medium: 'Medium', low: 'Low' }
+const FINDING_GROUPS = [
+  { key: 'crypto', label: 'Crypto', Icon: Bitcoin },
+  { key: 'real_estate', label: 'Real Estate', Icon: House },
+  { key: 'fixed_income', label: 'Fixed Income', Icon: Landmark },
+  { key: 'retirement', label: 'Retirement', Icon: Lock },
+  { key: 'general', label: 'General', Icon: BarChart3 },
+] as const
+const NON_DIVERSIFIABLE = ['Health', 'Rent/Mortgage', 'Utilities', 'Electricity', 'Insurance', 'Education']
 
 export default function AuditClient() {
   const router = useRouter()
@@ -37,10 +109,11 @@ export default function AuditClient() {
   const [budgets, setBudgets] = useState<FinanceBudget[]>([])
   const [categories, setCategories] = useState<{ id: string; name: string; icon: string; color: string }[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [flaggedSubs, setFlaggedSubs] = useState<Set<string>>(new Set())
   // Stable per mount: keeps the 30-day snooze check from flickering mid-session
   const [snoozeNow] = useState(() => Date.now())
-  const [cryptoRisks, setCryptoRisks] = useState<{ type: string; title: string; detail: string; severity: 'high' | 'medium' | 'low' }[]>([])
+  const [cryptoRisks, setCryptoRisks] = useState<Risk[]>([])
   const [cryptoValue, setCryptoValue] = useState(0)
   const [investmentAudit, setInvestmentAudit] = useState<{
     score: number; score_label: string;
@@ -58,14 +131,13 @@ export default function AuditClient() {
     fetchData()
   }
 
-  // Month nav
-  const [monthOffset, setMonthOffset] = useState(0)
-  const targetDate = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() + monthOffset); return d }, [monthOffset])
-  const monthLabel = targetDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-  const monthStart = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-01`
-  const nextMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 1)
-  const monthEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`
-  const prevMonthStart = useMemo(() => { const d = new Date(targetDate.getFullYear(), targetDate.getMonth() - 1, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` }, [targetDate])
+  // Month nav — string month keys, local calendar (never toISOString).
+  const [month, setMonth] = useState(() => monthKey(new Date()))
+  const currentMonth = monthKey(new Date())
+  const monthLabel = formatMonthLong(month)
+  const monthStart = `${month}-01`
+  const monthEnd = nextMonthStartKey(month)
+  const prevMonthStart = `${addMonthsKey(month, -1)}-01`
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -76,6 +148,7 @@ export default function AuditClient() {
       supabase.from('finance_budgets').select('*').eq('month', monthStart),
       supabase.from('finance_categories').select('*').order('sort_order'),
     ])
+    setLoadError(!!(txRes.error || prevTxRes.error))
     setTransactions(txRes.data || [])
     setPrevTransactions(prevTxRes.data || [])
     setRecurring(recRes.data || [])
@@ -99,10 +172,9 @@ export default function AuditClient() {
         const cd = JSON.parse(cryptoText)
         const holdings = (cd.holdings || []).filter((h: Record<string, unknown>) => (h.quantity as number) > 0)
         const prices = cd.prices || {}
-        const risks: { type: string; title: string; detail: string; severity: 'high' | 'medium' | 'low' }[] = []
+        const risks: Risk[] = []
 
         if (holdings.length > 0) {
-          // Calculate totals
           let totalVal = 0
           const bySymbol: Record<string, number> = {}
           let totalCost = 0
@@ -118,7 +190,6 @@ export default function AuditClient() {
           }
           setCryptoValue(totalVal)
 
-          // Concentration risk
           for (const [sym, val] of Object.entries(bySymbol)) {
             const pct = totalVal > 0 ? (val / totalVal) * 100 : 0
             if (pct > 80) {
@@ -126,11 +197,10 @@ export default function AuditClient() {
             }
           }
 
-          // Large unrealized loss
           if (totalCost > 0) {
             const pnlPct = ((totalVal - totalCost) / totalCost) * 100
             if (pnlPct < -20) {
-              risks.push({ type: 'loss', title: `Unrealized crypto loss: ${pnlPct.toFixed(1)}%`, detail: `Your crypto portfolio is down ${Math.abs(pnlPct).toFixed(1)}% ($${Math.round(Math.abs(totalVal - totalCost)).toLocaleString()} MXN). Consider DCA strategy to lower cost basis.`, severity: pnlPct < -40 ? 'high' : 'medium' })
+              risks.push({ type: 'loss', title: `Unrealized crypto loss: ${pnlPct.toFixed(1)}%`, detail: `Your crypto portfolio is down ${Math.abs(pnlPct).toFixed(1)}% (${formatMoney(Math.abs(totalVal - totalCost))}). Consider DCA strategy to lower cost basis.`, severity: pnlPct < -40 ? 'high' : 'medium' })
             }
           }
         }
@@ -151,10 +221,8 @@ export default function AuditClient() {
   // ── Leaks ─────────────────────────────────────────
   const leaks = useMemo<Leak[]>(() => {
     const result: Leak[] = []
-    // Unused subscriptions — check window based on frequency
     const freqDays: Record<string, number> = { weekly: 7, biweekly: 14, monthly: 30, quarterly: 90, yearly: 365 }
     const freqLabels: Record<string, string> = { weekly: 'week', biweekly: '2 weeks', monthly: 'month', quarterly: 'quarter', yearly: 'year' }
-    const freqDivisor: Record<string, number> = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 }
     recurring.forEach(r => {
       // Skip reviewed subs: 'keep' = permanent dismiss, 'later' = 30 day snooze
       const ls = (r as any).leak_status
@@ -167,16 +235,22 @@ export default function AuditClient() {
       const window = freqDays[r.frequency] || 30
       const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - window)
       const matching = transactions.filter(t => {
+        const onOrAfter = parseLocalDateKey(t.transaction_date) >= cutoff
         // Primary: recurring_id match (cron always stamps this — most reliable)
-        if (t.recurring_id && t.recurring_id === r.id && new Date(t.transaction_date) >= cutoff) return true
+        if (t.recurring_id && t.recurring_id === r.id && onOrAfter) return true
         // Fallback: merchant/description text match
         const match = t.merchant?.toLowerCase() === r.merchant?.toLowerCase() || t.description?.toLowerCase().includes(r.name.toLowerCase())
-        return match && new Date(t.transaction_date) >= cutoff
+        return match && onOrAfter
       })
       if (matching.length === 0) {
-        const monthlyEquiv = r.amount / (freqDivisor[r.frequency] || 1)
+        const monthlyEquiv = monthlyEquivalent(r)
         const label = freqLabels[r.frequency] || 'month'
-        result.push({ type: 'unused_sub', severity: 'high', title: `${r.name} — no usage this ${label}`, description: `${r.frequency === 'yearly' ? `$${r.amount.toLocaleString()}/yr ($${Math.round(monthlyEquiv).toLocaleString()}/mo equiv)` : r.frequency === 'quarterly' ? `$${r.amount.toLocaleString()}/qtr ($${Math.round(monthlyEquiv).toLocaleString()}/mo equiv)` : `$${r.amount.toLocaleString()}/mo`} — no matching transactions in ${window} days`, monthlyAmount: Math.round(monthlyEquiv), action: 'Review subscription', recurringId: r.id })
+        const amountText = r.frequency === 'yearly'
+          ? `${formatMoney(r.amount)}/yr (${formatMoney(monthlyEquiv)}/mo equiv)`
+          : r.frequency === 'quarterly'
+            ? `${formatMoney(r.amount)}/qtr (${formatMoney(monthlyEquiv)}/mo equiv)`
+            : `${formatMoney(r.amount)}/mo`
+        result.push({ type: 'unused_sub', severity: 'high', title: `${r.name} — no usage this ${label}`, description: `${amountText} — no matching transactions in ${window} days`, monthlyAmount: Math.round(monthlyEquiv), action: 'Review subscription', recurringId: r.id })
       }
     })
     // Bank fees
@@ -187,9 +261,10 @@ export default function AuditClient() {
       result.push({ type: 'bank_fee', severity: total > 500 ? 'high' : 'medium', title: `${fees.length} fee charges`, description: 'Bank fees and penalties', monthlyAmount: total, action: 'Switch accounts or negotiate' })
     }
     return result.sort((a, b) => b.monthlyAmount - a.monthlyAmount)
-  }, [transactions, recurring])
+  }, [transactions, recurring, snoozeNow])
 
   const totalLeakAmount = leaks.reduce((s, l) => s + l.monthlyAmount, 0)
+  const catIndex = useMemo(() => new Map(categories.map((c, i) => [c.id, i])), [categories])
 
   // ── Category Scores ───────────────────────────────
   const categoryScores = useMemo<CategoryScore[]>(() => {
@@ -207,7 +282,7 @@ export default function AuditClient() {
       catMap.set(cid, cur)
     })
 
-    return Array.from(catMap.entries()).map(([cid, data]) => {
+    return Array.from(catMap.entries()).filter(([, d]) => d.spent > 0).map(([cid, data]) => {
       const cat = categories.find(c => c.id === cid)
       const budget = budgets.find(b => b.category_id === cid)
       const budgetAmt = budget?.amount || 0
@@ -219,9 +294,9 @@ export default function AuditClient() {
       const freqScore = data.txCount <= 10 ? 5 : data.txCount <= 20 ? 4 : data.txCount <= 30 ? 2 : 1
       const totalScore = (budgetScore * 8) + (trendScore * 6) + (freqScore * 6) // weighted to 100
 
-      return { id: cid, name: cat?.name || cid, icon: cat?.icon || '📦', spent: data.spent, budget: budgetAmt, grade: gradeFromScore(totalScore), trend: Math.round(trend), txCount: data.txCount, budgetScore, trendScore, freqScore }
+      return { id: cid, name: cat?.name || cid, icon: cat?.icon || '', colorIndex: catIndex.get(cid) ?? 0, spent: data.spent, budget: budgetAmt, grade: gradeFromScore(totalScore), trend: Math.round(trend), txCount: data.txCount, budgetScore, trendScore, freqScore }
     }).sort((a, b) => b.spent - a.spent)
-  }, [transactions, prevTransactions, budgets, categories])
+  }, [transactions, prevTransactions, budgets, categories, catIndex])
 
   const overallScore = categoryScores.length > 0 ? Math.round(categoryScores.reduce((s, c) => s + (c.budgetScore * 8 + c.trendScore * 6 + c.freqScore * 6), 0) / categoryScores.length) : 0
   const overallGrade = gradeFromScore(overallScore)
@@ -252,30 +327,14 @@ export default function AuditClient() {
     return Array.from(catMerchants.entries()).map(([cid, merchants]) => {
       const cat = categories.find(c => c.id === cid)
       const total = Array.from(merchants.values()).reduce((s, v) => s + v, 0)
-      const sorted = Array.from(merchants.entries()).map(([name, amount]) => ({ name, amount, pct: Math.round((amount / total) * 100) })).sort((a, b) => b.amount - a.amount)
-      return { name: cat?.name || cid, icon: cat?.icon || '📦', total, merchants: sorted }
+      const sorted = Array.from(merchants.entries()).map(([name, amount]) => ({ name, amount, pct: total > 0 ? Math.round((amount / total) * 100) : 0 })).sort((a, b) => b.amount - a.amount)
+      return { name: cat?.name || cid, icon: cat?.icon || '', colorIndex: catIndex.get(cid) ?? 0, total, merchants: sorted }
     }).filter(c => c.merchants.length > 1).sort((a, b) => b.total - a.total).slice(0, 6)
-  }, [transactions, categories])
+  }, [transactions, categories, catIndex])
 
   // ── Heatmap ───────────────────────────────────────
-  const heatmapData = useMemo(() => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    const grid: Record<string, number[]> = {}
-    const amounts: Record<string, number[]> = {}
-    days.forEach(d => { grid[d] = Array(10).fill(0); amounts[d] = Array(10).fill(0) })
-    transactions.forEach(t => {
-      const d = new Date(t.transaction_date)
-      const day = days[d.getDay()]
-      const hour = d.getHours?.() || 12 // fallback if no time
-      const bucket = Math.min(Math.max(Math.floor((hour - 6) / 2), 0), 9)
-      grid[day][bucket] += t.amount_mxn
-      amounts[day][bucket] += t.amount_mxn
-    })
-    // Normalize
-    const maxVal = Math.max(1, ...days.flatMap(d => grid[d]))
-    days.forEach(d => { grid[d] = grid[d].map(v => v / maxVal) })
-    return { grid, amounts, days }
-  }, [transactions])
+  const heatmap = useMemo(() => buildSpendingHeatmap(month, transactions), [month, transactions])
+  const busiestWeekday = heatmap.byWeekday.reduce((best, d) => (d.amount > best.amount ? d : best), heatmap.byWeekday[0])
 
   // Savings potential (simple estimate)
   const totalSavings = totalLeakAmount + Math.round(monthlySpend * 0.05)
@@ -283,35 +342,43 @@ export default function AuditClient() {
   const toggleFlag = (id: string) => {
     setFlaggedSubs(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
 
-  if (loading) return <div className="h-8 w-48 rounded bg-[hsl(var(--muted))] animate-pulse" />
+  const monthNav = (
+    <div className="flex items-center gap-1" role="group" aria-label="Month">
+      <button type="button" aria-label="Previous month" onClick={() => setMonth(m => addMonthsKey(m, -1))} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-fg-secondary hover:bg-surface-2 hover:text-fg"><ChevronLeft aria-hidden="true" className="h-4 w-4" /></button>
+      <span className="min-w-[8.5rem] text-center text-sm font-medium text-fg" aria-live="polite">{monthLabel}</span>
+      <button type="button" aria-label="Next month" disabled={month >= currentMonth} onClick={() => setMonth(m => addMonthsKey(m, 1))} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-fg-secondary hover:bg-surface-2 hover:text-fg disabled:opacity-40"><ChevronRight aria-hidden="true" className="h-4 w-4" /></button>
+    </div>
+  )
+
+  if (loading && transactions.length === 0 && categories.length === 0) {
+    return (
+      <Page aria-busy="true">
+        <div className="h-9 w-48 rounded-lg skeleton" />
+        <div className="h-28 rounded-xl skeleton" />
+      </Page>
+    )
+  }
 
   return (
     <PageTransition>
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Expense Audit</h1>
-          <p className="text-[hsl(var(--text-secondary))] text-sm">Forensic spending analysis for {monthLabel}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button aria-label="Previous month" onClick={() => setMonthOffset(m => m - 1)} className="inline-flex h-10 w-10 sm:h-auto sm:w-auto items-center justify-center p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronLeft className="h-4 w-4" /></button>
-          <span className="text-sm font-medium min-w-[140px] text-center">{monthLabel}</span>
-          <button aria-label="Next month" onClick={() => setMonthOffset(m => m + 1)} className="inline-flex h-10 w-10 sm:h-auto sm:w-auto items-center justify-center p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><ChevronRight className="h-4 w-4" /></button>
-        </div>
-      </div>
+    <Page>
+      <PageHeader title="Expense Audit" description={`Forensic spending analysis for ${monthLabel}`} actions={monthNav} />
 
-      {/* ── FINANCIAL HEALTH SCORE — SVG ring ── */}
+      {loadError && (
+        <Card><ErrorState compact title="Couldn't load this month's transactions" body="Totals below may be incomplete." onRetry={() => { void fetchData() }} /></Card>
+      )}
+
+      {/* ── FINANCIAL HEALTH SCORE ── */}
       {investmentAudit && (() => {
         const score = investmentAudit.score
-        const ringColor = score >= 80 ? '#10B981' : score >= 60 ? '#F59E0B' : '#EF4444'
-        const scoreLabel = score >= 80 ? '✅ Good' : score >= 60 ? '⚠️ Fair' : '🔴 Needs Work'
-        const scoreLabelCls = score >= 80 ? 'bg-emerald-500/10 text-emerald-600' : score >= 60 ? 'bg-amber-500/10 text-amber-600' : 'bg-red-500/10 text-red-600'
+        const tone: Tone = score >= 80 ? 'positive' : score >= 60 ? 'warning' : 'negative'
+        const scoreLabel = score >= 80 ? 'Good' : score >= 60 ? 'Fair' : 'Needs work'
         const catConfig: { key: string; label: string; max: number }[] = [
           { key: 'west_readiness', label: 'WEST Readiness', max: 25 },
           { key: 'debt_health', label: 'Debt Health', max: 20 },
@@ -321,371 +388,363 @@ export default function AuditClient() {
           { key: 'net_worth_trend', label: 'Net Worth Trend', max: 10 },
         ]
         return (
-          <GlassCard className="p-5 sm:p-6 mb-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
-              {/* SVG ring */}
-              <div className="flex flex-col items-center sm:items-start shrink-0">
-                <div className="relative w-28 h-28">
-                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(34, 26%, 89%)" strokeWidth="10" />
-                    <circle cx="50" cy="50" r="40" fill="none"
-                      stroke={ringColor} strokeWidth="10" strokeLinecap="round"
-                      strokeDasharray={`${(score / 100) * 251.2} 251.2`}
-                      className="transition-all duration-700" />
+          <Card>
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-8">
+              <div className="flex shrink-0 flex-col items-center gap-2 sm:items-start">
+                <div className="relative h-28 w-28">
+                  <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="hsl(var(--surface-3))" strokeWidth="10" />
+                    <circle cx="50" cy="50" r="40" fill="none" stroke={`hsl(var(--${tone}))`} strokeWidth="10" strokeLinecap="round"
+                      strokeDasharray={`${(score / 100) * 251.2} 251.2`} className="transition-all duration-700" />
                   </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="num-metric text-2xl font-bold tabular-nums">{score}</span>
-                    <span className="text-[10px] text-[hsl(var(--text-tertiary))]">/ 100</span>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center" role="img" aria-label={`Financial health score ${score} of 100`}>
+                    <span className="num-metric text-2xl font-semibold text-fg" data-privacy-exempt>{score}</span>
+                    <span className="text-micro text-fg-tertiary">/ 100</span>
                   </div>
                 </div>
-                <span className={cn("mt-2 text-sm font-semibold px-3 py-1 rounded-full", scoreLabelCls)}>{scoreLabel}</span>
+                <StatusPill tone={tone}>{scoreLabel}</StatusPill>
               </div>
-              {/* Category bars */}
-              <div className="flex-1 space-y-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">Financial Health Score</h3>
+              <div className="min-w-0 flex-1 space-y-3">
+                <h3 className="text-[0.9375rem] font-semibold text-fg">Financial Health Score</h3>
                 {catConfig.map(cat => {
                   const val = investmentAudit.score_breakdown[cat.key] || 0
                   const pct = (val / cat.max) * 100
                   return (
                     <div key={cat.key}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium">{cat.label}</span>
-                        <span className="text-xs tabular-nums text-[hsl(var(--text-secondary))]">{val}/{cat.max}pts</span>
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-label font-medium text-fg">{cat.label}</span>
+                        <span className="num text-label text-fg-secondary">{val}/{cat.max} pts</span>
                       </div>
-                      <div className="h-1.5 w-full rounded-full bg-[hsl(var(--bg-elevated))]">
-                        <div className={cn("h-1.5 rounded-full transition-all duration-500 bg-gradient-to-r",
-                          pct >= 80 ? 'from-emerald-400 to-teal-500' : pct >= 60 ? 'from-amber-400 to-amber-600' : 'from-red-400 to-red-600')}
-                          style={{ width: `${pct}%` }} />
-                      </div>
+                      <ProgressBar value={val} max={cat.max} tone={pct >= 80 ? 'positive' : pct >= 60 ? 'warning' : 'negative'} label={cat.label} valueText={`${val} of ${cat.max} points`} />
                     </div>
                   )
                 })}
               </div>
             </div>
-          </GlassCard>
+          </Card>
         )
       })()}
 
-      {/* Hero KPIs */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-4">
-        <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Spend</span>
-          <p className="num-metric text-xl min-[400px]:text-2xl sm:text-3xl font-bold tabular-nums text-rose-600 mt-1">${monthlySpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-          <TrendBadge value={Math.round(-spendDelta * 10) / 10} suffix="% vs last month" className="mt-1 text-[10px] sm:text-xs leading-tight" />
-        </GlassCard>
-        <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Leaks Found</span>
-          <p className="num-metric text-xl min-[400px]:text-2xl sm:text-3xl font-bold tabular-nums text-rose-600 mt-1">{leaks.length}</p>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">${totalLeakAmount.toLocaleString()}/mo wasted</p>
-        </GlassCard>
-        <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Potential</span>
-          <p className="num-metric text-xl min-[400px]:text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">${totalSavings.toLocaleString()}</p>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">/mo across all tiers</p>
-        </GlassCard>
-        <GlassCard className="relative overflow-hidden">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Overall Grade</span>
-          <motion.p className={cn("text-4xl sm:text-5xl font-black mt-1", gradeColor(overallGrade))}
-            initial={{ rotateY: 90, opacity: 0 }} animate={{ rotateY: 0, opacity: 1 }} transition={{ duration: 0.5 }}>
-            {transactions.length > 0 ? overallGrade : '—'}
-          </motion.p>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{gradeLabel(overallGrade)}</p>
-        </GlassCard>
-      </div>
+      {/* KPIs — values neutral; tone lives on the comparison */}
+      <Card>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4 lg:divide-x lg:divide-border [&>*]:lg:pl-5 [&>*:first-child]:lg:pl-0">
+          <Stat
+            label="Monthly Spend"
+            money
+            value={formatMoney(monthlySpend)}
+            delta={prevSpend > 0 ? formatTrendPct(spendDelta) : undefined}
+            tone={prevSpend > 0 && Math.abs(spendDelta) >= 1 ? (spendDelta > 0 ? 'negative' : 'positive') : 'neutral'}
+            hint={prevSpend > 0 ? 'vs last month' : monthLabel}
+          />
+          <Stat label="Leaks Found" value={String(leaks.length)} hint={`${formatMoney(totalLeakAmount)}/mo wasted`} tone={leaks.length > 0 ? 'warning' : 'neutral'} />
+          <Stat label="Savings Potential" money value={formatMoney(totalSavings)} hint="/mo across all tiers" />
+          <Stat
+            label="Overall Grade"
+            value={<span className={transactions.length > 0 ? GRADE_TEXT[gradeTone(overallGrade)] : undefined}>{transactions.length > 0 ? overallGrade : '—'}</span>}
+            hint={transactions.length > 0 ? gradeLabel(overallGrade) : 'No spending yet'}
+          />
+        </div>
+      </Card>
 
       {/* Heatmap + Category Scorecards */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-        <GlassCard>
-          <h3 className="text-base font-semibold mb-2">Spending Heatmap</h3>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mb-4">When do you spend most? Darker = more.</p>
-          <div className="w-full min-w-0">
-            <div className="w-full min-w-0">
-              <div className="flex items-center gap-1 mb-1 pl-10">
-                {['6a', '8a', '10a', '12p', '2p', '4p', '6p', '8p', '10p', '12a'].map(t => (
-                  <span key={t} className="flex-1 text-[9px] text-[hsl(var(--text-tertiary))] text-center">{t}</span>
-                ))}
-              </div>
-              {heatmapData.days.map(day => (
-                <div key={day} className="flex items-center gap-1 mb-1">
-                  <span className="text-[10px] text-[hsl(var(--text-tertiary))] w-8 text-right shrink-0">{day}</span>
-                  {heatmapData.grid[day].map((val, h) => (
-                    <motion.div key={h} className="flex-1 h-6 sm:h-7 rounded-sm cursor-pointer"
-                      style={{ backgroundColor: val > 0 ? `rgba(244, 63, 94, ${0.15 + val * 0.75})` : 'hsl(35, 28%, 91%)' }}
-                      whileHover={{ scale: 1.15, zIndex: 10 }}
-                      title={`${day}: $${heatmapData.amounts[day][h].toLocaleString()}`} />
-                  ))}
-                </div>
-              ))}
-              <div className="flex items-center justify-end gap-1 mt-2">
-                <span className="text-[9px] text-[hsl(var(--text-tertiary))]">Less</span>
-                {[0.1, 0.3, 0.5, 0.7, 0.9].map(v => (
-                  <div key={v} className="h-3 w-5 rounded-sm" style={{ backgroundColor: `rgba(244, 63, 94, ${0.15 + v * 0.75})` }} />
-                ))}
-                <span className="text-[9px] text-[hsl(var(--text-tertiary))]">More</span>
-              </div>
-            </div>
-          </div>
-        </GlassCard>
-
-        <GlassCard>
-          <h3 className="text-base font-semibold mb-2">Category Scorecards</h3>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mb-4">Graded on budget adherence, trend, and frequency.</p>
-          {categoryScores.length === 0 ? (
-            <div className="text-center py-8"><p className="text-sm text-[hsl(var(--text-tertiary))]">No spending data for this month</p></div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {categoryScores.slice(0, 9).map((cat, idx) => (
-                <motion.div key={cat.id} className={cn("p-3 rounded-xl border transition-all",
-                  cat.grade === 'F' ? "border-rose-500/30 bg-rose-500/5" : cat.grade === 'D' ? "border-orange-500/30 bg-orange-500/5" : cat.grade === 'C' ? "border-amber-500/30 bg-amber-500/5" : cat.grade === 'B' ? "border-blue-500/30 bg-blue-500/5" : "border-emerald-500/30 bg-emerald-500/5"
-                )} initial={{ rotateY: 90, opacity: 0 }} animate={{ rotateY: 0, opacity: 1 }} transition={{ duration: 0.4, delay: idx * 0.05 }}>
-                  <div className="flex items-center justify-between mb-2"><span className="text-xl">{cat.icon}</span><span className={cn("text-2xl font-black", gradeColor(cat.grade))}>{cat.grade}</span></div>
-                  <h4 className="text-xs font-semibold truncate">{cat.name}</h4>
-                  <p className="text-base min-[400px]:text-lg sm:text-lg font-bold tabular-nums mt-1">${cat.spent.toLocaleString()}</p>
-                  <TrendBadge value={-cat.trend} />
-                  <div className="mt-2 pt-2 border-t border-[hsl(var(--border))]/50 space-y-0.5">
-                    {[{ label: 'Budget', score: cat.budgetScore }, { label: 'Trend', score: cat.trendScore }, { label: 'Freq', score: cat.freqScore }].map(s => (
-                      <div key={s.label} className="flex items-center justify-between">
-                        <span className="text-[9px] text-[hsl(var(--text-tertiary))]">{s.label}</span>
-                        <div className="flex gap-px">{[1, 2, 3, 4, 5].map(i => <div key={i} className={cn("h-1 w-2 rounded-full", i <= s.score ? gradeBg(cat.grade) : "bg-[hsl(var(--bg-elevated))]")} style={i <= s.score ? { opacity: 0.7 } : undefined} />)}</div>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Spending Heatmap"
+            description={busiestWeekday && busiestWeekday.amount > 0 ? `Daily spend by weekday. Busiest: ${busiestWeekday.label} (${formatMoney(busiestWeekday.amount)})` : 'Daily spend by weekday and week of the month'}
+          />
+          <div className="w-full min-w-0" role="grid" aria-label={`Spending by day, ${monthLabel}`}>
+            <div className="mb-1 grid grid-cols-7 gap-1" role="row">
+              {HEATMAP_WEEKDAYS.map(w => (
+                <span key={w.label} role="columnheader" className="text-center text-micro font-medium text-fg-tertiary">{w.label}</span>
               ))}
             </div>
-          )}
-        </GlassCard>
-      </div>
-
-      {/* Leak Detection */}
-      <GlassCard>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-          <div><h3 className="text-base font-semibold">🚨 Money Leaks Detected</h3><p className="text-xs text-[hsl(var(--text-tertiary))]">Fees, unused services, and avoidable charges</p></div>
-          <span className="text-sm font-bold tabular-nums text-rose-600">${totalLeakAmount.toLocaleString()}/mo wasted</span>
-        </div>
-        {leaks.length === 0 ? (
-          <div className="text-center py-8"><span className="text-3xl block mb-2">✨</span><p className="text-sm text-emerald-600 font-medium">No leaks detected — nice!</p></div>
-        ) : (
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-            {leaks.map((leak, i) => (
-              <motion.div key={i} className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/5 relative overflow-hidden"
-                initial={{ x: -2 }} animate={{ x: [0, -1, 1, -1, 0] }} transition={{ duration: 0.3, delay: 0.5 + i * 0.1 }}>
-                <div className="flex items-start gap-3">
-                  <span className="text-xl shrink-0">{leak.type === 'unused_sub' ? '👻' : leak.type === 'bank_fee' ? '🏦' : '⚠️'}</span>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-semibold">{leak.title}</h4>
-                    <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{leak.description}</p>
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-sm font-bold tabular-nums text-rose-600">${leak.monthlyAmount.toLocaleString()}/mo</span>
-                      <span className="text-xs text-[hsl(var(--text-tertiary))] tabular-nums">${(leak.monthlyAmount * 12).toLocaleString()}/yr</span>
-                    </div>
-                    {leak.recurringId ? (
-                      <div className="grid grid-cols-3 gap-1.5 mt-2 sm:flex sm:items-center sm:gap-2">
-                        <button onClick={() => handleLeakTriage(leak.recurringId!, 'keep')}
-                          className="min-h-10 sm:min-h-0 whitespace-nowrap px-1 sm:px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-medium bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-colors">✅ Keep</button>
-                        <button onClick={() => handleLeakTriage(leak.recurringId!, 'cancel')}
-                          className="min-h-10 sm:min-h-0 whitespace-nowrap px-1 sm:px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-medium bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-colors">❌ Cancel</button>
-                        <button onClick={() => handleLeakTriage(leak.recurringId!, 'later')}
-                          className="min-h-10 sm:min-h-0 whitespace-nowrap px-1 sm:px-2.5 py-1 rounded-md text-xs sm:text-[11px] font-medium bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-colors">⏰ Later</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => router.push('/finance/subscriptions')} className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors">{leak.action} →</button>
-                    )}
+            {heatmap.grid.map((week, wi) => (
+              <div key={wi} className="mb-1 grid grid-cols-7 gap-1" role="row">
+                {week.map((cell, ci) => cell ? (
+                  <div
+                    key={cell.date}
+                    role="gridcell"
+                    data-date={cell.date}
+                    data-weekday={cell.weekday}
+                    title={`${cell.weekday} ${formatDateShort(cell.date)}: ${formatMoney(cell.amount)}${cell.count ? ` · ${cell.count} ${cell.count === 1 ? 'txn' : 'txns'}` : ''}`}
+                    aria-label={`${cell.weekday} ${formatDateShort(cell.date)}: ${formatMoney(cell.amount)}`}
+                    className={cn('relative flex h-9 items-start justify-start rounded-md px-1.5 py-1 sm:h-10', cell.amount > 0 ? 'text-fg' : 'bg-surface-2 text-fg-tertiary')}
+                    style={cell.amount > 0 ? { background: `hsl(var(--info) / ${(0.14 + cell.intensity * 0.66).toFixed(2)})` } : undefined}
+                  >
+                    <span className="text-micro tabular-nums leading-none">{cell.day}</span>
                   </div>
-                </div>
-              </motion.div>
+                ) : <div key={`empty-${wi}-${ci}`} role="gridcell" aria-hidden="true" />)}
+              </div>
             ))}
-          </div>
-        )}
-      </GlassCard>
-
-      {/* Crypto Portfolio Risks */}
-      {(cryptoRisks.length > 0 || cryptoValue > 0) && (
-        <GlassCard>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-            <div><h3 className="text-base font-semibold">₿ Crypto Portfolio Audit</h3><p className="text-xs text-[hsl(var(--text-tertiary))]">Risk assessment for your crypto holdings</p></div>
-            <span className="text-sm font-bold tabular-nums text-orange-600">${cryptoValue.toLocaleString()} MXN</span>
-          </div>
-          {cryptoRisks.length === 0 ? (
-            <div className="text-center py-6"><span className="text-3xl block mb-2">✅</span><p className="text-sm text-emerald-600 font-medium">No crypto risks detected</p></div>
-          ) : (
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-              {cryptoRisks.map((risk, i) => (
-                <div key={i} className={cn("p-4 rounded-xl border", risk.severity === 'high' ? 'border-rose-500/30 bg-rose-500/5' : risk.severity === 'medium' ? 'border-amber-500/30 bg-amber-500/5' : 'border-blue-500/30 bg-blue-500/5')}>
-                  <div className="flex items-start gap-3">
-                    <span className="text-xl shrink-0">{risk.type === 'concentration' ? '⚖️' : risk.type === 'loss' ? '📉' : '⚠️'}</span>
-                    <div>
-                      <h4 className="text-sm font-semibold">{risk.title}</h4>
-                      <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">{risk.detail}</p>
-                    </div>
-                  </div>
-                </div>
+            <div className="mt-2 flex items-center justify-end gap-1" aria-hidden="true">
+              <span className="mr-1 text-micro text-fg-tertiary">Less</span>
+              {[0, 0.25, 0.5, 0.75, 1].map(v => (
+                <span key={v} className="h-3 w-5 rounded-sm" style={{ background: `hsl(var(--info) / ${(0.14 + v * 0.66).toFixed(2)})` }} />
               ))}
+              <span className="ml-1 text-micro text-fg-tertiary">More</span>
             </div>
-          )}
-        </GlassCard>
-      )}
-
-      {/* ── INVESTMENT HEALTH — grouped by category ── */}
-      {investmentAudit && investmentAudit.findings.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3 mt-8">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">Investment Health</h2>
-            <span className="text-xs text-[hsl(var(--text-secondary))]">{investmentAudit.findings.length} findings</span>
           </div>
-          {(['crypto', 'real_estate', 'fixed_income', 'retirement', 'general'] as const).map(cat => {
-            const catFindings = investmentAudit.findings.filter(f => f.category === cat)
-            if (catFindings.length === 0) return null
-            const catIcons: Record<string, string> = { crypto: '₿', real_estate: '🏠', fixed_income: '🏦', retirement: '🔒', general: '📊' }
-            const catLabels: Record<string, string> = { crypto: 'Crypto', real_estate: 'Real Estate', fixed_income: 'Fixed Income', retirement: 'Retirement', general: 'General' }
-            return (
-              <div key={cat} className="mb-4">
-                <p className="text-xs font-semibold text-[hsl(var(--text-tertiary))] uppercase tracking-wider mb-2 px-1">
-                  {catIcons[cat]} {catLabels[cat]}
-                </p>
-                <div className="space-y-2">
-                  {catFindings.map(f => {
-                    const sev = {
-                      red:   { bg: 'bg-red-500/5 border-red-500/30',       icon: '🔴' },
-                      amber: { bg: 'bg-yellow-500/5 border-yellow-500/30', icon: '🟡' },
-                      green: { bg: 'bg-emerald-500/5 border-emerald-500/20', icon: '✅' },
-                    }[f.severity] || { bg: 'bg-amber-500/5 border-amber-500/20', icon: '🟡' }
-                    return (
-                      <div key={f.id} className={cn("rounded-lg border p-4", sev.bg)}>
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs">{sev.icon}</span>
-                              <p className="text-sm font-medium">{f.title}</p>
-                            </div>
-                            <p className="text-sm text-[hsl(var(--text-secondary))] leading-relaxed">{f.detail}</p>
-                            {f.suggestion && <p className="text-xs text-[hsl(var(--text-secondary))] mt-1.5 italic">{f.suggestion}</p>}
-                          </div>
-                          {f.action_url && (
-                            <a href={f.action_url} className="inline-flex min-h-10 sm:min-h-0 items-center self-start text-xs font-medium text-blue-600 hover:underline whitespace-nowrap shrink-0">
-                              Take Action →
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+        </Card>
 
-      {/* Top 10 Lists */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-        <GlassCard>
-          <h3 className="text-base font-semibold mb-4">📊 Largest Expenses</h3>
-          {top10Largest.length === 0 ? <p className="text-sm text-[hsl(var(--text-tertiary))] text-center py-4">No expenses this month</p> : (
-            <div className="space-y-2">
-              {top10Largest.map((tx, i) => {
-                const cat = categories.find(c => c.id === tx.category_id)
+        <Card>
+          <CardHeader title="Category Scorecards" description="Graded on budget adherence, trend, and frequency." />
+          {categoryScores.length === 0 ? (
+            <ErrorState variant="empty" compact title="No spending data for this month" body="Scorecards appear once expenses are recorded." />
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {categoryScores.slice(0, 9).map(cat => {
+                const tone = gradeTone(cat.grade)
                 return (
-                  <div key={tx.id} className="flex items-center gap-2 sm:gap-3">
-                    <span className={cn("text-sm font-bold w-5 sm:w-6 shrink-0 text-center tabular-nums", i < 3 ? "text-rose-600" : "text-[hsl(var(--text-tertiary))]")}>{i + 1}</span>
-                    <div className="h-8 w-8 rounded-lg flex items-center justify-center text-sm shrink-0" style={{ background: 'rgba(107,114,128,0.12)' }}>{cat?.icon || '📦'}</div>
-                    <div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{tx.merchant || tx.description || '—'}</p><p className="text-xs text-[hsl(var(--text-tertiary))]">{tx.transaction_date.slice(5)} · {cat?.name || 'Other'}</p></div>
-                    <div className="text-right shrink-0"><span className="text-sm font-semibold tabular-nums text-rose-600">${tx.amount_mxn.toLocaleString()}</span>{monthlySpend > 0 && <p className="text-[10px] text-[hsl(var(--text-tertiary))] tabular-nums">{((tx.amount_mxn / monthlySpend) * 100).toFixed(1)}%</p>}</div>
+                  <div key={cat.id} data-grade={cat.grade} className="rounded-xl border border-border bg-surface-2 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <CategoryIcon name={cat.name} emoji={cat.icon} colorIndex={cat.colorIndex} />
+                      <span className={cn('text-2xl font-bold leading-none', GRADE_TEXT[tone])} aria-label={`Grade ${cat.grade}`}>{cat.grade}</span>
+                    </div>
+                    <h4 className="truncate text-label font-semibold text-fg">{cat.name}</h4>
+                    <p className="num mt-1 text-left text-base font-semibold text-fg" data-money>{formatMoney(cat.spent)}</p>
+                    <TrendBadge value={cat.trend} invert className="mt-1" />
+                    <div className="mt-2 space-y-0.5 border-t border-border pt-2">
+                      {[{ label: 'Budget', score: cat.budgetScore }, { label: 'Trend', score: cat.trendScore }, { label: 'Freq', score: cat.freqScore }].map(s => (
+                        <div key={s.label} className="flex items-center justify-between" aria-label={`${s.label} ${s.score} of 5`}>
+                          <span className="text-micro text-fg-tertiary">{s.label}</span>
+                          <div className="flex gap-px" aria-hidden="true">{[1, 2, 3, 4, 5].map(i => <div key={i} className={cn('h-1 w-2 rounded-full', i <= s.score ? GRADE_FILL[tone] : 'bg-surface-3')} />)}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )
               })}
             </div>
           )}
-        </GlassCard>
-        <GlassCard>
-          <h3 className="text-base font-semibold mb-4">🔄 Most Frequent Purchases</h3>
-          {top10Frequent.length === 0 ? <p className="text-sm text-[hsl(var(--text-tertiary))] text-center py-4">No data</p> : (
-            <div className="space-y-2">
-              {top10Frequent.map((g, i) => (
-                <div key={g.merchant} className="flex items-center gap-2 sm:gap-3">
-                  <span className={cn("text-sm font-bold w-5 sm:w-6 shrink-0 text-center tabular-nums", i < 3 ? "text-amber-600" : "text-[hsl(var(--text-tertiary))]")}>{i + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2"><p className="text-sm font-medium truncate">{g.merchant}</p><span className="text-xs px-1.5 py-0.5 rounded-full bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))] shrink-0">×{g.count}</span></div>
-                    <div className="h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] mt-1"><div className="h-1.5 rounded-full bg-gradient-to-r from-amber-400/50 to-amber-600/50" style={{ width: `${(g.count / top10Frequent[0].count) * 100}%` }} /></div>
+        </Card>
+      </div>
+
+      {/* Leak Detection */}
+      <Card>
+        <CardHeader
+          title={<span className="inline-flex items-center gap-2"><ShieldAlert aria-hidden="true" className="h-4 w-4 text-warning" />Money Leaks Detected</span>}
+          description="Fees, unused services, and avoidable charges"
+          action={<span className="num text-sm font-semibold text-fg" data-money>{formatMoney(totalLeakAmount)}/mo</span>}
+        />
+        {leaks.length === 0 ? (
+          <ErrorState variant="empty" compact title="No leaks detected" body="No unused subscriptions or bank fees this month." />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {leaks.map((leak, i) => {
+              const LeakIcon = leak.type === 'unused_sub' ? Ghost : leak.type === 'bank_fee' ? Landmark : Receipt
+              return (
+                <div key={i} className="rounded-xl border border-border bg-surface-2 p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-warning-bg text-warning"><LeakIcon aria-hidden="true" className="h-4 w-4" /></span>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-semibold text-fg">{leak.title}</h4>
+                      <p className="mt-0.5 text-label text-fg-secondary">{leak.description}</p>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="num text-sm font-semibold text-fg" data-money>{formatMoney(leak.monthlyAmount)}/mo</span>
+                        <span className="num text-label text-fg-tertiary" data-money>{formatMoney(leak.monthlyAmount * 12)}/yr</span>
+                      </div>
+                      {leak.recurringId ? (
+                        <div className="mt-3 grid grid-cols-3 gap-1.5">
+                          <Button size="sm" variant="secondary" onClick={() => handleLeakTriage(leak.recurringId!, 'keep')}>Keep</Button>
+                          <Button size="sm" variant="secondary" className="text-negative" onClick={() => handleLeakTriage(leak.recurringId!, 'cancel')}>Cancel</Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleLeakTriage(leak.recurringId!, 'later')}>Later</Button>
+                        </div>
+                      ) : (
+                        <button type="button" onClick={() => router.push('/finance/subscriptions')} className="mt-2 inline-flex min-h-11 items-center gap-1 text-label font-medium text-info hover:underline sm:min-h-0">{leak.action} <ArrowRight aria-hidden="true" className="h-3 w-3" /></button>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-right shrink-0 min-w-[4.75rem]"><span className="text-sm font-semibold tabular-nums">${g.total.toLocaleString()}</span><p className="text-[10px] text-[hsl(var(--text-tertiary))] tabular-nums">avg ${Math.round(g.total / g.count).toLocaleString()}</p></div>
                 </div>
-              ))}
+              )
+            })}
+          </div>
+        )}
+      </Card>
+
+      {/* Crypto Portfolio Risks */}
+      {(cryptoRisks.length > 0 || cryptoValue > 0) && (
+        <Card>
+          <CardHeader
+            title={<span className="inline-flex items-center gap-2"><Bitcoin aria-hidden="true" className="h-4 w-4 text-fg-tertiary" />Crypto Portfolio Audit</span>}
+            description="Risk assessment for your crypto holdings"
+            action={<span className="num text-sm font-semibold text-fg" data-money>{formatMoney(cryptoValue)}</span>}
+          />
+          {cryptoRisks.length === 0 ? (
+            <ErrorState variant="empty" compact title="No crypto risks detected" body="Concentration and unrealized losses are within limits." />
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {cryptoRisks.map((risk, i) => {
+                const RiskIcon = risk.type === 'concentration' ? Scale : TrendingDown
+                return (
+                  <div key={i} className="rounded-xl border border-border bg-surface-2 p-4">
+                    <div className="flex items-start gap-3">
+                      <RiskIcon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-fg-tertiary" />
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2"><h4 className="text-sm font-semibold text-fg">{risk.title}</h4><StatusPill tone={SEVERITY_TONE[risk.severity]}>{SEVERITY_WORD[risk.severity]}</StatusPill></div>
+                        <p className="mt-1 text-label text-fg-secondary">{risk.detail}</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
-        </GlassCard>
+        </Card>
+      )}
+
+      {/* ── INVESTMENT HEALTH — grouped by category ── */}
+      {investmentAudit && investmentAudit.findings.length > 0 && (
+        <section aria-labelledby="investment-health" className="flex flex-col gap-3">
+          <div className="flex items-baseline justify-between">
+            <h2 id="investment-health" className="text-lg font-semibold text-fg">Investment Health</h2>
+            <span className="text-label text-fg-secondary">{investmentAudit.findings.length} findings</span>
+          </div>
+          {FINDING_GROUPS.map(({ key, label, Icon }) => {
+            const catFindings = investmentAudit.findings.filter(f => f.category === key)
+            if (catFindings.length === 0) return null
+            return (
+              <div key={key} className="flex flex-col gap-2">
+                <p className="flex items-center gap-1.5 px-1 text-label font-semibold text-fg-tertiary"><Icon aria-hidden="true" className="h-3.5 w-3.5" />{label}</p>
+                {catFindings.map(f => (
+                  <Card key={f.id} padding="none" className="p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <StatusPill tone={SEVERITY_TONE[f.severity] ?? 'warning'}>{SEVERITY_WORD[f.severity] ?? 'Watch'}</StatusPill>
+                          <p className="text-sm font-medium text-fg">{f.title}</p>
+                        </div>
+                        <p className="text-sm leading-relaxed text-fg-secondary">{f.detail}</p>
+                        {f.suggestion && <p className="mt-1.5 text-label text-fg-secondary">{f.suggestion}</p>}
+                      </div>
+                      {f.action_url && (
+                        <a href={f.action_url} className="inline-flex min-h-11 shrink-0 items-center gap-1 self-start whitespace-nowrap text-label font-medium text-info hover:underline sm:min-h-0">
+                          Take action <ArrowRight aria-hidden="true" className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )
+          })}
+        </section>
+      )}
+
+      {/* Top 10 Lists */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader title={<span className="inline-flex items-center gap-2"><BarChart3 aria-hidden="true" className="h-4 w-4 text-fg-tertiary" />Largest Expenses</span>} />
+          {top10Largest.length === 0 ? <p className="py-4 text-center text-sm text-fg-tertiary">No expenses this month</p> : (
+            <ol className="space-y-2.5">
+              {top10Largest.map((tx, i) => {
+                const cat = categories.find(c => c.id === tx.category_id)
+                return (
+                  <li key={tx.id} className="flex items-center gap-3">
+                    <span className="w-5 shrink-0 text-center text-label font-medium tabular-nums text-fg-tertiary">{i + 1}</span>
+                    <CategoryIcon name={cat?.name || 'Other'} emoji={cat?.icon} colorIndex={catIndex.get(tx.category_id) ?? 0} size={32} />
+                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-fg">{tx.merchant || tx.description || '—'}</p><p className="text-label text-fg-tertiary">{formatDateShort(tx.transaction_date)} · {cat?.name || 'Other'}</p></div>
+                    <div className="shrink-0 text-right"><span className="num block text-sm font-semibold text-fg" data-money>{formatMoney(tx.amount_mxn)}</span>{monthlySpend > 0 && <span className="num block text-micro text-fg-tertiary">{formatPct((tx.amount_mxn / monthlySpend) * 100, { decimals: 1 })}</span>}</div>
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+        </Card>
+        <Card>
+          <CardHeader title={<span className="inline-flex items-center gap-2"><Repeat aria-hidden="true" className="h-4 w-4 text-fg-tertiary" />Most Frequent Purchases</span>} />
+          {top10Frequent.length === 0 ? <p className="py-4 text-center text-sm text-fg-tertiary">No data</p> : (
+            <ol className="space-y-2.5">
+              {top10Frequent.map((g, i) => (
+                <li key={g.merchant} className="flex items-center gap-3">
+                  <span className="w-5 shrink-0 text-center text-label font-medium tabular-nums text-fg-tertiary">{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2"><p className="truncate text-sm font-medium text-fg">{g.merchant}</p><span className="shrink-0 rounded-full bg-surface-3 px-1.5 py-0.5 text-micro text-fg-secondary">×{g.count}</span></div>
+                    <div className="mt-1 h-1.5 rounded-full bg-surface-3" aria-hidden="true"><div className="h-1.5 rounded-full bg-fg-tertiary" style={{ width: `${(g.count / top10Frequent[0].count) * 100}%` }} /></div>
+                  </div>
+                  <div className="min-w-[4.75rem] shrink-0 text-right"><span className="num block text-sm font-semibold text-fg" data-money>{formatMoney(g.total)}</span><span className="num block text-micro text-fg-tertiary">avg {formatMoney(g.total / g.count)}</span></div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
       </div>
 
       {/* Merchant Concentration */}
       {merchantConcentration.length > 0 && (
-        <GlassCard>
-          <h3 className="text-base font-semibold mb-2">🏪 Merchant Concentration</h3>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mb-4">Over-reliant on any single vendor?</p>
+        <Card>
+          <CardHeader title={<span className="inline-flex items-center gap-2"><Store aria-hidden="true" className="h-4 w-4 text-fg-tertiary" />Merchant Concentration</span>} description="Over-reliant on any single vendor?" />
           <div className="space-y-4">
             {merchantConcentration.map(cat => (
               <div key={cat.name}>
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-2"><span className="text-sm">{cat.icon}</span><span className="text-sm font-semibold">{cat.name}</span><span className="text-xs text-[hsl(var(--text-tertiary))] tabular-nums">${cat.total.toLocaleString()}</span></div>
-                <div className="h-6 rounded-lg overflow-hidden flex bg-[hsl(var(--bg-elevated))]">
+                <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-0.5"><CategoryIcon name={cat.name} emoji={cat.icon} colorIndex={cat.colorIndex} size={22} /><span className="text-sm font-semibold text-fg">{cat.name}</span><span className="num text-label text-fg-tertiary" data-money>{formatMoney(cat.total)}</span></div>
+                <div className="flex h-6 overflow-hidden rounded-lg bg-surface-3" aria-hidden="true">
                   {cat.merchants.slice(0, 6).map((m, mi) => (
-                    <motion.div key={m.name} className="h-full flex items-center justify-center overflow-hidden"
-                      style={{ width: `${m.pct}%`, backgroundColor: `hsl(${(mi * 50 + 200) % 360}, 60%, 50%)`, opacity: 0.7 }}
-                      initial={{ width: 0 }} animate={{ width: `${m.pct}%` }} transition={{ duration: 0.5, delay: mi * 0.05 }}
+                    <div key={m.name} className="flex h-full items-center justify-center overflow-hidden border-r border-surface last:border-0"
+                      style={{ width: `${m.pct}%`, background: categoryColor(mi, 0.7) }}
                       title={`${m.name}: ${m.pct}%`}>
-                      {m.pct >= 15 && <span className="text-[9px] font-medium text-white truncate px-1">{m.name}</span>}
-                    </motion.div>
+                      {m.pct >= 15 && <span className="truncate px-1 text-micro font-medium text-[hsl(var(--background))]">{m.name}</span>}
+                    </div>
                   ))}
                 </div>
-                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+                <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
                   {cat.merchants.slice(0, 5).map((m, mi) => (
-                    <div key={m.name} className="flex items-center gap-1"><div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: `hsl(${(mi * 50 + 200) % 360}, 60%, 50%)` }} /><span className="text-[10px] text-[hsl(var(--text-secondary))]">{m.name} {m.pct}%</span></div>
+                    <li key={m.name} className="flex items-center gap-1"><span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: categoryColor(mi) }} /><span className="text-micro text-fg-secondary">{m.name} {m.pct}%</span></li>
                   ))}
-                </div>
-                {cat.merchants[0]?.pct >= 60 && !['Health','Rent/Mortgage','Utilities','Electricity','Insurance','Education'].includes(cat.name) && <p className="text-[10px] text-amber-600 mt-1">⚠️ {cat.merchants[0].name} accounts for {cat.merchants[0].pct}% — consider diversifying</p>}
+                </ul>
+                {cat.merchants[0]?.pct >= 60 && !NON_DIVERSIFIABLE.includes(cat.name) && <p className="mt-1 text-label text-warning">{cat.merchants[0].name} accounts for {cat.merchants[0].pct}% — consider diversifying</p>}
               </div>
             ))}
           </div>
-        </GlassCard>
+        </Card>
       )}
 
       {/* Subscription Audit */}
       {recurring.length > 0 && (
-        <GlassCard>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-            <div><h3 className="text-base font-semibold">📋 Subscription Audit</h3><p className="text-xs text-[hsl(var(--text-tertiary))]">{recurring.length} active · ${recurring.reduce((s, r) => s + r.amount / ({ weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 }[r.frequency] || 1), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}/mo equiv</p></div>
-          </div>
-          <div className="hidden sm:block overflow-x-auto">
+        <Card>
+          <CardHeader
+            title={<span className="inline-flex items-center gap-2"><ClipboardList aria-hidden="true" className="h-4 w-4 text-fg-tertiary" />Subscription Audit</span>}
+            description={`${recurring.length} active · ${formatMoney(recurring.reduce((s, r) => s + monthlyEquivalent(r), 0))}/mo equiv`}
+          />
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full">
-              <thead><tr className="border-b border-[hsl(var(--border))]">
+              <thead><tr className="border-b border-border">
                 {['Service', 'Monthly', 'Annual', 'Flag'].map((h, i) => (
-                  <th key={i} className={cn("text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider py-3 px-3", i >= 1 && i <= 2 ? "text-right" : "text-left")}>{h}</th>
+                  <th key={h} scope="col" className={`px-3 py-3 text-label font-medium text-fg-secondary ${i >= 1 && i <= 2 ? 'text-right' : 'text-left'}`}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
                 {recurring.map(sub => (
-                  <tr key={sub.id} className={cn("border-b border-[hsl(var(--border))] last:border-0 transition-colors", flaggedSubs.has(sub.id) && "bg-rose-500/5")}>
-                    <td className="py-3 px-3"><p className="text-sm font-medium">{sub.name}</p><p className="text-xs text-[hsl(var(--text-tertiary))]">{sub.merchant}</p></td>
-                    <td className="py-3 px-3 text-right text-sm font-semibold tabular-nums">{(() => { const d = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 } as Record<string,number>; const mo = Math.round(sub.amount / (d[sub.frequency] || 1)); return `$${mo.toLocaleString()}/mo`; })()}{sub.frequency !== 'monthly' && <span className="text-xs text-[hsl(var(--text-tertiary))] ml-1">({sub.frequency})</span>}</td>
-                    <td className="py-3 px-3 text-right text-sm tabular-nums text-[hsl(var(--text-secondary))]">{(() => { const d = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 } as Record<string,number>; const annual = Math.round(sub.amount / (d[sub.frequency] || 1) * 12); return `$${annual.toLocaleString()}`; })()}/yr</td>
-                    <td className="py-3 px-3"><button onClick={() => toggleFlag(sub.id)} className={cn("p-1.5 rounded-md transition-all", flaggedSubs.has(sub.id) ? "bg-rose-500/20 text-rose-600" : "text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-elevated))]")}>{flaggedSubs.has(sub.id) ? '🚩' : '⚑'}</button></td>
+                  <tr key={sub.id} className={cn('border-b border-border transition-colors last:border-0', flaggedSubs.has(sub.id) && 'bg-negative-bg')}>
+                    <td className="px-3 py-3"><p className="text-sm font-medium text-fg">{sub.name}</p><p className="text-label text-fg-tertiary">{sub.merchant}</p></td>
+                    <td className="num px-3 py-3 text-sm font-semibold text-fg"><span data-money>{formatMoney(monthlyEquivalent(sub))}/mo</span>{sub.frequency !== 'monthly' && <span className="ml-1 text-label font-normal text-fg-tertiary">({sub.frequency})</span>}</td>
+                    <td className="num px-3 py-3 text-sm text-fg-secondary" data-money>{formatMoney(monthlyEquivalent(sub) * 12)}/yr</td>
+                    <td className="px-3 py-3">
+                      <button type="button" aria-pressed={flaggedSubs.has(sub.id)} aria-label={`Flag ${sub.name}`} onClick={() => toggleFlag(sub.id)} className={cn('rounded-md p-1.5 transition-colors', flaggedSubs.has(sub.id) ? 'bg-negative-bg text-negative' : 'text-fg-tertiary hover:bg-surface-2')}>
+                        <Flag aria-hidden="true" className="h-4 w-4" fill={flaggedSubs.has(sub.id) ? 'currentColor' : 'none'} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <div className="sm:hidden space-y-2">
+          <ul className="space-y-2 sm:hidden">
             {recurring.map(sub => (
-              <div key={sub.id} className={cn("py-1.5 pl-3 pr-2 rounded-lg border", flaggedSubs.has(sub.id) ? "border-rose-500/30 bg-rose-500/5" : "border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))]/30")}>
+              <li key={sub.id} className={cn('rounded-lg border py-1.5 pl-3 pr-2', flaggedSubs.has(sub.id) ? 'border-negative/30 bg-negative-bg' : 'border-border bg-surface-2')}>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{sub.name}</p><p className="text-xs text-[hsl(var(--text-tertiary))] truncate">{sub.merchant}</p></div>
-                  <span className="text-sm font-semibold tabular-nums shrink-0">${Math.round(sub.amount / (({ weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 } as Record<string, number>)[sub.frequency] || 1)).toLocaleString()}/mo</span>
-                  <button onClick={() => toggleFlag(sub.id)} className={cn("-mr-1.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded", flaggedSubs.has(sub.id) ? "text-rose-600" : "text-[hsl(var(--text-tertiary))]")}>{flaggedSubs.has(sub.id) ? '🚩' : '⚑'}</button>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-fg">{sub.name}</p><p className="truncate text-label text-fg-tertiary">{sub.merchant}</p></div>
+                  <span className="num shrink-0 text-sm font-semibold text-fg" data-money>{formatMoney(monthlyEquivalent(sub))}/mo</span>
+                  <button type="button" aria-pressed={flaggedSubs.has(sub.id)} aria-label={`Flag ${sub.name}`} onClick={() => toggleFlag(sub.id)} className={cn('-mr-1.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded', flaggedSubs.has(sub.id) ? 'text-negative' : 'text-fg-tertiary')}>
+                    <Flag aria-hidden="true" className="h-4 w-4" fill={flaggedSubs.has(sub.id) ? 'currentColor' : 'none'} />
+                  </button>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
-        </GlassCard>
+          </ul>
+        </Card>
       )}
-    </div>
+    </Page>
     </PageTransition>
   )
 }

@@ -1,13 +1,19 @@
 // Synthetic, isolated visual regression review. Start a dev server with
 // NEXT_PUBLIC_AUTH_BYPASS=1 and a dummy Supabase URL, then run this script.
-// No finance API or Supabase request reaches a real account.
+// No finance API or Supabase request reaches a real account, and every
+// non-GET request is aborted.
+//
+// DESIGN_AUDIT=1 adds the design sweep: every route in both themes at
+// 375/390/430/1440, failing on a visible control under 44px (mobile), text
+// under 11px, a clipped <select>, or a clickable <div> without a role.
 import puppeteer from 'puppeteer-core'
+import { execSync } from 'node:child_process'
 import { readFileSync, mkdirSync } from 'node:fs'
 import { mexicoCityDateParts } from '../src/lib/insights-prompt.mjs'
 
 const origin = process.argv[2] || 'http://localhost:3210'
 const output = process.argv[3] || 'artifacts/finance-review-2026-09'
-const chrome = process.env.CHROME_BIN || '/home/bernardo/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome'
+const chrome = process.env.CHROME_BIN || execSync('ls -d ~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome | tail -1', { shell: '/bin/bash' }).toString().trim()
 if (!['localhost', '127.0.0.1'].includes(new URL(origin).hostname)) throw new Error('Use a local fixture server')
 const fixture = JSON.parse(readFileSync('tests/fixtures/finance-review.json', 'utf8'))
 const mx = mexicoCityDateParts()
@@ -27,6 +33,8 @@ try {
   const calls = []
   page.on('request', request => {
     const url = new URL(request.url())
+    const preflightForGet = request.method() === 'OPTIONS' && /^(GET|HEAD)$/i.test(request.headers()['access-control-request-method'] || '')
+    if (request.method() !== 'GET' && request.method() !== 'HEAD' && !preflightForGet) return request.abort()
     let data
     if (url.pathname.startsWith('/api/')) {
       calls.push(url.pathname)
@@ -118,6 +126,59 @@ try {
     await page.setViewport({ width: 844, height: 390 })
     await page.waitForFunction(() => !document.querySelector('main[inert]'))
     console.log('Keyboard footer and menu navigation/rotation passed')
+  }
+  if (process.env.DESIGN_AUDIT === '1') {
+    const routes = ['', 'transactions', 'income', 'budgets', 'subscriptions', 'installments', 'debt', 'goals', 'emergency-fund', 'investments', 'crypto', 'family', 'reports', 'insights', 'rules', 'budget-builder', 'audit', 'ask']
+    const failures = []
+    for (const theme of ['dark', 'light']) {
+      await page.evaluateOnNewDocument(t => { try { localStorage.setItem('mona:theme', t) } catch {} }, theme)
+      for (const width of [375, 390, 430, 1440]) {
+        const mobile = width < 768
+        await page.setViewport({ width, height: mobile ? (width === 375 ? 667 : 844) : 900, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile })
+        for (const route of routes) {
+          await page.goto(`${origin}/finance${route ? `/${route}` : ''}`, { waitUntil: 'networkidle0' })
+          await new Promise(resolve => setTimeout(resolve, 600))
+          await page.screenshot({ path: `${output}/design-${theme}-${route || 'home'}-${width}.png`, fullPage: true })
+          const issues = await page.evaluate(isMobile => {
+            const out = []
+            const visible = el => {
+              const r = el.getBoundingClientRect()
+              const cs = getComputedStyle(el)
+              return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && !el.closest('[aria-hidden="true"], .sr-only')
+            }
+            const label = el => `${el.tagName.toLowerCase()} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 30)}"`
+            if (isMobile) {
+              document.querySelectorAll('main button, main a[href], main [role="button"], main [role="radio"], main [role="tab"], main input:not([type="hidden"]), main select').forEach(el => {
+                if (!visible(el)) return
+                const r = el.getBoundingClientRect()
+                const after = getComputedStyle(el, '::after')
+                const hit = Math.max(r.height, after.content !== 'none' ? parseFloat(after.height) || 0 : 0)
+                const inline = el.tagName === 'A' && getComputedStyle(el).display === 'inline'
+                if (hit < 44 && !inline) out.push(`control ${Math.round(r.width)}x${Math.round(hit)} ${label(el)}`)
+              })
+            }
+            const walker = document.createTreeWalker(document.querySelector('main') || document.body, NodeFilter.SHOW_TEXT)
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+              const el = node.parentElement
+              if (!el || !node.textContent.trim() || !visible(el) || el.closest('svg')) continue
+              const size = parseFloat(getComputedStyle(el).fontSize)
+              if (size < 11) out.push(`text ${size}px ${label(el)}`)
+            }
+            document.querySelectorAll('select').forEach(el => {
+              if (visible(el) && el.scrollHeight > el.clientHeight + 1) out.push(`clipped select ${label(el)}`)
+            })
+            document.querySelectorAll('div, span, li').forEach(el => {
+              const key = Object.keys(el).find(k => k.startsWith('__reactProps'))
+              if (key && el[key]?.onClick && !el.getAttribute('role') && !el.classList.contains('recharts-wrapper') && visible(el)) out.push(`clickable ${el.tagName.toLowerCase()} without role ${label(el)}`)
+            })
+            return [...new Set(out)].slice(0, 25)
+          }, mobile)
+          if (issues.length) failures.push(`${theme} ${width} /finance/${route}:\n  ${issues.join('\n  ')}`)
+          console.log(`design ${theme} ${width} /finance/${route}: ${issues.length} issue(s)`)
+        }
+      }
+    }
+    if (failures.length) throw new Error(`Design audit failed:\n${failures.join('\n')}`)
   }
   if (errors.length) throw new Error(errors.join('\n'))
   console.log(JSON.stringify({ pageErrors: errors.length, layoutMetrics, summaryRequests: calls.filter(x => x.endsWith('/summary')).length, widgetRequests: calls.filter(x => x.endsWith('/widget')).length, modal }))

@@ -700,6 +700,10 @@ input, textarea, select {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+/* Inter's tabular figures + open single-storey forms keep money columns aligned (VIS-19). */
+.num, .num-metric, [data-money] {
+  font-feature-settings: 'tnum' 1, 'cv11' 1;
+}
 
 /* One primary button style (MOB-10): dark text on mint in dark, white on deep green in light. */
 .btn-primary {

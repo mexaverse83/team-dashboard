@@ -7,20 +7,21 @@ import {
   RadialBarChart, RadialBar,
   Tooltip,
 } from 'recharts'
-import { CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
+import { chartTooltipProps, chartAnimationProps } from '@/lib/chart-theme'
 
-// Themed colors from CSS vars (resolved at render time)
+// Token-driven series colours: resolve per theme through CSS variables.
+// Agent-era keys stay as aliases for older callers.
 const CHART_COLORS = {
-  brand: 'hsl(225, 75%, 48%)',
-  success: 'hsl(142, 71%, 45%)',
-  warning: 'hsl(38, 92%, 50%)',
-  danger: 'hsl(0, 84%, 60%)',
-  tars: 'hsl(35, 92%, 50%)',
-  cooper: 'hsl(205, 84%, 50%)',
-  murph: 'hsl(263, 70%, 58%)',
-  brand_agent: 'hsl(145, 63%, 42%)',
-  mann: 'hsl(350, 80%, 55%)',
-  tom: 'hsl(174, 60%, 47%)',
+  brand: 'hsl(var(--info))',
+  success: 'hsl(var(--positive))',
+  warning: 'hsl(var(--warning))',
+  danger: 'hsl(var(--negative))',
+  tars: 'hsl(var(--cat-4))',
+  cooper: 'hsl(var(--cat-2))',
+  murph: 'hsl(var(--cat-3))',
+  brand_agent: 'hsl(var(--cat-1))',
+  mann: 'hsl(var(--cat-6))',
+  tom: 'hsl(var(--cat-5))',
 }
 
 interface ThemedAreaChartProps {
@@ -49,24 +50,22 @@ export function ThemedAreaChart({
         {gradient && (
           <defs>
             <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={strokeColor} stopOpacity={0.3} />
+              <stop offset="0%" stopColor={strokeColor} stopOpacity={0.18} />
               <stop offset="100%" stopColor={strokeColor} stopOpacity={0} />
             </linearGradient>
           </defs>
         )}
         {showTooltip && (
-          <Tooltip
-            contentStyle={{ ...CHART_TOOLTIP_STYLE, color: 'hsl(0, 0%, 95%)' }}
-          />
+          <Tooltip {...chartTooltipProps} />
         )}
         <Area
-          type="monotone"
+          type="linear"
           dataKey={dataKey}
           stroke={strokeColor}
           strokeWidth={2}
           fill={gradient ? `url(#${id})` : 'none'}
           dot={false}
-          animationDuration={800}
+          {...chartAnimationProps()}
         />
       </AreaChart>
     </ResponsiveContainer>
@@ -108,9 +107,9 @@ export function ThemedRadialChart({
         >
           <RadialBar
             dataKey="value"
-            background={{ fill: 'hsl(34, 26%, 89%)' }}
+            background={{ fill: 'hsl(var(--surface-3))' }}
             cornerRadius={4}
-            animationDuration={1000}
+            {...chartAnimationProps()}
           />
         </RadialBarChart>
       </ResponsiveContainer>
