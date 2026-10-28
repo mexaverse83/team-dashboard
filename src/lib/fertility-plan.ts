@@ -23,8 +23,22 @@ export type CutRecommendation = {
 
 const DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === '1'
 
-export const FERTILITY_TREATMENT_PLAN = DEMO ? {
+export type PlanStatus = 'active' | 'complete'
+
+export const FERTILITY_TREATMENT_PLAN: {
+  name: string
+  status: PlanStatus
+  completedMonth: string | null
+  minTotal: number
+  maxTotal: number
+  planningTotal: number
+  startMonth: string
+  endMonth: string
+  events: TreatmentEvent[]
+} = DEMO ? {
   name: 'Family plan',
+  status: 'complete',
+  completedMonth: '2020-01',
   minTotal: 0,
   maxTotal: 0,
   planningTotal: 0,
@@ -33,6 +47,10 @@ export const FERTILITY_TREATMENT_PLAN = DEMO ? {
   events: [] as TreatmentEvent[],
 } : {
   name: 'Fertility treatment',
+  // Complete: the treatment worked (baby due April 2027). Nothing is owed, so
+  // summary reports { status: 'complete', total_paid } and no gap or cuts.
+  status: 'complete',
+  completedMonth: '2026-07',
   minTotal: 260000,
   maxTotal: 260000,
   planningTotal: 260000,
@@ -107,25 +125,57 @@ function shiftDay(day: string, delta: number): string {
   return dayKey(new Date(y, m - 1, d + delta))
 }
 
+export function isFertilityPlanComplete(): boolean {
+  return FERTILITY_TREATMENT_PLAN.status === 'complete'
+}
+
+function monthLastDay(month: string): string {
+  const [y, m] = month.split('-').map(Number)
+  return `${month}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`
+}
+
+export type MatchMode = 'single' | 'cumulative'
+
 /**
- * Scheduled treatment events for `month` that no posted fertility payment
- * accounts for yet. An unpaid milestone stays in the result even after its
- * due date passes — the money is still owed and still leaves this month.
- * Each transaction can settle at most one event.
+ * Scheduled events for `month` that posted payments don't account for yet.
+ * An unpaid milestone stays in the result even after its due date passes —
+ * the money is still owed and still leaves this month.
+ *
+ * 'single' (treatment milestones): one transaction of at least half the
+ * planned amount settles an event; each transaction settles at most one.
+ * 'cumulative' (baby envelope): every payment dated in the event's month adds
+ * up — prenatal care arrives as a $753 vitamin run, a $750 nutritionist and a
+ * $2,800 ultrasound, never one $4,000 charge. A partly covered event comes
+ * back with `amount` reduced to what is still expected.
  */
 export function getUnpaidTreatmentEventsForMonth(
   month: string,
   paidTxs: TreatmentPaymentTx[],
   events: TreatmentEvent[] = FERTILITY_TREATMENT_PLAN.events,
+  { matchMode = 'single' }: { matchMode?: MatchMode } = {},
 ): TreatmentEvent[] {
   const monthEvents = events.filter(e => e.month === month)
   if (monthEvents.length === 0) return []
+
+  if (matchMode === 'cumulative') {
+    let pool = paidTxs
+      .filter(tx => tx.date >= `${month}-01` && tx.date <= monthLastDay(month))
+      .reduce((sum, tx) => sum + tx.amount, 0)
+    const unpaid: TreatmentEvent[] = []
+    for (const event of monthEvents) {
+      const covered = Math.min(pool, event.amount)
+      pool -= covered
+      const left = Math.round(event.amount - covered)
+      if (left > 0) unpaid.push({ ...event, amount: left })
+    }
+    return unpaid
+  }
 
   const pool = [...paidTxs].sort((a, b) => b.amount - a.amount)
   const unpaid: TreatmentEvent[] = []
   for (const event of monthEvents) {
     const earliest = shiftDay(event.date, -MILESTONE_MATCH_EARLY_DAYS)
-    const latest = `${event.month}-31`
+    const latest = monthLastDay(event.month)
     const matched = pool.findIndex(tx =>
       tx.amount >= event.amount * MILESTONE_MATCH_MIN_RATIO && tx.date >= earliest && tx.date <= latest
     )

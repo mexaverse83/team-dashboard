@@ -1,30 +1,28 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, MoreHorizontal } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { GlassCard } from '@/components/ui/glass-card'
-import { AnimatedNumber } from '@/components/ui/animated-number'
 import { PageTransition } from '@/components/page-transition'
 import { Modal } from '@/components/ui/modal'
+import { ProgressBar } from '@/components/ui/progress-bar'
+import { StatusPill } from '@/components/ui/status-pill'
+import { OwnerAvatar } from '@/components/ui/owner-avatar'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { FinanceGoal } from '@/lib/finance-types'
-import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
-import { OwnerDot } from '@/components/finance/owner-dot'
+import { OWNERS, getOwnerName, getOwnerColor, ownersEqual } from '@/lib/owners'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, BarChart, Bar } from 'recharts'
 import type { FinanceMonthlySavings } from '@/lib/finance-types'
 
 import { parseLocalDateKey } from '@/lib/transaction-entry'
 import { inputCls } from '@/lib/form-style'
 import { tooltipStyle, CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
-
-const GOAL_ICONS = ['🏠', '🚗', '✈️', '💻', '🎓', '💍', '🏖️', '🎯', '🛡️', '💰']
-const GRADIENTS = ['from-indigo-500/20 to-purple-500/20', 'from-blue-500/20 to-cyan-500/20', 'from-emerald-500/20 to-teal-500/20', 'from-amber-500/20 to-orange-500/20']
-
-function monthsBetween(a: Date, b: Date): number {
-  return Math.max(0, (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth())
-}
+import { isCryptoGoal, isGoalOverdue, monthlyNeeded, monthsRemaining, type CalendarDay } from '@/lib/finance-utils'
+import { diffDaysKey, mexicoCityDateParts } from '@/lib/dates'
+import { formatCompact, formatMoney } from '@/lib/format'
+import { cryptoQuantities } from '@/lib/summary/crypto'
 
 function vehicleForHorizon(months: number): string {
   if (months <= 6) return 'CETES 28 días / Hey Banco'
@@ -37,7 +35,6 @@ function vehicleForHorizon(months: number): string {
 const CRYPTO_SYMBOLS = ['BTC', 'ETH', 'SOL']
 const COIN_ICONS: Record<string, string> = { BTC: '₿', ETH: 'Ξ', SOL: '◎' }
 const COIN_SOLIDS: Record<string, string> = { BTC: 'bg-orange-500', ETH: 'bg-indigo-500', SOL: 'bg-purple-500' }
-const COIN_GRADIENTS: Record<string, string> = { BTC: 'from-orange-500/20 to-amber-500/20', ETH: 'from-indigo-500/20 to-blue-500/20', SOL: 'from-purple-500/20 to-fuchsia-500/20' }
 
 interface GoalForm {
   name: string; icon: string; target_amount: string; current_amount: string
@@ -46,6 +43,38 @@ interface GoalForm {
   goal_type: 'savings' | 'crypto'; crypto_symbol: string
 }
 const emptyForm: GoalForm = { name: '', icon: '🎯', target_amount: '', current_amount: '0', target_date: '', monthly_contribution: '', priority: '1', scope: 'shared', owner: '', goal_type: 'savings', crypto_symbol: '' }
+
+const compact = (n: number) => Math.abs(n) >= 100_000 ? formatCompact(n) : formatMoney(n)
+const coins = (n: number) => n.toFixed(8).replace(/\.?0+$/, '') || '0'
+
+function today(): CalendarDay & { key: string } {
+  const mx = mexicoCityDateParts()
+  return { year: mx.year, month: mx.month, day: mx.day, key: `${mx.year}-${String(mx.month).padStart(2, '0')}-${String(mx.day).padStart(2, '0')}` }
+}
+
+/** Where the goal should be today on a straight line from its creation to its date. */
+function paceTarget(g: FinanceGoal, todayKey: string): number | null {
+  if (!g.target_date || !g.created_at) return null
+  const total = diffDaysKey(g.created_at.slice(0, 10), g.target_date.slice(0, 10))
+  if (total <= 0) return null
+  const elapsed = Math.min(total, Math.max(0, diffDaysKey(g.created_at.slice(0, 10), todayKey)))
+  return g.target_amount * (elapsed / total)
+}
+
+function KpiTile({ label, value, hint, tone = 'neutral' }: { label: string; value: string; hint?: string; tone?: 'neutral' | 'positive' | 'warning' | 'negative' }) {
+  return (
+    <GlassCard className="min-w-0 p-4">
+      <span className="block text-label font-medium text-[hsl(var(--text-secondary))]">{label}</span>
+      <p className="num-metric mt-1 truncate text-2xl font-semibold tabular-nums" data-money="">{value}</p>
+      {hint && (
+        <p className={cn('mt-0.5 truncate text-label',
+          tone === 'positive' ? 'text-positive' : tone === 'warning' ? 'text-warning' : tone === 'negative' ? 'text-negative' : 'text-[hsl(var(--text-tertiary))]')}>
+          {hint}
+        </p>
+      )}
+    </GlassCard>
+  )
+}
 
 export default function GoalsClient() {
   const [goals, setGoals] = useState<FinanceGoal[]>([])
@@ -60,6 +89,7 @@ export default function GoalsClient() {
   const [form, setForm] = useState<GoalForm>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [menuFor, setMenuFor] = useState<string | null>(null)
   const [monthlySavings, setMonthlySavings] = useState<FinanceMonthlySavings[]>([])
   const [savingsChart, setSavingsChart] = useState<Record<string, number | string>[]>([])
   const [scopeFilter, setScopeFilter] = useState<'all' | 'shared' | string>('all')
@@ -67,78 +97,84 @@ export default function GoalsClient() {
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setDefaultOwner(getOwnerName(data.user?.email ?? undefined))) }, [])
 
   const fetchData = useCallback(async () => {
+    // Monthly savings comes through the server route (service role): the
+    // anon key can't read finance_monthly_savings, which left three tiles
+    // permanently empty.
     const [goalsRes, cryptoRes, savingsRes] = await Promise.all([
       supabase.from('finance_goals').select('*').order('priority'),
       fetch('/api/finance/crypto').then(r => r.text()).then(t => t ? JSON.parse(t) : { holdings: [], prices: null }).catch(() => ({ holdings: [], prices: null })),
       fetch('/api/finance/monthly-savings?months=6&owner=all').then(r => r.json()).catch(() => ({ data: [], chart: [] })),
     ])
     setGoals(goalsRes.data || [])
-    setCryptoData(cryptoRes)
-    setMonthlySavings(savingsRes.data || [])
-    setSavingsChart(savingsRes.chart || [])
+    setCryptoData({ holdings: Array.isArray(cryptoRes?.holdings) ? cryptoRes.holdings : [], prices: cryptoRes?.prices ?? null })
+    setMonthlySavings(Array.isArray(savingsRes?.data) ? savingsRes.data : [])
+    setSavingsChart(Array.isArray(savingsRes?.chart) ? savingsRes.chart : [])
     setLoading(false)
   }, [])
 
   useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
 
-  // Helper: get total crypto qty for a symbol (both owners)
-  const getCryptoQty = useCallback((symbol: string) => {
-    return cryptoData.holdings.filter(h => h.symbol === symbol).reduce((s, h) => s + h.quantity, 0)
-  }, [cryptoData])
-  const getCryptoMXN = useCallback((symbol: string) => {
-    const qty = getCryptoQty(symbol)
-    return qty * (cryptoData.prices?.[symbol]?.mxn ?? 0)
-  }, [getCryptoQty, cryptoData.prices])
+  const asOf = today()
+  const qty = useMemo(() => cryptoQuantities(cryptoData.holdings), [cryptoData.holdings])
+  const holdingsKnown = cryptoData.holdings.length > 0
+  // Crypto goals track summed holdings (both owners); when holdings can't be
+  // read, fall back to the goal's stored amount rather than showing 0.
+  const getCryptoQty = useCallback((symbol: string) => qty[symbol.toUpperCase()] ?? 0, [qty])
+  const goalCurrent = useCallback((g: FinanceGoal) => isCryptoGoal(g) && g.crypto_symbol && holdingsKnown ? getCryptoQty(g.crypto_symbol) : g.current_amount, [getCryptoQty, holdingsKnown])
+  const getCryptoMXN = useCallback((symbol: string) => getCryptoQty(symbol) * (cryptoData.prices?.[symbol]?.mxn ?? 0), [getCryptoQty, cryptoData.prices])
 
-  // Filter by scope/owner
   const filteredGoals = useMemo(() => {
     if (scopeFilter === 'all') return goals
     if (scopeFilter === 'shared') return goals.filter(g => g.scope === 'shared')
-    return goals.filter(g => g.scope === 'personal' && g.owner === scopeFilter)
+    return goals.filter(g => g.scope === 'personal' && ownersEqual(g.owner, scopeFilter))
   }, [goals, scopeFilter])
 
-  // KPIs
+  // KPIs — pesos only: a "1 BTC" goal never adds $1 to a peso total.
   const activeGoals = filteredGoals.filter(g => !g.is_completed)
-  const totalTarget = activeGoals.reduce((s, g) => s + g.target_amount, 0)
-  const totalSaved = activeGoals.reduce((s, g) => s + g.current_amount, 0)
+  const pesoGoals = activeGoals.filter(g => !isCryptoGoal(g))
+  const openPeso = pesoGoals.filter(g => !isGoalOverdue(g, asOf))
+  const overdue = pesoGoals.filter(g => isGoalOverdue(g, asOf) && g.current_amount < g.target_amount)
+  const totalTarget = pesoGoals.reduce((s, g) => s + g.target_amount, 0)
+  const totalSaved = pesoGoals.reduce((s, g) => s + g.current_amount, 0)
   const overallPct = totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0
-  const totalMonthlyNeeded = activeGoals.reduce((s, g) => {
-    const months = monthsBetween(new Date(), parseLocalDateKey(g.target_date || '2027-01-01'))
-    const remaining = g.target_amount - g.current_amount
-    return s + (months > 0 ? remaining / months : remaining)
-  }, 0)
+  const totalMonthlyNeeded = openPeso.reduce((s, g) => s + monthlyNeeded(g, asOf), 0)
+  const totalContributing = openPeso.reduce((s, g) => s + (g.monthly_contribution || 0), 0)
 
-  // Monthly savings KPIs — from per-owner snapshot table
   const totalSnapshots = monthlySavings.filter(m => m.owner === 'total')
   const lastTotal = totalSnapshots.length > 0 ? totalSnapshots[totalSnapshots.length - 1] : null
   const avgNetSavings = totalSnapshots.length > 0
     ? totalSnapshots.reduce((s, m) => s + m.net_savings, 0) / totalSnapshots.length
     : 0
 
-  // Helper: get last snapshot net_savings for a given owner
   const getLastActual = (ownerName: string) => {
-    const ownerSnaps = monthlySavings.filter(m => m.owner === ownerName.toLowerCase())
+    const ownerSnaps = monthlySavings.filter(m => ownersEqual(m.owner, ownerName))
     return ownerSnaps.length > 0 ? ownerSnaps[ownerSnaps.length - 1].net_savings : null
   }
 
-  // Goal status logic
-  const getGoalStatus = (g: FinanceGoal): 'on_track' | 'slightly_behind' | 'behind' | null => {
-    if (g.goal_type !== 'savings' || !g.owner) return null
-    const lastActual = getLastActual(g.owner)
-    if (lastActual === null) return null
-    const monthsLeft = monthsBetween(new Date(), parseLocalDateKey(g.target_date || '2027-01-01'))
-    const remaining = g.target_amount - g.current_amount
-    const required = monthsLeft > 0 ? remaining / monthsLeft : remaining
-    if (lastActual >= required) return 'on_track'
-    if (lastActual >= required * 0.8) return 'slightly_behind'
-    return 'behind'
+  type GoalStatus = { tone: 'negative' | 'warning'; label: string } | null
+  // A pill only when something is off: overdue, behind on last month's
+  // snapshot, or behind the straight-line pace to the target date.
+  const getGoalStatus = (g: FinanceGoal): GoalStatus => {
+    const current = goalCurrent(g)
+    if (current >= g.target_amount) return null
+    if (!isCryptoGoal(g) && isGoalOverdue(g, asOf)) return { tone: 'negative', label: 'Overdue — roll over' }
+    if (!isCryptoGoal(g) && g.owner) {
+      const lastActual = getLastActual(g.owner)
+      const required = monthlyNeeded(g, asOf)
+      if (lastActual !== null && required > 0) {
+        if (lastActual >= required) return null
+        return lastActual >= required * 0.8 ? { tone: 'warning', label: 'Slightly behind' } : { tone: 'negative', label: 'Behind' }
+      }
+    }
+    const pace = paceTarget(g, asOf.key)
+    return pace != null && current < pace * 0.95 ? { tone: 'warning', label: 'Behind pace' } : null
   }
 
   // Selected goal detail
   const goal = goals.find(g => g.id === selectedGoal)
-  const goalPct = goal ? (goal.current_amount / goal.target_amount) * 100 : 0
-  const goalMonthsLeft = goal ? monthsBetween(new Date(), parseLocalDateKey(goal.target_date || '2027-01-01')) : 0
-  const goalMonthlyNeeded = goal && goalMonthsLeft > 0 ? (goal.target_amount - goal.current_amount) / goalMonthsLeft : 0
+  const goalPct = goal ? (goalCurrent(goal) / goal.target_amount) * 100 : 0
+  const goalMonthsLeft = goal ? monthsRemaining(goal.target_date, asOf) : 0
+  const goalMonthlyNeeded = goal ? monthlyNeeded(goal, asOf) : 0
 
   // What-if projections
   useEffect(() => {
@@ -184,7 +220,7 @@ export default function GoalsClient() {
     const isCrypto = form.goal_type === 'crypto'
     // For crypto goals, current_amount is auto-calculated from holdings
     const currentAmt = isCrypto ? getCryptoQty(form.crypto_symbol) : parseFloat(form.current_amount || '0')
-    const months = monthsBetween(new Date(), parseLocalDateKey(form.target_date))
+    const months = monthsRemaining(form.target_date, asOf)
     const vehicle = isCrypto ? `Crypto (${form.crypto_symbol})` : vehicleForHorizon(months)
     const record = {
       name: form.name, target_amount: targetAmt, current_amount: currentAmt,
@@ -207,14 +243,18 @@ export default function GoalsClient() {
     setDeleteConfirm(null); if (selectedGoal === id) setSelectedGoal(null); fetchData()
   }
 
-  const formMonthsLeft = form.target_date ? monthsBetween(new Date(), parseLocalDateKey(form.target_date)) : 0
-  const formMonthlyNeeded = formMonthsLeft > 0 && form.target_amount ? (parseFloat(form.target_amount) - parseFloat(form.current_amount || '0')) / formMonthsLeft : 0
+  const formMonthsLeft = form.target_date ? monthsRemaining(form.target_date, asOf) : 0
+  const formMonthlyNeeded = form.target_amount && form.target_date
+    ? monthlyNeeded({ target_amount: parseFloat(form.target_amount), current_amount: parseFloat(form.current_amount || '0'), target_date: form.target_date }, asOf)
+    : 0
 
   if (loading) return <div className="h-8 w-48 rounded bg-[hsl(var(--muted))] animate-pulse" />
 
+  const neededTone = totalMonthlyNeeded <= 0 ? 'neutral' : totalContributing >= totalMonthlyNeeded ? 'positive' : 'warning'
+
   return (
     <PageTransition>
-    <div className="space-y-6">
+    <div className="space-y-6" onClick={() => menuFor && setMenuFor(null)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Goals</h1>
@@ -223,252 +263,154 @@ export default function GoalsClient() {
       </div>
 
       {/* Scope filter */}
-      <div className="flex items-center gap-1 p-1 rounded-lg bg-[hsl(var(--bg-elevated))] w-fit">
-        {[{ key: 'all', label: '👨‍👩‍👧 All' }, { key: 'shared', label: '🤝 Shared' }, ...OWNERS.map(o => ({ key: o, label: o }))].map(f => (
-          <button key={f.key} onClick={() => setScopeFilter(f.key)}
-            className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-all",
-              scopeFilter === f.key ? "bg-blue-600 text-white" : "text-[hsl(var(--text-secondary))]"
+      <div role="radiogroup" aria-label="Whose goals" className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-[hsl(var(--bg-elevated))] p-1">
+        {[{ key: 'all', label: 'All' }, { key: 'shared', label: 'Shared' }, ...OWNERS.map(o => ({ key: o, label: o }))].map(f => (
+          <button key={f.key} type="button" role="radio" aria-checked={scopeFilter === f.key} onClick={() => setScopeFilter(f.key)}
+            className={cn("inline-flex min-h-[36px] items-center whitespace-nowrap rounded-md px-3 text-xs font-medium transition-all",
+              scopeFilter === f.key ? "bg-[hsl(var(--surface))] text-[hsl(var(--foreground))] shadow-sm" : "text-[hsl(var(--text-secondary))]"
             )}>
-            {f.key !== 'all' && f.key !== 'shared' && <span className="inline-block h-2 w-2 rounded-full mr-1.5" style={{ background: getOwnerColor(f.key) }} />}
+            {f.key !== 'all' && f.key !== 'shared' && <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ background: getOwnerColor(f.key) }} />}
             {f.label}
           </button>
         ))}
       </div>
 
-      {/* Hero KPIs */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4 xl:grid-cols-7">
-        <GlassCard>
-          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Active Goals</span>
-          <AnimatedNumber value={activeGoals.length} className="num-metric block text-2xl sm:text-3xl font-bold mt-1" />
-        </GlassCard>
-        <GlassCard>
-          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Target</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">${totalTarget.toLocaleString()}</p>
-        </GlassCard>
-        <GlassCard>
-          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Saved</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">${Math.round(totalSaved).toLocaleString()}</p>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{overallPct}% of all goals</p>
-        </GlassCard>
-        <GlassCard>
-          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Needed</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-600 mt-1">${Math.round(totalMonthlyNeeded).toLocaleString()}</p>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">across all goals</p>
-        </GlassCard>
-        <GlassCard>
-          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Last Month Net</span>
-          {lastTotal ? (
-            <>
-              <p className={cn("num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1",
-                lastTotal.net_savings >= 0 ? "text-emerald-600" : "text-rose-600")}>
-                ${Math.abs(lastTotal.net_savings).toLocaleString()}
-              </p>
-              <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">
-                {new Date(lastTotal.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })}
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-[hsl(var(--text-tertiary))] mt-2">No data yet</p>
-          )}
-        </GlassCard>
-        <GlassCard>
-          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Rate</span>
-          {lastTotal ? (
-            <>
-              <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-cyan-600 mt-1">
-                {lastTotal.savings_rate}%
-              </p>
-              <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">
-                avg {avgNetSavings > 0 ? `$${Math.round(avgNetSavings).toLocaleString()}` : '—'}/mo
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-[hsl(var(--text-tertiary))] mt-2">No data yet</p>
-          )}
-        </GlassCard>
-        <GlassCard className="col-span-2 sm:col-span-1">
-          <span className="block text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Variance vs Plan</span>
-          {lastTotal ? (
-            <>
-              <p className={cn("num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1",
-                lastTotal.variance >= 0 ? "text-emerald-600" : "text-rose-600")}>
-                {lastTotal.variance >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(lastTotal.variance)).toLocaleString()}
-              </p>
-              <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">
-                plan ${Math.round(lastTotal.planned_contribution).toLocaleString()}
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-[hsl(var(--text-tertiary))] mt-2">No data yet</p>
-          )}
-        </GlassCard>
+      {overdue.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface))] px-4 py-3 text-sm">
+          <StatusPill tone="negative">{overdue.length} past due</StatusPill>
+          <span className="text-[hsl(var(--text-secondary))]">
+            {overdue.map(g => g.name).join(', ')} passed {overdue.length === 1 ? 'its' : 'their'} date with {compact(overdue.reduce((s, g) => s + g.target_amount - g.current_amount, 0))} to go — roll the balance into new goals. They no longer count in the monthly need.
+          </span>
+        </div>
+      )}
+
+      {/* KPIs — tiles with no data are hidden, never "No data yet" */}
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
+        <KpiTile label="Saved" value={compact(totalSaved)} hint={`${overallPct}% of ${compact(totalTarget)}`} />
+        <KpiTile label="Monthly needed" value={compact(totalMonthlyNeeded)}
+          hint={totalMonthlyNeeded > 0 ? `contributing ${compact(totalContributing)}/mo` : openPeso.length > 0 ? 'all open goals funded' : 'no open peso goals'}
+          tone={neededTone} />
+        {lastTotal && (
+          <KpiTile label="Last month net" value={compact(lastTotal.net_savings)}
+            hint={parseLocalDateKey(String(lastTotal.month).slice(0, 10)).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+            tone={lastTotal.net_savings >= 0 ? 'neutral' : 'negative'} />
+        )}
+        {lastTotal && (
+          <KpiTile label="Savings rate" value={`${lastTotal.savings_rate}%`} hint={avgNetSavings > 0 ? `avg ${compact(avgNetSavings)}/mo` : undefined} />
+        )}
+        {lastTotal && (
+          <KpiTile label="Vs plan" value={`${lastTotal.variance >= 0 ? '+' : '−'}${compact(Math.abs(lastTotal.variance))}`}
+            hint={`plan ${compact(lastTotal.planned_contribution)}`} tone={lastTotal.variance >= 0 ? 'positive' : 'negative'} />
+        )}
+        <KpiTile label="Active goals" value={String(activeGoals.length)} hint={overdue.length > 0 ? `${overdue.length} past due` : undefined} tone={overdue.length > 0 ? 'negative' : 'neutral'} />
       </div>
 
-      {/* Goal Cards Grid */}
+      {/* Goal cards */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        {activeGoals.sort((a, b) => (a.priority || 99) - (b.priority || 99)).map((g, i) => {
-          const isCrypto = g.goal_type === 'crypto' && g.crypto_symbol
-          const cryptoQty = isCrypto ? getCryptoQty(g.crypto_symbol!) : 0
-          const currentVal = isCrypto ? cryptoQty : g.current_amount
-          const pct = (currentVal / g.target_amount) * 100
-          const months = monthsBetween(new Date(), parseLocalDateKey(g.target_date || '2027-01-01'))
-          const remaining = g.target_amount - currentVal
-          const needed = months > 0 ? remaining / months : remaining
-          const isOnTrack = isCrypto ? pct >= ((Date.now() - new Date(g.created_at).getTime()) / (parseLocalDateKey(g.target_date || '2027-01-01').getTime() - new Date(g.created_at).getTime())) * 100 : (g.monthly_contribution || 0) >= needed
-          const goalStatus = !isCrypto ? getGoalStatus(g) : null
+        {activeGoals.sort((a, b) => (a.priority || 99) - (b.priority || 99)).map(g => {
+          const isCrypto = isCryptoGoal(g) && !!g.crypto_symbol
+          const current = goalCurrent(g)
+          const pct = g.target_amount > 0 ? (current / g.target_amount) * 100 : 0
+          const needed = monthlyNeeded({ ...g, current_amount: current }, asOf)
+          const months = monthsRemaining(g.target_date, asOf)
+          const status = getGoalStatus(g)
+          const pace = paceTarget(g, asOf.key)
           const lastActual = !isCrypto && g.owner ? getLastActual(g.owner) : null
           const cryptoMXN = isCrypto ? getCryptoMXN(g.crypto_symbol!) : 0
-          const goalGradient = isCrypto ? (COIN_GRADIENTS[g.crypto_symbol!] || GRADIENTS[0]) : GRADIENTS[Math.min(i, 3)]
 
           return (
             <GlassCard key={g.id}
-              className={cn("cursor-pointer hover:ring-1 hover:ring-[hsl(var(--border))] transition-all group",
-                selectedGoal === g.id && "ring-1 ring-blue-500/50",
-                isCrypto ? `border-l-2 ${g.crypto_symbol === 'BTC' ? 'border-l-orange-500' : g.crypto_symbol === 'ETH' ? 'border-l-indigo-500' : 'border-l-purple-500'}` :
-                g.scope === 'shared' ? "border-l-2 border-l-violet-500" : g.owner === OWNERS[1] ? "border-l-2 border-l-pink-500" : g.owner === OWNERS[0] ? "border-l-2 border-l-blue-500" : ""
-              )}
+              className={cn("relative cursor-pointer transition-all hover:ring-1 hover:ring-[hsl(var(--border))]", selectedGoal === g.id && "ring-1 ring-[hsl(var(--primary))]/50")}
               onClick={() => setSelectedGoal(g.id === selectedGoal ? null : g.id)}>
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                  <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0",
-                    i === 0 && "bg-indigo-500/20 text-indigo-600",
-                    i === 1 && "bg-blue-500/20 text-blue-600",
-                    i === 2 && "bg-emerald-500/20 text-emerald-600",
-                    i > 2 && "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))]",
-                  )}>#{g.priority || i + 1}</span>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   {isCrypto ? (
-                    <span className={cn("h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-white text-xs font-bold", COIN_SOLIDS[g.crypto_symbol!] || 'bg-gray-500')}>{COIN_ICONS[g.crypto_symbol!] || '?'}</span>
+                    <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white", COIN_SOLIDS[g.crypto_symbol!] || 'bg-gray-500')} aria-hidden>{COIN_ICONS[g.crypto_symbol!] || '?'}</span>
                   ) : (
-                    <span className="hidden sm:inline text-lg">🎯</span>
+                    <OwnerAvatar owner={g.scope === 'shared' ? null : g.owner} size={24} />
                   )}
-                  <OwnerDot owner={g.scope === 'shared' ? 'shared' : g.owner} size="md" showLabel />
+                  <h4 className="truncate text-sm font-semibold">{g.name}</h4>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {goalStatus ? (
-                    <span className={cn("text-[11px] sm:text-xs font-medium px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap",
-                      goalStatus === 'on_track' && "bg-emerald-500/15 text-emerald-600",
-                      goalStatus === 'slightly_behind' && "bg-amber-500/15 text-amber-600",
-                      goalStatus === 'behind' && "bg-rose-500/15 text-rose-600",
-                    )}>
-                      {goalStatus === 'on_track' && '✅ On Track'}
-                      {goalStatus === 'slightly_behind' && '⚠️ Slightly Behind'}
-                      {goalStatus === 'behind' && '🔴 Behind'}
-                    </span>
-                  ) : (
-                    <span className={cn("text-[11px] sm:text-xs font-medium px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap",
-                      isOnTrack ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600"
-                    )}>{isOnTrack ? '✓ On track' : '⚡ Needs boost'}</span>
-                  )}
-                  <div className="flex sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button aria-label="Edit" onClick={e => { e.stopPropagation(); openEdit(g) }} className="p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
-                    <button aria-label="Delete" onClick={e => { e.stopPropagation(); setDeleteConfirm(g.id) }} className="p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-600" /></button>
+                <div className="flex shrink-0 items-center gap-1">
+                  {status && <StatusPill tone={status.tone}>{status.label}</StatusPill>}
+                  <div className="relative">
+                    <button type="button" aria-label={`Actions for ${g.name}`} aria-haspopup="menu" aria-expanded={menuFor === g.id}
+                      onClick={e => { e.stopPropagation(); setMenuFor(menuFor === g.id ? null : g.id) }}
+                      className="-mr-2 -mt-1 inline-flex h-9 w-9 items-center justify-center rounded-md text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-elevated))]">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                    {menuFor === g.id && (
+                      <div role="menu" className="absolute right-0 top-9 z-20 w-36 overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-surface py-1 shadow-lg" onClick={e => e.stopPropagation()}>
+                        <button type="button" role="menuitem" onClick={() => { setMenuFor(null); openEdit(g) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[hsl(var(--bg-elevated))]">
+                          <Pencil className="h-3.5 w-3.5" /> Edit
+                        </button>
+                        <button type="button" role="menuitem" onClick={() => { setMenuFor(null); setDeleteConfirm(g.id) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-negative hover:bg-[hsl(var(--bg-elevated))]">
+                          <Trash2 className="h-3.5 w-3.5" /> Delete
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              <h4 className="text-sm font-semibold">{g.name}</h4>
-              {isCrypto ? (
-                <div className="mt-0.5">
-                  <p className="text-xs text-[hsl(var(--text-tertiary))] tabular-nums font-mono">
-                    {cryptoQty.toFixed(8).replace(/\.?0+$/, '')} / {g.target_amount} {g.crypto_symbol}
-                  </p>
-                  <p className="text-[10px] text-[hsl(var(--text-tertiary))]">
-                    Current value: ${cryptoMXN.toLocaleString(undefined, { maximumFractionDigits: 0 })} MXN
-                  </p>
-                </div>
-              ) : (
-                <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">${g.current_amount.toLocaleString()} of ${g.target_amount.toLocaleString()}</p>
-              )}
-
-              <div className="relative mt-3 mb-2">
-                <div className="h-3 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
-                  <motion.div className={cn("h-3 rounded-full bg-gradient-to-r", goalGradient)}
-                    initial={{ width: 0 }} animate={{ width: `${Math.min(pct, 100)}%` }} transition={{ duration: 0.8 }} />
-                </div>
-                {[25, 50, 75].map(m => (
-                  <div key={m} className={cn("absolute top-1/2 -translate-y-1/2 h-3 w-0.5", pct >= m ? "bg-white/30" : "bg-[hsl(var(--text-tertiary))]/20")} style={{ left: `${m}%` }} />
-                ))}
+              <div className="mt-3 flex items-baseline justify-between gap-2">
+                {isCrypto ? (
+                  <p className="num text-sm text-[hsl(var(--text-secondary))]"><span className="font-semibold text-[hsl(var(--foreground))]">{coins(current)}</span> / {g.target_amount} {g.crypto_symbol}</p>
+                ) : (
+                  <p className="num text-sm text-[hsl(var(--text-secondary))]" data-money=""><span className="font-semibold text-[hsl(var(--foreground))]">{compact(current)}</span> of {compact(g.target_amount)}</p>
+                )}
+                <span className="num text-sm font-semibold">{Math.round(pct)}%</span>
               </div>
+              <ProgressBar className="mt-2" value={current} max={g.target_amount} tone={pct >= 100 ? 'positive' : status ? 'warning' : 'positive'}
+                marker={pace != null && pace < g.target_amount ? pace : null}
+                label={`${g.name} progress`} valueText={`${Math.round(pct)}% saved${pace != null ? `, pace ${Math.round((pace / g.target_amount) * 100)}%` : ''}`} />
+              <p className="mt-1.5 text-label text-[hsl(var(--text-tertiary))]">
+                {g.target_date ? `by ${parseLocalDateKey(g.target_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : 'no date'}
+                {isCrypto && cryptoMXN > 0 ? ` · worth ${compact(cryptoMXN)}` : ''}
+                {isCrypto && !holdingsKnown ? ' · last recorded' : ''}
+              </p>
 
-              <div className="flex items-center justify-between mt-1">
-                <span className="text-lg font-bold tabular-nums">{Math.round(pct)}%</span>
-                <span className="text-xs text-[hsl(var(--text-tertiary))]">{g.target_date ? parseLocalDateKey(g.target_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}</span>
-              </div>
-
-              <div className="mt-2 pt-2 border-t border-[hsl(var(--border))]">
+              <dl className="mt-3 space-y-1 border-t border-[hsl(var(--border))] pt-3 text-xs">
                 {isCrypto ? (
                   <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-[hsl(var(--text-tertiary))]">Remaining</span>
-                      <span className="text-xs font-medium tabular-nums font-mono">{Math.max(0, g.target_amount - cryptoQty).toFixed(8).replace(/\.?0+$/, '')} {g.crypto_symbol}</span>
-                    </div>
-                    {months > 0 && (
-                      <div className="flex items-center justify-between mt-0.5">
-                        <span className="text-xs text-[hsl(var(--text-tertiary))]">Needed/mo</span>
-                        <span className={cn("text-xs font-medium tabular-nums font-mono", isOnTrack ? "text-emerald-600" : "text-amber-600")}>{(Math.max(0, g.target_amount - cryptoQty) / months).toFixed(8).replace(/\.?0+$/, '')} {g.crypto_symbol}</span>
-                      </div>
-                    )}
+                    <div className="flex justify-between gap-2"><dt className="text-[hsl(var(--text-tertiary))]">Remaining</dt><dd className="num font-medium">{coins(Math.max(0, g.target_amount - current))} {g.crypto_symbol}</dd></div>
+                    {months > 0 && <div className="flex justify-between gap-2"><dt className="text-[hsl(var(--text-tertiary))]">Needed/mo</dt><dd className="num font-medium">{coins(Math.max(0, g.target_amount - current) / months)} {g.crypto_symbol}</dd></div>}
                   </>
                 ) : (
                   <>
-                    {/* Planned vs Actual row — only for savings goals with snapshot data */}
-                    {lastActual !== null && (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-[hsl(var(--text-tertiary))]">Planned</span>
-                          <span className="text-xs font-medium tabular-nums">${(g.monthly_contribution || 0).toLocaleString()}/mo</span>
-                        </div>
-                        <div className="flex items-center justify-between mt-0.5">
-                          <span className="text-xs text-[hsl(var(--text-tertiary))]">Actual saved</span>
-                          <span className={cn("text-xs font-medium tabular-nums",
-                            lastActual >= (g.monthly_contribution || 0) ? "text-emerald-600" : "text-rose-600"
-                          )}>${Math.round(lastActual).toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-center justify-between mt-0.5">
-                          <span className="text-xs text-[hsl(var(--text-tertiary))]">Variance</span>
-                          <span className={cn("text-xs font-medium tabular-nums",
-                            lastActual - (g.monthly_contribution || 0) >= 0 ? "text-emerald-600" : "text-rose-600"
-                          )}>
-                            {lastActual - (g.monthly_contribution || 0) >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(lastActual - (g.monthly_contribution || 0))).toLocaleString()} {lastActual >= (g.monthly_contribution || 0) ? 'ahead' : 'short'}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                    {lastActual === null && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-[hsl(var(--text-tertiary))]">Contributing</span>
-                        <span className="text-xs font-medium tabular-nums">${(g.monthly_contribution || 0).toLocaleString()}/mo</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between mt-0.5">
-                      <span className="text-xs text-[hsl(var(--text-tertiary))]">Needed</span>
-                      <span className={cn("text-xs font-medium tabular-nums", isOnTrack ? "text-emerald-600" : "text-amber-600")}>${Math.round(needed).toLocaleString()}/mo</span>
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-[hsl(var(--text-tertiary))]">Needed</dt>
+                      <dd className="num font-medium">{isGoalOverdue(g, asOf) ? 'past due' : `${compact(needed)}/mo`}{months > 0 ? ` · ${months} mo` : ''}</dd>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-[hsl(var(--text-tertiary))]">{lastActual !== null ? 'Saved last month' : 'Contributing'}</dt>
+                      <dd className="num font-medium">{compact(lastActual ?? (g.monthly_contribution || 0))}{lastActual === null ? '/mo' : ''}</dd>
                     </div>
                     {g.last_contribution_date && (
-                      <div className="flex items-center justify-between mt-0.5">
-                        <span className="text-xs text-[hsl(var(--text-tertiary))]">Last applied</span>
-                        <span className="text-xs font-medium text-[hsl(var(--text-secondary))] tabular-nums">
-                          {new Date(g.last_contribution_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
-                          {g.last_contribution_amount ? ` · +$${Math.round(g.last_contribution_amount).toLocaleString()}` : ''}
-                        </span>
+                      <div className="flex justify-between gap-2">
+                        <dt className="text-[hsl(var(--text-tertiary))]">Last applied</dt>
+                        <dd className="num font-medium text-[hsl(var(--text-secondary))]">
+                          {parseLocalDateKey(g.last_contribution_date.slice(0, 10)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {g.last_contribution_amount ? ` · +${compact(g.last_contribution_amount)}` : ''}
+                        </dd>
                       </div>
                     )}
                   </>
                 )}
-              </div>
+              </dl>
               {deleteConfirm === g.id && (
-                <div className="mt-2 pt-2 border-t border-[hsl(var(--border))] flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                  <span className="text-xs text-[hsl(var(--text-tertiary))] mr-auto">Delete this goal?</span>
-                  <button onClick={() => handleDelete(g.id)} className="px-3 py-1.5 rounded-lg text-xs bg-rose-600 text-white font-medium">Delete</button>
-                  <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1.5 rounded-lg text-xs bg-[hsl(var(--bg-elevated))]">Cancel</button>
+                <div className="mt-2 flex items-center justify-end gap-2 border-t border-[hsl(var(--border))] pt-2" onClick={e => e.stopPropagation()}>
+                  <span className="mr-auto text-xs text-[hsl(var(--text-tertiary))]">Delete this goal?</span>
+                  <button type="button" onClick={() => handleDelete(g.id)} className="min-h-[36px] rounded-lg bg-rose-600 px-3 text-xs font-medium text-white">Delete</button>
+                  <button type="button" onClick={() => setDeleteConfirm(null)} className="min-h-[36px] rounded-lg bg-[hsl(var(--bg-elevated))] px-3 text-xs">Cancel</button>
                 </div>
               )}
             </GlassCard>
           )
         })}
 
-        <button onClick={openAdd}
-          className="flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed border-[hsl(var(--border))] hover:border-blue-500/50 hover:bg-blue-500/5 transition-all min-h-[200px]">
+        <button type="button" onClick={openAdd}
+          className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[hsl(var(--border))] p-6 transition-all hover:border-[hsl(var(--primary))]/50">
           <Plus className="h-8 w-8 text-[hsl(var(--text-tertiary))]" />
           <span className="text-sm text-[hsl(var(--text-tertiary))]">Add Goal</span>
         </button>

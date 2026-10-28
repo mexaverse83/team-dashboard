@@ -53,6 +53,19 @@ function dayKey(date: Date): string {
   return `${monthKey(date)}-${String(date.getDate()).padStart(2, '0')}`
 }
 
+// Merchant/description words that mark pregnancy spending ('Eco bebe', 'Cita
+// gine', 'Dha prenatal vitamins', 'Ultrasonido bby'). Rows matching these but
+// lacking the 'baby' tag are surfaced as candidates to tag — never retagged.
+const BABY_STRONG_KEYWORDS = /\bbby\b|beb[eé]|prenatal|embarazo|obstetr|pediatr|ultrason/i
+const BABY_HEALTH_KEYWORDS = /gine|nutri[oó]|\beco\b|matern/i
+
+/** True when a row looks like baby spending: a strong keyword anywhere, or a softer one in Health. */
+export function looksLikeBabySpend(merchant: string | null | undefined, categoryName?: string | null): boolean {
+  const text = merchant || ''
+  if (BABY_STRONG_KEYWORDS.test(text)) return true
+  return (categoryName || '').toLowerCase() === 'health' && BABY_HEALTH_KEYWORDS.test(text)
+}
+
 export function getBabyEventForMonth(month: string): TreatmentEvent | null {
   return BABY_PLAN.events.find(event => event.month === month) ?? null
 }
