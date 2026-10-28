@@ -1,18 +1,21 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { configErrorResponse, getAdminClient } from '@/lib/supabase-admin'
 
+// Service role in production; a missing key answers 503 instead of RLS-empty data.
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  )
+  return getAdminClient()
 }
 
 // GET /api/finance/recurring-income — list all (active first, then inactive)
 export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
+  try {
+    getSupabase()
+  } catch (err) {
+    return configErrorResponse(err)
+  }
 
   const { data, error } = await getSupabase()
     .from('finance_recurring_income')
@@ -28,6 +31,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
+  try {
+    getSupabase()
+  } catch (err) {
+    return configErrorResponse(err)
+  }
 
   let body: Record<string, unknown>
   try {
@@ -36,7 +44,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const { name, amount, owner, category, recurrence, day_of_month, active, notes, start_date } = body
+  const { name, amount, owner, category, recurrence, day_of_month, active, notes, start_date, end_date } = body
 
   if (!name || amount === undefined || !owner || !category || !recurrence || !day_of_month) {
     return NextResponse.json({ error: 'Missing required fields: name, amount, owner, category, recurrence, day_of_month' }, { status: 400 })
@@ -54,6 +62,7 @@ export async function POST(req: NextRequest) {
       active: active !== false,
       notes: notes || null,
       start_date: start_date || null,
+      ...(end_date ? { end_date } : {}),
     })
     .select()
     .single()

@@ -1,17 +1,25 @@
-import { createClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { learnRulesFromHistory } from '@/lib/finance-rules'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
+import { addMonthsKey, mexicoCityToday } from '@/lib/dates'
+import { configErrorResponse, getAdminClient } from '@/lib/supabase-admin'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-)
+function admin(): SupabaseClient | Response {
+  try {
+    return getAdminClient()
+  } catch (err) {
+    return configErrorResponse(err)
+  }
+}
 
 // GET: list all rules
 export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
+  const supabase = admin()
+  if (supabase instanceof Response) return supabase
 
   const { data, error } = await supabase
     .from('finance_rules')
@@ -26,6 +34,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
+  const supabase = admin()
+  if (supabase instanceof Response) return supabase
 
   const body = await req.json().catch(() => ({}))
   const action = body.action
@@ -35,18 +45,25 @@ export async function POST(req: NextRequest) {
     const minOccurrences = body.min_occurrences ?? 3
     const confidenceThreshold = body.confidence_threshold ?? 0.8
 
-    // Fetch all expense transactions (limit to last 12 months for performance)
-    const since = new Date()
-    since.setMonth(since.getMonth() - 12)
-    const { data: txs, error: txErr } = await supabase
-      .from('finance_transactions')
-      .select('merchant, category_id, amount_mxn, type, transaction_date')
-      .gte('transaction_date', since.toISOString().slice(0, 10))
-      .eq('type', 'expense')
+    // Every expense of the last 12 months, paged with a stable order: a bare
+    // select caps at 1000 rows in arbitrary order (F15).
+    const since = `${addMonthsKey(mexicoCityToday().slice(0, 7), -12)}-01`
+    type LearnRow = { merchant: string | null; category_id: string | null; amount_mxn: number; type: string; transaction_date: string }
+    let txs: LearnRow[]
+    try {
+      txs = await fetchAllRows<LearnRow>((from, to) => supabase
+        .from('finance_transactions')
+        .select('id, merchant, category_id, amount_mxn, type, transaction_date')
+        .gte('transaction_date', since)
+        .eq('type', 'expense')
+        .order('transaction_date', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to), 1000, 20000, true)
+    } catch (err) {
+      return NextResponse.json({ error: (err as Error).message }, { status: 500 })
+    }
 
-    if (txErr) return NextResponse.json({ error: txErr.message }, { status: 500 })
-
-    const proposals = learnRulesFromHistory(txs || [], { minOccurrences, confidenceThreshold })
+    const proposals = learnRulesFromHistory(txs, { minOccurrences, confidenceThreshold })
 
     if (body.dry_run) {
       // Enrich with category names
@@ -127,6 +144,8 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
+  const supabase = admin()
+  if (supabase instanceof Response) return supabase
 
   const body = await req.json().catch(() => ({}))
   if (!body.id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
@@ -149,6 +168,8 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
+  const supabase = admin()
+  if (supabase instanceof Response) return supabase
 
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
