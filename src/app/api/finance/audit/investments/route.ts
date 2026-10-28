@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
-import { OWNERS } from '@/lib/owners'
+import { canonicalOwner } from '@/lib/owners'
 import { fetchCryptoPrices } from '@/lib/crypto-prices'
+import { accruedValue } from '@/lib/fixed-income'
+import { localDateKey } from '@/lib/dates'
+import { ConfigError, configErrorResponse, getAdminClientInfo, withDegradedHeader } from '@/lib/supabase-admin'
+import { getWestProjection } from '@/lib/server/west'
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-  return createClient(url, key)
-}
+// Used only when the live WEST projection can't be computed (no active target
+// row, or the projection query failed); CH-06.
+const WEST_FALLBACK = { target: 11_204_000, gapPct: 8.84, monthsToDelivery: 22 } as const
+const FALLBACK_USD_MXN = 17.13
 
 interface Finding {
   id: string
@@ -19,8 +21,6 @@ interface Finding {
   suggestion: string
   action_url: string
 }
-
-const now = new Date()
 
 // ─── Flag Rules ───
 function runCryptoFlags(crypto: Record<string, unknown> | null, netWorth: number, findings: Finding[]) {
@@ -76,7 +76,7 @@ function runCryptoFlags(crypto: Record<string, unknown> | null, netWorth: number
   }
 }
 
-function runRealEstateFlags(reData: Array<Record<string, unknown>>, westData: Record<string, unknown> | null, findings: Finding[]) {
+function runRealEstateFlags(reData: Array<Record<string, unknown>>, westData: Record<string, unknown> | null, findings: Finding[], now: Date) {
   const todayMs = now.getTime()
 
   for (const prop of reData) {
@@ -156,7 +156,7 @@ function runRealEstateFlags(reData: Array<Record<string, unknown>>, westData: Re
   }
 }
 
-function runFixedIncomeFlags(fiData: Array<Record<string, unknown>>, findings: Finding[]) {
+function runFixedIncomeFlags(fiData: Array<Record<string, unknown>>, findings: Finding[], now: Date) {
   const todayMs = now.getTime()
   const isTaxDeclarationWindow = now.getMonth() >= 1 && now.getMonth() <= 3 // Feb(1)–Apr(3)
 
@@ -242,8 +242,8 @@ function runFixedIncomeFlags(fiData: Array<Record<string, unknown>>, findings: F
   }
 }
 
-function runPrivateEquityFlags(stocks: Array<Record<string, unknown>>, findings: Finding[]) {
-  const today = new Date()
+function runPrivateEquityFlags(stocks: Array<Record<string, unknown>>, findings: Finding[], now: Date) {
+  const today = now
   for (const s of stocks) {
     if (s.asset_type !== 'private_equity') continue
 
@@ -294,7 +294,7 @@ function runPrivateEquityFlags(stocks: Array<Record<string, unknown>>, findings:
   }
 }
 
-function runRetirementFlags(retirementData: Array<Record<string, unknown>>, monthlyIncome: number, findings: Finding[]) {
+function runRetirementFlags(retirementData: Array<Record<string, unknown>>, monthlyIncome: number, findings: Finding[], now: Date) {
   const todayMs = now.getTime()
 
   for (const r of retirementData) {
@@ -309,7 +309,7 @@ function runRetirementFlags(retirementData: Array<Record<string, unknown>>, mont
           id: `afore-stale-${r.owner}`,
           severity: 'amber',
           category: 'retirement',
-          title: `${r.owner === 'bernardo' ? OWNERS[0] : OWNERS[1]}'s AFORE balance is ${daysSince} days old`,
+          title: `${canonicalOwner(r.owner as string)}'s AFORE balance is ${daysSince} days old`,
           detail: `Last updated: ${r.last_updated}. AFORE balances change monthly with employer contributions and returns.`,
           suggestion: 'Check afore.mx or your AFORE app for current balance.',
           action_url: '/finance/investments?tab=Retirement',
@@ -322,7 +322,7 @@ function runRetirementFlags(retirementData: Array<Record<string, unknown>>, mont
       const annualIncome = monthlyIncome * 12
       const target70pct = annualIncome * 0.70 * 20 // 20 years of 70% income
       const ownerDOB: Record<string, string> = { bernardo: '1983-05-17', laura: '1989-10-22' }
-      const dob = ownerDOB[r.owner as string]
+      const dob = ownerDOB[String(r.owner).toLowerCase()]
       if (dob) {
         const birthDate = new Date(dob)
         const retirementDate = new Date(birthDate)
@@ -335,7 +335,7 @@ function runRetirementFlags(retirementData: Array<Record<string, unknown>>, mont
             id: `afore-projection-low-${r.owner}`,
             severity: 'amber',
             category: 'retirement',
-            title: `${r.owner === 'bernardo' ? OWNERS[0] : OWNERS[1]}'s AFORE projection may fall short`,
+            title: `${canonicalOwner(r.owner as string)}'s AFORE projection may fall short`,
             detail: `Projected $${projectedBase.toLocaleString('en-US', { maximumFractionDigits: 0 })} MXN at 65 (base 8.5%). Income replacement target (~$${(target70pct).toLocaleString('en-US', { maximumFractionDigits: 0 })} for 20yr) may require voluntary contributions.`,
             suggestion: 'Consider Aportaciones Voluntarias to AFORE — tax-deductible up to 10% of annual income.',
             action_url: '/finance/investments?tab=Retirement',
@@ -372,8 +372,9 @@ export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
 
+  const now = new Date()
   try {
-    const supabase = getSupabase()
+    const { client: supabase, degraded } = getAdminClientInfo()
 
     // Parallel data fetch
     const [cryptoRes, fiRes, reRes, retirementRes, summaryRes] = await Promise.all([
@@ -381,7 +382,7 @@ export async function GET(req: NextRequest) {
       supabase.from('finance_fixed_income').select('*'),
       supabase.from('finance_real_estate').select('*'),
       supabase.from('finance_retirement').select('*'),
-      supabase.from('finance_transactions').select('amount').gte('transaction_date', new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString().slice(0, 10)),
+      supabase.from('finance_transactions').select('amount').gte('transaction_date', localDateKey(new Date(now.getFullYear(), now.getMonth() - 3, 1))),
     ])
 
     // Debt data
@@ -426,17 +427,24 @@ export async function GET(req: NextRequest) {
 
     // Net worth
     const reEquity = reData.reduce((s, p) => s + (Number(p.current_value) || 0) - (Number(p.mortgage_balance) || 0), 0)
-    const fiTotal = fiData.reduce((s, i) => s + (Number(i.principal) || 0), 0)
+    const fiTotal = fiData.reduce((s, i) => s + accruedValue(i, now), 0)
     const retirementTotal = retirementData.reduce((s, r) => s + (Number(r.current_balance) || 0), 0)
     const cryptoTotal = Number(cryptoSummary?.total_value_mxn || 0)
     const totalNetWorth = reEquity + fiTotal + retirementTotal + cryptoTotal
 
-    // WEST data
-    const west = reData.find(p => p.property_type === 'pre_sale')
-    const westGap = west ? Math.max(0, Number(west.current_value || 0) * 0 + (Number(west.mortgage_balance || 0))) : 0
-    // Simple: projected gap from WEST tracker ≈ 8.84% of target
-    const westTarget = 11204000
-    const westGapPct = 8.84 // known from projection
+    // WEST: the live projection (same as the WEST tracker), else the fallback constants
+    let westTarget: number = WEST_FALLBACK.target
+    let westGapPct: number = WEST_FALLBACK.gapPct
+    let monthsToDelivery: number = WEST_FALLBACK.monthsToDelivery
+    try {
+      const west = await getWestProjection(supabase, { now })
+      const atDelivery = west.projected_at_delivery
+      westTarget = Number(west.property?.purchase_price) || westTarget
+      if (atDelivery) westGapPct = Math.max(0, Number(atDelivery.gap_pct) || 0)
+      if (Array.isArray(west.monthly_projection) && west.monthly_projection.length > 0) monthsToDelivery = west.monthly_projection.length
+    } catch (e) {
+      console.warn('Investment audit: WEST projection unavailable, using fallback', e instanceof Error ? e.message : e)
+    }
 
     // Financial metrics
     const monthlyIncome = (income || []).reduce((s, i) => s + (Number(i.monthly_amount) || 0), 0)
@@ -451,7 +459,7 @@ export async function GET(req: NextRequest) {
     const { data: stocksData } = await supabase.from('finance_stock_holdings').select('*')
     const peData = (stocksData || []) as Record<string, unknown>[]
     const peCurrentValue = peData.filter(s => s.asset_type === 'private_equity')
-      .reduce((sum, s) => sum + (Number(s.shares || 0) * Number(s.current_price_usd || 0) * 17.13), 0)
+      .reduce((sum, s) => sum + (Number(s.shares || 0) * Number(s.current_price_usd || 0) * FALLBACK_USD_MXN), 0)
     const finalNetWorth = totalNetWorth + peCurrentValue
 
     // Run all flag rules
@@ -460,11 +468,11 @@ export async function GET(req: NextRequest) {
     runRealEstateFlags(reData, {
       gap: westTarget * (westGapPct / 100),
       gap_pct: westGapPct,
-      months_to_delivery: 22,
-    }, findings)
-    runFixedIncomeFlags(fiData, findings)
-    runRetirementFlags(retirementData, monthlyIncome, findings)
-    runPrivateEquityFlags(peData, findings)
+      months_to_delivery: monthsToDelivery,
+    }, findings, now)
+    runFixedIncomeFlags(fiData, findings, now)
+    runRetirementFlags(retirementData, monthlyIncome, findings, now)
+    runPrivateEquityFlags(peData, findings, now)
 
     // Emergency fund green finding
     if (emergencyMonths >= 6) {
@@ -488,7 +496,7 @@ export async function GET(req: NextRequest) {
       return order[a.severity] - order[b.severity]
     })
 
-    return NextResponse.json({
+    return withDegradedHeader(NextResponse.json({
       score: score.total,
       score_label: score.total >= 80 ? 'Excellent' : score.total >= 65 ? 'Good' : score.total >= 50 ? 'Fair' : 'Needs Attention',
       score_breakdown: score.breakdown,
@@ -509,8 +517,9 @@ export async function GET(req: NextRequest) {
         emergency_months: Math.round(emergencyMonths * 10) / 10,
         total_debt: Math.round(debtBalances),
       },
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } }), degraded)
   } catch (e) {
+    if (e instanceof ConfigError) return configErrorResponse(e)
     console.error('Investment audit error:', e)
     return NextResponse.json({ error: 'Audit failed' }, { status: 500 })
   }

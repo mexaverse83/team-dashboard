@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
-import { OWNERS } from '@/lib/owners'
+import { canonicalOwner, OWNERS } from '@/lib/owners'
 import { fetchCryptoPrices } from '@/lib/crypto-prices'
+import { ConfigError, configErrorResponse, getAdminClient, getAdminClientInfo, withDegradedHeader } from '@/lib/supabase-admin'
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) {
-    throw new Error(`Missing env: URL=${!!url} KEY=${!!key}`)
-  }
-  return createClient(url, key)
-}
+const getSupabase = () => getAdminClient()
 
 const COIN_NAMES: Record<string, string> = {
   BTC: 'Bitcoin',
@@ -31,9 +24,12 @@ export async function GET(req: NextRequest) {
   const bust = req.nextUrl.searchParams.has('t')
   let holdings: Record<string, unknown>[] = []
   let dbError: string | null = null
+  let degraded = false
 
   try {
-    const { data, error } = await getSupabase()
+    const info = getAdminClientInfo()
+    degraded = info.degraded
+    const { data, error } = await info.client
       .from('finance_crypto_holdings')
       .select('*')
       .order('symbol')
@@ -45,13 +41,19 @@ export async function GET(req: NextRequest) {
       holdings = data || []
     }
   } catch (e) {
+    if (e instanceof ConfigError) return configErrorResponse(e)
     console.error('Crypto DB error:', e)
     dbError = e instanceof Error ? e.message : 'Database unavailable'
   }
 
   const prices = await fetchCryptoPrices(undefined, { bust })
 
-  return NextResponse.json({ holdings, prices, dbError })
+  // A failed holdings read is an error, not an empty portfolio (F18): the
+  // client shows "couldn't load" instead of $0. Prices still ride along.
+  if (dbError) {
+    return NextResponse.json({ error: 'Failed to load crypto holdings', holdings: [], prices }, { status: 500, headers: { 'Cache-Control': 'no-store' } })
+  }
+  return withDegradedHeader(NextResponse.json({ holdings, prices }), degraded)
 }
 
 // POST: add or update a holding
@@ -77,13 +79,16 @@ export async function POST(req: NextRequest) {
     avg_cost_basis_usd: avg_cost_basis_usd || null,
     wallet_address: wallet_address || null,
     notes: notes || null,
-    owner: owner || OWNERS[0],
+    owner: canonicalOwner(owner) || OWNERS[0],
     cost_currency: cost_currency || 'MXN',
   }
 
+  let sb
+  try { sb = getSupabase() } catch (e) { return configErrorResponse(e) }
+
   if (id) {
     // Update
-    const { data, error } = await getSupabase()
+    const { data, error } = await sb
       .from('finance_crypto_holdings')
       .update(record)
       .eq('id', id)
@@ -94,7 +99,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(data)
   } else {
     // Insert
-    const { data, error } = await getSupabase()
+    const { data, error } = await sb
       .from('finance_crypto_holdings')
       .insert(record)
       .select()
@@ -113,7 +118,9 @@ export async function DELETE(req: NextRequest) {
   const { id } = await req.json()
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
 
-  const { error } = await getSupabase()
+  let sb
+  try { sb = getSupabase() } catch (e) { return configErrorResponse(e) }
+  const { error } = await sb
     .from('finance_crypto_holdings')
     .delete()
     .eq('id', id)

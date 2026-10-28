@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { configErrorResponse, getAdminClient } from '@/lib/supabase-admin'
+import { mexicoCityToday } from '@/lib/dates'
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error(`Missing env: URL=${!!url} KEY=${!!key}`)
-  return createClient(url, key)
-}
+const getSupabase = () => getAdminClient()
 
 async function recalcHolding(holdingId: string) {
   const sb = getSupabase()
@@ -57,7 +53,8 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response
 
   const holdingId = req.nextUrl.searchParams.get('holding_id')
-  const sb = getSupabase()
+  let sb
+  try { sb = getSupabase() } catch (e) { return configErrorResponse(e) }
 
   let query = sb
     .from('crypto_transactions')
@@ -104,7 +101,8 @@ export async function POST(req: NextRequest) {
   }
 
   const total_mxn = quantity * price_per_coin_mxn
-  const sb = getSupabase()
+  let sb
+  try { sb = getSupabase() } catch (e) { return configErrorResponse(e) }
 
   const { data, error } = await sb
     .from('crypto_transactions')
@@ -116,7 +114,7 @@ export async function POST(req: NextRequest) {
       total_mxn,
       exchange: exchange || null,
       notes: notes || null,
-      transaction_date: transaction_date || new Date().toISOString().slice(0, 10),
+      transaction_date: transaction_date || mexicoCityToday(),
     })
     .select()
     .single()
@@ -137,7 +135,8 @@ export async function DELETE(req: NextRequest) {
   const { id, holding_id } = await req.json()
   if (!id || !holding_id) return NextResponse.json({ error: 'Missing id/holding_id' }, { status: 400 })
 
-  const sb = getSupabase()
+  let sb
+  try { sb = getSupabase() } catch (e) { return configErrorResponse(e) }
   const { error } = await sb.from('crypto_transactions').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

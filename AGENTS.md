@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is a Next.js 16, React 19, and TypeScript finance dashboard. App Router pages and API handlers live in `src/app/`; finance routes are grouped under `src/app/finance/` and server endpoints under `src/app/api/finance/`. Reusable domain components belong in `src/components/finance/`, shared primitives in `src/components/ui/`, and business logic or integrations in `src/lib/`. Static PWA assets are in `public/`. Tests mirror broad concerns under `tests/components/`, `tests/pages/`, and `tests/lib/`. Root-level `supabase-*.sql` files contain database migrations and policy changes; operational scripts live in `scripts/`.
+This is Mona Finance, a Next.js 16, React 19, and TypeScript household finance dashboard (Bernardo & Laura, MXN). `CLAUDE.md` is the detailed reference for data access, auth order, dates, formatting, theme tokens and the PWA; read it before changing shared code. App Router pages and API handlers live in `src/app/`; finance routes are grouped under `src/app/finance/` and server endpoints under `src/app/api/finance/`. Reusable domain components belong in `src/components/finance/`, shared primitives in `src/components/ui/`, and business logic or integrations in `src/lib/`. Static PWA assets are in `public/`. Tests mirror broad concerns under `tests/components/`, `tests/pages/`, and `tests/lib/`. Root-level `supabase-*.sql` files contain database migrations and policy changes; operational scripts live in `scripts/`.
 
 ## Build, Test, and Development Commands
 
@@ -12,16 +12,17 @@ This is a Next.js 16, React 19, and TypeScript finance dashboard. App Router pag
 - `npm run lint` runs the Next.js ESLint configuration across `src` and `tests`.
 - `npm test` runs the Vitest suite once; `npm run test:watch` supports local iteration.
 - `npm run test:coverage` produces V8 coverage for TypeScript source files.
+- `npm run typecheck` runs `tsc --noEmit`.
 
-Run lint, tests, and a production build before submitting substantial changes.
+CI (`.github/workflows/ci.yml`) gates every push and PR on lint (`--max-warnings 27`, a ratchet), typecheck and tests, and reports dead code with `knip`. Run the same locally, plus a production build, before submitting substantial changes.
 
 ## Coding Style & Naming Conventions
 
-Use strict TypeScript and the `@/` alias for imports from `src/`. Follow the existing two-space indentation and component style. Name React components in PascalCase, hooks and functions in camelCase, and route/file names in lowercase kebab-case (for example, `budget-builder/` and `safe-to-spend.tsx`). Keep domain calculations in `src/lib/` instead of embedding them in page components. ESLint extends Next.js Core Web Vitals; address warnings when touching related code.
+Use strict TypeScript and the `@/` alias for imports from `src/`. Follow the existing two-space indentation and component style. Name React components in PascalCase, hooks and functions in camelCase, and route/file names in lowercase kebab-case (for example, `budget-builder/` and `safe-to-spend.tsx`). Keep domain calculations in `src/lib/` instead of embedding them in page components. Use the shared modules instead of local copies: `@/lib/format` for money/dates/percentages, `@/lib/dates` for date keys (never `toISOString().slice`), `ownersEqual`/`canonicalOwner` for owners, `useFinanceData` for client fetching, the `src/components/ui/` primitives and the semantic theme tokens (dark default, light supported). ESLint extends Next.js Core Web Vitals plus project rules (UTC date keys, public secrets); address warnings when touching related code.
 
 ## Testing Guidelines
 
-Vitest runs in `jsdom` with Testing Library and shared mocks from `tests/setup.ts`. Name tests `*.test.ts` or `*.test.tsx` and place them in the matching test area. Cover user-visible states, financial calculations, authorization boundaries, and regressions. Avoid live Supabase dependencies; extend the shared mock or add focused local stubs.
+Vitest runs in `jsdom` with Testing Library and shared mocks from `tests/setup.ts`. Name tests `*.test.ts` or `*.test.tsx` and place them in the matching test area. Cover user-visible states, financial calculations, authorization boundaries, and regressions. Avoid live Supabase dependencies; extend the shared mock or add focused local stubs. Shared fixtures live in `tests/fixtures/`. Screenshot or browser checks against a dev server must be read-only: abort every non-GET request (allow GET preflights).
 
 ## Commit & Pull Request Guidelines
 
@@ -29,4 +30,4 @@ Recent commits use short, imperative, scope-prefixed subjects such as `Finance: 
 
 ## Security & Configuration
 
-Copy required environment values from the README into a local environment file; never commit secrets or service-role keys. Review row-level security implications for every schema change, and do not expose privileged Supabase operations to client components.
+Copy required environment values from the README into a local environment file; never commit secrets or service-role keys. Review row-level security implications for every schema change, and do not expose privileged Supabase operations to client components. API routes get Supabase through `getAdminClient()` (`src/lib/supabase-admin.ts`), which refuses to fall back to the anon key in production; read errors return 5xx with an error body, never 200 with empty data. Never put keys or secrets in `NEXT_PUBLIC_*` variables.

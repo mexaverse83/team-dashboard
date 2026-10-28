@@ -1,0 +1,75 @@
+name: CI
+
+# Quality gate for every push and pull request: lint (warning ratchet),
+# typecheck, unit tests, and a report-only dead-code scan. The RLS check talks
+# to the live Supabase project, so it only runs from the manual dispatch until
+# the lockdown migration (NU-3) is applied.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      rls_check:
+        description: 'Also run the Supabase RLS check (needs the anon key secret)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Placeholders so modules that read env at import time don't throw in
+      # tests; nothing here can reach production.
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint (max 27 warnings, ratchet down as they are fixed)
+        run: npm run lint -- --max-warnings 27
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Dead code report (knip, report-only)
+        continue-on-error: true
+        run: npx --yes knip@5 --no-exit-code
+
+  rls-check:
+    if: github.event_name == 'workflow_dispatch' && inputs.rls_check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: RLS check (anon key must not read private tables)
+        run: npm run rls:check

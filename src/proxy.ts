@@ -2,16 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 // Finance-only app: every host serves the finance dashboard.
 // Short URLs (/transactions, /budgets, …) rewrite to /finance/*.
-
-// Paths that are always allowed (static assets, API infra, PWA assets)
-const PASSTHROUGH_PREFIXES = ['/_next', '/api/', '/favicon', '/wolff-mark.svg', '/manifest.webmanifest', '/sw.js', '/offline.html', '/icons/', '/brand/']
-
-export function middleware(req: NextRequest) {
+// Next 16 "proxy" convention (formerly middleware.ts). The matcher keeps API
+// routes and static/PWA assets out entirely, so it only runs for pages.
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
-
-  if (PASSTHROUGH_PREFIXES.some(p => pathname.startsWith(p))) {
-    return NextResponse.next()
-  }
 
   // Root redirects via app/page.tsx; /finance/* serves directly
   if (pathname === '/' || pathname.startsWith('/finance')) {
@@ -25,5 +19,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!api/|_next/|icons/|brand/|sw\\.js|manifest\\.webmanifest|offline\\.html|favicon|wolff-mark\\.svg|robots\\.txt).*)'],
 }

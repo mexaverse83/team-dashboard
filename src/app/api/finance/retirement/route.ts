@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { ConfigError, configErrorResponse, getAdminClient, getAdminClientInfo, withDegradedHeader } from '@/lib/supabase-admin'
+import { mexicoCityToday } from '@/lib/dates'
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error('Missing Supabase env vars')
-  return createClient(url, key)
-}
+const getSupabase = () => getAdminClient()
 
 // Simple compound projection: balance × (1+rate)^years
 function project(balance: number, annualRate: number, years: number) {
@@ -20,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response
 
   try {
-    const supabase = getSupabase()
+    const { client: supabase, degraded } = getAdminClientInfo()
     const ownerFilter = req.nextUrl.searchParams.get('owner')
 
     let query = supabase
@@ -29,7 +25,8 @@ export async function GET(req: NextRequest) {
       .order('owner', { ascending: true })
 
     if (ownerFilter && ownerFilter !== 'all') {
-      query = query.eq('owner', ownerFilter.toLowerCase())
+      // owners are stored in mixed case; ilike without wildcards = case-insensitive equality
+      query = query.ilike('owner', ownerFilter.replace(/[%_]/g, ''))
     }
 
     const { data: records, error } = await query
@@ -65,7 +62,7 @@ export async function GET(req: NextRequest) {
 
     for (const r of items) {
       if (r.instrument_type !== 'afore') continue
-      const ownerKey = r.owner
+      const ownerKey = String(r.owner).toLowerCase()
       const years = YEARS_TO_RETIREMENT[ownerKey] ?? 30
       // Monthly contribution estimate: ~6.5% of salary, rough estimate
       // Bernardo ~$195,970/mo gross → ~$12,741/mo AFORE
@@ -80,7 +77,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return withDegradedHeader(NextResponse.json({
       total_balance: Math.round(totalBalance),
       by_owner: byOwner,
       net_worth_contribution: Math.round(totalBalance),
@@ -90,8 +87,9 @@ export async function GET(req: NextRequest) {
         : null,
       projections,
       records: items,
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } }), degraded)
   } catch (e: unknown) {
+    if (e instanceof ConfigError) return configErrorResponse(e)
     console.error('Retirement API error:', e)
     return NextResponse.json({ error: 'Failed to load retirement data' }, { status: 500 })
   }
@@ -112,7 +110,7 @@ export async function PATCH(req: NextRequest) {
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (current_balance !== undefined) {
       updates.current_balance = current_balance
-      updates.last_updated = new Date().toISOString().slice(0, 10)
+      updates.last_updated = mexicoCityToday()
     }
     if (annual_return_rate !== undefined) updates.annual_return_rate = annual_return_rate
     if (institution !== undefined) updates.institution = institution
@@ -128,6 +126,7 @@ export async function PATCH(req: NextRequest) {
     if (error) throw error
     return NextResponse.json({ record: data })
   } catch (e: unknown) {
+    if (e instanceof ConfigError) return configErrorResponse(e)
     console.error('Retirement PATCH error:', e)
     return NextResponse.json({ error: 'Update failed' }, { status: 500 })
   }

@@ -9,3 +9,8 @@ next-env.d.ts
 
 # Codex CLI state (stray marker file today; would hold OAuth tokens if codex ran with CODEX_HOME here)
 .codex
+
+# Screenshot dumps from review runs. Already-tracked files stay tracked; new
+# captures belong in a scratch folder, not in git.
+artifacts/*
+!artifacts/README.md
