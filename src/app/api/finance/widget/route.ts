@@ -1,100 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
-import { calculateDailyPlan } from '@/lib/daily-plan'
+import { authorizeWidgetRequest } from '@/lib/widget-auth'
+import { ConfigError, getAdminClientInfo, withDegradedHeader } from '@/lib/supabase-admin'
+import { buildSummary } from '@/lib/server/summary'
+import { getWestProjection } from '@/lib/server/west'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
+import { mexicoCityDateParts, nextMonthStartKey } from '@/lib/dates'
+import { buildWidgetPayload, type WidgetInsightsCache, type WidgetTransaction } from '@/lib/widget/payload'
 
-// Glanceable numbers for home-screen widgets (Scriptable on iOS).
-// Everything derives from the summary + west-projection endpoints so the
-// widget always agrees with the dashboard.
-
-const CONTROLLABLE = new Set(['Dining Out', 'Groceries', 'Entertainment', 'Shopping', 'Transport', 'Travel', 'Gifts', 'Other'])
+// Glanceable numbers for the Scriptable phone widget (payload v2, plus the
+// v1 fields for one release). Built in-process from the same builders as the
+// dashboard: no HTTP self-fetch and no key forwarding (W13).
 
 export async function GET(req: NextRequest) {
-  const auth = await authorizeFinanceRequest(req)
+  const auth = await authorizeWidgetRequest(req)
   if (!auth.ok) return auth.response
-  const authKey = process.env.FINANCE_API_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-  const baseUrl = req.nextUrl.origin
 
-  const [summary, west, insightsRes] = await Promise.all([
-    fetch(`${baseUrl}/api/finance/summary?months=1`, { headers: { 'x-api-key': authKey }, cache: 'no-store', signal: AbortSignal.timeout(15000) })
-      .then(r => (r.ok ? r.json() : null)).catch(() => null),
-    fetch(`${baseUrl}/api/finance/investments/west-projection`, { headers: { 'x-api-key': authKey }, cache: 'no-store', signal: AbortSignal.timeout(15000) })
-      .then(r => (r.ok ? r.json() : null)).catch(() => null),
-    fetch(`${baseUrl}/api/finance/insights`, { headers: { 'x-api-key': authKey }, cache: 'no-store', signal: AbortSignal.timeout(15000) })
-      .then(r => (r.ok ? r.json() : null)).catch(() => null),
+  let supabase, degraded
+  try {
+    ({ client: supabase, degraded } = getAdminClientInfo())
+  } catch (err) {
+    if (err instanceof ConfigError) return NextResponse.json({ error: 'widget data unavailable', reason: 'config' }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+    throw err
+  }
+
+  const now = new Date()
+  const mx = mexicoCityDateParts(now)
+  const month = `${mx.year}-${String(mx.month).padStart(2, '0')}`
+
+  const [summary, west, insights, transactions, categories] = await Promise.all([
+    buildSummary(supabase, { months: 1, now }).catch(() => null),
+    getWestProjection(supabase, { now }).catch(() => null),
+    Promise.resolve(supabase.from('finance_insights_cache').select('*').order('generated_at', { ascending: false }).limit(1).maybeSingle())
+      .then(({ data }): WidgetInsightsCache | null => data ? {
+        generated_at: data.generated_at ?? null,
+        period_month: data.period_month ?? null,
+        insights: Array.isArray(data.insights_json) ? data.insights_json : [],
+      } : null)
+      .catch(() => null),
+    fetchAllRows<WidgetTransaction>((from, to) => supabase.from('finance_transactions')
+      .select('id,transaction_date,amount,amount_mxn,category_id')
+      .eq('type', 'expense').gte('transaction_date', `${month}-01`).lt('transaction_date', nextMonthStartKey(month))
+      .order('id').range(from, to), 1000, 20000, true).catch(() => null),
+    Promise.resolve(supabase.from('finance_categories').select('id,name'))
+      .then(({ data }) => new Map<string, string>((data || []).map((c: { id: string; name: string }) => [c.id, c.name])))
+      .catch(() => new Map<string, string>()),
   ])
-  if (!summary) return NextResponse.json({ error: 'summary unavailable' }, { status: 500 })
+  if (!summary) return NextResponse.json({ error: 'summary unavailable' }, { status: 500, headers: { 'Cache-Control': 'no-store' } })
 
-  type Insight = { type: string; icon: string; title: string; detail: string; priority: string; category?: string }
-  const insights: Insight[] = insightsRes?.insights || []
-  const trim = (i: Insight | undefined, len = 140) => i
-    ? { icon: i.icon, title: i.title, detail: (i.detail || '').slice(0, len) }
-    : null
-  const nonWeek = insights.filter(i => !['WEEK', 'WIDGET'].includes((i.category || '').toUpperCase()))
-  const rawDirective = insights.find(i => (i.category || '').toUpperCase() === 'WIDGET')
-  const topInsight = trim(
-    insights.find(i => (i.category || '').toUpperCase() === 'HOUSEHOLD')
-    || rawDirective
-    || nonWeek.find(i => i.priority === 'high')
-    || nonWeek[0]
-  )
-  const weekItems = insights.filter(i => (i.category || '').toUpperCase() === 'WEEK')
-  const weekendVerdict = trim(weekItems.find(i => i.type === 'alert') || weekItems[1] || weekItems[0])
-  const directive = trim(rawDirective, 110)
-
-  const cm = summary.current_month || {}
-  const bva: Array<{ category: string; budget: number; spent: number; is_non_monthly: boolean }> = cm.budget_vs_actual || []
-  const ctrl = bva.filter(b => CONTROLLABLE.has(b.category) && !b.is_non_monthly)
-  const projectedSavings = summary.month_projection?.projected_savings || 0
-  const goalNeed = summary.goal_funding?.total_monthly_needed || 0
-  const goalGap = Math.max(0, goalNeed - projectedSavings)
-  const monthKey = cm.month
-  const planMonth = west?.savings_plan?.months?.find((m: { month: string }) => m.month === monthKey)
-
-  const dailyPlan = calculateDailyPlan(summary, planMonth?.target ?? null)
-  const westGap = planMonth ? Math.max(0, planMonth.target - projectedSavings) : null
-
-  return NextResponse.json({
-    updated_at: new Date().toISOString(),
-    month: monthKey,
-    day: cm.day_of_month,
-    days_in_month: cm.days_in_month,
-    ...dailyPlan,
-    week_envelope_basis: 'remaining planned category spending from today through Sunday',
-    net_this_month: Math.round((summary.income?.current_month_actual ?? 0) - (cm.total_spent ?? 0)),
-    projected_savings: Math.round(projectedSavings),
-    goal_gap: Math.round(goalGap),
-    // The denominator behind goal_coverage_pct and over_committed_by. Exposed
-    // so the UI can name which ask it is failing — "no room" means "no room
-    // after every 2026 goal", not "no room after the WEST transfer".
-    goal_monthly_needed: Math.round(goalNeed),
-    emergency_months: summary.emergency_fund?.months_covered || 0,
-    west: west ? {
-      month_target: planMonth?.target ?? null,
-      funded_pct: Math.round(((west.projected_at_delivery?.total_projected || 0) / (west.target || 1)) * 1000) / 10,
-      months_to_delivery: west.months_to_delivery,
-    } : null,
-    wolff: {
-      top: topInsight,
-      weekend: weekendVerdict,
-      directive,
-    },
-    west_month: planMonth ? {
-      target: planMonth.target,
-      // Deterministic month-end savings is the same source of truth shown in
-      // the dashboard; income minus spend-to-date overstates progress early.
-      surplus_so_far: Math.round(projectedSavings),
-      projected_savings: Math.round(projectedSavings),
-      gap: Math.round(westGap ?? 0),
-      pct: planMonth.target > 0 ? Math.min(999, Math.max(0, Math.round((projectedSavings / planMonth.target) * 100))) : null,
-    } : null,
-    budget_pace: ctrl
-      .map(b => ({
-        name: b.category,
-        spent: Math.round(b.spent || 0),
-        budget: Math.round(b.budget || 0),
-        pct: b.budget > 0 ? Math.round(((b.spent || 0) / b.budget) * 100) : 0,
-      }))
-      .sort((a, b) => b.pct - a.pct)
-      .slice(0, 4),
-  }, { headers: { 'Cache-Control': 'no-store' } })
+  const payload = buildWidgetPayload({ summary, west, insights, transactions, categoryNames: categories, now })
+  return withDegradedHeader(NextResponse.json(payload, { headers: { 'Cache-Control': 'no-store' } }), degraded)
 }
