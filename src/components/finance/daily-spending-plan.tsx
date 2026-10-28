@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { ArrowUpRight, ChevronDown } from 'lucide-react'
 import { calculateDailyPlan } from '@/lib/daily-plan'
 import { calculateSpendingRoom } from '@/lib/spending-room'
+import { buildDeterministicBrief } from '@/lib/deterministic-brief'
 import { addDaysKey, mexicoCityDateParts, mexicoCityToday } from '@/lib/dates'
 import { EMPTY_VALUE, formatCompact, formatMoney, formatWeekdayShort } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -34,9 +35,12 @@ export function DailySpendingPlan({ summary, westTarget, ownerSpent }: {
   const plan = calculateDailyPlan(summary, westTarget)
   const room = calculateSpendingRoom(summary)
   const variable = summary.variable
+  // Until summary.variable ships, take the signed week from the same
+  // deterministic brief Mona shows, so both surfaces quote one number.
+  const briefWeek = variable ? null : buildDeterministicBrief(summary).week
   const fallback = fallbackThroughLabel(summary)
-  const weekLeft = variable ? variable.left : plan.week_envelope
-  const through = variable?.through_label || fallback.label
+  const weekLeft = variable ? variable.left : briefWeek!.left
+  const through = variable?.through_label || briefWeek?.through_label || fallback.label
   const weekDays = variable?.days_left ?? fallback.days
   const freeExtra = plan.safe_to_spend_day
 

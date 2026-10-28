@@ -40,10 +40,10 @@ const compact = (n: number) => formatCompact(n)
 function verdict(p: MonthProjection, plan: HomeWestPlan | null | undefined): { text: string; tone: Tone; pill: string } {
   const rate = p.expected_income > 0 ? Math.round((p.projected_savings / p.expected_income) * 100) : null
   if (p.projected_savings < 0) return { text: 'Spending is running ahead of income this month', tone: 'negative', pill: 'Over income' }
-  const rateText = rate != null ? ` (${formatPct(rate)} of income)` : ''
-  if (!plan) return { text: `On track to save ${compact(p.projected_savings)}${rateText}`, tone: 'neutral', pill: 'Projected' }
-  if (p.projected_savings >= plan.capacity_target) return { text: `On track to save ${compact(p.projected_savings)}${rateText}`, tone: 'positive', pill: 'On plan' }
-  return { text: `On track to save ${compact(p.projected_savings)}${rateText}`, tone: 'warning', pill: 'Below plan' }
+  const text = rate != null ? `On track to save ${formatPct(rate)} of income` : 'On track to save this month'
+  if (!plan) return { text, tone: 'neutral', pill: 'Projected' }
+  if (p.projected_savings >= plan.capacity_target) return { text, tone: 'positive', pill: 'On plan' }
+  return { text, tone: 'warning', pill: 'Below plan' }
 }
 
 // One bar against the realistic WEST capacity; the stretch (full funding)
@@ -83,7 +83,7 @@ function WestBar({ projected, plan }: { projected: number; plan: HomeWestPlan })
         {ahead ? `${compact(-gap)} ahead of the plan` : `${compact(gap)} to reach the plan`}
       </p>
       {stretch != null && (
-        <p className="mt-1 text-label text-fg-tertiary">
+        <p className="mt-1 hidden text-label text-fg-tertiary sm:block">
           Stretch <span data-money>{compact(stretch)}</span>/mo funds WEST fully
           {plan.purchase_gap != null && plan.purchase_gap > 0 && <> · purchase gap <span data-money>{compact(plan.purchase_gap)}</span></>}
           {plan.furnishing_budget != null && plan.furnishing_budget > 0 && <> · furnishing <span data-money>{compact(plan.furnishing_budget)}</span></>}
@@ -129,14 +129,14 @@ export function MonthProjectionCard({ projection, westPlan, monthLabel, monthEnd
 
   return (
     <Card variant="hero" padding="none" className="overflow-hidden" aria-labelledby="month-hero-title">
-      <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
+      <div className="grid gap-5 p-4 sm:gap-6 sm:p-6 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 id="month-hero-title" className="text-label font-semibold uppercase tracking-[0.08em] text-fg-tertiary">{monthLabel ? `${monthLabel} · this month` : 'This month'}</h2>
             <StatusPill tone={v.tone} className="text-[0.75rem]">{v.pill}</StatusPill>
           </div>
-          <p className="mt-3 text-[1.0625rem] font-medium leading-snug text-fg">{v.text}</p>
-          <p className={cn('num-metric mt-2 text-[2.5rem] font-semibold leading-[2.75rem] tracking-[-0.025em] sm:text-5xl', p.projected_savings < 0 ? 'text-negative' : 'text-fg')} data-money>
+          <p className="mt-2 text-[1.0625rem] font-medium leading-snug text-fg sm:mt-3">{v.text}</p>
+          <p className={cn('num-metric mt-1 text-[2.5rem] font-semibold leading-[2.75rem] tracking-[-0.025em] sm:text-5xl', p.projected_savings < 0 ? 'text-negative' : 'text-fg')} data-money>
             {money(p.projected_savings)}
           </p>
           <p className="mt-1 text-label text-fg-tertiary">
@@ -156,13 +156,13 @@ export function MonthProjectionCard({ projection, westPlan, monthLabel, monthEnd
           ) : (
             <p className="text-sm text-fg-tertiary">WEST plan unavailable right now. The projection above is live.</p>
           )}
-          <Link href="/finance/investments?tab=Real%20Estate" className="mt-2 inline-flex min-h-9 items-center gap-1 text-label font-medium text-fg-secondary hover:text-fg">
+          <Link href="/finance/investments?tab=Real%20Estate" className="mt-2 hidden min-h-9 items-center gap-1 text-label font-medium text-fg-secondary hover:text-fg sm:inline-flex">
             WEST tracker <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
         <dl className="grid grid-cols-3 divide-x divide-border">
           <div className="pr-4">
             <dt className="text-label text-fg-tertiary">Income</dt>

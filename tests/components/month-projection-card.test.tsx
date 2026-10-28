@@ -27,7 +27,7 @@ const plan: HomeWestPlan = {
 describe('MonthProjectionCard (This month hero)', () => {
   it('leads with a verdict and the projected savings figure', () => {
     render(<MonthProjectionCard projection={projection} westPlan={plan} monthLabel="October" monthEndLabel="Oct 31" dayOfMonth={28} daysInMonth={31} />)
-    expect(screen.getByText('On track to save $83.5k (40% of income)')).toBeInTheDocument()
+    expect(screen.getByText('On track to save 40% of income')).toBeInTheDocument()
     expect(screen.getByText('$83,536')).toBeInTheDocument()
     expect(screen.getByText(/projected savings by Oct 31 · 4 days left/)).toBeInTheDocument()
   })
