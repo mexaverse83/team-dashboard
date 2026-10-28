@@ -15,6 +15,12 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 import { OWNERS, getOwnerName, getOwnerColor } from '@/lib/owners'
 import { OwnerDot } from '@/components/finance/owner-dot'
+import { Page, PageHeader } from '@/components/ui/page'
+import { Button } from '@/components/ui/button'
+import { useResumeRefresh } from '@/hooks/use-resume-refresh'
+import { addMonthsKey, daysInMonth, localDateKey, parseLocalDateKey } from '@/lib/dates'
+import { formatMoney } from '@/lib/format'
+import { dispatchFinanceEvent, FINANCE_EVENTS } from '@/lib/finance-events'
 
 import { inputCls } from '@/lib/form-style'
 import { tooltipStyle } from '@/lib/chart-style'
@@ -27,24 +33,26 @@ interface InstallmentForm {
 }
 const emptyForm: InstallmentForm = {
   name: '', merchant: '', total_amount: '', installment_count: '12',
-  start_date: new Date().toISOString().slice(0, 10), credit_card: '', category_id: '', notes: '', owner: ''
+  start_date: '', credit_card: '', category_id: '', notes: '', owner: ''
 }
 
-function addMonths(date: string, months: number): string {
-  const d = new Date(date)
-  d.setMonth(d.getMonth() + months)
-  return d.toISOString().slice(0, 10)
+/** Same day `months` later on local calendar keys, clamped to the month's end (F16). */
+export function addMonths(date: string, months: number): string {
+  const month = addMonthsKey(date.slice(0, 7), months)
+  const [y, m] = month.split('-').map(Number)
+  const day = Math.min(Number(date.slice(8, 10)) || 1, daysInMonth(y, m))
+  return `${month}-${String(day).padStart(2, '0')}`
 }
 
 function monthsRemaining(endDate: string): number {
   const now = new Date()
-  const end = new Date(endDate)
+  const end = parseLocalDateKey(endDate)
   const diff = (end.getFullYear() - now.getFullYear()) * 12 + end.getMonth() - now.getMonth()
   return Math.max(0, diff + (end.getDate() >= now.getDate() ? 1 : 0))
 }
 
 function fmt(n: number): string {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n)
+  return formatMoney(n)
 }
 
 export function InstallmentsClient() {
@@ -78,13 +86,7 @@ export function InstallmentsClient() {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
-
-  // Re-fetch on tab focus
-  useEffect(() => {
-    const handler = () => { if (document.visibilityState === 'visible') fetchData() }
-    document.addEventListener('visibilitychange', handler)
-    return () => document.removeEventListener('visibilitychange', handler)
-  }, [fetchData])
+  useResumeRefresh(fetchData)
 
   const active = useMemo(() => installments.filter(i => i.is_active && monthsRemaining(i.end_date) > 0), [installments])
   const completed = useMemo(() => installments.filter(i => !i.is_active || monthsRemaining(i.end_date) === 0), [installments])
@@ -123,7 +125,7 @@ export function InstallmentsClient() {
     }).sort((a, b) => a.remaining - b.remaining)
   }, [active])
 
-  const openAdd = () => { setEditId(null); setForm({ ...emptyForm, owner: defaultOwner }); setModalOpen(true) }
+  const openAdd = () => { setEditId(null); setForm({ ...emptyForm, owner: defaultOwner, start_date: localDateKey() }); setModalOpen(true) }
   const openEdit = (inst: FinanceInstallment) => {
     setEditId(inst.id)
     setForm({
@@ -155,6 +157,8 @@ export function InstallmentsClient() {
   }
 
   const handleSave = async () => {
+    // Uncategorized MSI rows fall outside every budget (UX-18), so a category is required.
+    if (!form.name || !form.total_amount || !form.category_id) return
     setSaving(true)
     const total = parseFloat(form.total_amount) || 0
     const count = parseInt(form.installment_count) || 12
@@ -176,10 +180,10 @@ export function InstallmentsClient() {
       const { data: newInst } = await supabase.from('finance_installments').insert(payload).select().single()
       // Auto-create transaction entries for past + current month payments
       if (newInst) {
-        const now = new Date()
+        const today = localDateKey()
         for (let i = 0; i < count; i++) {
           const payDate = addMonths(form.start_date, i)
-          if (new Date(payDate) <= now) {
+          if (payDate <= today) {
             await createMsiTransaction(
               { ...newInst, installment_amount: installmentAmt },
               payDate, i + 1, count
@@ -192,6 +196,7 @@ export function InstallmentsClient() {
     }
     setSaving(false)
     setModalOpen(false)
+    dispatchFinanceEvent(FINANCE_EVENTS.dataChanged, { source: 'finance_installments' })
     fetchData()
   }
 
@@ -232,17 +237,12 @@ export function InstallmentsClient() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="flex items-center gap-2.5 text-2xl font-bold"><span className="section-tick" aria-hidden />MSI Installments</h1>
-            <p className="text-sm text-[hsl(var(--text-secondary))]">Meses Sin Intereses — interest-free installment plans</p>
-          </div>
-          <button onClick={openAdd} className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
-            <Plus className="h-4 w-4" /> Add MSI Plan
-          </button>
-        </div>
+      <Page>
+        <PageHeader
+          title="MSI Installments"
+          description="Meses Sin Intereses — interest-free installment plans"
+          actions={<Button onClick={openAdd}><Plus className="h-4 w-4" aria-hidden="true" /> Add MSI plan</Button>}
+        />
 
         {/* Cash flow warning */}
         {msiIncomeRatio > 30 && (
@@ -464,7 +464,7 @@ export function InstallmentsClient() {
             </div>
           </GlassCard>
         )}
-      </div>
+      </Page>
 
       {/* Add/Edit Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editId ? 'Edit MSI Plan' : 'New MSI Plan'}>
@@ -528,11 +528,11 @@ export function InstallmentsClient() {
               <input type="date" className={inputCls} value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
             </div>
             <div>
-              <label className="text-xs font-medium text-[hsl(var(--text-secondary))]">Category</label>
-              <select className={inputCls} value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
-                <option value="">None</option>
+              <label htmlFor="msi-category" className="text-xs font-medium text-[hsl(var(--text-secondary))]">Category *</label>
+              <select id="msi-category" required className={inputCls} value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))}>
+                <option value="">Choose category</option>
                 {categories.filter(c => c.type !== 'income').map(c => (
-                  <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
@@ -556,7 +556,7 @@ export function InstallmentsClient() {
           </div>
           <div className="flex gap-3 pt-2">
             <button onClick={() => setModalOpen(false)} className="flex-1 px-4 py-2 rounded-lg border border-[hsl(var(--border))] text-sm hover:bg-[hsl(var(--bg-elevated))] transition-colors">Cancel</button>
-            <button onClick={handleSave} disabled={saving || !form.name || !form.total_amount}
+            <button onClick={handleSave} disabled={saving || !form.name || !form.total_amount || !form.category_id}
               className="flex-1 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-medium transition-colors">
               {saving ? 'Saving…' : editId ? 'Update' : 'Add MSI Plan'}
             </button>

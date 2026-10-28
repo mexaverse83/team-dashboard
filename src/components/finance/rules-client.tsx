@@ -5,6 +5,9 @@ import { Plus, Pencil, Trash2, Sparkles, Check, X, Wand2 } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { Modal } from '@/components/ui/modal'
 import { PageTransition } from '@/components/page-transition'
+import { Page, PageHeader } from '@/components/ui/page'
+import { Button } from '@/components/ui/button'
+import { CategoryIcon } from '@/components/ui/category-icon'
 import { AlertCard } from '@/components/ui/alert-card'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
@@ -211,31 +214,17 @@ export default function RulesClient() {
 
   return (
     <PageTransition>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Auto-categorization Rules</h1>
-            <p className="text-sm text-[hsl(var(--text-secondary))]">
-              Automatically categorize transactions based on merchant patterns
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={runLearn}
-              disabled={learning}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-600 text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              <Wand2 className="h-4 w-4" /> {learning ? 'Analyzing…' : 'Learn from history'}
-            </button>
-            <button
-              onClick={openCreate}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-600 text-sm font-medium transition-colors"
-            >
-              <Plus className="h-4 w-4" /> New rule
-            </button>
-          </div>
-        </div>
+      <Page>
+        <PageHeader
+          title="Auto-categorization Rules"
+          description="Automatically categorize transactions based on merchant patterns"
+          actions={<>
+            <Button variant="secondary" onClick={runLearn} disabled={learning}>
+              <Wand2 className="h-4 w-4" aria-hidden="true" /> {learning ? 'Analyzing…' : 'Learn from history'}
+            </Button>
+            <Button onClick={openCreate}><Plus className="h-4 w-4" aria-hidden="true" /> New rule</Button>
+          </>}
+        />
 
         {rules.length === 0 ? (
           <AlertCard
@@ -276,14 +265,14 @@ export default function RulesClient() {
                       {rule.notes && ` · ${rule.notes}`}
                     </p>
                     <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))] sm:hidden">
-                      {cat ? <span className="min-w-0 truncate">{cat.icon} {cat.name}</span> : <span className="text-[hsl(var(--text-tertiary))]">—</span>}
+                      {cat ? <span className="min-w-0 truncate">{cat.name}</span> : <span className="text-[hsl(var(--text-tertiary))]">—</span>}
                       <span className="shrink-0 text-[hsl(var(--text-tertiary))]">· {rule.owner || 'all'} · {rule.match_count} matches</span>
                     </p>
                   </div>
                   <div className="hidden sm:block col-span-3">
                     {cat ? (
-                      <span className="inline-flex items-center gap-1.5 text-sm">
-                        <span>{cat.icon}</span>
+                      <span className="inline-flex items-center gap-2 text-sm">
+                        <CategoryIcon name={cat.name} emoji={cat.icon} colorIndex={cat.sort_order} size={24} />
                         <span>{cat.name}</span>
                       </span>
                     ) : (
@@ -298,9 +287,12 @@ export default function RulesClient() {
                   </div>
                   <div className="col-start-2 row-start-1 flex justify-end sm:col-span-1 sm:col-start-auto sm:row-start-auto sm:justify-center">
                     <button
+                      type="button"
+                      role="switch"
+                      aria-checked={rule.is_active}
                       onClick={() => toggle(rule.id, rule.is_active)}
-                      className="flex items-center justify-center"
-                      aria-label={rule.is_active ? 'Disable' : 'Enable'}
+                      className="flex h-11 w-11 items-center justify-center"
+                      aria-label={`Rule ${rule.merchant_pattern} active`}
                     >
                       <span className={cn(
                         'relative block h-5 w-9 rounded-full transition-colors',
@@ -316,17 +308,14 @@ export default function RulesClient() {
                     </button>
                   </div>
                   <div className="col-start-2 row-start-2 -mr-1.5 flex justify-end gap-1 sm:col-span-2 sm:col-start-auto sm:row-start-auto sm:mr-0">
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(rule)} aria-label={`Edit rule ${rule.merchant_pattern}`}>
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
                     <button
-                      onClick={() => openEdit(rule)}
-                      className="h-7 w-7 rounded hover:bg-[hsl(var(--muted))] flex items-center justify-center text-[hsl(var(--text-secondary))]"
-                      aria-label="Edit"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
+                      type="button"
                       onClick={() => remove(rule.id)}
-                      className="h-7 w-7 rounded hover:bg-rose-500/10 flex items-center justify-center text-rose-600"
-                      aria-label="Delete"
+                      className="flex h-10 w-10 items-center justify-center rounded-xl text-fg-secondary hover:bg-negative-bg hover:text-negative"
+                      aria-label={`Delete rule ${rule.merchant_pattern}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -509,7 +498,7 @@ export default function RulesClient() {
             )}
           </div>
         </Modal>
-      </div>
+      </Page>
     </PageTransition>
   )
 }

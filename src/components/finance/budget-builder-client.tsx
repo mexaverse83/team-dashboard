@@ -1,22 +1,38 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, CheckCircle2, AlertTriangle, Briefcase, Laptop, Moon, Hammer, TrendingUp, Wallet } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
-import { GlassCard } from '@/components/ui/glass-card'
-import { TrendBadge } from '@/components/ui/trend-badge'
 import { PageTransition } from '@/components/page-transition'
 import { Modal } from '@/components/ui/modal'
+import { Page, PageHeader } from '@/components/ui/page'
+import { Button } from '@/components/ui/button'
+import { CategoryIcon } from '@/components/ui/category-icon'
+import { MoneyText } from '@/components/ui/money-text'
+import { StatusPill } from '@/components/ui/status-pill'
+import { useResumeRefresh } from '@/hooks/use-resume-refresh'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
-import { DEFAULT_CATEGORIES, defaultBudgetType, rollingMonthlyAverage } from '@/lib/finance-utils'
+import { describeBudget, type Tone } from '@/lib/budget-tone'
+import { formatDelta, formatMoney } from '@/lib/format'
+import { addMonthsKey, localDateKey } from '@/lib/dates'
+import { DEFAULT_CATEGORIES, defaultBudgetType, rollingMonthlyAverage, monthKey } from '@/lib/finance-utils'
 import { getNextTreatmentEvent, getTreatmentEventForMonth } from '@/lib/fertility-plan'
 import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceIncomeSource } from '@/lib/finance-types'
 
 import { inputCls } from '@/lib/form-style'
 
-const INCOME_ICONS: Record<string, string> = { salary: '💼', freelance: '📱', passive: '💤', side_hustle: '🔨', investment: '📈', other: '💵' }
+const INCOME_ICONS: Record<string, typeof Wallet> = { salary: Briefcase, freelance: Laptop, passive: Moon, side_hustle: Hammer, investment: TrendingUp, other: Wallet }
+const TX_COLUMNS = 'id,type,amount_mxn,category_id,transaction_date'
+const card = 'rounded-2xl border border-border bg-surface p-4 sm:p-5'
+
+/** '12 pts under 50% target' — plain words, no arrows (VIS-16). */
+export function targetGap(pct: number, target: number): string {
+  const diff = pct - target
+  if (diff === 0) return `On the ${target}% target`
+  return `${Math.abs(diff)} pts ${diff < 0 ? 'under' : 'over'} ${target}% target`
+}
 
 function toMonthly(amount: number, freq: string): number {
   switch (freq) {
@@ -44,6 +60,7 @@ export default function BudgetBuilderClient() {
   const [goals, setGoals] = useState<{ id: string; target_amount: number; current_amount: number; target_date: string | null; monthly_contribution?: number; is_active?: boolean; is_completed?: boolean }[]>([])
   const [msiCommitment, setMsiCommitment] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [txError, setTxError] = useState(false)
 
   // Income modal
   const [incomeModal, setIncomeModal] = useState(false)
@@ -52,13 +69,17 @@ export default function BudgetBuilderClient() {
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
-  const now = new Date()
-  const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const [now] = useState(() => new Date())
+  const monthStr = monthKey(now)
 
   const fetchData = useCallback(async () => {
     const [catRes, txRes, budRes, incRes, goalsRes, instRes, riRes] = await Promise.all([
       supabase.from('finance_categories').select('*').order('sort_order'),
-      fetchAllRows<FinanceTransaction>((from, to) => supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: false }).range(from, to)).then(rows => ({ data: rows })),
+      // 13 months covers the trailing income average and annual-cycle rolling averages (F15, CH-11).
+      fetchAllRows<Pick<FinanceTransaction, 'id' | 'type' | 'amount_mxn' | 'category_id' | 'transaction_date'>>((from, to) => supabase.from('finance_transactions').select(TX_COLUMNS)
+        .gte('transaction_date', `${addMonthsKey(monthStr, -12)}-01`)
+        .order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20000, true)
+        .then(rows => ({ data: rows as FinanceTransaction[] | null }), () => ({ data: null as FinanceTransaction[] | null })),
       supabase.from('finance_budgets').select('*'),
       supabase.from('finance_income_sources').select('*').order('created_at'),
       supabase.from('finance_goals').select('*'),
@@ -66,6 +87,7 @@ export default function BudgetBuilderClient() {
       supabase.from('finance_recurring_income').select('amount, recurrence, active, start_date').eq('active', true),
     ])
     setCategories((catRes.data?.length ? catRes.data : DEFAULT_CATEGORIES))
+    setTxError(txRes.data == null)
     setTransactions(txRes.data || [])
     setBudgets(budRes.data || [])
     setIncomeSources(incRes.data || [])
@@ -73,9 +95,10 @@ export default function BudgetBuilderClient() {
     setGoals(goalsRes.data || [])
     setMsiCommitment((instRes.data || []).reduce((s: number, i: { installment_amount: number }) => s + i.installment_amount, 0))
     setLoading(false)
-  }, [])
+  }, [monthStr])
 
-  useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
+  useEffect(() => { void fetchData() }, [fetchData])
+  useResumeRefresh(fetchData)
 
   // Monthly income for the 50/30/20 denominator.
   // Salaries are logged as actual income transactions (not configured income
@@ -85,7 +108,7 @@ export default function BudgetBuilderClient() {
   // thousands of percent.
   const configuredIncome = useMemo(() => {
     const RI_DIVISOR: Record<string, number> = { monthly: 1, bimonthly: 2, annual: 12 }
-    const todayStr = new Date().toISOString().slice(0, 10)
+    const todayStr = localDateKey()
     const sources = incomeSources.filter(s => s.is_active).reduce((sum, s) => sum + toMonthly(s.amount, s.frequency), 0)
     const recurring = recurringIncome
       .filter(r => r.active && (!r.start_date || r.start_date <= todayStr))
@@ -96,10 +119,7 @@ export default function BudgetBuilderClient() {
   const actualMonthlyIncome = useMemo(() => {
     const ref = new Date()
     // Trailing 3 prior full months (exclude the current, possibly-partial month)
-    const months = [1, 2, 3].map(i => {
-      const d = new Date(ref.getFullYear(), ref.getMonth() - i, 1)
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    })
+    const months = [1, 2, 3].map(i => addMonthsKey(monthKey(ref), -i))
     const totals = months
       .map(m => transactions.filter(t => t.type === 'income' && t.transaction_date.startsWith(m)).reduce((s, t) => s + t.amount_mxn, 0))
       .filter(v => v > 0)
@@ -139,6 +159,7 @@ export default function BudgetBuilderClient() {
         categoryId: catId,
         name: cat.name,
         icon: cat.icon,
+        sortOrder: cat.sort_order,
         color: cat.color,
         budgetType: budgetType as 'needs' | 'wants' | 'savings',
         budget: budgetAmt,
@@ -147,7 +168,7 @@ export default function BudgetBuilderClient() {
         variance: actual - budgetAmt,
       }
     }).filter((r): r is NonNullable<typeof r> => r !== null)
-  }, [budgets, monthTxs, categories, monthStr, totalIncome])
+  }, [budgets, monthTxs, categories, monthStr, totalIncome, transactions])
 
   // 50/30/20 totals (MSI installments count as committed "needs" spending)
   const needsTotal = budgetRows.filter(r => r.budgetType === 'needs').reduce((s, r) => s + r.actual, 0) + msiCommitment
@@ -171,7 +192,17 @@ export default function BudgetBuilderClient() {
   const needsPct = totalIncome > 0 ? Math.round((needsTotal / totalIncome) * 100) : 0
   const wantsPct = totalIncome > 0 ? Math.round((wantsTotal / totalIncome) * 100) : 0
   const savingsPct = totalIncome > 0 ? Math.round((savingsTotal / totalIncome) * 100) : 0
-  const isHealthy = needsPct <= 55 && wantsPct <= 35 && savingsPct >= 15
+  // Same over-budget rule as the Budgets page (VIS-03d): a ledger over budget is never "healthy".
+  const budgetedRows = budgetRows.filter(r => r.budget > 0)
+  const budgetStatus = describeBudget({ actual: budgetedRows.reduce((s, r) => s + r.actual, 0), budget: budgetedRows.reduce((s, r) => s + r.budget, 0) })
+  const overBudget = budgetStatus.tone === 'negative'
+  const isHealthy = needsPct <= 55 && wantsPct <= 35 && savingsPct >= 15 && !overBudget
+  const healthMessage = overBudget
+    ? `Spending is at ${budgetStatus.pct}% of budget this month`
+    : needsPct > 50 ? `Needs are ${needsPct - 50} pts over the 50% target`
+      : wantsPct > 30 ? `Wants are ${wantsPct - 30} pts over the 30% target`
+        : savingsPct < 20 ? `Savings are ${20 - savingsPct} pts under the 20% target`
+          : 'Your budget is within healthy ranges'
   const treatmentEvent = getTreatmentEventForMonth(monthStr) ?? getNextTreatmentEvent(now)
   const treatmentReserve = treatmentEvent?.amount ?? 0
 
@@ -180,14 +211,14 @@ export default function BudgetBuilderClient() {
     const items: { title: string; description: string; priority: 'high' | 'medium' | 'low'; monthlySavings: number }[] = []
     if (treatmentReserve > 0) {
       items.push({
-        title: `Reserve $${treatmentReserve.toLocaleString()} for fertility treatment`,
+        title: `Reserve ${formatMoney(treatmentReserve)} for fertility treatment`,
         description: 'Temporary May-July commitment; protect active goal contributions first, then cut wants.',
         priority: 'high',
         monthlySavings: treatmentReserve,
       })
     }
-    if (needsPct > 50) items.push({ title: `Reduce needs spending by ${needsPct - 50}%`, description: 'Look for housing, insurance, or utility savings', priority: 'high', monthlySavings: Math.round((needsTotal - totalIncome * 0.5)) })
-    if (wantsPct > 30) items.push({ title: `Cut wants spending by ${wantsPct - 30}%`, description: 'Review dining, entertainment, and shopping', priority: 'medium', monthlySavings: Math.round((wantsTotal - totalIncome * 0.3)) })
+    if (needsPct > 50) items.push({ title: `Bring needs down ${needsPct - 50} pts`, description: 'Look for housing, insurance, or utility savings', priority: 'high', monthlySavings: Math.round((needsTotal - totalIncome * 0.5)) })
+    if (wantsPct > 30) items.push({ title: `Bring wants down ${wantsPct - 30} pts`, description: 'Review dining, entertainment, and shopping', priority: 'medium', monthlySavings: Math.round((wantsTotal - totalIncome * 0.3)) })
     if (savingsPct < 20) items.push({ title: `Boost savings to 20%`, description: 'Set up auto-transfer on payday', priority: 'low', monthlySavings: Math.round(totalIncome * 0.2 - savingsTotal) })
     if (items.length === 0) items.push({ title: 'Budget looks healthy!', description: 'Keep it up — you\'re within the 50/30/20 targets', priority: 'low', monthlySavings: 0 })
     return items
@@ -218,255 +249,232 @@ export default function BudgetBuilderClient() {
     setDeleteConfirm(null); fetchData()
   }
 
-  if (loading) return <div className="h-8 w-48 rounded bg-[hsl(var(--muted))] animate-pulse" />
+  if (loading) return <div className="h-8 w-48 animate-pulse rounded bg-surface-2" />
+
+  const split: { key: 'needs' | 'wants' | 'savings'; label: string; pct: number; total: number; target: number; over: boolean; bar: string }[] = [
+    { key: 'needs', label: 'Needs', pct: needsPct, total: needsTotal, target: 50, over: needsPct > 50, bar: 'bg-cat-2' },
+    { key: 'wants', label: 'Wants', pct: wantsPct, total: wantsTotal, target: 30, over: wantsPct > 30, bar: 'bg-cat-4' },
+    { key: 'savings', label: 'Savings', pct: savingsPct, total: savingsTotal, target: 20, over: savingsPct < 20, bar: 'bg-cat-1' },
+  ]
+  const TYPE_TONE: Record<string, Tone> = { needs: 'neutral', wants: 'neutral', savings: 'positive' }
+  const priorityTone: Record<'high' | 'medium' | 'low', Tone> = { high: 'negative', medium: 'warning', low: 'positive' }
+  const priorityWord: Record<'high' | 'medium' | 'low', string> = { high: 'Now', medium: 'Soon', low: 'Later' }
 
   return (
     <PageTransition>
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Budget Builder</h1>
-          <p className="text-[hsl(var(--text-secondary))]">Zero-based budgeting with 50/30/20 analysis</p>
-        </div>
-      </div>
+      <Page>
+        <PageHeader title="Budget Builder" description="Zero-based budgeting with 50/30/20 analysis" />
 
-      {/* Hero KPIs */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-4">
-        <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Income</span>
-          <p className="num-metric text-xl min-[400px]:text-2xl sm:text-3xl font-bold tabular-nums mt-1">${Math.round(totalIncome).toLocaleString()}</p>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">{incomeIsActual ? '3-mo avg actual' : `${incomeSources.filter(s => s.is_active).length} configured`}</p>
-        </GlassCard>
-        <GlassCard className="border-l-2 border-l-blue-500">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Needs ({needsPct}%)</span>
-          <p className="num-metric text-xl min-[400px]:text-2xl sm:text-3xl font-bold tabular-nums text-blue-600 mt-1">${Math.round(needsTotal).toLocaleString()}</p>
-          <TrendBadge value={(needsPct - 50) * -1} suffix="% vs ideal 50%" className="mt-1 text-[10px] sm:text-xs leading-tight" />
-        </GlassCard>
-        <GlassCard className="border-l-2 border-l-amber-500">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Wants ({wantsPct}%)</span>
-          <p className="num-metric text-xl min-[400px]:text-2xl sm:text-3xl font-bold tabular-nums text-amber-600 mt-1">${Math.round(wantsTotal).toLocaleString()}</p>
-          <TrendBadge value={(wantsPct - 30) * -1} suffix="% vs ideal 30%" className="mt-1 text-[10px] sm:text-xs leading-tight" />
-        </GlassCard>
-        <GlassCard className="border-l-2 border-l-emerald-500">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings ({savingsPct}%)</span>
-          <p className="num-metric text-xl min-[400px]:text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">${Math.round(savingsTotal).toLocaleString()}</p>
-          <TrendBadge value={savingsPct - 20} suffix="% vs ideal 20%" className="mt-1 text-[10px] sm:text-xs leading-tight" />
-        </GlassCard>
-      </div>
+        {txError && <div role="alert" className="rounded-xl border border-warning/40 bg-warning-bg px-3 py-2 text-sm text-fg">Could not load every transaction, so spending figures may be incomplete. <button type="button" onClick={() => void fetchData()} className="font-semibold underline">Retry</button></div>}
 
-      {/* 50/30/20 Visualization */}
-      <GlassCard>
-        <h3 className="text-base font-semibold mb-4">50/30/20 Analysis</h3>
-        <div className="space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-medium">Your Budget</span>
-              <span className="text-xs text-[hsl(var(--text-tertiary))]">{needsPct}/{wantsPct}/{savingsPct}</span>
-            </div>
-            <div className="h-8 sm:h-10 rounded-lg overflow-hidden flex bg-[hsl(var(--bg-elevated))]">
-              {totalIncome > 0 && <>
-                <motion.div className="bg-blue-500 flex items-center justify-center" initial={{ width: 0 }} animate={{ width: `${needsPct}%` }} transition={{ duration: 0.8 }}>
-                  {needsPct > 10 && <span className="truncate whitespace-nowrap px-0.5 text-[10px] sm:text-xs font-bold text-white">Needs {needsPct}%</span>}
-                </motion.div>
-                <motion.div className="bg-amber-500 flex items-center justify-center" initial={{ width: 0 }} animate={{ width: `${wantsPct}%` }} transition={{ duration: 0.8, delay: 0.1 }}>
-                  {wantsPct > 10 && <span className="truncate whitespace-nowrap px-0.5 text-[10px] sm:text-xs font-bold text-white"><span className={wantsPct < 20 ? 'hidden sm:inline' : ''}>Wants </span>{wantsPct}%</span>}
-                </motion.div>
-                <motion.div className="bg-emerald-500 flex items-center justify-center" initial={{ width: 0 }} animate={{ width: `${savingsPct}%` }} transition={{ duration: 0.8, delay: 0.2 }}>
-                  {savingsPct > 8 && <span className="truncate whitespace-nowrap px-0.5 text-[10px] sm:text-xs font-bold text-white"><span className={savingsPct < 20 ? 'hidden sm:inline' : ''}>Save </span>{savingsPct}%</span>}
-                </motion.div>
-              </>}
-            </div>
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          <div className={card}>
+            <p className="text-label font-medium text-fg-tertiary">Monthly income</p>
+            <MoneyText value={totalIncome} className="num-metric mt-1 block text-left text-xl font-semibold text-fg sm:text-2xl" />
+            <p className="mt-1 text-label text-fg-tertiary">{incomeIsActual ? '3-month average, actual' : `${incomeSources.filter(s => s.is_active).length} configured`}</p>
           </div>
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-medium text-[hsl(var(--text-tertiary))]">Ideal</span>
-              <span className="text-xs text-[hsl(var(--text-tertiary))]">50/30/20</span>
-            </div>
-            <div className="h-4 rounded-lg overflow-hidden flex opacity-40">
-              <div className="bg-blue-500" style={{ width: '50%' }} />
-              <div className="bg-amber-500" style={{ width: '30%' }} />
-              <div className="bg-emerald-500" style={{ width: '20%' }} />
-            </div>
-          </div>
-        </div>
-        <div className={cn("mt-4 p-3 rounded-lg text-sm", isHealthy ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600")}>
-          {isHealthy ? "✅ Your budget is within healthy ranges" : `⚠️ ${needsPct > 50 ? 'Needs are ' + (needsPct - 50) + '% over target' : wantsPct > 30 ? 'Wants are ' + (wantsPct - 30) + '% over target' : 'Savings below 20% target'}`}
-        </div>
-      </GlassCard>
-
-      {/* Income Sources + Budget Table */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
-        <GlassCard>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold">Income Sources</h3>
-            <button aria-label="Add" onClick={openAddIncome} className="inline-flex h-10 w-10 sm:h-auto sm:w-auto items-center justify-center p-1.5 rounded-md hover:bg-[hsl(var(--bg-elevated))] transition-colors"><Plus className="h-4 w-4" /></button>
-          </div>
-          {incomeSources.length === 0 ? (
-            <div className="text-center py-6">
-              <p className="text-sm text-[hsl(var(--text-tertiary))]">No income sources yet</p>
-              <button onClick={openAddIncome} className="text-xs text-blue-600 hover:underline mt-1">Add your first source</button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {incomeSources.map(src => (
-                <div key={src.id} className="flex items-center gap-2 sm:gap-3 p-2.5 rounded-lg bg-[hsl(var(--bg-elevated))]/50 group">
-                  <div className="h-8 w-8 shrink-0 rounded-lg bg-emerald-500/10 flex items-center justify-center text-sm">{INCOME_ICONS[src.type] || '💵'}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{src.name}</p>
-                    <p className="text-xs text-[hsl(var(--text-tertiary))] capitalize">
-                      {src.frequency}
-                      <span className="sm:hidden font-semibold tabular-nums text-emerald-600 normal-case"> · ${Math.round(toMonthly(src.amount, src.frequency)).toLocaleString()}</span>
-                    </p>
-                  </div>
-                  <span className="hidden sm:inline text-sm font-semibold tabular-nums text-emerald-600">${Math.round(toMonthly(src.amount, src.frequency)).toLocaleString()}</span>
-                  <div className="flex shrink-0 items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button aria-label="Edit" onClick={() => openEditIncome(src)} className="inline-flex h-10 w-10 sm:h-auto sm:w-auto items-center justify-center p-2 rounded-md hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
-                    {deleteConfirm === src.id ? (
-                      <div className="flex gap-0.5">
-                        <button onClick={() => handleDeleteIncome(src.id)} className="min-h-10 sm:min-h-0 px-2 sm:px-1.5 py-0.5 rounded text-xs sm:text-[10px] bg-rose-600 text-white">Del</button>
-                        <button onClick={() => setDeleteConfirm(null)} className="min-h-10 sm:min-h-0 px-2 sm:px-1.5 py-0.5 rounded text-xs sm:text-[10px] bg-[hsl(var(--bg-elevated))]">No</button>
-                      </div>
-                    ) : (
-                      <button aria-label="Delete" onClick={() => setDeleteConfirm(src.id)} className="inline-flex h-10 w-10 sm:h-auto sm:w-auto items-center justify-center p-2 rounded-md hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-600" /></button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </GlassCard>
-
-        <GlassCard className="lg:col-span-2">
-          <h3 className="text-base font-semibold mb-4">Budget Allocation</h3>
-          {budgetRows.length === 0 ? (
-            <p className="text-sm text-[hsl(var(--text-tertiary))] text-center py-6">No spending data this month. Add transactions first.</p>
-          ) : (
-            <>
-              <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-[hsl(var(--border))]">
-                      {['Category', 'Type', 'Budget', 'Actual', '% Income', 'Variance'].map(h => (
-                        <th key={h} className={cn("text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider py-3 px-3", h === 'Category' || h === 'Type' ? 'text-left' : 'text-right')}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {budgetRows.map(row => (
-                      <tr key={row.categoryId} className="border-b border-[hsl(var(--border))] last:border-0">
-                        <td className="py-2.5 px-3"><div className="flex items-center gap-2"><span>{row.icon}</span><span className="text-sm font-medium">{row.name}</span></div></td>
-                        <td className="py-2.5 px-3">
-                          <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium capitalize",
-                            row.budgetType === 'needs' && "bg-blue-500/15 text-blue-600",
-                            row.budgetType === 'wants' && "bg-amber-500/15 text-amber-600",
-                            row.budgetType === 'savings' && "bg-emerald-500/15 text-emerald-600",
-                          )}>{row.budgetType}</span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right text-sm tabular-nums">${row.budget.toLocaleString()}</td>
-                        <td className="py-2.5 px-3 text-right text-sm tabular-nums">${row.actual.toLocaleString()}</td>
-                        <td className="py-2.5 px-3 text-right text-sm tabular-nums">{row.pctOfIncome}%</td>
-                        <td className="py-2.5 px-3 text-right">
-                          <span className={cn("text-sm font-medium tabular-nums",
-                            row.variance < 0 ? "text-emerald-600" : row.variance > 0 ? "text-rose-600" : "text-[hsl(var(--text-tertiary))]"
-                          )}>{row.variance > 0 ? '+' : ''}{row.variance.toLocaleString()}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="sm:hidden space-y-2">
-                {budgetRows.map(row => (
-                  <div key={row.categoryId} className="flex items-center gap-3 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
-                    <span className="text-lg shrink-0">{row.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium truncate">{row.name}</span>
-                        <span className={cn("text-sm font-semibold tabular-nums shrink-0",
-                          row.variance < 0 ? "text-emerald-600" : row.variance > 0 ? "text-rose-600" : ""
-                        )}>${row.actual.toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full capitalize",
-                          row.budgetType === 'needs' && "bg-blue-500/15 text-blue-600",
-                          row.budgetType === 'wants' && "bg-amber-500/15 text-amber-600",
-                          row.budgetType === 'savings' && "bg-emerald-500/15 text-emerald-600",
-                        )}>{row.budgetType}</span>
-                        <span className="text-xs text-[hsl(var(--text-tertiary))]">Budget: ${row.budget.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </GlassCard>
-      </div>
-
-      {/* Action Items */}
-      <GlassCard>
-        <h3 className="text-base font-semibold mb-3">🎯 Top Actions</h3>
-        <div className="space-y-2">
-          {actions.map((action, i) => (
-            <div key={i} className={cn("flex items-start gap-3 p-3 rounded-lg border",
-              action.priority === 'high' && "border-rose-500/30 bg-rose-500/5",
-              action.priority === 'medium' && "border-amber-500/30 bg-amber-500/5",
-              action.priority === 'low' && "border-emerald-500/30 bg-emerald-500/5",
-            )}>
-              <span className="text-lg shrink-0">{action.priority === 'high' ? '🔴' : action.priority === 'medium' ? '🟡' : '🟢'}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">{action.title}</p>
-                <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{action.description}</p>
-              </div>
-              {action.monthlySavings > 0 && (
-                <span className="text-sm font-semibold tabular-nums text-emerald-600 shrink-0">+${action.monthlySavings.toLocaleString()}/mo</span>
-              )}
+          {split.map(item => (
+            <div key={item.key} className={card}>
+              <p className="flex items-center gap-1.5 text-label font-medium text-fg-tertiary">
+                <span className={cn('h-2 w-2 rounded-full', item.bar)} aria-hidden="true" />{item.label} · {item.pct}%
+              </p>
+              <MoneyText value={item.total} className="num-metric mt-1 block text-left text-xl font-semibold text-fg sm:text-2xl" />
+              <p className={cn('mt-1 flex items-center gap-1 text-label', item.over ? 'text-warning' : 'text-fg-secondary')}>
+                {!item.over && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-positive" aria-hidden="true" />}
+                {targetGap(item.pct, item.target)}
+              </p>
             </div>
           ))}
-        </div>
-      </GlassCard>
+        </section>
 
-      {/* Income Source Modal */}
-      <Modal open={incomeModal} onClose={() => setIncomeModal(false)} title={editingIncome ? 'Edit Income Source' : 'Add Income Source'}>
-        <form onSubmit={e => { e.preventDefault(); handleSaveIncome() }} className="space-y-4">
-          <div>
-            <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Source Name *</label>
-            <input type="text" required placeholder="e.g., Nexaminds Salary" value={incomeForm.name}
-              onChange={e => setIncomeForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />
-          </div>
-          <div>
-            <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Type</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {(['salary', 'freelance', 'investment', 'side_hustle', 'passive', 'other'] as const).map(t => (
-                <button key={t} type="button" onClick={() => setIncomeForm(f => ({ ...f, type: t }))}
-                  className={cn("p-2 rounded-lg border text-xs text-center transition-all capitalize",
-                    incomeForm.type === t ? "border-blue-500 bg-blue-500/10" : "border-[hsl(var(--border))]"
-                  )}>{INCOME_ICONS[t]} {t.replace('_', ' ')}</button>
-              ))}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Amount *</label>
-              <input type="number" step="100" min="0" required placeholder="55000" value={incomeForm.amount}
-                onChange={e => setIncomeForm(f => ({ ...f, amount: e.target.value }))} className={cn(inputCls, "font-semibold")} />
-            </div>
-            <div className="w-28">
-              <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Frequency</label>
-              <select value={incomeForm.frequency} onChange={e => setIncomeForm(f => ({ ...f, frequency: e.target.value }))} className={inputCls}>
-                {['monthly', 'biweekly', 'weekly', 'quarterly', 'yearly'].map(f => (
-                  <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>
+        <section className={card}>
+          <h2 className="mb-4 text-base font-semibold text-fg">50/30/20 Analysis</h2>
+          <div className="space-y-4">
+            <div>
+              <div className="mb-1.5 flex items-center justify-between text-label">
+                <span className="font-medium text-fg">Your month</span>
+                <span className="text-fg-tertiary">{needsPct} / {wantsPct} / {savingsPct}</span>
+              </div>
+              <div className="flex h-8 overflow-hidden rounded-lg bg-surface-2 sm:h-10" role="img"
+                aria-label={`Needs ${needsPct}%, wants ${wantsPct}%, savings ${savingsPct}% of income`}>
+                {totalIncome > 0 && split.map((item, i) => (
+                  <motion.div key={item.key} className={cn('flex items-center justify-center', item.bar)} initial={{ width: 0 }} animate={{ width: `${Math.min(100, item.pct)}%` }} transition={{ duration: 0.8, delay: i * 0.1 }}>
+                    {item.pct > 10 && <span className="truncate whitespace-nowrap px-1 text-label font-semibold text-[hsl(var(--background))]">{item.pct >= 20 ? `${item.label} ` : ''}{item.pct}%</span>}
+                  </motion.div>
                 ))}
-              </select>
+              </div>
+            </div>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between text-label text-fg-tertiary">
+                <span className="font-medium">Ideal</span><span>50 / 30 / 20</span>
+              </div>
+              <div className="flex h-3 overflow-hidden rounded-lg opacity-40" aria-hidden="true">
+                <div className="bg-cat-2" style={{ width: '50%' }} />
+                <div className="bg-cat-4" style={{ width: '30%' }} />
+                <div className="bg-cat-1" style={{ width: '20%' }} />
+              </div>
             </div>
           </div>
-          <button type="submit" disabled={saving || !incomeForm.name || !incomeForm.amount}
-            className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
-            {saving ? 'Saving...' : editingIncome ? 'Update Source' : 'Add Source'}
-          </button>
-        </form>
-      </Modal>
-    </div>
+          <div role="status" className={cn('mt-4 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm', isHealthy ? 'bg-positive-bg text-fg' : 'bg-warning-bg text-fg')}>
+            {isHealthy
+              ? <CheckCircle2 className="h-4 w-4 shrink-0 text-positive" aria-hidden="true" />
+              : <AlertTriangle className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />}
+            {healthMessage}
+          </div>
+        </section>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <section className={card}>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-fg">Income Sources</h2>
+              <Button variant="ghost" size="icon" aria-label="Add income source" onClick={openAddIncome}><Plus className="h-4 w-4" aria-hidden="true" /></Button>
+            </div>
+            {incomeSources.length === 0 ? (
+              <div className="py-6 text-center">
+                <p className="text-sm text-fg-secondary">No extra income sources yet</p>
+                <Button variant="ghost" size="sm" className="mt-1" onClick={openAddIncome}>Add a source</Button>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {incomeSources.map(src => {
+                  const Icon = INCOME_ICONS[src.type] || Wallet
+                  return (
+                    <li key={src.id} className="group flex items-center gap-3 rounded-xl bg-surface-2 p-2.5">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-3 text-fg-secondary"><Icon className="h-4 w-4" aria-hidden="true" /></span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-fg">{src.name}</p>
+                        <p className="text-label capitalize text-fg-tertiary">{src.frequency} · <MoneyText value={toMonthly(src.amount, src.frequency)} className="normal-case text-fg-secondary" />/mo</p>
+                      </div>
+                      <div className="flex shrink-0 items-center opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+                        <Button variant="ghost" size="icon" aria-label={`Edit ${src.name}`} onClick={() => openEditIncome(src)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></Button>
+                        {deleteConfirm === src.id ? (
+                          <>
+                            <Button variant="danger" size="sm" onClick={() => handleDeleteIncome(src.id)}>Delete</Button>
+                            <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm(null)}>Keep</Button>
+                          </>
+                        ) : (
+                          <Button variant="ghost" size="icon" aria-label={`Delete ${src.name}`} onClick={() => setDeleteConfirm(src.id)} className="hover:text-negative"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></Button>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+
+          <section className={cn(card, 'lg:col-span-2')}>
+            <h2 className="mb-3 text-base font-semibold text-fg">Budget Allocation</h2>
+            {budgetRows.length === 0 ? (
+              <p className="py-6 text-center text-sm text-fg-secondary">No spending data this month. Add transactions first.</p>
+            ) : (
+              <>
+                <div className="hidden overflow-x-auto sm:block">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border">
+                        {['Category', 'Type', 'Budget', 'Actual', '% Income', 'Variance'].map(h => (
+                          <th key={h} scope="col" className={cn('px-3 py-2.5 text-label font-medium text-fg-secondary', h === 'Category' || h === 'Type' ? 'text-left' : 'text-right')}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {budgetRows.map(row => (
+                        <tr key={row.categoryId} className="border-b border-border last:border-0">
+                          <td className="px-3 py-2.5"><div className="flex items-center gap-2"><CategoryIcon name={row.name} emoji={row.icon} colorIndex={row.sortOrder} size={24} /><span className="text-sm font-medium text-fg">{row.name}</span></div></td>
+                          <td className="px-3 py-2.5"><StatusPill tone={TYPE_TONE[row.budgetType]} className="capitalize">{row.budgetType}</StatusPill></td>
+                          <td className="num px-3 py-2.5 text-sm text-fg-secondary">{row.budget ? formatMoney(row.budget) : '—'}</td>
+                          <td className="num px-3 py-2.5 text-sm text-fg">{formatMoney(row.actual)}</td>
+                          <td className="num px-3 py-2.5 text-sm text-fg-secondary">{row.pctOfIncome}%</td>
+                          <td className={cn('num px-3 py-2.5 text-sm font-medium', row.budget > 0 && row.variance > 0 ? 'text-negative' : 'text-fg-secondary')}>
+                            {row.budget > 0 ? formatDelta(row.variance, { mode: 'full' }) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <ul className="space-y-2 sm:hidden">
+                  {budgetRows.map(row => (
+                    <li key={row.categoryId} className="flex items-center gap-3 rounded-xl bg-surface-2 p-3">
+                      <CategoryIcon name={row.name} emoji={row.icon} colorIndex={row.sortOrder} size={32} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-medium text-fg">{row.name}</span>
+                          <MoneyText value={row.actual} className="shrink-0 text-sm font-semibold text-fg" />
+                        </div>
+                        <div className="mt-0.5 flex items-center justify-between gap-2 text-label text-fg-tertiary">
+                          <span className="capitalize">{row.budgetType} · budget {row.budget ? formatMoney(row.budget) : '—'}</span>
+                          {row.budget > 0 && <span className={row.variance > 0 ? 'font-medium text-negative' : ''}>{formatDelta(row.variance, { mode: 'full' })}</span>}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </section>
+        </div>
+
+        <section className={card}>
+          <h2 className="mb-3 text-base font-semibold text-fg">Top Actions</h2>
+          <ul className="space-y-2">
+            {actions.map((action, i) => (
+              <li key={i} className="flex items-start gap-3 rounded-xl border border-border bg-surface-2 p-3">
+                <StatusPill tone={priorityTone[action.priority]} className="mt-0.5 shrink-0">{priorityWord[action.priority]}</StatusPill>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-fg">{action.title}</p>
+                  <p className="mt-0.5 text-label text-fg-tertiary">{action.description}</p>
+                </div>
+                {action.monthlySavings > 0 && <span className="shrink-0 text-sm font-semibold text-fg"><MoneyText value={action.monthlySavings} sign="always" />/mo</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <Modal open={incomeModal} onClose={() => setIncomeModal(false)} title={editingIncome ? 'Edit income source' : 'Add income source'}>
+          <form onSubmit={e => { e.preventDefault(); void handleSaveIncome() }} className="space-y-4">
+            <div>
+              <label htmlFor="income-name" className="mb-1 block text-label font-medium text-fg-secondary">Source name</label>
+              <input id="income-name" type="text" required placeholder="e.g., Nexaminds Salary" value={incomeForm.name}
+                onChange={e => setIncomeForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />
+            </div>
+            <div>
+              <span className="mb-1 block text-label font-medium text-fg-secondary">Type</span>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="group" aria-label="Income type">
+                {(['salary', 'freelance', 'investment', 'side_hustle', 'passive', 'other'] as const).map(t => {
+                  const Icon = INCOME_ICONS[t]
+                  return (
+                    <button key={t} type="button" aria-pressed={incomeForm.type === t} onClick={() => setIncomeForm(f => ({ ...f, type: t }))}
+                      className={cn('flex h-11 items-center justify-center gap-1.5 rounded-xl border text-sm capitalize transition-colors',
+                        incomeForm.type === t ? 'border-primary bg-primary/15 text-fg' : 'border-border bg-surface-2 text-fg-secondary')}>
+                      <Icon className="h-4 w-4" aria-hidden="true" />{t.replace('_', ' ')}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label htmlFor="income-amount" className="mb-1 block text-label font-medium text-fg-secondary">Amount</label>
+                <input id="income-amount" type="number" inputMode="decimal" step="100" min="0" required placeholder="55000" value={incomeForm.amount}
+                  onChange={e => setIncomeForm(f => ({ ...f, amount: e.target.value }))} className={cn(inputCls, 'font-semibold')} />
+              </div>
+              <div className="w-32">
+                <label htmlFor="income-frequency" className="mb-1 block text-label font-medium text-fg-secondary">Frequency</label>
+                <select id="income-frequency" value={incomeForm.frequency} onChange={e => setIncomeForm(f => ({ ...f, frequency: e.target.value }))} className={inputCls}>
+                  {['monthly', 'biweekly', 'weekly', 'quarterly', 'yearly'].map(f => (
+                    <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <Button type="submit" size="lg" className="w-full" disabled={saving || !incomeForm.name || !incomeForm.amount}>
+              {saving ? 'Saving…' : editingIncome ? 'Update source' : 'Add source'}
+            </Button>
+          </form>
+        </Modal>
+      </Page>
     </PageTransition>
   )
 }

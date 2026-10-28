@@ -3,7 +3,7 @@
 // Form state + save logic for the quick-add sheet (CH-08). Rules auto-apply,
 // the duplicate check and the draftId guard behave exactly like the old
 // transactions page; suggestions/one-off/baby hints are new (MOB-15, UX-06, MOB-03).
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { FinanceTransaction } from '@/lib/finance-types'
 import type { QuickAddPrefill } from '@/lib/finance-events'
@@ -112,6 +112,7 @@ export function useTransactionForm({ data, defaultOwner, request }: { data: Quic
   const [confirmDuplicate, setConfirmDuplicate] = useState(false)
   const [babyDismissed, setBabyDismissed] = useState(false)
   const [oneOffDismissed, setOneOffDismissed] = useState(false)
+  const [ruleRejectedFor, setRuleRejectedFor] = useState('')
   const methodTouched = useRef(!!editing)
   const saveInFlight = useRef(false)
   const draftId = useRef<string | null>(editing ? null : crypto.randomUUID())
@@ -121,14 +122,13 @@ export function useTransactionForm({ data, defaultOwner, request }: { data: Quic
   const history = useMemo(() => data?.history ?? [], [data])
 
   // Owner arrives after auth resolves; fill it (and their usual card) if still empty.
-  useEffect(() => {
-    if (editingId || !defaultOwner) return
-    setForm(current => current.owner ? current : {
-      ...current,
-      owner: defaultOwner,
-      payment_method: current.payment_method || readLastPaymentMethod(defaultOwner),
-    })
-  }, [defaultOwner, editingId])
+  const [ownerSeed, setOwnerSeed] = useState(defaultOwner)
+  if (ownerSeed !== defaultOwner) {
+    setOwnerSeed(defaultOwner)
+    if (!editingId && defaultOwner && !form.owner) {
+      setForm({ ...form, owner: defaultOwner, payment_method: form.payment_method || readLastPaymentMethod(defaultOwner) })
+    }
+  }
 
   const updateForm = useCallback((patch: Partial<TxForm>) => {
     setConfirmDuplicate(false)
@@ -147,16 +147,20 @@ export function useTransactionForm({ data, defaultOwner, request }: { data: Quic
 
   const entryAmount = parseEntryAmount(form.currency === 'USD' ? form.amount_mxn : form.amount)
 
-  // Auto-apply a rule when merchant + amount are set and no category is chosen (new entries only).
-  useEffect(() => {
-    if (editingId || form.category_id || !form.merchant || !form.amount) return
-    if (!Number.isFinite(entryAmount)) return
-    const match = applyRules(rules, { merchant: form.merchant, amount_mxn: entryAmount, owner: form.owner })
+  // Auto-apply a rule when merchant + amount are set and no category is chosen (new entries
+  // only), unless the person just rejected the rule's pick for this merchant.
+  const ruleKey = editingId || form.category_id || !form.merchant || !Number.isFinite(entryAmount)
+    || form.merchant.trim().toLowerCase() === ruleRejectedFor
+    ? '' : `${form.merchant}|${entryAmount}|${form.owner}|${rules.length}`
+  const [lastRuleKey, setLastRuleKey] = useState('')
+  if (ruleKey !== lastRuleKey) {
+    setLastRuleKey(ruleKey)
+    const match = ruleKey ? applyRules(rules, { merchant: form.merchant, amount_mxn: entryAmount, owner: form.owner }) : null
     if (match) {
-      setForm(f => ({ ...f, category_id: match.category_id }))
+      setForm({ ...form, category_id: match.category_id })
       setAppliedRuleId(match.rule_id)
     }
-  }, [form.merchant, form.amount, entryAmount, form.owner, rules, editingId, form.category_id])
+  }
 
   // Same merchant + amount within 3 days.
   const possibleDuplicates = useMemo(() => {
@@ -225,6 +229,7 @@ export function useTransactionForm({ data, defaultOwner, request }: { data: Quic
   }
 
   const clearAppliedRule = () => {
+    setRuleRejectedFor(form.merchant.trim().toLowerCase())
     setAppliedRuleId(null)
     setForm(f => ({ ...f, category_id: '' }))
   }

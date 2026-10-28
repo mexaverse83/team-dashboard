@@ -1,208 +1,143 @@
 /**
  * Unit Tests — Budgets page (/finance/budgets)
- * Split out of tests/pages/finance.test.tsx (Mona v2 W0, pure move: no assertion changes).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
-import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '@/lib/seed-finance'
+import { SEED_CATEGORIES, SEED_BUDGETS } from '@/lib/seed-finance'
 import { monthKey } from '@/lib/finance-utils'
 
-// Mock recharts
-vi.mock('recharts', () => ({
-  PieChart: ({ children }: any) => <div data-testid="pie-chart">{children}</div>,
-  Pie: ({ children }: any) => <>{children}</>,
-  Cell: () => null,
-  AreaChart: ({ children }: any) => <div data-testid="area-chart">{children}</div>,
-  Area: () => null,
-  LineChart: ({ children }: any) => <div data-testid="line-chart">{children}</div>,
-  Line: () => null,
-  BarChart: ({ children }: any) => <div data-testid="bar-chart">{children}</div>,
-  Bar: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
-  CartesianGrid: () => null,
-  ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
-  Tooltip: () => null,
-  Legend: () => null,
-  ReferenceLine: () => null,
-}))
+// Importing every lucide icon for the mock is slow on a cold, loaded worker.
+vi.setConfig({ testTimeout: 20000 })
 
-// Mock SparklineChart
-vi.mock('@/components/ui/sparkline-chart', () => ({
-  SparklineChart: () => <div data-testid="sparkline" />,
-}))
-
-// Mock lucide-react
-vi.mock('lucide-react', () => {
-  const i = (n: string) => (props: any) => <svg data-testid={`icon-${n}`} {...props} />
-  return {
-    TrendingDown: i('trendingdown'), TrendingUp: i('trendingup'), Wallet: i('wallet'),
-    Percent: i('percent'), ChevronLeft: i('chevronleft'), ChevronRight: i('chevronright'),
-    Search: i('search'), Calendar: i('calendar'), Shield: i('shield'), Code: i('code'),
-    Telescope: i('telescope'), Mail: i('mail'), FlaskConical: i('flaskconical'),
-    Palette: i('palette'), Server: i('server'), Users: i('users'), DollarSign: i('dollarsign'),
-    Home: i('home'), Zap: i('zap'), LayoutGrid: i('layoutgrid'),
-    MessageCircle: i('messagecircle'), BarChart3: i('barchart3'),
-    ChevronsLeft: i('chevronsleft'), ChevronsRight: i('chevronsright'),
-    Inbox: i('inbox'), Activity: i('activity'), CheckSquare: i('checksquare'),
-    ArrowLeftRight: i('arrowleftright'), PiggyBank: i('piggybank'),
-    RefreshCw: i('refreshcw'), FileBarChart: i('filebarchart'),
-    Radio: i('radio'), Minus: i('minus'), Plus: i('plus'),
-    Pencil: i('pencil'), Trash2: i('trash2'), Power: i('power'), Upload: i('upload'), Download: i('download'),
-    CreditCard: i('creditcard'), Calculator: i('calculator'),
-    Landmark: i('landmark'), ShieldCheck: i('shieldcheck'), Target: i('target'),
-    Menu: i('menu'), X: i('x'),
-    // Icons added by newer finance components (weekend budget, rules, insights, etc.)
-    AlertCircle: i('alertcircle'), AlertTriangle: i('alerttriangle'),
-    ArrowDownLeft: i('arrowdownleft'), ArrowRight: i('arrowright'), ArrowUpRight: i('arrowupright'),
-    Bitcoin: i('bitcoin'), CalendarDays: i('calendardays'), Check: i('check'),
-    CheckCircle2: i('checkcircle2'), ChevronDown: i('chevrondown'), ChevronUp: i('chevronup'),
-    Clock: i('clock'), HeartPulse: i('heartpulse'), Info: i('info'), Lightbulb: i('lightbulb'),
-    Scissors: i('scissors'), SlidersHorizontal: i('slidershorizontal'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  const icons: Record<string, unknown> = {}
+  for (const key of Object.keys(actual)) {
+    icons[key] = (props: Record<string, unknown>) => <svg data-testid={`icon-${key.toLowerCase()}`} {...props} />
   }
+  return icons
 })
 
-// Mock Modal
 vi.mock('@/components/ui/modal', () => ({
-  Modal: ({ children, footer, open, title }: any) => open ? <div data-testid="modal"><h2>{title}</h2>{children}{footer}</div> : null,
+  Modal: ({ children, open, title }: any) => open ? <div data-testid="modal"><h2>{title}</h2>{children}</div> : null,
 }))
 
-// Mock pdf-parser
-vi.mock('@/lib/pdf-parser', () => ({
-  parseBBVAPdf: vi.fn().mockResolvedValue([]),
-  detectBankFormat: vi.fn().mockReturnValue('unknown'),
-}))
-
-// Mock framer-motion (for budget bars / savings rate / svg gauges)
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
-    p: ({ children, ...props }: any) => <p {...props}>{children}</p>,
-    circle: (props: any) => <circle />,
-  },
-  AnimatePresence: ({ children }: any) => children,
-}))
-
-// Components call fetch() against /api/finance/* — return a graceful "not ok"
-// so widgets that depend on those endpoints render their fallback/null states.
-beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn(() =>
-    Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}), text: () => Promise.resolve('') })
-  ))
-})
-
-// Pages filter budgets/transactions by the currently displayed month, so pin
-// the seed budgets to this month (computed the same way the components do —
-// monthKey uses local time, not toISOString/UTC).
 const THIS_MONTH = monthKey(new Date())
 const CURRENT_MONTH_BUDGETS = SEED_BUDGETS.map(b => ({ ...b, month: `${THIS_MONTH}-01` }))
 
-// Generic chainable query builder: every filter/modifier returns the chain,
-// awaiting it resolves the table's mock result.
-function makeChain(res: any) {
+const tx = (id: string, category_id: string, amount: number, day = '02', extra: Record<string, unknown> = {}) => ({
+  id, type: 'expense', amount_mxn: amount, category_id, transaction_date: `${THIS_MONTH}-${day}`, coverage_start: null, coverage_end: null, ...extra,
+})
+
+const TRANSACTIONS = [
+  tx('t1', 'cat-rent', 15000),
+  tx('t2', 'cat-groc', 12000), tx('t3', 'cat-groc', 8000),
+  tx('t4', 'cat-dining', 100),
+  tx('t5', 'cat-gifts', 1200),
+  tx('t6', 'cat-other', 24000, '03', { coverage_start: `${THIS_MONTH}-01`, coverage_end: '2099-12-31' }),
+]
+
+function makeChain(res: any, calls: string[][]) {
   const chain: any = {
     then: (onFulfilled: any, onRejected: any) => Promise.resolve(res).then(onFulfilled, onRejected),
   }
   for (const m of ['select', 'order', 'eq', 'neq', 'gte', 'lte', 'lt', 'gt', 'in', 'ilike', 'limit', 'single', 'range', 'is']) {
-    chain[m] = vi.fn(() => chain)
+    chain[m] = vi.fn((...args: unknown[]) => { calls.push([m, String(args[0])]); return chain })
   }
   return chain
 }
 
-function setupSupabaseMock(overrides: Record<string, any> = {}) {
-  const defaults: Record<string, any> = {
-    finance_categories: { data: SEED_CATEGORIES, error: null },
-    finance_transactions: { data: SEED_TRANSACTIONS, error: null },
-    finance_budgets: { data: CURRENT_MONTH_BUDGETS, error: null },
-    finance_recurring: { data: SEED_RECURRING, error: null },
-  }
-  const merged = { ...defaults, ...overrides }
+let txCalls: string[][] = []
 
-  vi.mocked(supabase.from).mockImplementation((table: string) => {
-    const res = merged[table] || { data: [], error: null }
+function setupSupabaseMock(transactions: any[] = TRANSACTIONS) {
+  txCalls = []
+  const tables: Record<string, any> = {
+    finance_categories: { data: SEED_CATEGORIES, error: null },
+    finance_transactions: { data: transactions, error: null },
+    finance_budgets: { data: CURRENT_MONTH_BUDGETS, error: null },
+  }
+  vi.mocked(supabase.from).mockImplementation(((table: string) => {
+    const res = tables[table] || { data: [], error: null }
     return {
-      select: vi.fn(() => makeChain(res)),
+      select: vi.fn(() => makeChain(res, table === 'finance_transactions' ? txCalls : [])),
       insert: vi.fn().mockReturnValue(Promise.resolve({ data: [{}], error: null })),
       update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(Promise.resolve({ error: null })) }),
       delete: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(Promise.resolve({ error: null })) }),
-    } as any
-  })
+    }
+  }) as unknown as typeof supabase.from)
 }
 
-// ==========================================
-// BUDGETS
-// ==========================================
-describe('Budgets Page', () => {
+async function renderBudgets() {
+  const Comp = (await import('@/components/finance/budgets-client')).default
+  const utils = render(<Comp />)
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'Budgets' })).toBeInTheDocument())
+  return utils
+}
+
+const card = (name: string) => screen.getByRole('link', { name: new RegExp(`^${name}:`) }).closest('li')!
+
+describe('Budgets page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setupSupabaseMock()
   })
+  afterEach(() => { window.history.replaceState(null, '', '/') })
 
-  it('renders page header', async () => {
-    const Comp = (await import('@/components/finance/budgets-client')).default
-    render(<Comp />)
-    await waitFor(() => expect(screen.getByText('Budgets')).toBeInTheDocument())
+  it('renders the header and month navigation', async () => {
+    await renderBudgets()
     expect(screen.getByText('Monthly spending limits by category')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Previous month' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next month' })).toBeInTheDocument()
   })
 
-  it('renders month navigation', async () => {
-    const Comp = (await import('@/components/finance/budgets-client')).default
-    render(<Comp />)
-    await waitFor(() => {
-      expect(screen.getByTestId('icon-chevronleft')).toBeInTheDocument()
-      expect(screen.getByTestId('icon-chevronright')).toBeInTheDocument()
-    })
+  it('compares budgeted spend with budgets and lists unbudgeted spend separately', async () => {
+    await renderBudgets()
+    expect(screen.getByText('Spent in budgeted categories')).toBeInTheDocument()
+    // 15,000 rent + 20,000 groceries + 100 dining; the Gifts and Other rows are outside budgets.
+    expect(screen.getByText('$35,100')).toBeInTheDocument()
+    const outside = screen.getByRole('list', { name: 'Categories without a budget' })
+    expect(within(outside).getByRole('link', { name: /Gifts/ })).toHaveAttribute('href', `/finance/transactions?category=cat-gifts&month=${THIS_MONTH}`)
+    // The 24k Other row is spread to 2099, so only a sliver lands in this month.
+    expect(within(outside).getByRole('link', { name: /Other/ })).toBeInTheDocument()
   })
 
-  it('renders Total Budgeted and Total Spent KPIs', async () => {
-    const Comp = (await import('@/components/finance/budgets-client')).default
-    render(<Comp />)
-    await waitFor(() => {
-      expect(screen.getByText('Total Budgeted')).toBeInTheDocument()
-      expect(screen.getByText('Total Spent')).toBeInTheDocument()
-    })
+  it('colours by the shared budget tone: over is red, fixed at 100% is a neutral "Paid"', async () => {
+    await renderBudgets()
+    expect(within(card('Groceries')).getByRole('progressbar')).toHaveAttribute('data-tone', 'negative')
+    expect(within(card('Groceries')).getByText('$2,000 over')).toBeInTheDocument()
+    expect(within(card('Rent/Mortgage')).getByRole('progressbar')).toHaveAttribute('data-tone', 'neutral')
+    expect(within(card('Rent/Mortgage')).getAllByText('Paid').length).toBeGreaterThan(0)
+    expect(within(card('Dining Out')).getByRole('progressbar')).toHaveAttribute('data-tone', 'positive')
   })
 
-  it('renders budget cards with category names', async () => {
-    const Comp = (await import('@/components/finance/budgets-client')).default
-    render(<Comp />)
-    await waitFor(() => {
-      // Seed data has budgets for rent, groceries, dining, etc.
-      expect(screen.getAllByText(/remaining|over budget/).length).toBeGreaterThanOrEqual(1)
-    })
+  it('shows a pace marker in the current month', async () => {
+    await renderBudgets()
+    expect(within(card('Dining Out')).getByTestId('progress-marker')).toBeInTheDocument()
   })
 
-  it('shows percentage on budget cards', async () => {
-    const Comp = (await import('@/components/finance/budgets-client')).default
-    render(<Comp />)
-    await waitFor(() => {
-      expect(screen.getAllByText(/%/).length).toBeGreaterThanOrEqual(1)
-    })
+  it('links each card to its transactions for the month and labels actions in context', async () => {
+    await renderBudgets()
+    expect(screen.getByRole('link', { name: /^Groceries:/ })).toHaveAttribute('href', `/finance/transactions?category=cat-groc&month=${THIS_MONTH}`)
+    expect(screen.getByRole('button', { name: 'Edit Groceries budget' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete Groceries budget' })).toBeInTheDocument()
   })
 
-  it('budget over 100% shows "over budget" warning', async () => {
-    const Comp = (await import('@/components/finance/budgets-client')).default
-    render(<Comp />)
-    // Subscriptions budget is $2500, Feb expenses: 399+199+279+850 = $1727
-    // That's under budget. Check if any category is over:
-    await waitFor(() => {
-      // At least one card should show remaining or over
-      const texts = screen.getAllByText(/remaining|over budget/)
-      expect(texts.length).toBeGreaterThanOrEqual(1)
-    })
+  it('reads only the lookback window with a stable order, and refetches on month change', async () => {
+    await renderBudgets()
+    expect(txCalls).toContainEqual(['order', 'id'])
+    expect(txCalls).toContainEqual(['gte', 'transaction_date'])
+    expect(txCalls).toContainEqual(['gte', 'coverage_end'])
+    const before = vi.mocked(supabase.from).mock.calls.filter(([t]) => t === 'finance_transactions').length
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+    await waitFor(() => expect(vi.mocked(supabase.from).mock.calls.filter(([t]) => t === 'finance_transactions').length).toBeGreaterThan(before))
+    expect(window.location.search).toMatch(/month=\d{4}-\d{2}/)
   })
 
-  it('over-budget cards have rose ring', async () => {
-    const Comp = (await import('@/components/finance/budgets-client')).default
-    const { container } = render(<Comp />)
-    await waitFor(() => {
-      // Budget cards over 100% get ring-rose-500/30 class
-      const overCards = container.querySelectorAll('.ring-rose-500\\/30')
-      // May or may not have any depending on seed data month match
-      expect(overCards).toBeDefined()
-    })
+  it('opens on ?month=YYYY-MM', async () => {
+    window.history.replaceState(null, '', '/finance/budgets?month=2026-02')
+    await renderBudgets()
+    expect(screen.getByText('February 2026')).toBeInTheDocument()
   })
 })

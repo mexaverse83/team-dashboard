@@ -94,7 +94,8 @@ export function QuickAddHost() {
     if (!isActive()) return
     const prefill = quickAddRequestFromSearch(window.location.search)
     if (!prefill) return
-    openWith(prefill)
+    // Opened on the next tick: setState inside an effect body cascades renders.
+    void Promise.resolve().then(() => openWith(prefill))
     const params = new URLSearchParams(window.location.search)
     DEEP_LINK_PARAMS.forEach(p => params.delete(p))
     const qs = params.toString()

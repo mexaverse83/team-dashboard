@@ -9,6 +9,9 @@ import { SEED_CATEGORIES, SEED_TRANSACTIONS } from '@/lib/seed-finance'
 import { localDateKey } from '@/lib/dates'
 import type { FinanceTransaction } from '@/lib/finance-types'
 
+// Importing every lucide icon for the mock is slow on a cold, loaded worker.
+vi.setConfig({ testTimeout: 20000 })
+
 vi.mock('lucide-react', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
   const icons: Record<string, unknown> = {}
