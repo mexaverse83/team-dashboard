@@ -1,0 +1,10 @@
+BBVA MEXICO, S.A. Institución de Banca Múltiple   Tarjeta Infinite   Titular: XXXXXXX XXXXX   Número de tarjeta ****0000
+Periodo: 10-sep-2026 al 09-oct-2026   Fecha de corte 09-oct-2026   Fecha límite de pago 29-oct-2026
+DESGLOSE DE MOVIMIENTOS   Fecha de la operación   Fecha de cargo   Descripción del movimiento   Monto
+12-sep-2026 13-sep-2026 HEB VALLE ORIENTE; Tarjeta Digital ***0000 + $1,302.40
+14-sep-2026 15-sep-2026 OXXO GOMEZ MORIN + $87.50
+18-sep-2026 18-sep-2026 PAGO TARJETA DE CREDITO - $25,000.00
+20-sep-2026 21-sep-2026 FARMACIA SAN PABLO   VITAMINAS PRENATALES + $753.00
+20-sep-2026 21-sep-2026 IVA INTERES + $12.34
+22-sep-2026 22-sep-2026 Interes ordinario + $80.00
+03-oct-2026 04-oct-2026 SPOTIFY P1234 + $199.00
