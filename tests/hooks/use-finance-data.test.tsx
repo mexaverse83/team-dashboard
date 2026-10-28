@@ -97,6 +97,50 @@ describe('useFinanceData', () => {
     expect(result.current.data).toBe('october')
   })
 
+  it('resets data when the key changes', async () => {
+    const october = deferred<string>()
+    const fetcher = vi.fn().mockResolvedValueOnce('september').mockImplementation(() => october.promise)
+    const { result, rerender } = renderHook(({ k }) => useFinanceData<string>(k, fetcher), { initialProps: { k: '2026-09' } })
+    await waitFor(() => expect(result.current.data).toBe('september'))
+    rerender({ k: '2026-10' })
+    // September's numbers never render under October's key.
+    expect(result.current.data).toBeUndefined()
+    expect(result.current.loading).toBe(true)
+    expect(result.current.refreshing).toBe(false)
+    expect(result.current.updatedAt).toBeNull()
+    await act(async () => { october.resolve('october'); await october.promise })
+    expect(result.current.data).toBe('october')
+    expect(result.current.loading).toBe(false)
+  })
+
+  it('clears the previous key\'s error when the key changes', async () => {
+    const october = deferred<string>()
+    const fetcher = vi.fn().mockRejectedValueOnce(new Error('flaky')).mockImplementation(() => october.promise)
+    const { result, rerender } = renderHook(({ k }) => useFinanceData<string>(k, fetcher), { initialProps: { k: '2026-09' } })
+    await waitFor(() => expect(result.current.error?.message).toBe('flaky'))
+    rerender({ k: '2026-10' })
+    expect(result.current.error).toBeNull()
+    expect(result.current.loading).toBe(true)
+    await act(async () => { october.resolve('october'); await october.promise })
+    expect(result.current.data).toBe('october')
+  })
+
+  it('keeps the previous key\'s data while loading when keepPreviousData is set', async () => {
+    const october = deferred<string>()
+    const fetcher = vi.fn().mockResolvedValueOnce('september').mockImplementation(() => october.promise)
+    const { result, rerender } = renderHook(
+      ({ k }) => useFinanceData<string>(k, fetcher, { keepPreviousData: true }),
+      { initialProps: { k: '2026-09' } },
+    )
+    await waitFor(() => expect(result.current.data).toBe('september'))
+    rerender({ k: '2026-10' })
+    expect(result.current.data).toBe('september')
+    expect(result.current.refreshing).toBe(true)
+    expect(result.current.loading).toBe(false)
+    await act(async () => { october.resolve('october'); await october.promise })
+    expect(result.current.data).toBe('october')
+  })
+
   it('refetches on finance:data-changed', async () => {
     const fetcher = vi.fn(async () => 'x')
     renderHook(() => useFinanceData('k', fetcher))

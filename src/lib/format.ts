@@ -52,13 +52,17 @@ function symbol(currency: Currency, showCurrency: boolean): string {
   return currency === 'USD' ? 'US$' : 'MX$'
 }
 
-/** Compact magnitude for an absolute value, rounding before choosing the unit so 999,960 → '1.0M'. */
+/**
+ * Compact magnitude for an absolute value. Rounds before choosing the unit, so
+ * 999.6 → '1k' and 999,960 → '1.0M'; 'T' is the top unit so values never read '$1000B'.
+ */
 function compactAbs(abs: number, decimals: number, trimZeros: boolean): string {
-  const units: Array<[number, string]> = [[1e9, 'B'], [1e6, 'M'], [1e3, 'k']]
+  const units: Array<[number, string]> = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'k']]
   const factor = 10 ** decimals
+  const roundedAbs = Math.round(abs)
   for (let i = 0; i < units.length; i++) {
     const [size, suffix] = units[i]
-    if (abs >= size) {
+    if (roundedAbs >= size) {
       const scaled = Math.round((abs / size) * factor) / factor
       // 999.95k rounds to 1000.0k → promote to the next unit up.
       if (scaled >= 1000 && i > 0) {
@@ -69,7 +73,12 @@ function compactAbs(abs: number, decimals: number, trimZeros: boolean): string {
       return `${trim(scaled.toFixed(decimals), trimZeros)}${suffix}`
     }
   }
-  return numberFormat(0, 0).format(Math.round(abs))
+  return numberFormat(0, 0).format(roundedAbs)
+}
+
+/** True when a compact body ('0', '0.0') displays as zero. */
+function isZeroBody(body: string): boolean {
+  return /^0(?:\.0*)?$/.test(body)
 }
 
 function trim(s: string, trimZeros: boolean): string {
@@ -81,13 +90,15 @@ export function formatMoney(n: number | null | undefined, opts: FormatMoneyOptio
   if (!isFiniteNumber(n)) return EMPTY_VALUE
   const { mode = 'full', sign = 'auto', currency = 'MXN', showCurrency = false } = opts
   const abs = Math.abs(n)
+  // Round the magnitude once; the digits and the "shows as zero" test both use
+  // it, and the sign comes from n itself (so −0.5 → '−$1', never '$1').
+  const shownAbs = mode === 'precise' ? Math.round(abs * 100) / 100 : Math.round(abs)
   // A value that displays as zero ('$0', '$0.00') never carries a sign.
-  const shown = mode === 'precise' ? Math.round(n * 100) / 100 : Math.round(n)
-  const prefix = signPrefix(shown === 0 ? 0 : n, sign)
+  const prefix = signPrefix(shownAbs === 0 ? 0 : n, sign)
   const sym = symbol(currency, showCurrency)
-  if (mode === 'precise') return `${prefix}${sym}${numberFormat(2, 2).format(abs)}`
-  if (mode === 'compact' && abs >= 9_999.5) return `${prefix}${sym}${compactAbs(abs, 1, false)}`
-  return `${prefix}${sym}${numberFormat(0, 0).format(Math.round(abs))}`
+  if (mode === 'precise') return `${prefix}${sym}${numberFormat(2, 2).format(shownAbs)}`
+  if (mode === 'compact' && shownAbs >= 10_000) return `${prefix}${sym}${compactAbs(abs, 1, false)}`
+  return `${prefix}${sym}${numberFormat(0, 0).format(shownAbs)}`
 }
 
 export interface FormatCompactOptions {
@@ -103,7 +114,8 @@ export interface FormatCompactOptions {
 export function formatCompact(n: number | null | undefined, opts: FormatCompactOptions = {}): string {
   if (!isFiniteNumber(n)) return EMPTY_VALUE
   const { currency = true, decimals = 1, trimZeros = true, sign = 'auto' } = opts
-  return `${signPrefix(n, sign)}${currency ? '$' : ''}${compactAbs(Math.abs(n), decimals, trimZeros)}`
+  const body = compactAbs(Math.abs(n), decimals, trimZeros)
+  return `${signPrefix(isZeroBody(body) ? 0 : n, sign)}${currency ? '$' : ''}${body}`
 }
 
 export interface FormatDeltaOptions {

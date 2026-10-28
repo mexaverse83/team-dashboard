@@ -150,7 +150,10 @@ export function buildDeterministicBrief(summary: BriefSummary, { now = new Date(
 
   // 1. Category well over budget.
   const overRows = (summary.current_month?.budget_vs_actual || [])
-    .filter(b => !b.is_fixed && Number(b.budget) > 0 && Number(b.spent) > Number(b.budget) * OVER_BUDGET_PAUSE_RATIO)
+    // Only monthly, controllable categories: fixed bills can't be paused, and
+    // non-monthly rows carry a full-cycle budget the summary rates 'warning' up to 150%.
+    .filter(b => !b.is_fixed && !b.is_non_monthly && CONTROLLABLE.has(String(b.category))
+      && Number(b.budget) > 0 && Number(b.spent) > Number(b.budget) * OVER_BUDGET_PAUSE_RATIO)
     .sort((a, b) => (Number(b.spent) - Number(b.budget)) - (Number(a.spent) - Number(a.budget)))
   let directive: DeterministicBrief['directive']
   let coachQuestion: string

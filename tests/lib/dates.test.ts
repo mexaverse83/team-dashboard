@@ -41,6 +41,11 @@ describe.each(['UTC', 'America/Mexico_City'])('dates under TZ=%s', (tz) => {
     expect(localDateKey(parseLocalDateKey('2026-10-28T23:30:00Z'))).toBe('2026-10-28')
     expect(Number.isNaN(parseLocalDateKey('2026-02-30').getTime())).toBe(true)
     expect(Number.isNaN(parseLocalDateKey('nope').getTime())).toBe(true)
+    // Anchored: malformed keys are Invalid Date, not silently the 1st.
+    expect(Number.isNaN(parseLocalDateKey('2026-10-2').getTime())).toBe(true)
+    expect(Number.isNaN(parseLocalDateKey('2026-100').getTime())).toBe(true)
+    expect(Number.isNaN(parseLocalDateKey('2026-10-280').getTime())).toBe(true)
+    expect(localDateKey(parseLocalDateKey('2026-10-28T00:00:00'))).toBe('2026-10-28')
     expect(Number.isNaN(parseLocalDateKey(null).getTime())).toBe(true)
     expect(isValidDateKey('2028-02-29')).toBe(true)
     expect(isValidDateKey('2027-02-29')).toBe(false)

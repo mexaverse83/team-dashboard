@@ -55,6 +55,19 @@ describe('Stat / MoneyText', () => {
     expect(screen.getByText('+$12.4k')).toHaveClass('text-positive')
   })
 
+  it('only money stats are blurred by privacy mode', () => {
+    render(
+      <>
+        <Stat label="Days left" value="4 days" />
+        <Stat label="Saved" value="$9,000" money />
+      </>,
+    )
+    expect(screen.getByText('4 days')).toHaveAttribute('data-privacy-exempt')
+    expect(screen.getByText('4 days')).not.toHaveAttribute('data-money')
+    expect(screen.getByText('$9,000')).toHaveAttribute('data-money')
+    expect(screen.getByText('$9,000')).not.toHaveAttribute('data-privacy-exempt')
+  })
+
   it('compact money carries the full amount in title', () => {
     render(<MoneyText value={-92_345} mode="compact" />)
     const el = screen.getByText(`${MINUS}$92.3k`)
@@ -66,11 +79,23 @@ describe('ProgressBar', () => {
   it('exposes progressbar semantics, budget tone and a pace marker', () => {
     render(<ProgressBar label="Dining Out budget" value={3_390} max={1_000} marker={900} valueText="339% — $2,390 over" />)
     const bar = screen.getByRole('progressbar', { name: 'Dining Out budget' })
-    expect(bar).toHaveAttribute('aria-valuenow', '3390')
+    // Clamped to the ARIA range; the overage lives in valuetext.
+    expect(bar).toHaveAttribute('aria-valuenow', '1000')
     expect(bar).toHaveAttribute('aria-valuemax', '1000')
     expect(bar).toHaveAttribute('aria-valuetext', '339% — $2,390 over')
     expect(bar).toHaveAttribute('data-tone', 'negative')
     expect(screen.getByTestId('progress-marker')).toHaveStyle({ left: '90%' })
+  })
+
+  it('default valuetext names the overage and handles a zero budget', () => {
+    const { unmount } = render(<ProgressBar label="Other" value={1_200} max={1_000} />)
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '120% — over budget')
+    unmount()
+    render(<ProgressBar label="Gifts" value={500} max={0} />)
+    const bar = screen.getByRole('progressbar')
+    expect(bar).toHaveAttribute('aria-valuemax', '0')
+    expect(bar).toHaveAttribute('aria-valuenow', '0')
+    expect(bar).toHaveAttribute('aria-valuetext', 'Over budget — no budget set')
   })
 
   it('fixed category at 100% reads neutral', () => {

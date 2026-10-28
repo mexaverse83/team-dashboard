@@ -11,7 +11,7 @@ export interface StatProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Tone for delta/hint only. The value itself stays neutral (VIS-03). */
   tone?: Tone
   size?: 'hero' | 'md' | 'sm'
-  /** Mark the value as money so the privacy toggle blurs it. */
+  /** Mark the value as money so the privacy toggle blurs it (non-money stats stay visible). */
   money?: boolean
 }
 
@@ -27,7 +27,7 @@ export function Stat({ label, value, delta, hint, tone = 'neutral', size = 'md',
       <div className="text-label font-medium text-fg-secondary">{label}</div>
       <div
         className={cn('num-metric mt-1 font-semibold text-fg', VALUE_SIZE[size])}
-        {...(money ? { 'data-money': '' } : {})}
+        {...(money ? { 'data-money': '' } : { 'data-privacy-exempt': '' })}
       >
         {value}
       </div>

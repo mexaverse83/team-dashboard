@@ -43,6 +43,23 @@ describe('buildDeterministicBrief', () => {
     expect(brief.source).toBe('live')
   })
 
+  it('1b. never says "Pause" for non-monthly, fixed or uncontrollable rows', () => {
+    const brief = buildDeterministicBrief(summary({
+      current_month: {
+        ...summary().current_month!,
+        budget_vs_actual: [
+          // Bimonthly water bill at 130% of its full-cycle budget: the summary rates this 'warning'.
+          { category: 'Water', spent: 1_300, budget: 1_000, is_non_monthly: true },
+          { category: 'Travel', spent: 26_000, budget: 20_000, is_non_monthly: true },
+          { category: 'Healthcare', spent: 9_000, budget: 2_000 },
+          { category: 'Rent/Mortgage', spent: 60_000, budget: 45_000, is_fixed: true },
+        ],
+      },
+    }), { now: NOW })
+    expect(brief.directive.rule).not.toBe('over-budget')
+    expect(brief.directive.title).not.toMatch(/^Pause/)
+  })
+
   it('2. a ≥$10k bill within 3 days', () => {
     const brief = buildDeterministicBrief(summary({
       upcoming: [

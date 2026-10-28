@@ -25,7 +25,7 @@ export function localDateKey(date: Date = new Date()): string {
  * was written. Returns an Invalid Date for unparseable input.
  */
 export function parseLocalDateKey(key: string | null | undefined): Date {
-  const match = /^(\d{4})-(\d{2})(?:-(\d{2}))?/.exec(String(key ?? '').trim())
+  const match = /^(\d{4})-(\d{2})(?:-(\d{2}))?(?:$|T)/.exec(String(key ?? '').trim())
   if (!match) return new Date(NaN)
   const year = Number(match[1])
   const month = Number(match[2])

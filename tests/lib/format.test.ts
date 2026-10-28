@@ -36,6 +36,16 @@ describe('formatMoney', () => {
     expect(formatMoney(-5_486_000, { mode: 'compact' })).toBe(`${MINUS}$5.5M`)
   })
 
+  it('negative halves keep their sign and round the magnitude once', () => {
+    expect(formatMoney(-0.5)).toBe(`${MINUS}$1`)
+    expect(formatMoney(-0.5, { mode: 'compact' })).toBe(`${MINUS}$1`)
+    expect(formatMoney(-2.5)).toBe(`${MINUS}$3`)
+    expect(formatMoney(2.5)).toBe('$3')
+    expect(formatMoney(-0.005, { mode: 'precise' })).toBe(`${MINUS}$0.01`)
+    expect(formatMoney(-0.004, { mode: 'precise' })).toBe('$0.00')
+    expect(formatMoney(-9_999.5, { mode: 'compact' })).toBe(`${MINUS}$10.0k`)
+  })
+
   it('precise keeps cents', () => {
     expect(formatMoney(1305.5, { mode: 'precise' })).toBe('$1,305.50')
     expect(formatMoney(-78.5, { mode: 'precise' })).toBe(`${MINUS}$78.50`)
@@ -69,6 +79,20 @@ describe('formatCompact / formatDelta / formatPct', () => {
     expect(formatCompact(950)).toBe('$950')
     expect(formatCompact(2_400, { currency: false })).toBe('2.4k')
     expect(formatCompact(-3_000)).toBe(`${MINUS}$3k`)
+  })
+
+  it('compact never signs a zero and promotes at both ends', () => {
+    expect(formatCompact(-0.3)).toBe('$0')
+    expect(formatCompact(-0.3, { sign: 'always' })).toBe('$0')
+    expect(formatCompact(0.3, { sign: 'always' })).toBe('$0')
+    expect(formatCompact(999.6)).toBe('$1k')
+    expect(formatCompact(999.4)).toBe('$999')
+    expect(formatCompact(1e12)).toBe('$1T')
+    expect(formatCompact(1e13)).toBe('$10T')
+    expect(formatCompact(999.96e9)).toBe('$1T')
+    expect(formatMoney(999.96e9, { mode: 'compact' })).toBe('$1.0T')
+    expect(formatDelta(-0.3)).toBe('$0')
+    expect(formatDelta(-0.3, { unit: 'pct' })).toBe('0%')
   })
 
   it('delta is always signed', () => {

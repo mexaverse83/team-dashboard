@@ -14,7 +14,7 @@ export interface ProgressBarProps extends Omit<React.HTMLAttributes<HTMLDivEleme
   marker?: number | null
   /** Accessible name, e.g. "Dining Out budget". */
   label: string
-  /** Spoken value, e.g. "55% — $69,047 short". Defaults to the percentage. */
+  /** Spoken value, e.g. "55% — $69,047 short". Defaults to the percentage (plus "over budget" past max). */
   valueText?: string
 }
 
@@ -23,6 +23,11 @@ export function ProgressBar({ value, max, tone = 'auto', projected, isFixed, mar
   const safeMax = max > 0 ? max : 0
   const pct = safeMax > 0 ? (Math.max(0, value) / safeMax) * 100 : 0
   const resolvedTone: Tone = tone === 'auto' ? getBudgetTone({ actual: value, budget: max, projected, isFixed }) : tone
+  const clampedNow = Math.min(safeMax, Math.max(0, value))
+  const over = value > safeMax && value > 0
+  const defaultValueText = safeMax > 0
+    ? `${Math.round(pct)}%${over ? ' — over budget' : ''}`
+    : (over ? 'Over budget — no budget set' : '0%')
   const markerPct = marker != null && safeMax > 0 ? Math.min(100, Math.max(0, (marker / safeMax) * 100)) : null
   return (
     <div
@@ -30,8 +35,8 @@ export function ProgressBar({ value, max, tone = 'auto', projected, isFixed, mar
       aria-label={label}
       aria-valuemin={0}
       aria-valuemax={Math.round(safeMax)}
-      aria-valuenow={Math.round(Math.max(0, value))}
-      aria-valuetext={valueText ?? `${Math.round(pct)}%`}
+      aria-valuenow={Math.round(clampedNow)}
+      aria-valuetext={valueText ?? defaultValueText}
       data-tone={resolvedTone}
       className={cn('relative h-1.5 w-full rounded-full bg-surface-3', className)}
       {...props}
