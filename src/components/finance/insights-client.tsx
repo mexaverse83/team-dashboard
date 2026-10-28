@@ -1,11 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { RefreshCw, Target, Lightbulb, Trophy, TrendingUp, Sparkles } from 'lucide-react'
+import { RefreshCw, Target, Lightbulb, Trophy, TrendingUp, Sparkles, ChevronDown, CalendarDays, Search, Home, History } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
+import { StatusPill } from '@/components/ui/status-pill'
+import { WolffAvatar } from '@/components/brand-logo'
 import { cn } from '@/lib/utils'
 import { fetchWestProjection } from '@/lib/west-projection-client'
+import { buildDeterministicBrief, type BriefSummary } from '@/lib/deterministic-brief'
+import { insightFreshnessLevel, isInsightUsable } from '@/lib/insight-freshness'
+import { mexicoCityToday } from '@/lib/dates'
+import { formatDateShort } from '@/lib/format'
+import { MiniMarkdown } from '@/lib/mini-markdown'
 import Link from 'next/link'
 
 function fmtMXN(n: number) { return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)} MXN` }
@@ -70,7 +77,7 @@ interface GoalFunding {
   fully_funded: boolean
 }
 
-interface SummaryData {
+interface SummaryData extends Omit<BriefSummary, 'current_month'> {
   current_month?: {
     month: string
     day_of_month: number
@@ -92,37 +99,33 @@ function formatMXN(n: number) {
   return n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 }
 
+// Dot + word pills instead of emoji markers (VIS-10). text-[0.75rem] because
+// tailwind-merge drops the custom text-label size next to a tone colour.
 function EffortBadge({ effort }: { effort: string }) {
-  const colors: Record<string, string> = {
-    easy: 'bg-emerald-500/10 text-emerald-500',
-    medium: 'bg-yellow-500/10 text-yellow-500',
-    hard: 'bg-red-500/10 text-red-500',
-  }
-  return (
-    <span className={cn('text-xs font-medium px-2 py-0.5 rounded-full', colors[effort] || colors.medium)}>
-      {effort === 'easy' ? '🟢 Easy' : effort === 'medium' ? '🟡 Medium' : '🔴 Hard'}
-    </span>
-  )
+  const tone = effort === 'easy' ? 'positive' : effort === 'hard' ? 'negative' : 'warning'
+  return <StatusPill tone={tone} className="text-[0.75rem]">{effort === 'easy' ? 'Easy' : effort === 'hard' ? 'Hard' : 'Medium'}</StatusPill>
 }
 
 function StatusBadge({ status, pct }: { status: string; pct: number }) {
-  if (status === 'over') return <span className="text-xs font-semibold text-red-500">🔴 {pct}%</span>
-  if (status === 'warning') return <span className="text-xs font-semibold text-yellow-500">⚠️ {pct}%</span>
-  return <span className="text-xs font-semibold text-emerald-500">✅ {pct}%</span>
+  if (status === 'over') return <StatusPill tone="negative" className="text-[0.75rem]">{pct}%</StatusPill>
+  if (status === 'warning') return <StatusPill tone="warning" className="text-[0.75rem]">{pct}%</StatusPill>
+  return <StatusPill tone="positive" className="text-[0.75rem]">{pct}%</StatusPill>
 }
 
 function PaceBadge({ pct }: { pct: number }) {
-  if (pct > 20) return <span className="text-xs font-medium text-red-500">🔴 {pct}% over pace</span>
-  if (pct > 0) return <span className="text-xs font-medium text-yellow-500">⚠️ {pct}% over pace</span>
-  if (pct < -10) return <span className="text-xs font-medium text-emerald-500">✅ {Math.abs(pct)}% under pace</span>
-  return <span className="text-xs font-medium text-[hsl(var(--text-secondary))]">📊 On pace</span>
+  if (pct > 20) return <span className="text-xs font-medium text-negative">{pct}% over pace</span>
+  if (pct > 0) return <span className="text-xs font-medium text-warning">{pct}% over pace</span>
+  if (pct < -10) return <span className="text-xs font-medium text-positive">{Math.abs(pct)}% under pace</span>
+  return <span className="text-xs font-medium text-fg-secondary">On pace</span>
 }
+
+const FRESHNESS_DOT = { fresh: 'bg-positive', aging: 'bg-warning', stale: 'bg-fg-tertiary', missing: 'bg-fg-tertiary' } as const
 
 const STORAGE_KEY = 'wolff-insights-cache'
 
 function saveToLocal(insights: Insight[], generatedAt: string) {
   try {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = mexicoCityToday()
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ insights, generatedAt, date: today }))
   } catch { /* localStorage full or unavailable */ }
 }
@@ -132,7 +135,7 @@ function loadFromLocal(): { insights: Insight[]; generatedAt: string } | null {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const data = JSON.parse(raw)
-    const today = new Date().toISOString().slice(0, 10)
+    const today = mexicoCityToday()
     // Only use cache from today
     if (data.date !== today) {
       localStorage.removeItem(STORAGE_KEY)
@@ -154,6 +157,9 @@ export default function InsightsClient() {
   const [stale, setStale] = useState(false)
   const [showRawData, setShowRawData] = useState(true)
   const [westSnapshot, setWestSnapshot] = useState<WestSnapshot | null>(null)
+  const [archived, setArchived] = useState<Insight[]>([])
+  const [liveSource, setLiveSource] = useState(false)
+  const [showLast, setShowLast] = useState(false)
   const [netWorthSnapshot, setNetWorthSnapshot] = useState<NetWorthSnapshot | null>(null)
 
   const fetchAll = async (refresh = false) => {
@@ -235,6 +241,8 @@ export default function InsightsClient() {
       setGeneratedAt(loadedAt)
       setCached(insightsData.cached || false)
       setStale(insightsData.stale || false)
+      setArchived(Array.isArray(insightsData.archived) ? insightsData.archived : [])
+      setLiveSource(insightsData.source === 'live' || Boolean(insightsData.expired))
 
       if (summaryRes.ok) {
         const summaryData = await summaryRes.json()
@@ -262,11 +270,21 @@ export default function InsightsClient() {
 
   useEffect(() => { fetchAll() }, [])
 
-  const alerts = insights.filter(i => i.type === 'alert')
-  const recommendations = insights.filter(i => i.type === 'recommendation' || i.type === 'saving')
-  const wins = insights.filter(i => i.type === 'win')
-  const forecasts = insights.filter(i => i.type === 'forecast')
-  const patterns = insights.filter(i => i.type === 'pattern')
+  // A brief from another day is history, not today's advice (UX-01, VIS-07).
+  // v2 API: source:'live' items are already deterministic, archived = old LLM brief.
+  const llmUsable = !liveSource && isInsightUsable(generatedAt, { category: 'WIDGET' })
+  const lastBrief = llmUsable ? [] : (archived.length ? archived : liveSource ? [] : insights)
+  const shown = llmUsable ? insights : liveSource ? insights.filter(i => !['WIDGET', 'WEEK', 'HOUSEHOLD'].includes((i.category || '').toUpperCase())) : []
+  const live = !llmUsable && summary?.current_month ? buildDeterministicBrief(summary as BriefSummary) : null
+  const visibleInsights = showLast ? [...shown, ...lastBrief] : shown
+  const lastDate = generatedAt ? formatDateShort(new Date(generatedAt)) : null
+  const freshness = insightFreshnessLevel(generatedAt)
+
+  const alerts = visibleInsights.filter(i => i.type === 'alert')
+  const recommendations = visibleInsights.filter(i => i.type === 'recommendation' || i.type === 'saving')
+  const wins = visibleInsights.filter(i => i.type === 'win')
+  const forecasts = visibleInsights.filter(i => i.type === 'forecast')
+  const patterns = visibleInsights.filter(i => i.type === 'pattern')
 
   const bva = summary?.current_month?.budget_vs_actual || []
   const msiTimeline = summary?.msi_timeline || []
@@ -284,14 +302,15 @@ export default function InsightsClient() {
         <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 mb-8">
           <div className="min-w-0 col-start-1 row-start-1">
             <div className="flex items-center gap-2.5">
-              <span className="text-2xl">🐺</span>
-              <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Daily Brief</h1>
+              <WolffAvatar className="h-9 w-9" />
+              <h1 className="text-[1.75rem] font-semibold leading-[2.125rem] tracking-[-0.02em] text-fg">Daily Brief</h1>
             </div>
           </div>
-          <p className="col-span-2 row-start-2 sm:col-span-1 sm:col-start-1 text-sm text-[hsl(var(--text-secondary))] mt-1">
-            {generatedAt ? formatTime(generatedAt) : 'No insights yet'} 
-            {cached && !stale && ' · Cached'}
-            {stale && <span className="whitespace-nowrap"> · Stale (&gt;24h old)</span>}
+          <p className="col-span-2 row-start-2 mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-fg-secondary sm:col-span-1 sm:col-start-1">
+            <span aria-hidden="true" className={cn('inline-block h-2 w-2 rounded-full', llmUsable ? FRESHNESS_DOT[freshness] : 'bg-positive')} />
+            {llmUsable
+              ? <>Mona’s brief · {generatedAt ? formatTime(generatedAt) : ''}{cached && !stale && ' · Cached'}</>
+              : <>Live plan from today’s numbers{lastDate && <span className="whitespace-nowrap text-fg-tertiary"> · last AI brief {lastDate}</span>}</>}
           </p>
           <button
             onClick={handleRefresh}
@@ -334,7 +353,7 @@ export default function InsightsClient() {
         {/* Error */}
         {error && !loading && (
           <GlassCard className="text-center py-12">
-            <span className="text-3xl block mb-3">🐺</span>
+            <WolffAvatar className="mx-auto mb-3 h-10 w-10" />
             <p className="text-sm text-[hsl(var(--text-secondary))]">{error}</p>
             <button onClick={() => fetchAll(true)} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-medium transition-colors">
               Try Again
@@ -345,8 +364,38 @@ export default function InsightsClient() {
         {/* Content */}
         {!loading && !error && (
           <div className="space-y-8">
-            {/* Hero — top priority insight */}
-            {insights[0] && (
+            {/* Stale brief: the live plan leads; the old brief is history (VIS-07). */}
+            {!llmUsable && live && (
+              <section aria-labelledby="live-move-title" className="rounded-xl border border-border bg-surface p-4 shadow-card sm:p-6">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <StatusPill tone="positive" className="text-[0.75rem]">Live plan</StatusPill>
+                  <span className="text-label text-fg-tertiary">Today’s move</span>
+                </div>
+                <h2 id="live-move-title" className="text-lg font-semibold leading-snug text-fg">{live.directive.title}</h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-fg-secondary">{live.directive.detail}</p>
+                <dl className="mt-4 grid gap-3 border-t border-border pt-3 text-sm sm:grid-cols-2">
+                  <div><dt className="text-label text-fg-tertiary">This week</dt><dd className="mt-0.5 font-medium text-fg">{live.week.title}</dd><dd className="text-label text-fg-tertiary">{live.week.detail}</dd></div>
+                  <div><dt className="text-label text-fg-tertiary">This month</dt><dd className="mt-0.5 font-medium text-fg">{live.household.title}</dd><dd className="text-label text-fg-tertiary">{live.household.detail}</dd></div>
+                </dl>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link href={live.directive.url} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-border px-3 text-label font-semibold text-fg hover:bg-surface-2">Open</Link>
+                  <Link href={live.coach.url} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-border px-3 text-label font-medium text-fg-secondary hover:bg-surface-2 hover:text-fg">Ask Mona: {live.coach.title}</Link>
+                </div>
+              </section>
+            )}
+            {!llmUsable && lastBrief.length > 0 && (
+              <div className="rounded-xl border border-border bg-surface-2">
+                <button type="button" onClick={() => setShowLast(v => !v)} aria-expanded={showLast}
+                  className="flex min-h-12 w-full items-center justify-between gap-3 px-4 text-left text-sm font-medium text-fg-secondary">
+                  <span className="flex items-center gap-2"><History className="h-4 w-4" aria-hidden="true" />{showLast ? 'Hide last brief' : `Show last brief${lastDate ? ` (${lastDate})` : ''}`}</span>
+                  <ChevronDown className={cn('h-4 w-4 transition-transform', showLast && 'rotate-180')} aria-hidden="true" />
+                </button>
+                {showLast && <p className="border-t border-border px-4 py-2.5 text-label text-fg-tertiary">Written {lastDate ?? 'earlier'} — its numbers may no longer match this month. The items appear in the sections below.</p>}
+              </div>
+            )}
+
+            {/* Hero — top priority insight (only while the brief is current) */}
+            {llmUsable && insights[0] && (
               <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 p-4 sm:p-6">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl" />
                 <div className="relative">
@@ -357,7 +406,7 @@ export default function InsightsClient() {
                     <span className="text-xs font-semibold uppercase tracking-wider text-amber-600">Today&apos;s Priority</span>
                   </div>
                   <p className="text-lg font-semibold leading-relaxed">{insights[0].title}</p>
-                  <p className="text-sm text-[hsl(var(--text-secondary))] mt-2 leading-relaxed">{insights[0].detail}</p>
+                  <MiniMarkdown text={insights[0].detail} className="text-sm text-[hsl(var(--text-secondary))] mt-2 leading-relaxed" />
                 </div>
               </div>
             )}
@@ -419,7 +468,7 @@ export default function InsightsClient() {
                       </div>
                       <div className="col-span-2 text-right">
                         {row.is_non_monthly
-                          ? <span className="text-xs font-medium text-blue-600">📅 {row.billing_cycle}</span>
+                          ? <span className="inline-flex items-center gap-1 text-xs font-medium text-fg-secondary"><CalendarDays className="h-3 w-3" aria-hidden="true" />{row.billing_cycle}</span>
                           : <PaceBadge pct={row.pace_vs_budget_pct} />}
                       </div>
                     </div>
@@ -449,7 +498,7 @@ export default function InsightsClient() {
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className="text-sm shrink-0">{row.icon}</span>
                           <span className="text-sm font-medium truncate">{row.category}</span>
-                          {row.is_non_monthly && <span className="shrink-0 whitespace-nowrap text-[10px] font-medium text-blue-600 bg-blue-400/10 px-1.5 py-0.5 rounded">📅 {row.billing_cycle}</span>}
+                          {row.is_non_monthly && <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded bg-surface-3 px-1.5 py-0.5 text-micro font-medium text-fg-secondary"><CalendarDays className="h-3 w-3" aria-hidden="true" />{row.billing_cycle}</span>}
                         </div>
                         <StatusBadge status={row.status} pct={row.pct_used} />
                       </div>
@@ -489,7 +538,7 @@ export default function InsightsClient() {
                 <GlassCard className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-base">🏗️</span>
+                      <Home className="h-4 w-4 text-fg-secondary" aria-hidden="true" />
                       <span className="text-sm font-semibold">WEST Apartment</span>
                     </div>
                     <Link href="/finance/investments" className="inline-flex min-h-10 items-center text-xs text-blue-600 hover:underline">Full tracker →</Link>
@@ -563,9 +612,9 @@ export default function InsightsClient() {
                   {alerts.map((a, i) => (
                     <div key={i} className={cn('rounded-lg border p-4', a.priority === 'high' ? 'border-red-500/30 bg-red-500/5' : 'border-yellow-500/30 bg-yellow-500/5')}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">{a.icon} {a.title}</span>
+                        <span className="text-sm font-medium">{a.title}</span>
                       </div>
-                      <p className="text-sm text-[hsl(var(--text-secondary))]">{a.detail}</p>
+                      <MiniMarkdown text={a.detail} className="text-sm text-[hsl(var(--text-secondary))]" />
                     </div>
                   ))}
                 </div>
@@ -591,7 +640,7 @@ export default function InsightsClient() {
                           <p className="text-sm text-[hsl(var(--text-secondary))] mt-1 leading-relaxed">{rec.detail}</p>
                           {rec.savings_amount && rec.savings_amount > 0 && (
                             <p className="text-xs font-medium text-emerald-500 mt-1.5">
-                              💰 Potential savings: ${formatMXN(rec.savings_amount)}/mo
+                              Potential savings: ${formatMXN(rec.savings_amount)}/mo
                             </p>
                           )}
                         </div>
@@ -645,7 +694,7 @@ export default function InsightsClient() {
                 <div className="space-y-2">
                   {patterns.map((p, i) => (
                     <div key={i} className="flex items-start gap-3 rounded-lg border border-[hsl(var(--border))] p-4">
-                      <span className="text-sm shrink-0 mt-0.5">🔍</span>
+                      <Search className="mt-0.5 h-4 w-4 shrink-0 text-fg-secondary" aria-hidden="true" />
                       <div>
                         <p className="text-sm font-medium">{p.title}</p>
                         <p className="text-sm text-[hsl(var(--text-secondary))] mt-0.5">{p.detail}</p>
@@ -749,12 +798,12 @@ export default function InsightsClient() {
                           <div className="pt-2 mt-1 border-t border-[hsl(var(--border))]">
                             {goalFunding.fully_funded ? (
                               <div className="flex justify-between text-emerald-500 font-semibold">
-                                <span>✅ Fully funded</span>
+                                <span>Fully funded</span>
                                 <span className="tabular-nums">+${formatMXN(Math.abs(goalFunding.gap))}/mo surplus</span>
                               </div>
                             ) : (
                               <div className="flex justify-between text-yellow-500 font-semibold">
-                                <span>⚠️ Funding gap</span>
+                                <span>Funding gap</span>
                                 <span className="tabular-nums">-${formatMXN(goalFunding.gap)}/mo short</span>
                               </div>
                             )}
@@ -791,11 +840,11 @@ export default function InsightsClient() {
             )}
 
             {/* Empty insights but has summary data */}
-            {insights.length === 0 && bva.length > 0 && (
+            {insights.length === 0 && !live && bva.length > 0 && (
               <GlassCard className="text-center py-8">
-                <span className="text-2xl block mb-2">🐺</span>
+                <WolffAvatar className="mx-auto mb-2 h-9 w-9" />
                 <p className="text-sm text-[hsl(var(--text-secondary))]">
-                  AI insights unavailable — check that ANTHROPIC_API_KEY is configured.
+                  No AI brief yet today. The live plan and budget table use today’s numbers.
                 </p>
                 <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">
                   Budget vs actual data is still shown above from live data.
@@ -806,14 +855,14 @@ export default function InsightsClient() {
             {/* Fully empty — prompt generation */}
             {insights.length === 0 && bva.length === 0 && (
               <GlassCard className="text-center py-16">
-                <span className="text-4xl block mb-3">🐺</span>
+                <WolffAvatar className="mx-auto mb-3 h-12 w-12" />
                 <p className="text-sm text-[hsl(var(--text-secondary))] italic mb-4">&ldquo;Hit Generate to get your first daily brief.&rdquo;</p>
                 <button
                   onClick={handleRefresh}
                   disabled={generating}
                   className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-medium transition-colors disabled:opacity-50"
                 >
-                  {generating ? 'Generating...' : '🐺 Generate Daily Brief'}
+                  {generating ? 'Generating...' : 'Generate Daily Brief'}
                 </button>
               </GlassCard>
             )}

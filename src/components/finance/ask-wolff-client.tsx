@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { WolffAvatar } from '@/components/brand-logo'
+import { MiniMarkdown } from '@/lib/mini-markdown'
 
 interface ChatMessage {
   id: string
@@ -16,12 +17,33 @@ interface ChatMessage {
 }
 
 const SUGGESTIONS = [
-  'What is our one financial action today?',
+  'What is our one financial move today?',
   'Can we afford dinner out this weekend?',
-  'Help us plan a romantic dinner without moving our goals.',
+  'How are we doing vs the WEST plan?',
   'How much should move to GBM this month?',
   'What changed since our last transaction?',
 ]
+
+const SPANISH_HINTS = /[¿¡ñ]|\b(que|para|con|los|las|del|est[aá]s?|puedes|gastos?|semana|mes|ahorro|tenemos|hoy|pero|también|cuánto)\b/gi
+
+/** Rough language sniff so VoiceOver reads Spanish bubbles with a Spanish voice (MOB-20). */
+export function detectLang(text: string): 'es' | undefined {
+  const words = text.split(/\s+/).filter(Boolean).length
+  if (!words) return undefined
+  const hits = text.match(SPANISH_HINTS)?.length ?? 0
+  return hits >= 2 && hits / words > 0.08 ? 'es' : undefined
+}
+
+const isMonitorQuestion = (m: ChatMessage) => m.role === 'user' && Boolean(m.asked_by?.startsWith('wolff-monitor:'))
+
+/** Merge a (full or incremental) server page into the local list, dropping optimistic copies it confirms. */
+export function mergeMessages(local: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
+  const byId = new Map(local.filter(m => !m.id.startsWith('tmp-')).map(m => [m.id, m]))
+  for (const m of incoming) byId.set(m.id, m)
+  const confirmed = new Set(incoming.filter(m => m.role === 'user').map(m => m.content.trim()))
+  const pending = local.filter(m => m.id.startsWith('tmp-') && !confirmed.has(m.content.trim()))
+  return [...byId.values()].sort((a, b) => a.created_at.localeCompare(b.created_at)).concat(pending)
+}
 
 export default function AskWolffClient() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -29,30 +51,46 @@ export default function AskWolffClient() {
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const lastSeen = useRef<string | null>(null)
 
-  const load = useCallback(async () => {
+  // First load reads the latest page; later polls ask only for what is new.
+  const load = useCallback(async (full = false) => {
     try {
-      const res = await fetch('/api/finance/wolff-chat', { cache: 'no-store' })
+      const since = !full && lastSeen.current ? `?since=${encodeURIComponent(lastSeen.current)}` : ''
+      const res = await fetch(`/api/finance/wolff-chat${since}`, { cache: 'no-store' })
       if (!res.ok) return
       const data = await res.json()
-      setMessages(data.messages || [])
+      const incoming: ChatMessage[] = Array.isArray(data.messages) ? data.messages : []
+      const newest = incoming.reduce<string | null>((max, m) => (!max || m.created_at > max ? m.created_at : max), lastSeen.current)
+      lastSeen.current = newest
+      setMessages(local => mergeMessages(full ? local.filter(m => m.id.startsWith('tmp-')) : local, incoming))
     } catch { /* offline */ }
     finally { setLoading(false) }
   }, [])
 
-  // Poll — faster while a question is waiting for Wolff
-  const waiting = messages.some(m => m.role === 'user' && m.status === 'pending' && !m.asked_by?.startsWith('wolff-monitor:'))
+  const answered = new Set(messages.filter(m => m.role === 'wolff' && m.reply_to).map(m => m.reply_to))
+  const waiting = messages.some(m => m.role === 'user' && m.status === 'pending' && !isMonitorQuestion(m) && !answered.has(m.id))
+
   useEffect(() => {
     const initial = window.setTimeout(() => {
       const prompt = new URLSearchParams(window.location.search).get('prompt')
       if (prompt) setInput(prompt.slice(0, 1000))
-      void load()
+      void load(true)
     }, 0)
     return () => window.clearTimeout(initial)
   }, [load])
+
+  // Poll faster while a question waits for Mona; pause while the tab is hidden.
   useEffect(() => {
-    const id = setInterval(load, waiting ? 3000 : 15000)
-    return () => clearInterval(id)
+    const tick = () => { if (document.visibilityState === 'visible') void load() }
+    const id = window.setInterval(tick, waiting ? 3000 : 15000)
+    const onVisible = () => { if (document.visibilityState === 'visible') void load() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [load, waiting])
 
   useEffect(() => {
@@ -64,7 +102,6 @@ export default function AskWolffClient() {
     if (!content || sending) return
     setSending(true)
     setInput('')
-    // Optimistic append
     const tmp: ChatMessage = { id: `tmp-${crypto.randomUUID()}`, role: 'user', content, status: 'pending', created_at: new Date().toISOString() }
     setMessages(m => [...m, tmp])
     try {
@@ -75,7 +112,7 @@ export default function AskWolffClient() {
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        setMessages(m => m.map(x => x.id === tmp.id ? { ...x, status: 'failed', content: `${content}\n(⚠ ${err.error || 'failed to send'})` } : x))
+        setMessages(m => m.map(x => x.id === tmp.id ? { ...x, status: 'failed', content: `${content}\n(${err.error || 'failed to send'})` } : x))
         return
       }
       await load()
@@ -87,91 +124,90 @@ export default function AskWolffClient() {
     }
   }
 
-  const monitorIds = new Set(messages.filter(m => m.role === 'user' && m.asked_by?.startsWith('wolff-monitor:')).map(m => m.id))
-  const visibleMessages = messages.filter(m => !(m.role === 'user' && monitorIds.has(m.id)))
+  const monitorIds = new Set(messages.filter(isMonitorQuestion).map(m => m.id))
+  const visibleMessages = messages.filter(m => !monitorIds.has(m.id))
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-11rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-96 max-w-2xl flex-col md:h-[calc(100vh-4rem)] md:min-h-[560px]">
+    <div className="mx-auto flex h-[calc(100dvh-11rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-96 w-full max-w-2xl flex-col md:h-[calc(100vh-4.5rem)] md:min-h-[560px]">
       <div className="mb-4 flex items-center gap-3">
-        <WolffAvatar className="h-11 w-11 drop-shadow-sm" />
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">Ask Mona</h1>
-            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700">Live plan</span>
-          </div>
-          <p className="text-xs text-[hsl(var(--text-secondary))]">One verdict, the numbers behind it, and your next move.</p>
+        <WolffAvatar className="h-11 w-11" />
+        <div className="min-w-0">
+          <h1 className="text-[1.75rem] font-semibold leading-[2.125rem] tracking-[-0.02em] text-fg">Ask Mona</h1>
+          <p className="text-label text-fg-secondary">One verdict, the numbers behind it, and your next move.</p>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] p-3 sm:p-4 shadow-[var(--shadow-elevate)]">
+      <div
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-label="Conversation with Mona"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-xl border border-border bg-surface p-3 shadow-card sm:p-4"
+      >
         {loading ? (
-          <p className="py-10 text-center text-sm text-[hsl(var(--text-tertiary))]">Loading conversation…</p>
+          <p className="py-10 text-center text-sm text-fg-tertiary">Loading conversation…</p>
         ) : visibleMessages.length === 0 ? (
           <div className="py-8 text-center">
-            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--brand)/0.08)] text-xl">🐺</span>
-            <p className="mt-3 text-sm font-semibold">Make the next decision simple.</p>
-            <p className="mt-1 text-xs text-[hsl(var(--text-tertiary))]">Mona checks your live month, WEST target, treatment plan, goals, and budgets.</p>
-            <div className="mx-auto mt-5 grid max-w-lg gap-2 sm:grid-cols-2">
-              {SUGGESTIONS.map(s => (
-                <button key={s} onClick={() => send(s)}
-                  className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--brand)/0.035)] px-3 py-2.5 text-left text-xs font-medium text-[hsl(var(--foreground))] hover:border-emerald-500/30 hover:bg-emerald-500/5">
-                  {s}
-                </button>
-              ))}
-            </div>
+            <WolffAvatar className="mx-auto h-12 w-12" />
+            <p className="mt-3 text-sm font-semibold text-fg">Make the next decision simple.</p>
+            <p className="mt-1 text-label text-fg-tertiary">Mona checks your live month, the WEST plan, the baby plan, goals and budgets.</p>
           </div>
         ) : (
           visibleMessages.map(m => {
             const proactive = m.role === 'wolff' && Boolean(m.reply_to && monitorIds.has(m.reply_to))
+            const mona = m.role === 'wolff'
             return (
-            <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
-              <div className={cn(
-                'max-w-[90%] sm:max-w-[85%] break-words [overflow-wrap:anywhere] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
-                m.role === 'user'
-                  ? 'rounded-br-md bg-blue-600 text-white'
-                  : proactive
-                    ? 'rounded-bl-md border border-orange-400/25 bg-orange-400/[0.07]'
-                    : 'rounded-bl-md border border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))]/60'
-              )}>
-                {proactive && <span className="mb-1 block text-[9px] font-bold uppercase tracking-[0.14em] text-orange-300">Proactive transaction review</span>}
-                {m.role === 'wolff' && <span className="mr-1.5">🐺</span>}
-                {m.content}
-                {m.role === 'user' && m.status === 'failed' && (
-                  <span className="mt-1 block text-[10px] text-rose-200">⚠ Mona couldn&apos;t answer this one — try again</span>
-                )}
+              <div key={m.id} className={cn('flex items-end gap-2', mona ? 'justify-start' : 'justify-end')}>
+                {mona && <WolffAvatar className="mb-0.5 h-6 w-6 shrink-0" />}
+                <div lang={detectLang(m.content)} className={cn(
+                  'max-w-[88%] break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere] sm:max-w-[80%]',
+                  !mona && 'whitespace-pre-wrap rounded-br-md bg-primary text-primary-fg',
+                  mona && !proactive && 'rounded-bl-md border border-border bg-surface-2 text-fg',
+                  proactive && 'rounded-bl-md border-l-2 border-warning bg-surface-2 text-fg',
+                )}>
+                  {proactive && <span className="mb-1 block text-label font-semibold text-warning">Mona noticed</span>}
+                  {mona ? <MiniMarkdown text={m.content} /> : m.content}
+                  {!mona && m.status === 'failed' && (
+                    <span className="mt-1 block text-label opacity-90">Mona couldn&apos;t answer this one. Try again.</span>
+                  )}
+                </div>
               </div>
-            </div>
-          )})
+            )
+          })
         )}
         {waiting && (
-          <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-md border border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))]/60 px-3.5 py-2.5 text-sm text-[hsl(var(--text-secondary))]">
-              🐕 <span className="animate-pulse">Mona is checking the numbers…</span>
+          <div className="flex items-end gap-2">
+            <WolffAvatar className="mb-0.5 h-6 w-6 shrink-0" />
+            <div className="rounded-2xl rounded-bl-md border border-border bg-surface-2 px-3.5 py-2.5 text-sm text-fg-secondary">
+              <span className="animate-pulse">Mona is checking the numbers…</span>
             </div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      <form
-        onSubmit={e => { e.preventDefault(); send() }}
-        className="mt-3 flex items-center gap-2"
-      >
+      <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none]" aria-label="Suggested questions">
+        {SUGGESTIONS.map(s => (
+          <button key={s} type="button" onClick={() => send(s)} disabled={sending}
+            className="min-h-11 shrink-0 whitespace-nowrap rounded-full border border-border bg-surface px-3.5 text-label font-medium text-fg-secondary hover:border-border-strong hover:text-fg disabled:opacity-50">
+            {s}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={e => { e.preventDefault(); send() }} className="mt-2 flex items-center gap-2">
         <input
+          ref={inputRef}
           aria-label="Your question for Mona"
           value={input}
           onChange={e => setInput(e.target.value)}
           placeholder="Ask about your money…"
           maxLength={1000}
-          className="min-w-0 flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))] px-4 py-3 text-base outline-none sm:text-sm focus:border-emerald-500/50"
+          className="min-h-12 min-w-0 flex-1 rounded-xl border border-border bg-surface px-4 text-base text-fg outline-none placeholder:text-fg-tertiary focus:border-border-strong sm:text-sm"
         />
-        <button
-          type="submit"
-          disabled={!input.trim() || sending}
-          aria-label="Send"
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white sm:h-auto sm:w-auto sm:p-3 transition-colors hover:bg-emerald-500 disabled:opacity-40"
-        >
-          <Send className="h-4 w-4" />
+        <button type="submit" disabled={!input.trim() || sending} aria-label="Send"
+          className="btn-primary flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-opacity disabled:opacity-40">
+          <Send className="h-4 w-4" aria-hidden="true" />
         </button>
       </form>
     </div>

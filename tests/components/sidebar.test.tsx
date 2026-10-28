@@ -1,132 +1,103 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { Sidebar } from '@/components/Sidebar'
+import { allFinanceNavItems, moreFinanceSection, paletteOnlyItems, primaryFinanceSections } from '@/lib/finance-navigation'
 
-// Mock next/navigation
+const nav = vi.hoisted(() => ({ pathname: '/finance' }))
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/finance',
+  usePathname: () => nav.pathname,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
 }))
 
+const desktopNav = () => screen.getByRole('navigation', { name: 'Primary finance navigation' })
+
 describe('Sidebar', () => {
   beforeEach(() => {
+    nav.pathname = '/finance'
+    window.localStorage.clear()
+    document.body.classList.remove('privacy-on')
     window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })
   })
-  it('renders expanded at fixed width (collapse feature removed)', () => {
+
+  it('groups the nav as Home / Activity / Plan / Wealth / Mona with a More group', () => {
+    expect(primaryFinanceSections.map(s => s.label)).toEqual(['Activity', 'Plan', 'Wealth', 'Mona'])
+    expect(Object.fromEntries(primaryFinanceSections.map(s => [s.label, s.items.map(i => i.label)]))).toEqual({
+      Activity: ['Transactions', 'Budgets', 'Subscriptions', 'MSI Installments', 'Income'],
+      Plan: ['Goals & WEST', 'Family & Baby', 'Emergency Fund'],
+      Wealth: ['Investments', 'Debt Planner', 'Reports'],
+      Mona: ['Ask Mona', 'Daily Brief'],
+    })
+    expect(moreFinanceSection.items.map(i => i.label)).toEqual(['Spending Audit', 'Auto Rules', 'Budget Builder'])
+    render(<Sidebar />)
+    for (const label of ['Activity', 'Plan', 'Wealth', 'Mona', 'More']) expect(within(desktopNav()).getByText(label)).toBeInTheDocument()
+  })
+
+  it('keeps Crypto out of the nav (palette only)', () => {
+    expect(allFinanceNavItems.some(i => i.href.includes('crypto') || i.label === 'Crypto')).toBe(false)
+    expect(paletteOnlyItems.find(i => i.label === 'Crypto')?.href).toBe('/finance/investments?tab=Crypto')
+    render(<Sidebar />)
+    expect(screen.getAllByRole('link').map(l => l.getAttribute('href'))).not.toContain('/finance/crypto')
+  })
+
+  it('collapses More by default and remembers it when opened', () => {
+    const { unmount } = render(<Sidebar />)
+    const toggle = within(desktopNav()).getByRole('button', { name: /More/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(desktopNav()).queryByRole('link', { name: 'Auto Rules' })).not.toBeInTheDocument()
+    fireEvent.click(toggle)
+    expect(within(desktopNav()).getByRole('link', { name: 'Auto Rules' })).toHaveAttribute('href', '/finance/rules')
+    expect(window.localStorage.getItem('mona:nav-more-open')).toBe('1')
+    unmount()
+    render(<Sidebar />)
+    expect(within(desktopNav()).getByRole('button', { name: /More/ })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('opens More when the current page lives there', () => {
+    nav.pathname = '/finance/audit'
+    render(<Sidebar />)
+    expect(within(desktopNav()).getByRole('link', { name: 'Spending Audit' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('has no masthead quick-add; the FAB lives in the finance layout', () => {
+    render(<Sidebar />)
+    expect(screen.queryByRole('link', { name: 'Add transaction' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('link').map(l => l.getAttribute('href'))).not.toContain('/finance/transactions?add=1')
+  })
+
+  it('mobile masthead shows the page name with 44px controls', () => {
     const { container } = render(<Sidebar />)
-    const aside = container.querySelector('aside')!
-    expect(aside).toHaveClass('w-60')
+    const masthead = container.querySelector('header.mobile-masthead')!
+    expect(masthead.textContent).toContain('Home')
+    for (const button of masthead.querySelectorAll('button')) expect(button).toHaveClass('h-11', 'w-11')
   })
 
-  it('renders all nav links (finance only)', () => {
+  it('toggles the privacy blur and remembers it', () => {
     render(<Sidebar />)
-    const links = screen.getAllByRole('link')
-    // Mobile dock (4 links + More button), mobile quick-add, and desktop finance (18 links incl. Family)
-    expect(links.length).toBe(23)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Hide amounts' })[0])
+    expect(document.body).toHaveClass('privacy-on')
+    expect(window.localStorage.getItem('mona:privacy')).toBe('1')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Show amounts' })[0])
+    expect(document.body).not.toHaveClass('privacy-on')
   })
 
-  it('has correct finance nav hrefs', () => {
+  it('offers the theme toggle in the sidebar footer', () => {
     render(<Sidebar />)
-    const hrefs = screen.getAllByRole('link').map(l => l.getAttribute('href'))
-    expect(hrefs).toContain('/finance')
-    expect(hrefs).toContain('/finance/transactions')
-    expect(hrefs).toContain('/finance/budgets')
-    expect(hrefs).toContain('/finance/subscriptions')
-    expect(hrefs).toContain('/finance/income')
-    expect(hrefs).toContain('/finance/investments')
-    expect(hrefs).toContain('/finance/crypto')
-    expect(hrefs).toContain('/finance/budget-builder')
-    expect(hrefs).toContain('/finance/installments')
-    expect(hrefs).toContain('/finance/debt')
-    expect(hrefs).toContain('/finance/emergency-fund')
-    expect(hrefs).toContain('/finance/goals')
-    expect(hrefs).toContain('/finance/insights')
-    expect(hrefs).toContain('/finance/audit')
-    expect(hrefs).toContain('/finance/reports')
-    expect(hrefs).toContain('/finance/rules')
+    expect(screen.getByRole('radiogroup', { name: 'Theme' })).toBeInTheDocument()
   })
 
-  it('has no agent nav hrefs', () => {
+  it('mobile dock: Home, Activity, Mona, Goals and More, with 12px labels and an active indicator', () => {
     render(<Sidebar />)
-    const hrefs = screen.getAllByRole('link').map(l => l.getAttribute('href'))
-    for (const agentHref of ['/', '/mission-control', '/tasks', '/comms', '/metrics', '/costs', '/agents']) {
-      expect(hrefs).not.toContain(agentHref)
-    }
-  })
-
-  it('shows visible nav labels', () => {
-    render(<Sidebar />)
-    expect(screen.getAllByText('Overview').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Transactions').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('MSI Tracker').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Debt Planner').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Spending Audit').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Auto Rules').length).toBeGreaterThanOrEqual(1)
-  })
-
-  it('shows no agent nav labels', () => {
-    render(<Sidebar />)
-    expect(screen.queryByText('Mission Control')).not.toBeInTheDocument()
-    expect(screen.queryByText('Agents')).not.toBeInTheDocument()
-    expect(screen.queryByText('Tasks')).not.toBeInTheDocument()
-    expect(screen.queryByText('Comms')).not.toBeInTheDocument()
-  })
-
-  it('shows finance section group labels', () => {
-    render(<Sidebar />)
-    expect(screen.getAllByText('Daily').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Money').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Goals').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Cash flow').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Commitments').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Analysis & automation').length).toBeGreaterThanOrEqual(1)
-  })
-
-  it('shows household branding (no agent team name)', () => {
-    render(<Sidebar />)
-    expect(screen.getByText('Bernardo + Laura')).toBeInTheDocument()
-    expect(screen.getAllByText('Our goals, together').length).toBeGreaterThanOrEqual(1)
-    expect(screen.queryByText('Interstellar Squad')).not.toBeInTheDocument()
-    expect(screen.queryByText('Squad Dashboard')).not.toBeInTheDocument()
-  })
-
-  it('shows version', () => {
-    render(<Sidebar />)
-    expect(screen.getByText('v2.1 · Mona Finance')).toBeInTheDocument()
-  })
-
-  it('shows connection indicator', () => {
-    const { container } = render(<Sidebar />)
-    const dot = container.querySelector('.bg-emerald-500.animate-pulse')
-    expect(dot).toBeInTheDocument()
-    expect(screen.getByText('Connected')).toBeInTheDocument()
-  })
-
-  it('mobile has top bar with hamburger', () => {
-    const { container } = render(<Sidebar />)
-    const topBar = container.querySelector('.md\\:hidden.fixed.top-0')
-    expect(topBar).toBeInTheDocument()
-    expect(topBar?.querySelector('button')).toBeInTheDocument()
-    expect(topBar?.textContent).toContain('Overview')
-  })
-
-  it('keeps new transaction one tap away in the mobile header', () => {
-    render(<Sidebar />)
-    expect(screen.getByRole('link', { name: 'Add transaction' })).toHaveAttribute('href', '/finance/transactions?add=1')
-  })
-
-  it('mobile bottom bar has four destinations and a More menu', () => {
-    const { container } = render(<Sidebar />)
-    const navs = container.querySelectorAll('nav')
-    const bottomNav = Array.from(navs).find(n => n.className.includes('bottom-0'))
-    expect(bottomNav?.querySelectorAll('a').length).toBe(4)
-    expect(bottomNav?.querySelector('button')?.textContent).toContain('More')
+    const dock = screen.getByRole('navigation', { name: 'Quick finance navigation' })
+    expect([...dock.querySelectorAll('a')].map(a => a.textContent)).toEqual(['Home', 'Activity', 'Mona', 'Goals'])
+    expect(dock.querySelector('button')?.textContent).toContain('More')
+    expect(dock.querySelector('a span.text-label')).toBeInTheDocument()
+    expect(within(dock).getByTestId('dock-active-indicator')).toBeInTheDocument()
   })
 
   it('marks the current destination for assistive technology', () => {
     render(<Sidebar />)
-    const overviewLinks = screen.getAllByRole('link', { name: 'Overview' })
-    expect(overviewLinks.every(link => link.getAttribute('aria-current') === 'page')).toBe(true)
+    const homeLinks = screen.getAllByRole('link', { name: 'Home' })
+    expect(homeLinks.every(link => link.getAttribute('aria-current') === 'page')).toBe(true)
   })
 
   it('releases the page when navigating through the mobile dock', () => {
@@ -138,12 +109,33 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('navigation', { name: 'Finance navigation' })).not.toBeInTheDocument()
   })
 
-  it('opens every specialist tool from the mobile More menu', () => {
+  it('opens every group from the mobile menu', () => {
     render(<Sidebar />)
     fireEvent.click(screen.getByRole('button', { name: 'Open all finance tools' }))
-    expect(screen.getByRole('navigation', { name: 'Finance navigation' })).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: 'Income' }).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByRole('link', { name: 'MSI Tracker' }).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByRole('link', { name: 'Spending Audit' }).length).toBeGreaterThanOrEqual(1)
+    const menu = screen.getByRole('navigation', { name: 'Finance navigation' })
+    expect(within(menu).getByRole('link', { name: 'Income' })).toBeInTheDocument()
+    expect(within(menu).getByRole('link', { name: 'MSI Installments' })).toBeInTheDocument()
+    fireEvent.click(within(menu).getByRole('button', { name: /More/ }))
+    expect(within(menu).getByRole('link', { name: 'Spending Audit' })).toBeInTheDocument()
+  })
+
+  it('has no agent nav hrefs', () => {
+    render(<Sidebar />)
+    const hrefs = screen.getAllByRole('link').map(l => l.getAttribute('href'))
+    for (const agentHref of ['/', '/mission-control', '/tasks', '/comms', '/metrics', '/costs', '/agents']) {
+      expect(hrefs).not.toContain(agentHref)
+    }
+  })
+
+  it('shows household branding', () => {
+    render(<Sidebar />)
+    expect(screen.getByText('Bernardo + Laura', { selector: 'h2' })).toBeInTheDocument()
+    expect(screen.getByText('v2.2 · Mona Finance')).toBeInTheDocument()
+  })
+
+  it('hides on the login page', () => {
+    nav.pathname = '/finance/login'
+    const { container } = render(<Sidebar />)
+    expect(container).toBeEmptyDOMElement()
   })
 })

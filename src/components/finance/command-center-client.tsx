@@ -1,378 +1,287 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import { fetchWestProjection, westMonthTarget } from '@/lib/west-projection-client'
-import { fetchAllRows } from '@/lib/supabase-fetch-all'
-import { mexicoCityDateParts } from '@/lib/insights-prompt.mjs'
-import { Plus, Activity, Sparkles, Landmark, Bitcoin, ShieldCheck, LockKeyhole, ChevronDown, ChevronUp, RefreshCw, ArrowUpRight } from 'lucide-react'
-import { GlassCard } from '@/components/ui/glass-card'
-import { PageTransition } from '@/components/page-transition'
-import { SkeletonKPI } from '@/components/ui/skeleton-card'
-import { BillsTimeline } from '@/components/finance/bills-timeline'
+import { ChevronDown, Landmark, LockKeyhole, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import { ErrorState } from '@/components/ui/error-state'
+import { Segmented } from '@/components/ui/segmented'
+import { BillsTimeline, type ForecastEvent } from '@/components/finance/bills-timeline'
 import { DailySpendingPlan } from '@/components/finance/daily-spending-plan'
 import { BudgetWatch } from '@/components/finance/budget-watch'
-import { WolffWidget } from '@/components/finance/wolff-widget'
-import { SafeToSpendCard } from '@/components/finance/safe-to-spend'
+import { WolffWidget, proactiveFromChat, type InsightsPayload } from '@/components/finance/wolff-widget'
 import { MonthProjectionCard } from '@/components/finance/month-projection-card'
 import { InstallPrompt } from '@/components/finance/install-prompt'
+import { useFinanceData } from '@/hooks/use-finance-data'
+import { fetchWestProjection } from '@/lib/west-projection-client'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { supabase } from '@/lib/supabase'
-import { OWNERS, ownersEqual } from '@/lib/owners'
+import { MX_TIME_ZONE, mexicoCityToday, monthEndKey, parseLocalDateKey } from '@/lib/dates'
+import { formatCompact, formatDateShort, formatDelta, formatWeekdayShort } from '@/lib/format'
+import { OWNERS, canonicalOwner, ownersEqual } from '@/lib/owners'
 import { cn } from '@/lib/utils'
-import type { FinanceTransaction } from '@/lib/finance-types'
-import { enrichTransactions, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
-import { type Summary, type Forecast, fmtMoney } from './command-center/types'
+import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
+import type { Summary, Forecast } from './command-center/types'
 import { KpiCard, SectionHeader } from './command-center/ui'
-import { BudgetPaceCard } from './command-center/budget-pace'
-import { BabyPlanCard, EducationFundCard } from './command-center/plans'
+import { BabyProgressCard, EducationFundCard, WestProgressCard } from './command-center/plans'
+import { resolveWestPlan } from './command-center/west-plan'
+import { buildAttentionItems } from './command-center/attention'
+import { NeedsAttention } from './command-center/needs-attention'
+import { RecentActivity, type RecentRow } from './command-center/recent-activity'
+import { useHomeScope, useViewer } from './command-center/use-viewer'
 
 const ForecastChart = dynamic(() => import('@/components/finance/forecast-chart').then(m => m.ForecastChart), { loading: () => <div className="h-[220px] animate-pulse" aria-label="Loading forecast chart" /> })
 
+const REQUEST_TIMEOUT_MS = 20_000
+
+function readJson<T>(url: string) {
+  return async (signal: AbortSignal): Promise<T> => {
+    const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.any ? AbortSignal.any([signal, timeout]) : signal })
+    if (!response.ok) throw new Error(`Request failed (${response.status})`)
+    return response.json() as Promise<T>
+  }
+}
+
+interface NetWorthPayload {
+  snapshots?: Array<{ snapshot_date: string; net_worth: number }>
+  summary?: { latest: { net_worth: number; total_assets: number; total_liabilities: number; date: string } | null; delta?: number; count?: number }
+}
+
+type MonthTx = Pick<FinanceTransaction, 'id' | 'transaction_date' | 'merchant' | 'description' | 'amount_mxn' | 'type' | 'owner' | 'category_id'>
+
+interface MonthActivity {
+  ownerSpend: Record<string, number>
+  recent: RecentRow[]
+}
+
+const RECENT_ROWS = 5
+
+// Fallback until summary carries owner_spend / recent_transactions (WS4):
+// this month's rows through today, read once (perf-13 removes it).
+async function readMonthActivity(): Promise<MonthActivity> {
+  const today = mexicoCityToday()
+  const month = today.slice(0, 7)
+  const [catRes, txs] = await Promise.all([
+    supabase.from('finance_categories').select('id, name, icon'),
+    fetchAllRows<MonthTx>((from, to) => supabase.from('finance_transactions')
+      .select('id, transaction_date, merchant, description, amount_mxn, type, owner, category_id')
+      .gte('transaction_date', `${month}-01`).lte('transaction_date', today)
+      .order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20_000, true),
+  ])
+  const cats = new Map(((catRes.data || []) as Pick<FinanceCategory, 'id' | 'name' | 'icon'>[]).map(c => [c.id, c]))
+  const ownerSpend: Record<string, number> = Object.fromEntries(OWNERS.map(o => [o, 0]))
+  for (const tx of txs) {
+    if (tx.type !== 'expense') continue
+    const owner = OWNERS.find(o => ownersEqual(o, tx.owner))
+    if (owner) ownerSpend[owner] += Number(tx.amount_mxn) || 0
+  }
+  const recent = txs.slice(0, 40).map(tx => {
+    const cat = tx.category_id ? cats.get(tx.category_id) : undefined
+    return {
+      id: tx.id,
+      date: tx.transaction_date,
+      merchant: tx.merchant || tx.description || '',
+      amount: Number(tx.amount_mxn) || 0,
+      type: tx.type === 'income' ? 'income' as const : 'expense' as const,
+      owner: tx.owner,
+      category_name: cat?.name ?? null,
+      category_icon: cat?.icon ?? null,
+    }
+  })
+  return { ownerSpend, recent }
+}
+
+function upcomingEvents(summary: Summary | undefined, forecast: Forecast | null | undefined): ForecastEvent[] | null {
+  if (summary?.upcoming) {
+    return summary.upcoming.map(item => ({
+      date: item.date.slice(0, 10),
+      name: item.label,
+      type: item.kind === 'bill' ? 'subscription' : item.kind,
+      amount_mxn: item.kind === 'income' ? Math.abs(item.amount) : -Math.abs(item.amount),
+    }))
+  }
+  return forecast?.events ?? null
+}
+
+function greeting(now: Date): string {
+  const hour = Number(now.toLocaleString('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: MX_TIME_ZONE }))
+  return hour < 12 ? 'Good morning' : hour < 19 ? 'Good afternoon' : 'Good evening'
+}
+
 export default function CommandCenterClient() {
-  const [summary, setSummary] = useState<Summary | null>(null)
-  const [westTarget, setWestTarget] = useState<number | null>(null)
-  const [forecast, setForecast] = useState<Forecast | null>(null)
-  const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
-  const [loading, setLoading] = useState(true)
-  const [detailsOpen, setDetailsOpen] = useState(false)
-  // Net assets snapshot — fetched with the initial batch; the KPI strip falls
-  // back to the crypto-position card when unavailable
-  const [netWorth, setNetWorth] = useState<{ net_worth: number; total_assets: number; total_liabilities: number; date: string } | null>(null)
+  const { owner: viewer } = useViewer()
+  const [scope, setScope] = useHomeScope()
+  const scopeOwner = viewer && scope === 'you' ? viewer : null
 
-  const [refreshing, setRefreshing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
-  const inFlight = useRef(false)
-  const mounted = useRef(false)
-  const [currentMonthStr, setCurrentMonthStr] = useState('')
+  // Every request settles on its own: the hero renders as soon as summary
+  // lands, WEST and the rest fill in after (perf-03). Mona's inputs ride in
+  // the same first batch and are passed down as props (perf-02, MOB-07).
+  const summaryQ = useFinanceData<Summary>('home:summary', readJson('/api/finance/summary'))
+  const summary = summaryQ.data
+  const needsWestFetch = !summary?.west_plan
+  const westQ = useFinanceData<unknown>('home:west', () => fetchWestProjection(true), { enabled: needsWestFetch })
+  const forecastQ = useFinanceData<Forecast>('home:forecast', readJson('/api/finance/forecast?days=30'))
+  const netWorthQ = useFinanceData<NetWorthPayload>('home:net-worth', readJson('/api/finance/net-worth?days=40'))
+  const insightsQ = useFinanceData<InsightsPayload>('home:insights', readJson('/api/finance/insights'), { minIntervalMs: 30 * 60_000 })
+  const chatQ = useFinanceData<unknown>('home:proactive', readJson('/api/finance/wolff-chat?latest_proactive=1'), { minIntervalMs: 5 * 60_000 })
+  const needsActivity = Boolean(summary) && (!summary?.owner_spend || !summary?.recent_transactions)
+  const activityQ = useFinanceData<MonthActivity>('home:activity', readMonthActivity, { enabled: needsActivity })
 
-  const fetchData = useCallback(async () => {
-    if (inFlight.current) return
-    inFlight.current = true
-    setRefreshing(true)
-    const mx = mexicoCityDateParts()
-    const month = `${mx.year}-${String(mx.month).padStart(2, '0')}`
-    const today = `${month}-${String(mx.day).padStart(2, '0')}`
-    const signal = AbortSignal.timeout(20000)
-    const read = async (url: string) => {
-      const response = await fetch(url, { cache: 'no-store', signal })
-      if (!response.ok) throw new Error('Request failed')
-      return response.json()
-    }
-    try {
-      const [sum, fc, catRes, txs, nw, west] = await Promise.all([
-        read('/api/finance/summary'),
-        read('/api/finance/forecast?days=60').catch(() => null),
-        supabase.from('finance_categories').select('*').order('sort_order').abortSignal(signal),
-        fetchAllRows<FinanceTransaction>((from, to) => supabase.from('finance_transactions')
-          .select('*').gte('transaction_date', `${month}-01`).lte('transaction_date', today)
-          .order('transaction_date', { ascending: false }).order('id').range(from, to).abortSignal(signal), 1000, 20000, true),
-        read('/api/finance/net-worth?days=30').catch(() => null),
-        fetchWestProjection(true),
-      ])
-      if (!sum?.current_month || catRes.error) throw new Error('Incomplete dashboard data')
-      if (!mounted.current) return
-      const cats = catRes.data?.length ? catRes.data : DEFAULT_CATEGORIES
-      setSummary(sum)
-      setForecast(fc)
-      setWestTarget(westMonthTarget(west, month))
-      setTransactions(enrichTransactions(txs, cats))
-      setCurrentMonthStr(month)
-      setNetWorth(nw?.summary?.latest ?? null)
-      setUpdatedAt(new Date())
-      setError(fc && nw ? null : 'Some supporting data is unavailable. Refresh to retry.')
-    } catch {
-      if (mounted.current) setError('Could not refresh your finances. Check your connection and try again.')
-    } finally {
-      inFlight.current = false
-      if (mounted.current) {
-        setLoading(false)
-        setRefreshing(false)
-      }
-    }
-  }, [])
+  const refreshAll = () => {
+    void summaryQ.refresh()
+    void forecastQ.refresh()
+    void netWorthQ.refresh()
+    void insightsQ.refresh()
+    void chatQ.refresh()
+    if (needsWestFetch) void westQ.refresh()
+    if (needsActivity) void activityQ.refresh()
+  }
 
-  useEffect(() => {
-    mounted.current = true
-    const initial = window.setTimeout(() => void fetchData(), 0)
-    const refresh = () => { if (document.visibilityState === 'visible') void fetchData() }
-    document.addEventListener('visibilitychange', refresh)
-    window.addEventListener('online', refresh)
-    return () => {
-      mounted.current = false
-      window.clearTimeout(initial)
-      document.removeEventListener('visibilitychange', refresh)
-      window.removeEventListener('online', refresh)
-    }
-  }, [fetchData])
+  const now = new Date()
+  const today = mexicoCityToday(now)
+  const month = summary?.current_month.month || today.slice(0, 7)
 
-  const monthTxs = useMemo(
-    () => transactions.filter(t => t.transaction_date.startsWith(currentMonthStr)),
-    [transactions, currentMonthStr]
-  )
+  const westPlan = summary?.west_plan
+    ? resolveWestPlan(summary.west_plan, null, month)
+    : westQ.loading || (westQ.data === undefined && !westQ.error) ? undefined : resolveWestPlan(null, westQ.data, month)
 
-  const totalSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
-  const totalIncome = useMemo(() => monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
-  const netSavings = totalIncome - totalSpent
-  const savingsRate = totalIncome > 0 ? Math.round((netSavings / totalIncome) * 100) : 0
-  const monthlyGoalNeed = summary?.goal_funding.total_monthly_needed || 0
-  // Before any income lands (typically the first of the month, until payroll
-  // auto-posts) a "net savings / % rate" framing is meaningless — net is just
-  // −spend and the rate is undefined. Present it neutrally instead of a red
-  // negative headline. Reverts automatically the moment income posts.
-  const awaitingIncome = totalIncome === 0
+  const ownerSpend = summary?.owner_spend ?? activityQ.data?.ownerSpend ?? null
+  const allRecent: RecentRow[] | undefined = summary?.recent_transactions
+    ? summary.recent_transactions.map(r => ({ ...r, type: (r as { type?: 'expense' | 'income' }).type }))
+    : activityQ.data?.recent ?? (activityQ.error ? [] : undefined)
+  const recentRows = allRecent && (scopeOwner ? allRecent.filter(r => ownersEqual(r.owner, scopeOwner)) : allRecent).slice(0, RECENT_ROWS)
 
-  const bernardoSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, OWNERS[0])).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
-  const lauraSpent = useMemo(() => monthTxs.filter(t => t.type === 'expense' && ownersEqual(t.owner, OWNERS[1])).reduce((s, t) => s + t.amount_mxn, 0), [monthTxs])
+  const attention = summary ? buildAttentionItems(summary, today) : []
+  const events = upcomingEvents(summary, forecastQ.data)
+  const proactive = chatQ.data === undefined ? (chatQ.error ? null : undefined) : proactiveFromChat(chatQ.data)
 
-  // Status banner copy — quotes the summary endpoint's budget-aware projection
-  // (fixed categories capped at budget, variable at pace, scheduled treatment
-  // included) so the banner and the projection card can't disagree. Linear
-  // spend/progress scaling over-projects: rent and other fixed charges land
-  // early-month and aren't a daily rate.
-  const statusBanner = useMemo(() => {
-    if (!summary) return null
-    const m = summary.current_month
-    const enoughDaysElapsed = m.day_of_month >= 7
-
-    const overshootCats = enoughDaysElapsed ? m.budget_vs_actual.filter(c =>
-      !c.is_non_monthly && c.budget > 0 && c.projected_month_total > c.budget * 1.10 && c.pct_used > 50
-    ) : []
-
-    const p = summary.month_projection
-    const projectedRate = (p && p.expected_income > 0 && enoughDaysElapsed)
-      ? Math.round((p.projected_savings / p.expected_income) * 100)
-      : null
-
-    if (totalIncome === 0) {
-      return { tone: 'info' as const, msg: `Day ${m.day_of_month} of ${m.days_in_month}. No income recorded yet — process recurring or add transactions.` }
-    }
-    if (!enoughDaysElapsed) {
-      return { tone: 'info' as const, msg: `Day ${m.day_of_month} of ${m.days_in_month} — recurring bills just landed. Pace projections stabilize after day 7.` }
-    }
-    if (overshootCats.length === 0 && projectedRate !== null && projectedRate >= 20) {
-      return { tone: 'success' as const, msg: `On pace for a ${projectedRate}% savings rate this month — every budget is on track.` }
-    }
-    if (overshootCats.length > 0) {
-      const rateText = projectedRate !== null ? `Projected savings rate ${projectedRate}%.` : ''
-      return { tone: 'warning' as const, msg: `${overshootCats.length} budget${overshootCats.length > 1 ? 's' : ''} projected to overshoot. ${rateText}` }
-    }
-    return { tone: 'info' as const, msg: `Projected savings rate ${projectedRate ?? 0}% this month. Day ${m.day_of_month} of ${m.days_in_month}.` }
-  }, [summary, totalIncome])
-
-  if (loading) {
+  if (summaryQ.loading && !summary) {
     return (
-      <div className="space-y-6">
-        <div className="h-8 w-48 rounded bg-[hsl(var(--muted))] animate-pulse" />
-        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4"><SkeletonKPI /><SkeletonKPI /><SkeletonKPI /><SkeletonKPI /></div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3"><div className="h-64 rounded-xl bg-[hsl(var(--muted))] animate-pulse lg:col-span-2" /><div className="h-64 rounded-xl bg-[hsl(var(--muted))] animate-pulse" /></div>
+      <div className="mx-auto w-full max-w-[1200px] space-y-5" aria-busy="true" aria-label="Loading your finances">
+        <div className="h-10 w-64 animate-pulse rounded-lg bg-surface-2" />
+        <div className="h-56 animate-pulse rounded-2xl bg-surface-2" />
+        <div className="grid gap-4 lg:grid-cols-2"><div className="h-36 animate-pulse rounded-xl bg-surface-2" /><div className="h-36 animate-pulse rounded-xl bg-surface-2" /></div>
       </div>
     )
   }
 
-  if (!summary) {
-    return <GlassCard><h1 className="text-xl font-semibold">Your finances are unavailable</h1>
-      <p role="alert" className="mt-2 text-sm text-[hsl(var(--text-secondary))]">{error}</p>
-      <button type="button" onClick={() => void fetchData()} disabled={refreshing} className="mt-4 min-h-11 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50">{refreshing ? 'Retrying…' : 'Try again'}</button>
-    </GlassCard>
+  if (!summary?.current_month) {
+    return (
+      <Card className="mx-auto max-w-xl">
+        <h1 className="text-xl font-semibold text-fg">Your finances are unavailable</h1>
+        <ErrorState compact className="mt-2" title="Could not load this month" body="Check your connection and try again." onRetry={() => void summaryQ.refresh()} retryLabel={summaryQ.refreshing ? 'Retrying…' : 'Try again'} />
+      </Card>
+    )
   }
 
-  const today = new Date()
-  const greeting = today.getHours() < 12 ? 'Good morning' : today.getHours() < 18 ? 'Good afternoon' : 'Good evening'
+  const cm = summary.current_month
+  const dateLine = formatWeekdayShort(today)
+  const daysLeft = cm.days_in_month - cm.day_of_month + 1
+  const monthName = parseLocalDateKey(`${month}-01`).toLocaleDateString('en-US', { month: 'long' })
+  const refreshing = summaryQ.refreshing
+  const updatedAt = summaryQ.updatedAt ? new Date(summaryQ.updatedAt) : null
+  const nw = netWorthQ.data?.summary?.latest ?? null
+  const nwDelta = (netWorthQ.data?.summary?.count ?? 0) >= 2 ? netWorthQ.data?.summary?.delta ?? null : null
+  const nwSince = netWorthQ.data?.snapshots?.[0]?.snapshot_date
+  const ef = summary.emergency_fund as Summary['emergency_fund'] & { essentials_basis?: 'derived' | 'manual' }
+  const plannedPct = summary.cash_flow.monthly_income > 0 ? Math.round(summary.cash_flow.fixed_commitments / summary.cash_flow.monthly_income * 100) : null
+  const baby = summary.baby_plan && summary.baby_plan.planning_total > 0 ? summary.baby_plan : null
+  const education = baby && (baby.education?.monthly_contribution ?? 0) > 0 ? baby.education : null
+  const scopedSpend = scopeOwner && ownerSpend ? { owner: scopeOwner, amount: Object.entries(ownerSpend).find(([k]) => canonicalOwner(k) === scopeOwner)?.[1] ?? 0 } : null
 
   return (
-    <PageTransition>
-      <div className="space-y-5 sm:space-y-6" data-animate>
-        <header className="flex items-end justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs text-[hsl(var(--text-secondary))]">{greeting}, {OWNERS[0]}</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{today.toLocaleDateString('en-US', { month: 'long', timeZone: 'America/Mexico_City' })} overview</h1>
-            <p role="status" className="mt-1.5 text-[11px] text-[hsl(var(--text-tertiary))]">{refreshing ? 'Refreshing your finances…' : updatedAt ? `Updated ${updatedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · MXN` : 'MXN'}</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button type="button" aria-label="Refresh" title="Refresh balances" onClick={() => void fetchData()} disabled={refreshing} className="flex h-11 w-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] text-[hsl(var(--text-secondary))] hover:bg-white/5 disabled:opacity-50"><RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} aria-hidden="true" /></button>
-            <Link href="/finance/transactions?add=1" aria-label="New transaction" className="overview-primary-action hidden h-11 sm:inline-flex items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold sm:px-4"><Plus className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">New transaction</span></Link>
-          </div>
-        </header>
-        {error && <p role="alert" className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-700">{error} {updatedAt && 'Showing the last successful update where available.'}</p>}
-
-        <div className="overview-summary-grid grid gap-4 xl:grid-cols-2">
-          <section className="overview-balance-card relative flex flex-col overflow-hidden rounded-2xl p-5 sm:p-6" aria-label="Month to date">
-            <div className="relative flex items-center justify-between gap-3">
-              <p className="text-xs font-medium text-[hsl(var(--text-secondary))]">{awaitingIncome ? 'Spent so far' : netSavings < 0 ? 'Month so far' : 'Saved so far'}</p>
-              <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] text-[hsl(var(--text-secondary))]">Day {summary.current_month.day_of_month} of {summary.current_month.days_in_month}</span>
-            </div>
-            <div className="relative mt-3 flex flex-wrap items-end gap-x-3 gap-y-2">
-              <p className={cn('num-metric text-[2.75rem] font-semibold leading-none tracking-tight sm:text-5xl', awaitingIncome ? 'text-[hsl(var(--text-secondary))]' : netSavings >= 0 ? 'text-white' : 'text-rose-300')}>
-                {netSavings >= 0 ? '+' : '−'}{fmtMoney(Math.abs(netSavings), { compact: true })}
-              </p>
-              <span className="pb-1 text-xs text-[hsl(var(--text-secondary))]">{awaitingIncome ? 'awaiting income' : 'net this month'}</span>
-            </div>
-            <div className="relative mt-5 grid grid-cols-2 gap-4 border-t border-white/[0.08] pt-4">
-              <div><p className="text-[11px] text-[hsl(var(--text-secondary))]">Income received</p><p className="num-metric mt-1 text-xl font-medium text-emerald-300">{fmtMoney(totalIncome, { compact: true })}</p></div>
-              <div><p className="text-[11px] text-[hsl(var(--text-secondary))]">Spent</p><p className="num-metric mt-1 text-xl font-medium text-[hsl(var(--foreground))]">{fmtMoney(totalSpent, { compact: true })}</p></div>
-            </div>
-            <div className="relative mt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[hsl(var(--text-secondary))]">
-              <span>{awaitingIncome ? 'Income will complete the picture' : `${savingsRate}% of received income retained`}</span>
-              <Link href="/finance/transactions" className="inline-flex min-h-8 items-center gap-1 font-medium text-sky-300">Transactions <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>
-            </div>
-          </section>
-          <MonthProjectionCard projection={summary.month_projection} goalMonthlyNeeded={monthlyGoalNeed} westTarget={westTarget} compact />
+    <div className="mx-auto flex w-full max-w-[1200px] min-w-0 flex-col gap-5 sm:gap-6">
+      <header className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-label font-medium text-fg-tertiary">Home · {dateLine} · {daysLeft} day{daysLeft === 1 ? '' : 's'} left in {monthName}</p>
+          <h1 className="mt-1 text-[1.75rem] font-semibold leading-[2.125rem] tracking-[-0.02em] text-fg">{greeting(now)}{viewer ? `, ${viewer}` : ''}</h1>
+          <p role="status" className="mt-1 text-label text-fg-tertiary">{refreshing ? 'Refreshing your finances…' : updatedAt ? `Updated ${updatedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}</p>
         </div>
-
-        <DailySpendingPlan summary={summary} westTarget={westTarget} />
-
-        {statusBanner && <div className={cn('flex items-start gap-2 rounded-xl px-1 text-xs leading-relaxed', statusBanner.tone === 'warning' ? 'text-amber-300' : 'text-[hsl(var(--text-secondary))]')}><Activity className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" /><p>{statusBanner.msg}</p></div>}
-
-        <div className="grid items-start gap-4 lg:grid-cols-[1.2fr_1fr]">
-          <WolffWidget />
-          <BudgetWatch summary={summary} />
-        </div>
-
-        {/* ── FINANCIAL PULSE: three durable health metrics ─ */}
-        <section aria-label="Household snapshot">
-        <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold">Household snapshot</h2><Link href="/finance/reports" className="inline-flex min-h-9 items-center gap-1 text-xs text-[hsl(var(--text-secondary))]">Reports <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link></div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 [&>*:last-child]:col-span-2 sm:[&>*:last-child]:col-span-1">
-          {netWorth ? (
-            <KpiCard
-              icon={Landmark}
-              label="Net worth"
-              href="/finance/investments"
-              value={fmtMoney(netWorth.net_worth, { compact: true })}
-              sublabel={
-                <span className="flex items-center justify-between">
-                  <span className="text-emerald-600">+{fmtMoney(netWorth.total_assets, { compact: true })}</span>
-                  <span className="text-rose-600">−{fmtMoney(netWorth.total_liabilities, { compact: true })}</span>
-                </span>
-              }
-              accent="brand"
-            />
-          ) : (
-            <KpiCard
-              icon={Bitcoin}
-              label="Crypto position"
-              href="/finance/crypto"
-              value={fmtMoney(summary?.crypto?.total_value_mxn || 0, { compact: true })}
-              sublabel={
-                summary?.crypto ? (
-                  <span className="flex items-center justify-between">
-                    <span className={cn('font-medium', summary.crypto.pnl_pct >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
-                      {summary.crypto.pnl_pct >= 0 ? '+' : ''}{summary.crypto.pnl_pct}% P&amp;L
-                    </span>
-                    <span className="text-[hsl(var(--text-tertiary))]">{fmtMoney(summary.crypto.pnl_mxn, { compact: true })}</span>
-                  </span>
-                ) : <span className="text-[hsl(var(--text-tertiary))]">No holdings</span>
-              }
-              accent="brand"
-            />
+        <div className="flex shrink-0 flex-col-reverse items-end gap-2 sm:flex-row sm:items-center">
+          {viewer && (
+            <Segmented ariaLabel="Whose view" size="sm" value={scope} onChange={setScope}
+              options={[{ value: 'you', label: 'You' }, { value: 'together', label: 'Together' }]} />
           )}
-
-          <KpiCard
-            icon={ShieldCheck}
-            label="Cash buffer"
-            href="/finance/emergency-fund"
-            value={`${summary.emergency_fund.months_covered.toFixed(1)} mo`}
-            sublabel={<span>{fmtMoney(summary.emergency_fund.current, { compact: true })} emergency fund</span>}
-            accent={summary.emergency_fund.months_covered >= 3 ? 'positive' : 'neutral'}
-          />
-
-          <KpiCard
-            icon={LockKeyhole}
-            label="Committed income"
-            href="/finance/budget-builder"
-            value={summary && summary.cash_flow.monthly_income > 0
-              ? `${Math.round(summary.cash_flow.fixed_commitments / summary.cash_flow.monthly_income * 100)}%`
-              : '—'}
-            sublabel={
-              summary ? (
-                <span className="flex items-center justify-between">
-                  <span>{fmtMoney(summary.cash_flow.fixed_commitments, { compact: true })} fixed</span>
-                  <span className="text-emerald-600">{fmtMoney(summary.cash_flow.discretionary_available, { compact: true })} free</span>
-                </span>
-              ) : '—'
-            }
-            accent={summary && summary.cash_flow.fixed_commitments / Math.max(summary.cash_flow.monthly_income, 1) <= 0.6 ? 'positive' : 'negative'}
-          />
-        </div>
-
-        </section>
-                {/* ── BABY PLAN: envelope to April 2027 + the 2045 education fund ── */}
-        {summary?.baby_plan && summary.baby_plan.planning_total > 0 && (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <BabyPlanCard plan={summary.baby_plan} />
-            <EducationFundCard education={summary.baby_plan.education} />
-          </div>
-        )}
-
-
-        {/* ── SECONDARY DETAIL: available without dominating the page ─ */}
-        <section className="overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))]/65 shadow-[var(--shadow-elevate)]">
-          <button
-            type="button"
-            onClick={() => setDetailsOpen(open => !open)}
-            aria-expanded={detailsOpen}
-            aria-controls="cash-flow-details"
-            className="flex w-full flex-col gap-3 px-4 py-4 text-left hover:bg-[hsl(var(--brand)/0.025)] sm:flex-row sm:items-center sm:justify-between sm:px-5"
-          >
-            <div>
-              <p className="text-sm font-semibold">Cash flow &amp; activity</p>
-              <p className="text-[11px] text-[hsl(var(--text-secondary))]">Forecast, budget exceptions, upcoming bills, and recent transactions</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-rose-500/8 px-2.5 py-1 text-[10px] font-semibold text-rose-700">
-                {summary?.current_month.budget_vs_actual.filter(cat => !cat.is_non_monthly && cat.projected_month_total > cat.budget * 1.1 && cat.pct_used > 50).length || 0} budget alert
-              </span>
-              <span className="rounded-full bg-[hsl(var(--accent))] px-2.5 py-1 text-[10px] font-semibold text-[hsl(var(--text-secondary))]">
-                {forecast?.summary.next_7_days.events || 0} events this week
-              </span>
-              {detailsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </div>
+          <button type="button" aria-label="Refresh" title="Refresh" onClick={refreshAll} disabled={refreshing}
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-border text-fg-secondary hover:bg-surface-2 hover:text-fg disabled:opacity-50">
+            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} aria-hidden="true" />
           </button>
+        </div>
+      </header>
 
-          {detailsOpen && (
-            <div id="cash-flow-details" className="space-y-4 border-t border-[hsl(var(--border-subtle))] p-3 sm:p-5" data-animate>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div className="space-y-4 lg:col-span-2">
-                  <GlassCard>
-                    <div id="forecast" className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-1 sm:flex-nowrap">
-                      <div>
-                        <h3 className="flex items-center gap-2 text-base font-semibold"><Sparkles className="h-4 w-4 text-blue-600" /> Scheduled cash flow</h3>
-                        <p className="mt-0.5 text-xs text-[hsl(var(--text-secondary))]">Known income, subscriptions, MSI, debt, and treatment events</p>
-                      </div>
-                      {forecast && <p className={cn('shrink-0 text-lg font-bold tabular-nums', forecast.summary.net_delta >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{forecast.summary.net_delta >= 0 ? '+' : ''}{fmtMoney(forecast.summary.net_delta, { compact: true })}</p>}
-                    </div>
-                    {forecast ? <ForecastChart data={forecast.series} height={220} /> : <p className="py-10 text-center text-sm text-[hsl(var(--text-tertiary))]">Forecast unavailable</p>}
-                  </GlassCard>
-                  <BudgetPaceCard summary={summary} />
-                </div>
-                <div className="space-y-4">
-                  <SafeToSpendCard summary={summary} />
-                  <GlassCard>
-                    <SectionHeader title="Next 30 days" subtitle="Scheduled bills & income" action={{ label: 'Manage', href: '/finance/subscriptions' }} />
-                    {forecast ? <BillsTimeline events={forecast.events} daysAhead={30} maxItems={7} /> : <p className="py-8 text-center text-sm text-[hsl(var(--text-tertiary))]">Upcoming bills unavailable. Refresh to retry.</p>}
-                  </GlassCard>
-                </div>
-              </div>
+      {summaryQ.error && <p role="alert" className="rounded-xl border border-warning/30 bg-warning-bg p-3 text-sm text-fg">Could not refresh your finances. Showing the last successful update{updatedAt ? ` from ${updatedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : ''}.</p>}
 
-              <GlassCard>
-                <SectionHeader title="Recent activity" subtitle={`${monthTxs.length} transactions this month`} action={{ label: 'View all', href: '/finance/transactions' }} />
-                <p className="mb-3 text-xs text-[hsl(var(--text-secondary))]">{OWNERS[0]} spent {fmtMoney(bernardoSpent, { compact: true })} · {OWNERS[1]} spent {fmtMoney(lauraSpent, { compact: true })}</p>
-                <div className="grid gap-x-6 sm:grid-cols-2">
-                  {monthTxs.slice(0, 4).map(tx => (
-                    <div key={tx.id} className="flex items-center gap-3 border-b border-[hsl(var(--border-subtle))] px-1 py-2.5 last:border-0">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm" style={{ background: `${tx.category?.color || '#6B7280'}20` }}>{tx.category?.icon || '📦'}</div>
-                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{tx.merchant || tx.description || '—'}</p><p className="text-[10px] text-[hsl(var(--text-tertiary))]">{tx.category?.name || 'Uncategorized'} · {tx.transaction_date.slice(5)}</p></div>
-                      <span className={cn('text-xs font-semibold tabular-nums', tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600')}>{tx.type === 'income' ? '+' : '−'}{fmtMoney(tx.amount_mxn, { compact: true })}</span>
-                    </div>
-                  ))}
-                </div>
-              </GlassCard>
-            </div>
-          )}
-        </section>
-        <InstallPrompt />
+      <MonthProjectionCard
+        projection={summary.month_projection}
+        westPlan={westPlan}
+        monthLabel={monthName}
+        monthEndLabel={formatDateShort(parseLocalDateKey(monthEndKey(month)))}
+        dayOfMonth={cm.day_of_month}
+        daysInMonth={cm.days_in_month}
+        ownerSpend={ownerSpend}
+        highlightOwner={scopeOwner}
+      />
+
+      {/* Mobile: one column in priority order; desktop: two columns. */}
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:items-start lg:gap-5">
+        <div className="contents lg:flex lg:flex-col lg:gap-5">
+          <div className="order-1"><DailySpendingPlan summary={summary} westTarget={westPlan?.month_target ?? null} ownerSpent={scopedSpend} /></div>
+          <div className="order-2"><NeedsAttention items={attention} /></div>
+          <div className="order-3">
+            <WolffWidget insights={insightsQ.error ? null : insightsQ.data} proactive={proactive} summary={summary} loading={insightsQ.loading} />
+          </div>
+          <div className="order-7"><RecentActivity rows={recentRows} scopeOwner={scopeOwner} /></div>
+        </div>
+        <div className="contents lg:flex lg:flex-col lg:gap-5">
+          <div className="order-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+            <WestProgressCard plan={westPlan} />
+            <BabyProgressCard plan={baby ?? undefined} />
+          </div>
+          <div className="order-5"><BudgetWatch summary={summary} /></div>
+          <div className="order-6">
+            <Card>
+              <SectionHeader title="Next 14 days" subtitle="Bills, income and plan events" action={{ label: 'Manage', href: '/finance/subscriptions' }} />
+              {events ? <BillsTimeline events={events} daysAhead={14} maxItems={6} today={today} /> : forecastQ.error ? <p className="py-4 text-sm text-fg-tertiary">Upcoming bills unavailable. Refresh to retry.</p> : <div className="h-24 animate-pulse rounded-lg bg-surface-2" aria-label="Loading upcoming bills" />}
+            </Card>
+          </div>
+        </div>
       </div>
-    </PageTransition>
+
+      <details className="group rounded-xl border border-border bg-surface">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 sm:px-5 [&::-webkit-details-marker]:hidden">
+          <span>
+            <span className="block text-[0.9375rem] font-semibold text-fg">More</span>
+            <span className="block text-label text-fg-tertiary">Net worth, emergency runway, planned spend, cash-flow forecast, education fund</span>
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-fg-tertiary transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="space-y-4 border-t border-border p-4 sm:p-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {nw ? (
+              <KpiCard icon={Landmark} label="Net worth" href="/finance/investments" value={formatCompact(nw.net_worth)}
+                sublabel={<>
+                  <span data-money>Assets {formatCompact(nw.total_assets)} · Debts {formatCompact(nw.total_liabilities)}</span>
+                  {nwDelta != null && nwDelta !== 0 && <span className={cn('mt-0.5 block', nwDelta > 0 ? 'text-positive' : 'text-negative')} data-money>{formatDelta(nwDelta)} since {nwSince ? formatDateShort(parseLocalDateKey(nwSince)) : 'last month'}</span>}
+                </>} />
+            ) : (
+              <KpiCard icon={Landmark} label="Net worth" href="/finance/investments" value="—" money={false} sublabel={netWorthQ.loading ? 'Loading…' : 'No snapshot yet'} />
+            )}
+            <KpiCard icon={ShieldCheck} label="Emergency runway" href="/finance/emergency-fund" money={false}
+              value={`${ef.months_covered.toFixed(1)} mo`}
+              sublabel={<span><span data-money>{formatCompact(ef.current)}</span> reserve · {ef.essentials_basis === 'manual' ? 'manual essentials' : 'of essentials'}</span>} />
+            <KpiCard icon={LockKeyhole} label="Planned spend" href="/finance/budget-builder" money={false}
+              value={plannedPct != null ? `${plannedPct}%` : '—'}
+              sublabel={<span>of income · <span data-money>{formatCompact(summary.cash_flow.fixed_commitments)}</span> budgeted</span>} />
+          </div>
+          <Card>
+            <SectionHeader title="Scheduled cash flow" subtitle="Known income, subscriptions, MSI and debt — next 30 days" />
+            {forecastQ.data ? <ForecastChart data={forecastQ.data.series} height={220} /> : <p className="py-8 text-center text-sm text-fg-tertiary">{forecastQ.error ? 'Forecast unavailable' : 'Loading forecast…'}</p>}
+          </Card>
+          {education && <div className="grid gap-4 lg:grid-cols-2"><EducationFundCard education={education} /></div>}
+        </div>
+      </details>
+
+      <InstallPrompt />
+    </div>
   )
 }

@@ -19,9 +19,8 @@ export function SafeToSpendCard({ summary }: { summary?: SpendingRoomSummary | n
   // (command center) pass it as a prop instead.
   useEffect(() => {
     if (summary !== undefined) return
-    fetch('/api/finance/summary?months=1', {
-      headers: { 'x-api-key': process.env.NEXT_PUBLIC_FINANCE_API_KEY || '' },
-    })
+    // Same-origin cookie auth; never ship an API key to the browser (perf-17).
+    fetch('/api/finance/summary?months=1', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : Promise.reject()))
       .then(setFetched)
       .catch(() => setFailed(true))

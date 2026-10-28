@@ -1,11 +1,14 @@
 'use client'
 
-import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, Baby, Home } from 'lucide-react'
+import { OwnerAvatar } from '@/components/ui/owner-avatar'
+import { addDaysKey, diffDaysKey, mexicoCityToday, parseLocalDateKey } from '@/lib/dates'
+import { formatDateShort, formatMoney } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 export type ForecastEvent = {
   date: string
-  type: 'income' | 'subscription' | 'msi' | 'debt' | 'recurring_income' | 'planned_expense'
+  type: 'income' | 'subscription' | 'msi' | 'debt' | 'recurring_income' | 'planned_expense' | 'baby' | 'west'
   amount_mxn: number
   name: string
   owner?: string | null
@@ -15,108 +18,73 @@ interface BillsTimelineProps {
   events: ForecastEvent[]
   daysAhead?: number
   maxItems?: number
+  /** Override "today" (YYYY-MM-DD, Mexico City) for tests. */
+  today?: string
 }
 
 const TYPE_LABELS: Record<ForecastEvent['type'], string> = {
   income: 'Income',
   recurring_income: 'Income',
-  subscription: 'Subscription',
+  subscription: 'Bill',
   msi: 'MSI',
   debt: 'Debt',
-  planned_expense: 'Planned expense',
+  planned_expense: 'Planned',
+  baby: 'Baby plan',
+  west: 'WEST',
 }
 
-const TYPE_COLOR: Record<ForecastEvent['type'], string> = {
-  income: 'var(--chart-1)',
-  recurring_income: 'var(--chart-1)',
-  subscription: 'var(--chart-4)',
-  msi: 'var(--chart-5)',
-  debt: 'var(--chart-6)',
-  planned_expense: 'var(--chart-2)',
-}
+const isInflow = (ev: ForecastEvent) => ev.amount_mxn > 0
 
-function fmtDate(s: string) {
-  const d = new Date(s + 'T00:00:00Z')
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
-}
-
-function daysFromToday(s: string): number {
-  const d = new Date(s + 'T00:00:00Z')
-  const today = new Date()
-  today.setUTCHours(0, 0, 0, 0)
-  return Math.round((d.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
-}
-
-export function BillsTimeline({ events, daysAhead = 30, maxItems = 12 }: BillsTimelineProps) {
-  const today = new Date()
-  today.setUTCHours(0, 0, 0, 0)
-  const horizon = new Date(today)
-  horizon.setUTCDate(horizon.getUTCDate() + daysAhead)
-  const horizonStr = horizon.toISOString().slice(0, 10)
-
+// Outflows are neutral (an expected bill is not bad news); income is the only
+// coloured amount (VIS-03). Dates are Mexico City calendar days.
+export function BillsTimeline({ events, daysAhead = 30, maxItems = 12, today = mexicoCityToday() }: BillsTimelineProps) {
+  const horizon = addDaysKey(today, daysAhead)
   const filtered = events
-    .filter(e => e.date <= horizonStr)
+    .filter(e => e.date >= today && e.date <= horizon)
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, maxItems)
 
   if (filtered.length === 0) {
-    return (
-      <p className="text-sm text-[hsl(var(--text-tertiary))] text-center py-8">
-        No scheduled bills or income in the next {daysAhead} days
-      </p>
-    )
+    return <p className="py-6 text-center text-sm text-fg-tertiary">Nothing scheduled in the next {daysAhead} days</p>
   }
 
-  // Group by date for cleaner timeline
-  const byDate: Record<string, ForecastEvent[]> = {}
-  for (const ev of filtered) {
-    if (!byDate[ev.date]) byDate[ev.date] = []
-    byDate[ev.date].push(ev)
-  }
+  const byDate = new Map<string, ForecastEvent[]>()
+  for (const ev of filtered) byDate.set(ev.date, [...(byDate.get(ev.date) || []), ev])
 
   return (
-    <div className="space-y-3">
-      {Object.entries(byDate).map(([date, items]) => {
-        const days = daysFromToday(date)
-        const dateLabel = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : fmtDate(date)
-        const inDays = days > 1 && days <= 7 ? ` · in ${days}d` : ''
+    <ul className="divide-y divide-border">
+      {[...byDate.entries()].map(([date, items]) => {
+        const days = diffDaysKey(today, date)
+        const dateLabel = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : formatDateShort(parseLocalDateKey(date))
         return (
-          <div key={date} className="flex gap-2 sm:gap-3">
-            <div className="w-12 shrink-0 text-right sm:w-16">
-              <p className="text-xs font-semibold">{dateLabel}</p>
-              <p className="text-[10px] text-[hsl(var(--text-tertiary))]">{inDays || (days > 7 ? `in ${days}d` : '')}</p>
+          <li key={date} className="flex gap-3 py-2.5 first:pt-0 last:pb-0">
+            <div className="w-16 shrink-0 pt-1">
+              <p className="text-label font-semibold text-fg">{dateLabel}</p>
+              {days > 1 && <p className="text-micro text-fg-tertiary">in {days} days</p>}
             </div>
-            <div className="flex-1 min-w-0 space-y-1.5">
+            <div className="min-w-0 flex-1 space-y-1.5">
               {items.map((ev, i) => {
-                const isInflow = ev.amount_mxn > 0
-                const Icon = isInflow ? ArrowDownLeft : ArrowUpRight
+                const inflow = isInflow(ev)
+                const Icon = inflow ? ArrowDownLeft : ev.type === 'baby' ? Baby : ev.type === 'west' ? Home : ArrowUpRight
                 return (
-                  <div
-                    key={`${date}-${i}`}
-                    className="flex items-center gap-2 py-1.5 px-1 sm:px-2 rounded-md hover:bg-[hsl(var(--muted))/0.4] transition-colors"
-                  >
-                    <div
-                      className="h-7 w-7 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: `hsl(${TYPE_COLOR[ev.type]} / 0.13)` }}
-                    >
-                      <Icon className="h-3.5 w-3.5" style={{ color: `hsl(${TYPE_COLOR[ev.type]})` }} />
+                  <div key={`${date}-${i}`} className="flex items-center gap-2.5">
+                    <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full', inflow ? 'bg-positive-bg text-positive' : 'bg-surface-3 text-fg-secondary')}>
+                      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-fg">{ev.name}</p>
+                      <p className="flex items-center gap-1.5 text-micro text-fg-tertiary">{TYPE_LABELS[ev.type]}{ev.owner && <OwnerAvatar owner={ev.owner} size={14} />}</p>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{ev.name}</p>
-                      <p className="text-[10px] text-[hsl(var(--text-tertiary))]">
-                        {TYPE_LABELS[ev.type]}{ev.owner ? ` · ${ev.owner}` : ''}
-                      </p>
-                    </div>
-                    <span className={cn('shrink-0 whitespace-nowrap text-sm font-semibold tabular-nums', isInflow ? 'text-emerald-600' : 'text-rose-600')}>
-                      {isInflow ? '+' : '-'}${Math.abs(Math.round(ev.amount_mxn)).toLocaleString()}
+                    <span className={cn('num shrink-0 whitespace-nowrap text-sm font-semibold', inflow ? 'text-positive' : 'text-fg')} data-money>
+                      {inflow ? '+' : ''}{formatMoney(Math.abs(ev.amount_mxn))}
                     </span>
                   </div>
                 )
               })}
             </div>
-          </div>
+          </li>
         )
       })}
-    </div>
+    </ul>
   )
 }
