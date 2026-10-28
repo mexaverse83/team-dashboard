@@ -2,11 +2,19 @@
   "crons": [
     {
       "path": "/api/finance/process-recurring",
-      "schedule": "0 12 * * *"
+      "schedule": "5 12 * * *"
     },
     {
       "path": "/api/finance/net-worth",
-      "schedule": "30 12 * * *"
+      "schedule": "15 12 * * *"
+    },
+    {
+      "path": "/api/finance/push/daily",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/finance/reminders",
+      "schedule": "0 1 * * *"
     }
   ]
 }

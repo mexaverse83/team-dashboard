@@ -1,22 +1,29 @@
-name: Finance Automation
+name: Finance Automation Watchdog
 
-# Reliable external trigger for the finance cron endpoints.
-# Replaces flaky Vercel Hobby crons. Everything the endpoints do is idempotent
-# (catch-up loops + dupe guards), so running this multiple times a day is safe
-# and gives redundancy against GitHub's own scheduler delays.
+# The primary scheduler is Vercel cron (vercel.json, Bearer CRON_SECRET) or,
+# if enabled instead, Supabase pg_cron (supabase-2026-10-pg-cron.sql). This
+# workflow only WATCHES: every 6h it reads /api/finance/health and fails —
+# loudly, with an annotation — when process-recurring has not succeeded in
+# 26h or any job is failing. When the processor is late it kicks it once
+# (safe: posts are idempotent via unique indexes), then still fails so the
+# outage is visible. Manual dispatch can run the processor on demand.
 
 on:
   schedule:
-    - cron: '0 12 * * *'   # 12:00 UTC — primary daily run
-    - cron: '0 18 * * *'   # 18:00 UTC — backup run (idempotent, covers a missed/delayed primary)
-  workflow_dispatch: {}    # manual "Run workflow" button in the Actions tab
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      run_processor:
+        description: 'Also POST process-recurring now'
+        type: boolean
+        default: false
 
 concurrency:
   group: finance-automation
   cancel-in-progress: false
 
 jobs:
-  trigger:
+  watchdog:
     runs-on: ubuntu-latest
     env:
       BASE_URL: ${{ vars.FINANCE_BASE_URL || 'https://finance.autonomis.co' }}
@@ -29,61 +36,72 @@ jobs:
             exit 1
           fi
 
-      - name: Process recurring transactions
+      # curl with retries only on 5xx / network errors (000); a 4xx is a config
+      # problem that retrying cannot fix, so it fails immediately.
+      - name: Define request helper
         run: |
-          set -euo pipefail
-          URL="$BASE_URL/api/finance/process-recurring"
-          attempt=0
-          max=5
+          cat > "$RUNNER_TEMP/req.sh" <<'EOF'
+          #!/usr/bin/env bash
+          # usage: req.sh METHOD PATH OUTFILE → prints the final HTTP code
+          method="$1"; path="$2"; out="$3"; attempt=0; max=4
           while :; do
             attempt=$((attempt+1))
-            echo "── Attempt $attempt/$max → POST $URL"
-            code=$(curl -sS -o resp.json -w '%{http_code}' -X POST "$URL" \
-              -H "x-api-key: $API_KEY" -H 'content-type: application/json' || echo 000)
-            echo "HTTP $code"; cat resp.json | jq . 2>/dev/null || cat resp.json; echo
-
-            if [ "$code" = "200" ]; then
-              # Fail the run if the processor itself reported per-item errors.
-              err_count=$(jq '(.results.errors // []) | length' resp.json 2>/dev/null || echo 0)
-              if [ "$err_count" -gt 0 ]; then
-                echo "::error::process-recurring returned $err_count error(s):"
-                jq -r '.results.errors[]' resp.json
-                exit 1
-              fi
-              created=$(jq -r '.total_created // 0' resp.json 2>/dev/null || echo 0)
-              echo "::notice::process-recurring OK — created $created transaction(s)."
-              break
-            fi
-
-            if [ "$attempt" -ge "$max" ]; then
-              echo "::error::process-recurring failed after $max attempts (last HTTP $code)."
-              exit 1
-            fi
-            sleep $((attempt*attempt*5))   # 5s, 20s, 45s, 80s backoff
+            code=$(curl -sS -m 120 -o "$out" -w '%{http_code}' -X "$method" "$BASE_URL$path" \
+              -H "x-api-key: $API_KEY" -H 'x-automation-trigger: gha-watchdog' -H 'content-type: application/json' || true)
+            code="${code:-000}"
+            case "$code" in
+              5??|000) if [ "$attempt" -ge "$max" ]; then echo "$code"; exit 0; fi; sleep $((attempt*attempt*5)) ;;
+              *) echo "$code"; exit 0 ;;
+            esac
           done
+          EOF
+          chmod +x "$RUNNER_TEMP/req.sh"
 
-      - name: Snapshot net worth
-        if: always()   # run even if the step above failed, so the snapshot isn't skipped
+      - name: Run processor (manual)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_processor }}
         run: |
           set -euo pipefail
-          URL="$BASE_URL/api/finance/net-worth"
-          attempt=0
-          max=5
-          while :; do
-            attempt=$((attempt+1))
-            echo "── Attempt $attempt/$max → POST $URL"
-            code=$(curl -sS -o resp.json -w '%{http_code}' -X POST "$URL" \
-              -H "x-api-key: $API_KEY" -H 'content-type: application/json' || echo 000)
-            echo "HTTP $code"; cat resp.json | jq . 2>/dev/null || cat resp.json; echo
+          code=$("$RUNNER_TEMP/req.sh" POST /api/finance/process-recurring run.json)
+          echo "HTTP $code"; jq . run.json 2>/dev/null || cat run.json
+          if [ "$code" != "200" ]; then
+            echo "::error::process-recurring returned HTTP $code: $(jq -r '(.results.errors // []) | join(" | ")' run.json 2>/dev/null)"
+            exit 1
+          fi
+          warnings=$(jq '(.item_warnings // []) | length' run.json)
+          if [ "$warnings" -gt 0 ]; then
+            echo "::warning::process-recurring OK with $warnings item warning(s): $(jq -r '[.item_warnings[] | "\(.item): \(.message)"] | join(" | ")' run.json)"
+          fi
+          echo "::notice::process-recurring OK — created $(jq -r '.total_created // 0' run.json)"
 
-            if [ "$code" = "200" ]; then
-              echo "::notice::net-worth snapshot OK."
-              break
-            fi
-
-            if [ "$attempt" -ge "$max" ]; then
-              echo "::error::net-worth failed after $max attempts (last HTTP $code)."
-              exit 1
-            fi
-            sleep $((attempt*attempt*5))
+      - name: Check automation health
+        run: |
+          set -euo pipefail
+          code=$("$RUNNER_TEMP/req.sh" GET /api/finance/health health.json)
+          echo "HTTP $code"; jq . health.json 2>/dev/null || cat health.json
+          if [ "$code" != "200" ]; then
+            echo "::error::/api/finance/health returned HTTP $code"
+            exit 1
+          fi
+          jq -r '.jobs[] | "\(.job): \(.status) (last ok \(.last_ok_at // "never"))\(if .last_error then " — \(.last_error)" else "" end)"' health.json
+          for p in $(jq -r '.problems[]? | @base64' health.json); do
+            echo "::warning::$(echo "$p" | base64 -d)"
           done
+
+          recurring=$(jq -r '.jobs[] | select(.job == "process-recurring") | .status' health.json)
+          failing=$(jq -r '[.jobs[] | select(.status == "failing") | "\(.job): \(.last_error // "failed")"] | join(" | ")' health.json)
+
+          if [ "$recurring" = "late" ]; then
+            echo "::error::process-recurring has not succeeded in over 26h (last ok $(jq -r '.jobs[] | select(.job == "process-recurring") | .last_ok_at // "never"' health.json)). Check CRON_SECRET in Vercel → Settings → Cron Jobs."
+            kick=$("$RUNNER_TEMP/req.sh" POST /api/finance/process-recurring kick.json)
+            echo "Fallback kick → HTTP $kick"; jq '{ok, total_created, errors: .results.errors, item_warnings}' kick.json 2>/dev/null || cat kick.json
+            exit 1
+          fi
+          if [ -n "$failing" ]; then
+            echo "::error::Failing automation: $failing"
+            exit 1
+          fi
+          late=$(jq -r '[.jobs[] | select(.status == "late") | .job] | join(", ")' health.json)
+          if [ -n "$late" ]; then
+            echo "::warning::Late automation: $late"
+          fi
+          echo "::notice::Automation healthy ($(jq -r '.status' health.json))"
