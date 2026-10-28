@@ -36,7 +36,7 @@ describe('Card Component', () => {
 
   it('has correct base styles', () => {
     const { container } = render(<Card>content</Card>)
-    expect(container.firstChild).toHaveClass('rounded-lg', 'border', 'shadow-sm')
+    expect(container.firstChild).toHaveClass('rounded-xl', 'border', 'bg-surface', 'shadow-card')
   })
 })
 
@@ -78,7 +78,7 @@ describe('Button Component', () => {
   it('renders small size', () => {
     const { container } = render(<Button size="sm">small</Button>)
     const button = container.querySelector('button')
-    expect(button).toHaveClass('h-9')
+    expect(button).toHaveClass('h-8')
   })
 
   it('handles disabled state', () => {

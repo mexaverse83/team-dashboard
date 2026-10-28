@@ -8,13 +8,17 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint src tests",
+    "typecheck": "tsc --noEmit -p .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:widget": "vitest run tests/widget-harness --passWithNoTests",
     "insights:codex": "node scripts/generate-insights-codex.mjs",
     "push:send": "node scripts/send-push.mjs",
     "daily": "node scripts/generate-insights-codex.mjs && node scripts/send-push.mjs",
-    "wolff:daemon": "node scripts/wolff-chat-daemon.mjs"
+    "wolff:daemon": "node scripts/wolff-chat-daemon.mjs",
+    "widget:preview": "node scripts/widget-preview.mjs",
+    "rls:check": "node scripts/rls-check.mjs"
   },
   "keywords": [],
   "author": "",

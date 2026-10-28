@@ -4,6 +4,9 @@ import * as React from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 import { cn } from "@/lib/utils"
 
+// Radix supplies the ARIA wiring (role=tablist/tab/tabpanel, aria-selected,
+// aria-controls ↔ aria-labelledby, arrow-key roving focus). Use these instead
+// of hand-rolled button rows (MOB-12). Give TabsList an aria-label.
 const Tabs = TabsPrimitive.Root
 
 const TabsList = React.forwardRef<
@@ -12,7 +15,7 @@ const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
-    className={cn("inline-flex h-10 items-center justify-center rounded-md bg-[hsl(var(--muted))] p-1 text-[hsl(var(--muted-foreground))]", className)}
+    className={cn("inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-border bg-surface-2 p-1 text-fg-secondary", className)}
     {...props}
   />
 ))
@@ -24,7 +27,7 @@ const TabsTrigger = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.Trigger
     ref={ref}
-    className={cn("inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-[hsl(var(--background))] transition-all focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-[hsl(var(--background))] data-[state=active]:text-[hsl(var(--foreground))] data-[state=active]:shadow-sm", className)}
+    className={cn("inline-flex min-h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium ring-offset-[hsl(var(--background))] transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-surface data-[state=active]:text-fg data-[state=active]:shadow-card", className)}
     {...props}
   />
 ))
@@ -36,7 +39,7 @@ const TabsContent = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.Content
     ref={ref}
-    className={cn("mt-2 ring-offset-[hsl(var(--background))] focus-visible:outline-none focus-visible:ring-2", className)}
+    className={cn("mt-4 ring-offset-[hsl(var(--background))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]", className)}
     {...props}
   />
 ))
