@@ -8,7 +8,7 @@ import fs from 'fs'
 import path from 'path'
 
 const PROJECT_ROOT = path.resolve(__dirname, '..')
-const SKIP_DIRS = new Set(['.git', 'node_modules', '.next', '.vercel', 'tests'])
+const SKIP_DIRS = new Set(['.git', '.claude', 'node_modules', '.next', '.vercel', 'tests'])
 
 function getSourceFiles(dir: string = PROJECT_ROOT): string[] {
   const files: string[] = []
