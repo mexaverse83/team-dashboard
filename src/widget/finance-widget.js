@@ -21,7 +21,7 @@
  * @property {Array<{name:string, spent:number, budget:number, pct:number}>} budget_pace
  * @property {number[]} daily_spend
  * @property {number} daily_budget_pace
- * @property {{label:string, target:number, projected_savings:number, gap:number, pct:number, tone:'good'|'warn'}|null} west_month
+ * @property {{label:string, month?:string, target:number, projected_savings:number, gap:number, pct:number, tone:'good'|'warn'}|null} west_month
  * @property {Array<{date:string, label:string, amount:number, count:number}>} upcoming
  * @property {{baby_months:number|null, west_funded_pct:number|null, west_months_to_delivery:number|null}} milestones
  * @property {{title:string, url:string}} coach
@@ -163,6 +163,10 @@ const thruDate = v => (v && /^\d{4}-\d{2}-\d{2}/.test(String(v.through_date || '
 function thruLabel(v) {
   const d = thruDate(v)
   return d ? formatter(LANG === 'es' ? 'EEE d MMM' : 'EEE MMM d').string(d) : String(v.through_label || '')
+}
+/** WEST row month, formatted on the device (lang=es must not show the server's English 'Oct'). */
+function westMonthLabel(wm) {
+  return /^\d{4}-\d{2}$/.test(String(wm.month || '')) ? formatter('MMM').string(dateOf(wm.month + '-15')) : String(wm.label || '')
 }
 function thruShort(v) {
   const d = thruDate(v)
@@ -403,7 +407,7 @@ function westBlock(stack, d, width) {
   if (!wm) return
   const row = stack.addStack()
   row.centerAlignContent()
-  txt(row, (wm.label ? STR.west + ' · ' + wm.label : STR.savings), 12, C.text, 'semibold')
+  txt(row, (wm.label || wm.month ? STR.west + ' · ' + westMonthLabel(wm) : STR.savings), 12, C.text, 'semibold')
   row.addSpacer(6)
   txt(row, wm.pct + '%', 12, westColor(wm), 'bold')
   row.addSpacer()
@@ -474,7 +478,7 @@ function small(w, d, m) {
   if (wm) {
     const r = w.addStack()
     r.centerAlignContent()
-    txt(r, (wm.label ? STR.west + ' · ' + wm.label : STR.savings), 11, C.sub, 'semibold')
+    txt(r, (wm.label || wm.month ? STR.west + ' · ' + westMonthLabel(wm) : STR.savings), 11, C.sub, 'semibold')
     r.addSpacer()
     txt(r, wm.pct + '%', 11, westColor(wm), 'bold')
     w.addSpacer(4)

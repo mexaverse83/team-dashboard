@@ -159,6 +159,12 @@ describe('GET /api/finance/widget (v2)', () => {
     }
   })
 
+  it('measures the WEST bar against capacity like home, with the stretch target as a marker (W5)', async () => {
+    state.summary = { ...reviewSummary(), month_projection: { projected_savings: 87448 }, west_plan: { month_target: 117586, capacity_target: 84869, projected_savings: 87448, pct_of_capacity: 103 } }
+    const data = await (await get()).json()
+    expect(data.west_month).toMatchObject({ target: 84869, pct: 103, gap: 0, tone: 'good', stretch_target: 117586 })
+  })
+
   it('prefers the summary contract fields once WS4 provides them', async () => {
     state.summary = { ...reviewSummary(), variable: { budget: 38500, spent: 43986, left: -5486, days_left: 4, through_label: 'Sat Oct 31', status: 'over' }, upcoming: [{ date: '2026-10-30', label: 'Balloon', amount: 90000, kind: 'west' }, { date: '2026-10-30', label: 'Salary', amount: 50000, kind: 'income' }] }
     const data = await (await get()).json()

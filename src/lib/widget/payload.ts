@@ -66,7 +66,7 @@ export interface WidgetPayloadV2 {
   budget_pace: Array<{ name: string; spent: number; budget: number; pct: number; left: number }>
   daily_spend: number[]
   daily_budget_pace: number
-  west_month: { label: string; month: string; target: number; projected_savings: number; gap: number; pct: number; tone: WestTone; surplus_so_far: number } | null
+  west_month: { label: string; month: string; target: number; projected_savings: number; gap: number; pct: number; tone: WestTone; surplus_so_far: number; stretch_target?: number | null } | null
   upcoming: WidgetUpcoming[]
   milestones: { baby_months: number | null; west_funded_pct: number | null; west_months_to_delivery: number | null }
   coach: { title: string; url: string; question: string; rule: string; tone: string }
@@ -217,7 +217,11 @@ export function buildUpcoming(summary: WidgetPayloadInput['summary'], today: str
   for (const it of items) {
     const date = String(it.date || '').slice(0, 10)
     if (!(date >= today && date <= horizon) || !(Number(it.amount) > 0)) continue
-    byDate.set(date, [...(byDate.get(date) || []), { ...it, date }])
+    // The summary may pre-group a day ("Rent + 7 more", items/count): keep the
+    // first name and the real count so the widget renders a localised "+N more".
+    const label = it.items?.length ? String(it.items[0]) : it.label
+    const count = Math.max(1, Number(it.count) || it.items?.length || 1)
+    byDate.set(date, [...(byDate.get(date) || []), { ...it, date, label, count }])
   }
   return [...byDate.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
@@ -228,7 +232,7 @@ export function buildUpcoming(summary: WidgetPayloadInput['summary'], today: str
         date,
         label: sorted[0].label,
         amount: round(sorted.reduce((s, g) => s + (Number(g.amount) || 0), 0)),
-        count: sorted.length,
+        count: sorted.reduce((n, g) => n + (g.count || 1), 0),
         kind: sorted[0].kind,
       }
     })
@@ -283,7 +287,10 @@ export function buildWidgetPayload(input: WidgetPayloadInput): WidgetPayloadV2 {
 
   const projected = Number(summary.month_projection?.projected_savings) || 0
   const planMonth = west?.savings_plan?.months?.find(m => m.month === month)
-  const target = summary.west_plan?.month_target ?? planMonth?.target ?? null
+  // The bar measures against capacity, like home's month-projection card
+  // (UX-03/W5): the stretch target is only a marker.
+  const target = summary.west_plan?.capacity_target ?? planMonth?.capacity ?? summary.west_plan?.month_target ?? planMonth?.target ?? null
+  const stretch = summary.west_plan?.month_target ?? planMonth?.target ?? null
   const westPct = target && target > 0 ? Math.min(999, Math.max(0, Math.round((projected / target) * 100))) : 0
   const funded = summary.west_plan?.funded_pct
     ?? (west?.target ? Math.round(((west.projected_at_delivery?.total_projected || 0) / west.target) * 1000) / 10 : null)
@@ -326,6 +333,7 @@ export function buildWidgetPayload(input: WidgetPayloadInput): WidgetPayloadV2 {
       gap: round(Math.max(0, target - projected)),
       pct: westPct,
       tone: westTone(westPct),
+      stretch_target: stretch != null && stretch > 0 ? round(stretch) : null,
     } : null,
     upcoming: buildUpcoming(summary, today),
     milestones: {

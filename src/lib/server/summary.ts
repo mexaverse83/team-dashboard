@@ -349,7 +349,11 @@ export async function buildSummary(
       furnishing_budget: west.savings_plan.furnishing_budget,
       cumulative_vs_capacity_since_jan: west.behavioral.cumulative_vs_capacity_since_jan,
       months_to_delivery: west.months_to_delivery,
-      funded_pct: west.current_status.funded_pct,
+      // "Funded at delivery": projected total at delivery over the target, the
+      // same definition the Daily Brief and the WEST tracker show (not today's sources).
+      funded_pct: west.projected_at_delivery && west.target > 0
+        ? Math.round((west.projected_at_delivery.total_projected / west.target) * 1000) / 10
+        : west.current_status.funded_pct,
       feasible: west.savings_plan.feasible,
       projected_shortfall_at_delivery: west.savings_plan.projected_shortfall_at_delivery,
       stretch_factor: west.savings_plan.stretch_factor,
