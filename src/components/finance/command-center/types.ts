@@ -68,9 +68,19 @@ export interface Summary {
     months_covered: number
     funded_pct?: number
     gap?: number
+    essentials_basis?: 'derived' | 'manual'
+    confirmed_at?: string | null
+    days_since_confirmed?: number | null
   }
   goals: { active: Array<{ name: string; target: number; current: number; pct: number; monthly_needed: number; on_track: boolean }> }
-  cash_flow: { monthly_income: number; fixed_commitments: number; discretionary_available: number }
+  cash_flow: {
+    monthly_income: number
+    fixed_commitments: number
+    discretionary_available: number
+    /** v2: budgets + the clean-month median run rate (what "planned" means on home). */
+    planned_spend?: number
+    planned_spend_basis?: string
+  }
   goal_funding: {
     total_monthly_needed: number
     discretionary_available: number

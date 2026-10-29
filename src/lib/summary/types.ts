@@ -53,6 +53,8 @@ export interface SummaryVariable {
   days_left: number
   /** e.g. "Sat Oct 31" */
   through_label: string
+  /** YYYY-MM-DD of the same day as `through_label` (lets the widget localise it). */
+  through_date?: string | null
   status: 'ok' | 'tight' | 'over'
   /** Days in the week window (through Sunday or month end), incl. today. */
   week_days_left?: number

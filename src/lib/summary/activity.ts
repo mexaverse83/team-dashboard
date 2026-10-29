@@ -37,6 +37,7 @@ export function buildVariable(budgetVsActual: BudgetVsActualRow[], { today, dayO
     left,
     days_left: daysLeft,
     through_label: throughLabel(addDaysKey(today, weekDays - 1)),
+    through_date: addDaysKey(today, weekDays - 1),
     status: left < 0 || tone === 'negative' ? 'over' : tone === 'warning' ? 'tight' : 'ok',
     week_days_left: weekDays,
     week_left: left > 0 ? Math.round((left / daysLeft) * weekDays) : left,

@@ -14,13 +14,10 @@ import { InstallPrompt } from '@/components/finance/install-prompt'
 import { useFinanceData } from '@/hooks/use-finance-data'
 import { useRefreshReport } from './command-center/use-refresh-report'
 import { fetchWestProjection } from '@/lib/west-projection-client'
-import { fetchAllRows } from '@/lib/supabase-fetch-all'
-import { supabase } from '@/lib/supabase'
 import { MX_TIME_ZONE, mexicoCityToday, monthEndKey, parseLocalDateKey } from '@/lib/dates'
 import { formatCompact, formatDateShort, formatDelta, formatWeekdayShort } from '@/lib/format'
-import { OWNERS, canonicalOwner, ownersEqual } from '@/lib/owners'
+import { canonicalOwner, ownersEqual } from '@/lib/owners'
 import { cn } from '@/lib/utils'
-import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
 import type { Summary, Forecast } from './command-center/types'
 import { KpiCard, SectionHeader } from './command-center/ui'
 import { BabyProgressCard, EducationFundCard, WestProgressCard } from './command-center/plans'
@@ -48,49 +45,7 @@ interface NetWorthPayload {
   summary?: { latest: { net_worth: number; total_assets: number; total_liabilities: number; date: string } | null; delta?: number; count?: number }
 }
 
-type MonthTx = Pick<FinanceTransaction, 'id' | 'transaction_date' | 'merchant' | 'description' | 'amount_mxn' | 'type' | 'owner' | 'category_id'>
-
-interface MonthActivity {
-  ownerSpend: Record<string, number>
-  recent: RecentRow[]
-}
-
 const RECENT_ROWS = 5
-
-// Fallback until summary carries owner_spend / recent_transactions (WS4):
-// this month's rows through today, read once (perf-13 removes it).
-async function readMonthActivity(): Promise<MonthActivity> {
-  const today = mexicoCityToday()
-  const month = today.slice(0, 7)
-  const [catRes, txs] = await Promise.all([
-    supabase.from('finance_categories').select('id, name, icon'),
-    fetchAllRows<MonthTx>((from, to) => supabase.from('finance_transactions')
-      .select('id, transaction_date, merchant, description, amount_mxn, type, owner, category_id')
-      .gte('transaction_date', `${month}-01`).lte('transaction_date', today)
-      .order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20_000, true),
-  ])
-  const cats = new Map(((catRes.data || []) as Pick<FinanceCategory, 'id' | 'name' | 'icon'>[]).map(c => [c.id, c]))
-  const ownerSpend: Record<string, number> = Object.fromEntries(OWNERS.map(o => [o, 0]))
-  for (const tx of txs) {
-    if (tx.type !== 'expense') continue
-    const owner = OWNERS.find(o => ownersEqual(o, tx.owner))
-    if (owner) ownerSpend[owner] += Number(tx.amount_mxn) || 0
-  }
-  const recent = txs.slice(0, 40).map(tx => {
-    const cat = tx.category_id ? cats.get(tx.category_id) : undefined
-    return {
-      id: tx.id,
-      date: tx.transaction_date,
-      merchant: tx.merchant || tx.description || '',
-      amount: Number(tx.amount_mxn) || 0,
-      type: tx.type === 'income' ? 'income' as const : 'expense' as const,
-      owner: tx.owner,
-      category_name: cat?.name ?? null,
-      category_icon: cat?.icon ?? null,
-    }
-  })
-  return { ownerSpend, recent }
-}
 
 function upcomingEvents(summary: Summary | undefined, forecast: Forecast | null | undefined): ForecastEvent[] | null {
   if (summary?.upcoming) {
@@ -125,9 +80,7 @@ export default function CommandCenterClient() {
   const netWorthQ = useFinanceData<NetWorthPayload>('home:net-worth', readJson('/api/finance/net-worth?days=40'))
   const insightsQ = useFinanceData<InsightsPayload>('home:insights', readJson('/api/finance/insights'), { minIntervalMs: 30 * 60_000 })
   const chatQ = useFinanceData<unknown>('home:proactive', readJson('/api/finance/wolff-chat?latest_proactive=1'), { minIntervalMs: 5 * 60_000 })
-  const needsActivity = Boolean(summary) && (!summary?.owner_spend || !summary?.recent_transactions)
-  const activityQ = useFinanceData<MonthActivity>('home:activity', readMonthActivity, { enabled: needsActivity })
-  useRefreshReport([summaryQ, westQ, forecastQ, netWorthQ, insightsQ, chatQ, activityQ])
+  useRefreshReport([summaryQ, westQ, forecastQ, netWorthQ, insightsQ, chatQ])
 
   const refreshAll = () => {
     void summaryQ.refresh()
@@ -136,7 +89,6 @@ export default function CommandCenterClient() {
     void insightsQ.refresh()
     void chatQ.refresh()
     if (needsWestFetch) void westQ.refresh()
-    if (needsActivity) void activityQ.refresh()
   }
 
   const now = new Date()
@@ -147,10 +99,11 @@ export default function CommandCenterClient() {
     ? resolveWestPlan(summary.west_plan, null, month)
     : westQ.loading || (westQ.data === undefined && !westQ.error) ? undefined : resolveWestPlan(null, westQ.data, month)
 
-  const ownerSpend = summary?.owner_spend ?? activityQ.data?.ownerSpend ?? null
-  const allRecent: RecentRow[] | undefined = summary?.recent_transactions
-    ? summary.recent_transactions.map(r => ({ ...r, type: (r as { type?: 'expense' | 'income' }).type }))
-    : activityQ.data?.recent ?? (activityQ.error ? [] : undefined)
+  // owner_spend / recent_transactions come with the summary (perf-13): no browser ledger read.
+  const ownerSpend = summary?.owner_spend ?? null
+  const allRecent: RecentRow[] | undefined = summary
+    ? (summary.recent_transactions ?? []).map(r => ({ ...r, type: r.type === 'income' ? 'income' as const : r.type === 'expense' ? 'expense' as const : undefined }))
+    : undefined
   const recentRows = allRecent && (scopeOwner ? allRecent.filter(r => ownersEqual(r.owner, scopeOwner)) : allRecent).slice(0, RECENT_ROWS)
 
   const attention = summary ? buildAttentionItems(summary, today) : []
@@ -186,8 +139,11 @@ export default function CommandCenterClient() {
   const nw = netWorthQ.data?.summary?.latest ?? null
   const nwDelta = (netWorthQ.data?.summary?.count ?? 0) >= 2 ? netWorthQ.data?.summary?.delta ?? null : null
   const nwSince = netWorthQ.data?.snapshots?.[0]?.snapshot_date
-  const ef = summary.emergency_fund as Summary['emergency_fund'] & { essentials_basis?: 'derived' | 'manual' }
-  const plannedPct = summary.cash_flow.monthly_income > 0 ? Math.round(summary.cash_flow.fixed_commitments / summary.cash_flow.monthly_income * 100) : null
+  const ef = summary.emergency_fund
+  const efStaleDays = ef.days_since_confirmed ?? null
+  // One free-cash number (WS4): planned = budgets + clean-month run rate; free = income − planned.
+  const planned = summary.cash_flow.planned_spend ?? summary.cash_flow.fixed_commitments
+  const plannedPct = summary.cash_flow.monthly_income > 0 ? Math.round(planned / summary.cash_flow.monthly_income * 100) : null
   const baby = summary.baby_plan && summary.baby_plan.planning_total > 0 ? summary.baby_plan : null
   const education = baby && (baby.education?.monthly_contribution ?? 0) > 0 ? baby.education : null
   const scopedSpend = scopeOwner && ownerSpend ? { owner: scopeOwner, amount: Object.entries(ownerSpend).find(([k]) => canonicalOwner(k) === scopeOwner)?.[1] ?? 0 } : null
@@ -271,10 +227,10 @@ export default function CommandCenterClient() {
             )}
             <KpiCard icon={ShieldCheck} label="Emergency runway" href="/finance/emergency-fund" money={false}
               value={`${ef.months_covered.toFixed(1)} mo`}
-              sublabel={<span><span data-money>{formatCompact(ef.current)}</span> reserve · {ef.essentials_basis === 'manual' ? 'manual essentials' : 'of essentials'}</span>} />
+              sublabel={<span><span data-money>{formatCompact(ef.current)}</span> reserve · {ef.essentials_basis === 'manual' ? 'manual essentials' : 'of essentials'}{efStaleDays != null && efStaleDays > 45 ? <span className="mt-0.5 block text-warning">Balance confirmed {efStaleDays} days ago</span> : null}</span>} />
             <KpiCard icon={LockKeyhole} label="Planned spend" href="/finance/budget-builder" money={false}
               value={plannedPct != null ? `${plannedPct}%` : '—'}
-              sublabel={<span>of income · <span data-money>{formatCompact(summary.cash_flow.fixed_commitments)}</span> budgeted</span>} />
+              sublabel={<span>of income · <span data-money>{formatCompact(planned)}</span> planned · <span data-money>{formatCompact(summary.cash_flow.discretionary_available)}</span> free</span>} />
           </div>
           <Card>
             <SectionHeader title="Scheduled cash flow" subtitle="Known income, subscriptions, MSI and debt — next 30 days" />
