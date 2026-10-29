@@ -20,9 +20,10 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); window.history.repl
 describe('Ask Mona', () => {
   it('renders Mona’s markdown as formatting, not asterisks', async () => {
     render(<AskWolffClient />)
-    expect(await screen.findByText('$6,742')).toHaveProperty('tagName', 'STRONG')
+    expect((await screen.findByText('$6,742')).closest('strong')).not.toBeNull()
     expect(screen.queryByText(/\*\*/)).not.toBeInTheDocument()
-    expect(screen.getByText('Keep it under $1,500').tagName).toBe('LI')
+    // Amounts are their own data-money spans (privacy mode), so match the list item by its text.
+    expect(screen.getByText((_, el) => el?.tagName === 'LI' && el.textContent === 'Keep it under $1,500')).toBeInTheDocument()
   })
 
   it('announces new messages politely and uses the avatar as the only Mona marker', async () => {

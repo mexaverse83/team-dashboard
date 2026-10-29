@@ -167,7 +167,8 @@ describe('Savings Goals', () => {
     // Page was renamed from "Savings Goals" to "Goals" (now covers crypto targets too)
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Goals' })).toBeInTheDocument()
-      expect(screen.getByText('Track progress toward your financial & crypto targets')).toBeInTheDocument()
+      expect(screen.getByText(/Track progress toward your financial & crypto targets/)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Investments › Real Estate' })).toHaveAttribute('href', '/finance/investments?tab=Real%20Estate')
     })
   })
 

@@ -18,7 +18,7 @@ vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: (table: s
   return chain
 } }) }))
 vi.mock('@/lib/finance-api-auth', () => ({ authorizeFinanceRequest: async () => state.auth }))
-vi.mock('@/lib/crypto-prices', () => ({ fetchCryptoPrices: async () => ({ BTC: { usd: 100_000, mxn: 1_900_000, change24h: 0 } }) }))
+vi.mock('@/lib/crypto-prices', async importOriginal => ({ ...(await importOriginal<typeof import('@/lib/crypto-prices')>()), fetchCryptoPrices: async () => ({ BTC: { usd: 100_000, mxn: 1_900_000, change24h: 0 } }) }))
 vi.mock('@/lib/server/west', () => ({
   getWestProjection: async () => { if (!state.west) throw new Error('no target'); return state.west },
 }))

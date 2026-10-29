@@ -139,17 +139,11 @@ describe('Server Component Architecture', () => {
     }
   })
 
-  it('flags pages missing metadata (known issue)', () => {
+  it('gives every page a "<page> — Mona" tab title', () => {
     const fs = require('fs')
-    const missingMetadata = [
-      'src/app/finance/debt/page.tsx',
-      'src/app/finance/emergency-fund/page.tsx',
-      'src/app/finance/audit/page.tsx',
-    ]
-    for (const page of missingMetadata) {
-      const content = fs.readFileSync(page, 'utf-8')
-      // These are known to be missing metadata — flagged in QA report
-      expect(content).not.toContain('export const metadata')
+    for (const page of ['debt', 'emergency-fund', 'audit', 'insights', 'installments', 'goals']) {
+      const content = fs.readFileSync(`src/app/finance/${page}/page.tsx`, 'utf-8')
+      expect(content).toMatch(/title: '[^']+ — Mona'/)
     }
   })
 
