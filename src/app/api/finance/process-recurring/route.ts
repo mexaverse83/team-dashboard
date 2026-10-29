@@ -221,11 +221,14 @@ async function processRecurring(req: NextRequest) {
       // ── DEBT SYNC: if subscription is linked to a debt, update balance ──
       if (sub.debt_id) {
         try {
-          const { data: debt } = await supabase
+          // supabase-js returns errors instead of throwing: check each one, or a
+          // failed write would count as a payment and the run would read 'ok'.
+          const { data: debt, error: debtReadError } = await supabase
             .from('finance_debts')
             .select('*')
             .eq('id', sub.debt_id)
             .single()
+          if (debtReadError) throw new Error(`read: ${debtReadError.message}`)
 
           if (debt && debt.balance > 0) {
             const monthlyRate = (debt.interest_rate || 0) / 100 / 12
@@ -233,7 +236,7 @@ async function processRecurring(req: NextRequest) {
             const principalPortion = Math.round((sub.amount - interestPortion) * 100) / 100
             const newBalance = Math.max(0, Math.round((debt.balance - principalPortion) * 100) / 100)
 
-            await supabase.from('finance_debt_payments').insert({
+            const { error: paymentError } = await supabase.from('finance_debt_payments').insert({
               debt_id: sub.debt_id,
               payment_date: dueDate,
               amount: sub.amount,
@@ -241,9 +244,11 @@ async function processRecurring(req: NextRequest) {
               interest_portion: interestPortion,
               remaining_balance: newBalance,
             })
-            await supabase.from('finance_debts')
+            if (paymentError) throw new Error(`payment insert: ${paymentError.message} — balance not reduced; record the payment on the Debt page`)
+            const { error: balanceError } = await supabase.from('finance_debts')
               .update({ balance: newBalance, ...(newBalance <= 0 ? { is_active: false } : {}) })
               .eq('id', sub.debt_id)
+            if (balanceError) throw new Error(`balance update: ${balanceError.message} — payment logged but balance still ${debt.balance}; set it to ${newBalance} on the Debt page`)
 
             results.debt_payments++
           }

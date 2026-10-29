@@ -20,7 +20,10 @@
 --      Every API route uses the service role; without it they answer 503.
 --   b. Move the home-PC scripts off the anon key: scripts/generate-insights-codex.mjs
 --      and scripts/send-push.mjs already write through the API with
---      FINANCE_API_KEY. scripts/wolff-chat-daemon.mjs still reads and writes
+--      FINANCE_API_KEY, but send-push.mjs's LOCAL fallback (used only when
+--      Vercel has no VAPID key) reads finance_push_subscriptions directly — add
+--      SUPABASE_SERVICE_ROLE_KEY to .env.local or that fallback stops sending.
+--      scripts/wolff-chat-daemon.mjs still reads and writes
 --      finance_wolff_chat with the anon key — give it the service-role key
 --      (or route it through /api/finance/wolff-chat) BEFORE step c, or Mona's
 --      chat stops answering.

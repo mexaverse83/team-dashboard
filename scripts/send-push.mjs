@@ -11,8 +11,9 @@
 // VAPID_PRIVATE_KEY from .env.local.
 //
 // Requires in .env.local: FINANCE_API_KEY (and, for the local fallback,
-// VAPID_PRIVATE_KEY + Supabase URL/anon key). The VAPID public key lives in
-// src/lib/push-config.ts.
+// VAPID_PRIVATE_KEY + Supabase URL + SUPABASE_SERVICE_ROLE_KEY — after the RLS
+// lockdown the anon key can no longer read finance_push_subscriptions). The
+// VAPID public key lives in src/lib/push-config.ts.
 
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -30,7 +31,7 @@ function loadEnvLocal() {
   return env
 }
 const env = loadEnvLocal()
-const { NEXT_PUBLIC_SUPABASE_URL: URL_, NEXT_PUBLIC_SUPABASE_ANON_KEY: ANON, VAPID_PRIVATE_KEY, FINANCE_API_KEY } = env
+const { NEXT_PUBLIC_SUPABASE_URL: URL_, NEXT_PUBLIC_SUPABASE_ANON_KEY: ANON, SUPABASE_SERVICE_ROLE_KEY: SERVICE, VAPID_PRIVATE_KEY, FINANCE_API_KEY } = env
 const BASE_URL = env.FINANCE_BASE_URL || 'https://finance.autonomis.co'
 const headers = { 'x-api-key': FINANCE_API_KEY || '', 'Content-Type': 'application/json', 'x-automation-trigger': 'send-push' }
 
@@ -55,11 +56,15 @@ async function sendLocally(message) {
   const VAPID_PUBLIC_KEY = pushConfig.match(/VAPID_PUBLIC_KEY = '([^']+)'/)[1]
   webpush.setVapidDetails(env.VAPID_SUBJECT || 'mailto:bernardo.garza@nexaminds.ai', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
 
+  // finance_push_subscriptions is service-role only once supabase-2026-10-rls-lockdown.sql
+  // is applied; the anon key is a pre-lockdown fallback that then reads nothing.
+  const key = SERVICE || ANON
   const res = await fetch(`${URL_}/rest/v1/finance_push_subscriptions?select=endpoint,subscription`, {
-    headers: { apikey: ANON, Authorization: `Bearer ${ANON}` },
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
   })
-  if (!res.ok) throw new Error(`subscriptions fetch failed (${res.status})`)
+  if (!res.ok) throw new Error(`subscriptions fetch failed (${res.status})${SERVICE ? '' : ' — add SUPABASE_SERVICE_ROLE_KEY to .env.local (the RLS lockdown blocks the anon key)'}`)
   const subs = await res.json()
+  if (!SERVICE && subs.length === 0) console.warn('no subscriptions visible with the anon key — after the RLS lockdown, set SUPABASE_SERVICE_ROLE_KEY in .env.local')
   let sent = 0
   for (const row of subs) {
     try {
@@ -94,9 +99,15 @@ async function main() {
   } catch (err) {
     res = { ok: false, status: 0, json: { error: err.message } }
   }
-  // 'no-audience' (no VAPID key in Vercel / nobody subscribed) and
-  // 'ledger-missing' (server can't dedupe) both mean nothing was delivered.
-  if (res.ok && res.json.skipped !== 'no-audience' && res.json.skipped !== 'ledger-missing') {
+  // 'ledger-missing': the server can't dedupe, so a local send would break the
+  // once-per-day guarantee — skip it and say how to fix it instead.
+  if (res.ok && res.json.skipped === 'ledger-missing') {
+    console.warn('⚠️  Daily push skipped: the run ledger is missing, so the send cannot be deduped. Apply supabase-2026-10-automation-runs.sql.')
+    await logRun('warning', 'ledger-missing: daily push not sent', { via: 'none' })
+    return
+  }
+  // 'no-audience' (no VAPID key in Vercel / nobody subscribed) means nothing was delivered.
+  if (res.ok && res.json.skipped !== 'no-audience') {
     console.log(`✅ Daily push: ${res.json.skipped ? res.json.skipped : `${res.json.sent} device(s)`} — "${res.json.message?.title}"`)
     return
   }

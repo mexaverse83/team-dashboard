@@ -95,7 +95,9 @@ jobs:
           if [ "$problems" -gt 0 ]; then
             echo "::warning::/api/finance/health reports $problems problem(s) — see the automation status in the app sidebar"
           fi
-          if [ "$(jq -r '.checks.cron_secret_present // true' health.json)" = "false" ]; then
+          # Compare the raw value: jq's `//` replaces false as well as null, so
+          # `.cron_secret_present // true` could never read "false". Don't bring it back.
+          if jq -e '.checks.cron_secret_present == false' health.json >/dev/null; then
             echo "::error::CRON_SECRET is not set in Vercel — every scheduled job gets 401"
             exit 1
           fi

@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   rpc: vi.fn(),
   upsertResult: null as null | ((table: string, row: Row) => { data: unknown; error: unknown }),
   insertResult: null as null | ((table: string, row: Row) => { error: unknown }),
+  updateResult: null as null | ((table: string, row: Row) => { error: unknown }),
   auth: { ok: true, method: 'api-key' } as Record<string, unknown>,
 }))
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ rpc: state.rpc, from: (table: string) => {
@@ -24,7 +25,8 @@ vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ rpc: state.rpc,
   for (const method of ['select', 'gte', 'lte', 'order', 'limit', 'ilike']) chain[method] = () => chain
   chain.eq = (k: string, v: unknown) => { filters.push([k, v]); return chain }
   chain.insert = (row: unknown) => { state.insert(table, row); return Promise.resolve(state.insertResult?.(table, row as Row) ?? { error: null }) }
-  chain.update = (row: unknown) => { state.update(table, row); return { eq: () => Promise.resolve({ error: null }) } }
+  chain.update = (row: unknown) => { state.update(table, row); return { eq: () => Promise.resolve(state.updateResult?.(table, row as Row) ?? { error: null }) } }
+  chain.single = () => { const r = result(); return Promise.resolve({ data: (r.data as Row[])[0] ?? null, error: r.error }) }
   chain.upsert = (row: Row) => {
     state.upsert(table, row)
     const res = state.upsertResult?.(table, row) ?? { data: [{ id: 'new' }], error: null }
@@ -42,7 +44,7 @@ beforeEach(() => {
   state.tables = { finance_monthly_savings: [{ month: '2026-08-01', owner: 'total' }] }; state.fail = ''
   state.insert.mockReset(); state.upsert.mockReset(); state.update.mockReset()
   state.rpc.mockReset().mockResolvedValue({ data: null, error: null })
-  state.upsertResult = null; state.insertResult = null
+  state.upsertResult = null; state.insertResult = null; state.updateResult = null
   state.auth = { ok: true, method: 'api-key' }
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-08T15:00:00Z'))
 })
@@ -95,6 +97,36 @@ describe('recurring processor safeguards', () => {
     state.tables.finance_monthly_savings = []
     expect((await process()).status).toBe(200)
     expect(closes()).toEqual(['2026-06-01', '2026-07-01', '2026-08-01'])
+  })
+})
+
+describe('debt sync', () => {
+  const sub = { id: 'sub', name: 'Car loan', amount: 5000, currency: 'MXN', frequency: 'monthly', next_due_date: '2026-09-01', debt_id: 'debt-1' }
+  it('counts the payment only when both writes succeed', async () => {
+    state.tables.finance_recurring = [sub]
+    state.tables.finance_debts = [{ id: 'debt-1', balance: 50000, interest_rate: 12 }]
+    const body = await (await process()).json()
+    expect(body.results.debt_payments).toBe(1)
+    expect(body.results.errors).toEqual([])
+  })
+  it('reports a failed balance update instead of claiming the payment', async () => {
+    state.tables.finance_recurring = [sub]
+    state.tables.finance_debts = [{ id: 'debt-1', balance: 50000, interest_rate: 12 }]
+    state.updateResult = table => ({ error: table === 'finance_debts' ? { message: 'permission denied' } : null })
+    const response = await process()
+    const body = await response.json()
+    expect(response.status).toBe(503)
+    expect(body.results.debt_payments).toBe(0)
+    expect(body.results.errors).toEqual(expect.arrayContaining([expect.stringMatching(/^Debt sync Car loan: balance update: permission denied/)]))
+  })
+  it('does not touch the balance when the payment insert fails', async () => {
+    state.tables.finance_recurring = [sub]
+    state.tables.finance_debts = [{ id: 'debt-1', balance: 50000, interest_rate: 12 }]
+    state.insertResult = table => ({ error: table === 'finance_debt_payments' ? { message: 'constraint' } : null })
+    const body = await (await process()).json()
+    expect(body.results.debt_payments).toBe(0)
+    expect(state.update.mock.calls.some(([t]) => t === 'finance_debts')).toBe(false)
+    expect(body.results.errors).toEqual(expect.arrayContaining([expect.stringMatching(/payment insert: constraint/)]))
   })
 })
 
