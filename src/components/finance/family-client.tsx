@@ -405,7 +405,9 @@ export function FamilyClient() {
               <div>
                 <h3 className="text-sm font-semibold">Funded by the same engine</h3>
                 <p className="mt-0.5 text-[11px] leading-relaxed text-[hsl(var(--text-secondary))] max-w-xl">
-                  This plan doesn&rsquo;t have its own money — it&rsquo;s a set of claims on the household portfolio. The birth envelope draws on the emergency-fund surplus;
+                  This plan doesn&rsquo;t have its own money — it&rsquo;s a set of claims on the household portfolio. {(summary?.emergency_fund?.gap ?? 0) > 0
+                    ? <>The birth envelope is funded from monthly cash flow (the emergency fund is {formatCompact(summary!.emergency_fund!.gap)} below target);</>
+                    : <>The birth envelope draws on the emergency-fund surplus;</>}
                   the education fund becomes a dedicated GBM position from {baby.education.start_month}; the insurance premiums are cash-flow. WEST and the yearly goals live on the same pot.
                 </p>
               </div>

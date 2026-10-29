@@ -135,6 +135,8 @@ export type FamilyFutureBaby = {
   planning_total: number
   remaining_amount: number
   spent_to_date: number
+  /** summary.emergency_fund.gap: > 0 means there is no e-fund surplus to draw on. */
+  emergency_fund_gap?: number
   education?: {
     monthly_contribution: number
     projected_value: number
@@ -155,7 +157,9 @@ export function FamilyFutureStrip({ baby }: { baby: FamilyFutureBaby | null | un
       eyebrow: `Baby · ${formatMonthShort(baby.due_month, { withYear: true })}`,
       title: 'Birth envelope',
       value: `${formatCompact(baby.remaining_amount)} to fund`,
-      detail: `${baby.months_to_birth} months to birth · covered by the emergency-fund surplus, not this portfolio's goals`,
+      detail: (baby.emergency_fund_gap ?? 0) > 0
+        ? `${baby.months_to_birth} months to birth · funded from monthly cash flow (the emergency fund is ${formatCompact(baby.emergency_fund_gap!)} below target)`
+        : `${baby.months_to_birth} months to birth · covered by the emergency-fund surplus, not this portfolio's goals`,
       spent: baby.spent_to_date,
       total: baby.planning_total,
       color: 'hsl(var(--info))',

@@ -23,9 +23,12 @@ import { dispatchFinanceEvent, FINANCE_EVENTS } from '@/lib/finance-events'
 import type { FinanceCategory, FinanceTransaction, FinanceBudget, BillingCycle } from '@/lib/finance-types'
 import { enrichBudgets, DEFAULT_CATEGORIES, CYCLE_LABELS, CYCLE_MONTHS, allocatedMonthlySpend, monthKey } from '@/lib/finance-utils'
 import { inputCls } from '@/lib/form-style'
+import { FIXED_CATEGORIES as SUMMARY_FIXED_CATEGORIES } from '@/lib/summary/budgets'
 
 // Charged at a fixed amount: exactly 100% reads "Paid", not a warning (VIS-03).
-const FIXED_CATEGORIES = new Set(['Rent/Mortgage', 'Subscriptions', 'Insurance', 'Education'])
+// Fixed bills get no straight-line pace: the summary's list (Utilities included,
+// so a paid bill isn't 'on pace' past its budget) plus page-only extras.
+const FIXED_CATEGORIES = new Set([...SUMMARY_FIXED_CATEGORIES, 'Insurance', 'Education'])
 const TX_COLUMNS = 'id,type,amount_mxn,category_id,transaction_date,coverage_start,coverage_end'
 // Longest billing cycle (annual) plus the selected month.
 const LOOKBACK_MONTHS = Math.max(...Object.values(CYCLE_MONTHS))

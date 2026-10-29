@@ -166,7 +166,14 @@ export async function GET(req: NextRequest) {
       .reduce((sum, income) => sum + Math.abs(income.amount || 0) / (FREQ_DIVISOR[income.frequency] || 1), 0)
     const configuredMonthly = configuredFromRecurring + configuredFromSources
     const baseline = deriveIncomeBaseline(configuredMonthly, txRows.filter(t => t.type === 'income'), month)
-    const monthlySupplement = Math.max(0, baseline.effectiveMonthly - configuredMonthly)
+    // Yearly sources (aguinaldo) are emitted above as dated lumps, so their /12
+    // spread must not shrink the monthly top-up: compare the observed monthly
+    // cash with the configured MONTHLY cash only.
+    const yearlySpread = incomeSources
+      .filter(income => !recurringNames.has(income.name) && (income.frequency || 'monthly') === 'yearly')
+      .reduce((sum, income) => sum + Math.abs(income.amount || 0) / 12, 0)
+    const configuredMonthlyCash = configuredMonthly - yearlySpread
+    const monthlySupplement = Math.max(0, Math.round((baseline.observedMonthly - configuredMonthlyCash) * 100) / 100)
     if (monthlySupplement > 0) {
       for (let cursor = `${addMonthsKey(month, 1)}-01`; cursor <= horizon; cursor = `${addMonthsKey(cursor, 1)}-01`) {
         events.push({ date: cursor, type: 'income', amount_mxn: monthlySupplement, name: 'Observed household income baseline', source_id: 'observed-income-baseline' })

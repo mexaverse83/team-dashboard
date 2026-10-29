@@ -33,7 +33,9 @@ async function fetchBaby(signal: AbortSignal): Promise<FamilyFutureBaby | null> 
   const res = await fetch('/api/finance/summary', { signal, cache: 'no-store' })
   if (!res.ok) return null
   const json = await res.json()
-  return (json?.baby_plan as FamilyFutureBaby | undefined) ?? null
+  const baby = (json?.baby_plan as FamilyFutureBaby | undefined) ?? null
+  // The birth envelope's funding copy depends on whether the e-fund has a surplus.
+  return baby ? { ...baby, emergency_fund_gap: Number(json?.emergency_fund?.gap) || 0 } : null
 }
 
 export function InvestmentsClient({ initialTab }: { initialTab?: string }) {

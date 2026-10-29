@@ -44,6 +44,15 @@ describe('scheduled cash flow', () => {
     expect(data.events.filter((e: Ev) => e.source_id === 'month-end').map((e: Ev) => e.date)).toEqual(['2026-01-31', '2026-02-28', '2026-03-31'])
     expect(data.events.filter((e: Ev) => e.source_id === 'future').map((e: Ev) => e.date)).toEqual(['2026-03-31'])
   })
+  it('tops monthly income up to the observed baseline without the yearly bonus spread', async () => {
+    state.tables.finance_income_sources = [{ id: 'agui', name: 'Aguinaldo', amount: 36000, frequency: 'yearly', pay_month: 12, pay_day: 20 }]
+    state.tables.finance_transactions = ['2025-10', '2025-11', '2025-12'].map((m, i) => ({ id: `i${i}`, type: 'income', amount: 200000, amount_mxn: 200000, transaction_date: `${m}-15` }))
+    const data = await forecast()
+    const top = data.events.filter((event: Ev) => event.source_id === 'observed-income-baseline')
+    expect(top.length).toBeGreaterThan(0)
+    // 200,000 observed − 0 configured monthly cash; the 3,000/mo aguinaldo spread is a December lump, not a monthly cut.
+    expect(top.every((event: Ev) => event.amount_mxn === 200000)).toBe(true)
+  })
   it('keeps debt payments in the schedule', async () => {
     state.tables.finance_debts = [{ id: 'debt', name: 'Loan', balance: 5000, minimum_payment: 500 }]
     const data = await forecast()
