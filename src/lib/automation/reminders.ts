@@ -4,7 +4,7 @@
 // ledger can make each one send at most once.
 import { bbvaCycleToPay, summarizeCycle, type CycleTransaction } from '@/lib/payment-methods'
 import { CONTROLLABLE } from '@/lib/controllable-categories'
-import { addDaysKey, diffDaysKey } from '@/lib/dates'
+import { addDaysKey, diffDaysKey, mexicoCityToday } from '@/lib/dates'
 import { formatCompact, formatMoney } from '@/lib/format'
 import { OWNERS } from '@/lib/owners'
 
@@ -34,7 +34,11 @@ export interface ReminderInput {
   checklist?: Array<{ id: string; title: string; windowEnd: string }>
   checklistDone?: ReadonlySet<string>
   digest?: { weekTitle: string; weekDetail: string; householdTitle: string; topCategories?: Array<{ category: string; spent: number; budget: number }> } | null
+  /** Same language as Mona's brief (financeLocale), so a push never mixes two. */
+  lang?: ReminderLang
 }
+
+export type ReminderLang = 'en' | 'es'
 
 export const BUDGET_THRESHOLDS = [100, 80] as const
 export const LOGGING_GAP_DAYS = 4
@@ -42,8 +46,48 @@ export const CHECKLIST_LEAD_DAYS = [7, 1] as const
 
 const money = (n: number) => formatMoney(n)
 
+const T = {
+  en: {
+    cardTitle: (today: boolean) => `BBVA Infinite is due ${today ? 'today' : 'tomorrow'}`,
+    cardBody: (owner: string, amount: string, today: boolean) => `${owner}: pay ${amount} by ${today ? 'today' : 'tomorrow'} to avoid interest.`,
+    billsTitle: (total: string) => `Tomorrow: ${total} in bills`,
+    billsBody: (named: string, rest: number) => `${named}${rest > 0 ? ` + ${rest} more` : ''} post on the 1st.`,
+    someSubscription: 'A subscription',
+    priceTitle: (name: string) => `${name} changed price`,
+    priceBody: (amount: string, from?: string) => (from ? `Now ${amount} (was $${from}).` : `Charged ${amount} — different from last time.`),
+    overTitle: (cat: string) => `${cat} is over budget`,
+    nearTitle: (cat: string, pct: number) => `${cat} is at ${pct}% of budget`,
+    overBody: (spent: string, budget: string, over: string) => `${spent} of ${budget} — ${over} over.`,
+    nearBody: (left: string, budget: string) => `${left} left of ${budget} this month.`,
+    gapTitle: (days: number) => `Nothing logged for ${days} days`,
+    gapBody: 'Add recent expenses or import the BBVA statement so the plan stays real.',
+    top: 'Top',
+    checklistTitle: (title: string, last: boolean) => (last ? `Last day tomorrow: ${title}` : `One week left: ${title}`),
+    checklistBody: 'Mark it done in Mona once it’s handled.',
+  },
+  es: {
+    cardTitle: (today: boolean) => `BBVA Infinite vence ${today ? 'hoy' : 'mañana'}`,
+    cardBody: (owner: string, amount: string, today: boolean) => `${owner}: paga ${amount} ${today ? 'hoy' : 'mañana'} para no generar intereses.`,
+    billsTitle: (total: string) => `Mañana: ${total} en cargos`,
+    billsBody: (named: string, rest: number) => `${named}${rest > 0 ? ` + ${rest} más` : ''} se cobran el día 1.`,
+    someSubscription: 'Una suscripción',
+    priceTitle: (name: string) => `${name} cambió de precio`,
+    priceBody: (amount: string, from?: string) => (from ? `Ahora ${amount} (antes $${from}).` : `Cobró ${amount}, distinto a la vez anterior.`),
+    overTitle: (cat: string) => `${cat} se pasó del presupuesto`,
+    nearTitle: (cat: string, pct: number) => `${cat} va en ${pct}% del presupuesto`,
+    overBody: (spent: string, budget: string, over: string) => `${spent} de ${budget}: ${over} de más.`,
+    nearBody: (left: string, budget: string) => `Quedan ${left} de ${budget} este mes.`,
+    gapTitle: (days: number) => `${days} días sin registrar gastos`,
+    gapBody: 'Agrega los gastos recientes o importa el estado de cuenta BBVA para que el plan siga al día.',
+    top: 'Mayores',
+    checklistTitle: (title: string, last: boolean) => (last ? `Mañana es el último día: ${title}` : `Queda una semana: ${title}`),
+    checklistBody: 'Márcalo como hecho en Mona cuando quede listo.',
+  },
+} as const
+
 export function buildReminders(input: ReminderInput): Reminder[] {
   const { today } = input
+  const t = T[input.lang ?? 'en']
   const tomorrow = addDaysKey(today, 1)
   const month = today.slice(0, 7)
   const out: Reminder[] = []
@@ -59,8 +103,8 @@ export function buildReminders(input: ReminderInput): Reminder[] {
         key: `card-due:bbva_infinite:${owner}:${cycle.due}:${dueIn === 0 ? 'today' : 'tomorrow'}`,
         kind: 'card-due',
         owner,
-        title: dueIn === 0 ? 'BBVA Infinite is due today' : 'BBVA Infinite is due tomorrow',
-        body: `${owner}: pay ${money(amount)} by ${dueIn === 0 ? 'today' : 'tomorrow'} to avoid interest.`,
+        title: t.cardTitle(dueIn === 0),
+        body: t.cardBody(owner, money(amount), dueIn === 0),
         url: '/finance/transactions',
       })
     }
@@ -79,8 +123,8 @@ export function buildReminders(input: ReminderInput): Reminder[] {
         key: `month-start:${tomorrow}`,
         kind: 'month-start',
         owner: null,
-        title: `Tomorrow: ${money(total)} in bills`,
-        body: `${named.join(' + ')}${rest > 0 ? ` + ${rest} more` : ''} post on the 1st.`,
+        title: t.billsTitle(money(total)),
+        body: t.billsBody(named.join(' + '), rest),
         url: '/finance/subscriptions',
       })
     }
@@ -89,14 +133,14 @@ export function buildReminders(input: ReminderInput): Reminder[] {
   // 3. A subscription that just changed price.
   for (const tx of input.priceChanges || []) {
     if (diffDaysKey(tx.transaction_date, today) > 1) continue
-    const name = tx.merchant || 'A subscription'
+    const name = tx.merchant || t.someSubscription
     const from = /from \$([\d.,]+)/.exec(tx.description || '')?.[1]
     out.push({
       key: `price:${name}:${tx.transaction_date}`,
       kind: 'price-change',
       owner: null,
-      title: `${name} changed price`,
-      body: from ? `Now ${money(tx.amount)} (was $${from}).` : `Charged ${money(tx.amount)} — different from last time.`,
+      title: t.priceTitle(name),
+      body: t.priceBody(money(tx.amount), from),
       url: '/finance/subscriptions',
     })
   }
@@ -111,10 +155,10 @@ export function buildReminders(input: ReminderInput): Reminder[] {
       key: `budget:${row.category}:${month}:${threshold}`,
       kind: 'budget',
       owner: null,
-      title: threshold === 100 ? `${row.category} is over budget` : `${row.category} is at ${Math.round(pct)}% of budget`,
+      title: threshold === 100 ? t.overTitle(row.category) : t.nearTitle(row.category, Math.round(pct)),
       body: threshold === 100
-        ? `${money(row.spent)} of ${money(row.budget)} — ${money(row.spent - row.budget)} over.`
-        : `${money(row.budget - row.spent)} left of ${money(row.budget)} this month.`,
+        ? t.overBody(money(row.spent), money(row.budget), money(row.spent - row.budget))
+        : t.nearBody(money(row.budget - row.spent), money(row.budget)),
       url: `/finance/budgets?month=${month}`,
     })
   }
@@ -123,15 +167,15 @@ export function buildReminders(input: ReminderInput): Reminder[] {
   if (input.lastManualEntryAt) {
     const lastDay = new Date(input.lastManualEntryAt)
     if (!Number.isNaN(lastDay.getTime())) {
-      const lastKey = input.lastManualEntryAt.slice(0, 10)
+      const lastKey = mexicoCityToday(lastDay)
       const gap = diffDaysKey(lastKey, today)
       if (gap >= LOGGING_GAP_DAYS) {
         out.push({
           key: `logging-gap:${lastKey}`,
           kind: 'logging-gap',
           owner: null,
-          title: `Nothing logged for ${gap} days`,
-          body: 'Add recent expenses or import the BBVA statement so the plan stays real.',
+          title: t.gapTitle(gap),
+          body: t.gapBody,
           url: '/finance/transactions?add=1',
         })
       }
@@ -147,7 +191,7 @@ export function buildReminders(input: ReminderInput): Reminder[] {
       kind: 'digest',
       owner: null,
       title: input.digest.weekTitle,
-      body: [input.digest.weekDetail, input.digest.householdTitle, top.length ? `Top: ${top.join(', ')}` : ''].filter(Boolean).join(' · '),
+      body: [input.digest.weekDetail, input.digest.householdTitle, top.length ? `${t.top}: ${top.join(', ')}` : ''].filter(Boolean).join(' · '),
       url: '/finance',
     })
   }
@@ -162,8 +206,8 @@ export function buildReminders(input: ReminderInput): Reminder[] {
       key: `checklist:${item.id}:${item.windowEnd}:${lead}d`,
       kind: 'checklist',
       owner: null,
-      title: lead === 1 ? `Last day tomorrow: ${item.title}` : `One week left: ${item.title}`,
-      body: 'Mark it done in Mona once it’s handled.',
+      title: t.checklistTitle(item.title, lead === 1),
+      body: t.checklistBody,
       url: '/finance',
     })
   }

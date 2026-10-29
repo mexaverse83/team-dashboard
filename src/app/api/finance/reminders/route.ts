@@ -6,9 +6,9 @@ import { bbvaCycleToPay } from '@/lib/payment-methods'
 import { BABY_CHECKLIST } from '@/lib/baby-plan'
 import { configErrorResponse, getAdminClient } from '@/lib/supabase-admin'
 import { buildReminders, type Reminder, type ReminderInput } from '@/lib/automation/reminders'
-import { loadLiveBrief } from '@/lib/automation/live-brief'
+import { financeLocale, loadLiveBrief } from '@/lib/automation/live-brief'
 import { hasPushAudience, sendPush } from '@/lib/automation/push'
-import { claimDedupeKey, recordRun, triggerFromAuth } from '@/lib/automation/runs'
+import { claimDedupeKey, recordRun, releaseDedupeKey, triggerFromAuth } from '@/lib/automation/runs'
 
 /**
  * Daily reminders (OPP-01/03/04): card due, tomorrow's month-start bills,
@@ -34,7 +34,7 @@ async function gather(supabase: SupabaseClient, now: Date): Promise<{ input: Rem
     supabase.from('finance_transactions').select('merchant, description, amount, transaction_date')
       .contains('flags', ['price_changed']).gte('transaction_date', addDaysKey(today, -1)),
     supabase.from('finance_transactions').select('created_at')
-      .eq('is_recurring', false).order('created_at', { ascending: false }).limit(1),
+      .or('is_recurring.is.null,is_recurring.eq.false').order('created_at', { ascending: false }).limit(1),
     supabase.from('finance_checklist_status').select('item_id, done_at'),
   ])
   for (const [name, res] of Object.entries({ cards, recurring, priceChanges, lastManual })) {
@@ -70,6 +70,7 @@ async function gather(supabase: SupabaseClient, now: Date): Promise<{ input: Rem
       checklist: BABY_CHECKLIST.map(item => ({ id: item.id, title: item.title, windowEnd: item.windowEnd })),
       checklistDone: done,
       digest,
+      lang: financeLocale(),
     },
   }
 }
@@ -100,23 +101,32 @@ async function run(req: NextRequest, auth: AuthOk, send: boolean) {
 
   // Without an audience nothing is claimed, so nothing is marked "sent" that wasn't.
   const audience = await hasPushAudience(supabase)
-  const outcomes: Array<{ key: string; status: 'sent' | 'duplicate' | 'no-audience' | 'failed'; devices?: number }> = []
+  const outcomes: Array<{ key: string; status: 'sent' | 'duplicate' | 'no-audience' | 'ledger-missing' | 'failed'; devices?: number }> = []
   for (const reminder of reminders) {
     if (!audience) {
       outcomes.push({ key: reminder.key, status: 'no-audience' })
       continue
     }
-    if (!(await claimDedupeKey(supabase, 'reminders', `reminder:${reminder.key}`, { kind: reminder.kind, owner: reminder.owner }))) {
-      outcomes.push({ key: reminder.key, status: 'duplicate' })
+    // Claimed before sending so a concurrent retry can't double-send; given
+    // back when nothing was delivered so the next run tries again.
+    const dedupeKey = `reminder:${reminder.key}`
+    const claim = await claimDedupeKey(supabase, 'reminders', dedupeKey, { kind: reminder.kind, owner: reminder.owner })
+    if (claim !== 'claimed') {
+      outcomes.push({ key: reminder.key, status: claim === 'duplicate' ? 'duplicate' : 'ledger-missing' })
       continue
     }
     try {
       const result = await sendPush(supabase, reminder, { owner: reminder.owner })
+      if (result.sent === 0) await releaseDedupeKey(supabase, dedupeKey)
       outcomes.push({ key: reminder.key, status: result.sent > 0 ? 'sent' : 'failed', devices: result.sent })
     } catch (err) {
+      await releaseDedupeKey(supabase, dedupeKey)
       outcomes.push({ key: reminder.key, status: 'failed' })
       warnings.push(`${reminder.key}: ${(err as Error).message}`)
     }
+  }
+  if (outcomes.some(o => o.status === 'ledger-missing')) {
+    warnings.push('Reminders not sent: run ledger unavailable — run supabase-2026-10-automation-runs.sql')
   }
 
   const sent = outcomes.filter(o => o.status === 'sent').length

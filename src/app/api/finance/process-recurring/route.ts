@@ -33,11 +33,17 @@ const MIGRATION_HINT = 'run supabase-2026-10-recurring-idempotency.sql'
 // processor still posts, without the DB-level guard, and says so once.
 const OPTIONAL_COLUMNS = ['recurring_income_id', 'income_source_id', 'installment_number']
 
-function isMissingSchema(error: { message?: string; code?: string } | null | undefined) {
-  if (!error) return false
-  const msg = error.message || ''
-  return error.code === '42P10' || error.code === 'PGRST204' || error.code === '42703'
-    || /no unique or exclusion constraint|schema cache|column .* does not exist/i.test(msg)
+type DbError = { message?: string; code?: string } | null | undefined
+
+/** The unique index is missing (migration pending, or skipped because duplicates exist). */
+function isMissingIndex(error: DbError) {
+  return !!error && (error.code === '42P10' || /no unique or exclusion constraint/i.test(error.message || ''))
+}
+
+/** One of the 2026-10 columns is missing (migration not applied). */
+function isMissingColumn(error: DbError) {
+  return !!error && (error.code === 'PGRST204' || error.code === '42703'
+    || /schema cache|column .* does not exist/i.test(error.message || ''))
 }
 
 function inferOwner(owner: string | null | undefined, name: string): string | null {
@@ -76,29 +82,48 @@ async function processRecurring(req: NextRequest) {
     closed_months: [] as Array<{ month: string; savings?: Record<string, unknown> | null }>,
   }
   const warn = (item: string, message: string) => results.item_warnings.push({ item, message })
-  let migrationWarned = false
-  const migrationPending = () => {
-    if (!migrationWarned) warn('database', `Duplicate guards not installed — ${MIGRATION_HINT}`)
-    migrationWarned = true
+  const schemaWarned = new Set<string>()
+  const schemaWarning = (kind: 'index' | 'column') => {
+    if (schemaWarned.has(kind)) return
+    schemaWarned.add(kind)
+    warn('database', kind === 'column'
+      ? `New id columns missing — posted without them; ${MIGRATION_HINT}`
+      : `Duplicate guards not installed (an index is missing, or was skipped because duplicates exist) — ${MIGRATION_HINT}`)
+  }
+  // Months that got a new row this run, to flag ones that were already closed.
+  const postedMonths = new Map<string, number>()
+  const notePosted = (date: unknown) => {
+    const month = String(date).slice(0, 7)
+    postedMonths.set(month, (postedMonths.get(month) ?? 0) + 1)
   }
 
   /**
    * Insert one generated transaction. With the unique index in place a
-   * concurrent duplicate is ignored ('duplicate'); without it (migration
-   * pending) the row is inserted without the new columns.
+   * concurrent duplicate is ignored ('duplicate'). Without the index the row
+   * is inserted as is; only a missing column strips the new id columns.
    */
   async function postTransaction(row: Record<string, unknown>, conflict: string | null): Promise<'inserted' | 'duplicate' | { error: string }> {
+    const result = await insertTransaction(row, conflict)
+    if (result === 'inserted') notePosted(row.transaction_date)
+    return result
+  }
+
+  async function insertTransaction(row: Record<string, unknown>, conflict: string | null): Promise<'inserted' | 'duplicate' | { error: string }> {
     if (conflict) {
       const { data, error } = await supabase.from('finance_transactions')
         .upsert(row, { onConflict: conflict, ignoreDuplicates: true })
         .select('id')
       if (!error) return Array.isArray(data) && data.length === 0 ? 'duplicate' : 'inserted'
-      if (!isMissingSchema(error)) return { error: error.message }
-      migrationPending()
+      if (isMissingIndex(error)) schemaWarning('index')
+      else if (!isMissingColumn(error)) return { error: error.message }
     }
-    const legacy = Object.fromEntries(Object.entries(row).filter(([k]) => !conflict || !OPTIONAL_COLUMNS.includes(k)))
-    const { error } = await supabase.from('finance_transactions').insert(legacy)
-    return error ? { error: error.message } : 'inserted'
+    const { error } = await supabase.from('finance_transactions').insert(row)
+    if (!error) return 'inserted'
+    if (!isMissingColumn(error)) return { error: error.message }
+    schemaWarning('column')
+    const legacy = Object.fromEntries(Object.entries(row).filter(([k]) => !OPTIONAL_COLUMNS.includes(k)))
+    const { error: legacyError } = await supabase.from('finance_transactions').insert(legacy)
+    return legacyError ? { error: legacyError.message } : 'inserted'
   }
 
   // ── 1. SUBSCRIPTIONS ──────────────────────────────────────────────
@@ -409,8 +434,10 @@ async function processRecurring(req: NextRequest) {
       if (msiRpcAvailable) {
         const { data, error } = await supabase.rpc('finance_post_msi_payment', { p_installment_id: msi.id, p_number: period.number, p_tx: row })
         if (!error) {
-          if (data) results.installments++
-          else results.duplicates_ignored++
+          if (data) {
+            results.installments++
+            notePosted(period.date)
+          } else results.duplicates_ignored++
           continue
         }
         if (!/finance_post_msi_payment|PGRST202|42883|could not find the function/i.test(`${error.code} ${error.message}`)) {
@@ -492,12 +519,21 @@ async function processRecurring(req: NextRequest) {
   // Each finished month closes in one database transaction. Any transient
   // failure above leaves it for the next run, so a missing salary never
   // freezes wrong savings; config warnings don't block.
+  const { data: latestSnap, error: latestSnapError } = await supabase
+    .from('finance_monthly_savings').select('month').eq('owner', 'total')
+    .order('month', { ascending: false }).limit(1)
+  // finance_close_month never rewrites a saved month, so a catch-up post into
+  // one leaves its snapshot stale — say so instead of staying silent.
+  const closedThrough = latestSnap?.[0]?.month ? String(latestSnap[0].month).slice(0, 7) : null
+  if (closedThrough) {
+    for (const [month, count] of [...postedMonths].sort()) {
+      if (month > closedThrough) continue
+      warn(`Month ${month}`, `${count} catch-up post${count === 1 ? '' : 's'} landed after the month was closed — its saved savings totals are now out of date`)
+    }
+  }
   if (results.errors.length > 0) {
     results.errors.push('Month close deferred until recurring processing succeeds')
   } else {
-    const { data: latestSnap, error: latestSnapError } = await supabase
-      .from('finance_monthly_savings').select('month').eq('owner', 'total')
-      .order('month', { ascending: false }).limit(1)
     if (latestSnapError) {
       results.errors.push(`Savings cursor: ${latestSnapError.message}`)
     } else {

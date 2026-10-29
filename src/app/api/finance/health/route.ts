@@ -6,6 +6,8 @@ import { buildJobStatuses, overallHealth, type HeartbeatRow } from '@/lib/automa
 import { isInsightUsable } from '@/lib/insight-freshness'
 
 const PAGE_SIZE = 1000
+/** Something (income, a bill or MSI) auto-posts at least monthly. */
+const INFERRED_RECURRING_MAX_DAYS = 35
 
 /**
  * GET /api/finance/health (AUTO-06, CH-22) — is the household's automation
@@ -15,7 +17,8 @@ const PAGE_SIZE = 1000
  * AI brief, and at least one active recurring-income row (F18).
  *
  * Before supabase-2026-10-automation-runs.sql is applied the job times are
- * inferred from data timestamps (`source: 'inferred'`).
+ * inferred from data timestamps (`source: 'inferred'`); a job whose data trail
+ * can't tell late from quiet reports `unknown`, which never affects `status`.
  */
 export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req, { allowCron: true })
@@ -62,6 +65,12 @@ export async function GET(req: NextRequest) {
     if (briefAt) inferred.push({ job: 'insights', last_ok_at: briefAt, last_run_at: briefAt, last_status: 'ok' })
     // Reminders and the daily push have no data trail to infer from.
     jobs = buildJobStatuses(inferred, now, 'inferred').filter(j => j.job !== 'reminders' && j.job !== 'push-daily')
+    // The processor runs daily but only posts on due days, so a quiet week is
+    // normal: 'unknown' unless nothing has auto-posted for over a month.
+    const recurringAge = recurringAt ? (now.getTime() - new Date(recurringAt).getTime()) / 86_400_000 : Infinity
+    jobs = jobs.map(j => (j.job === 'process-recurring' && j.status === 'late' && recurringAge <= INFERRED_RECURRING_MAX_DAYS
+      ? { ...j, status: 'unknown' as const }
+      : j))
   }
 
   const latestBrief = insights.data?.[0] ?? null
@@ -85,8 +94,8 @@ export async function GET(req: NextRequest) {
     recurring_income_active: activeIncome,
   }
   const problems: string[] = []
-  if (!checks.service_key_present) problems.push('SUPABASE_SERVICE_ROLE_KEY is not set')
-  if (activeIncome === 0) problems.push('No active recurring income rows — salaries will not post')
+  if (!checks.service_key_present) problems.push('The server is missing its database key, so automations can’t save anything')
+  if (activeIncome === 0) problems.push('No salary is set to post automatically')
   const status = problems.length && overallHealth(jobs) === 'ok' ? 'late' : overallHealth(jobs)
 
   return NextResponse.json({

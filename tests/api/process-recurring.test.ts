@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   update: vi.fn(),
   rpc: vi.fn(),
   upsertResult: null as null | ((table: string, row: Row) => { data: unknown; error: unknown }),
+  insertResult: null as null | ((table: string, row: Row) => { error: unknown }),
   auth: { ok: true, method: 'api-key' } as Record<string, unknown>,
 }))
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ rpc: state.rpc, from: (table: string) => {
@@ -22,7 +23,7 @@ vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ rpc: state.rpc,
   const chain: Record<string, unknown> = { then: (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve) }
   for (const method of ['select', 'gte', 'lte', 'order', 'limit', 'ilike']) chain[method] = () => chain
   chain.eq = (k: string, v: unknown) => { filters.push([k, v]); return chain }
-  chain.insert = (row: unknown) => { state.insert(table, row); return Promise.resolve({ error: null }) }
+  chain.insert = (row: unknown) => { state.insert(table, row); return Promise.resolve(state.insertResult?.(table, row as Row) ?? { error: null }) }
   chain.update = (row: unknown) => { state.update(table, row); return { eq: () => Promise.resolve({ error: null }) } }
   chain.upsert = (row: Row) => {
     state.upsert(table, row)
@@ -41,7 +42,7 @@ beforeEach(() => {
   state.tables = { finance_monthly_savings: [{ month: '2026-08-01', owner: 'total' }] }; state.fail = ''
   state.insert.mockReset(); state.upsert.mockReset(); state.update.mockReset()
   state.rpc.mockReset().mockResolvedValue({ data: null, error: null })
-  state.upsertResult = null
+  state.upsertResult = null; state.insertResult = null
   state.auth = { ok: true, method: 'api-key' }
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-09-08T15:00:00Z'))
 })
@@ -134,6 +135,39 @@ describe('idempotency and income', () => {
     expect(body.results.subscriptions).toBe(0)
     expect(body.results.duplicates_ignored).toBe(1)
     expect(state.update).toHaveBeenCalledWith('finance_recurring', { next_due_date: '2026-10-01' })
+  })
+  it('keeps the new id columns when only the unique index is missing', async () => {
+    state.tables.finance_recurring_income = [{ id: 'ri', name: 'Salary', amount: 50000, owner: 'laura', category: 'salary', recurrence: 'monthly', day_of_month: 1, active: true }]
+    state.upsertResult = (table) => table === 'finance_transactions'
+      ? { data: null, error: { code: '42P10', message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification' } }
+      : { data: [{}], error: null }
+    const body = await (await process()).json()
+    const inserted = state.insert.mock.calls.filter(([t]) => t === 'finance_transactions').map(([, row]) => row as Row)
+    expect(inserted).toHaveLength(1)
+    expect(inserted[0]).toMatchObject({ recurring_income_id: 'ri' })
+    expect(body.results.income).toBe(1)
+    expect(body.item_warnings.map((w: { message: string }) => w.message).join()).toContain('Duplicate guards')
+  })
+  it('strips the new id columns only when a column is missing', async () => {
+    state.tables.finance_recurring_income = [{ id: 'ri', name: 'Salary', amount: 50000, owner: 'laura', category: 'salary', recurrence: 'monthly', day_of_month: 1, active: true }]
+    state.upsertResult = (table) => table === 'finance_transactions' ? { data: null, error: { code: '42P10', message: 'no unique or exclusion constraint' } } : { data: [{}], error: null }
+    state.insertResult = (table, row) => table === 'finance_transactions' && 'recurring_income_id' in row
+      ? { error: { code: 'PGRST204', message: "Could not find the 'recurring_income_id' column in the schema cache" } }
+      : { error: null }
+    const body = await (await process()).json()
+    const inserted = state.insert.mock.calls.filter(([t]) => t === 'finance_transactions').map(([, row]) => row as Row)
+    expect(inserted).toHaveLength(2)
+    expect(inserted[1]).not.toHaveProperty('recurring_income_id')
+    expect(body.results.income).toBe(1)
+  })
+  it('warns when a catch-up post lands in a month that is already closed', async () => {
+    state.tables.finance_installments = [{ id: 'msi', name: 'Laptop', installment_count: 12, installment_amount: 1000, start_date: '2026-06-05', payments_made: 1 }]
+    state.rpc.mockImplementation(async (fn: string) => ({ data: fn === 'finance_post_msi_payment' ? 'tx-id' : null, error: null }))
+    const body = await (await process()).json()
+    expect(body.item_warnings).toEqual([
+      { item: 'Month 2026-07', message: expect.stringContaining('after the month was closed') },
+      { item: 'Month 2026-08', message: expect.stringContaining('after the month was closed') },
+    ])
   })
   it('posts the latest start_date row per income name, dated at day_of_month', async () => {
     state.tables.finance_recurring_income = [

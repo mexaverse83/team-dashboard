@@ -35,10 +35,10 @@ describe('automation health', () => {
       return { data: fresh ? [{ id: 1 }] : [], error: null }
     } }) }) }
     const client = supabase as unknown as Parameters<typeof claimDedupeKey>[0]
-    expect(await claimDedupeKey(client, 'reminders', 'k1')).toBe(true)
-    expect(await claimDedupeKey(client, 'reminders', 'k1')).toBe(false)
+    expect(await claimDedupeKey(client, 'reminders', 'k1')).toBe('claimed')
+    expect(await claimDedupeKey(client, 'reminders', 'k1')).toBe('duplicate')
     const broken = { from: () => ({ upsert: () => ({ select: vi.fn().mockResolvedValue({ data: null, error: { message: 'no table' } }) }) }) }
-    expect(await claimDedupeKey(broken as unknown as typeof client, 'reminders', 'k2')).toBe(false)
+    expect(await claimDedupeKey(broken as unknown as typeof client, 'reminders', 'k2')).toBe('unavailable')
   })
 })
 
@@ -101,6 +101,19 @@ describe('reminders', () => {
     const checklist = [{ id: 'baby-imss-weeks', title: 'Confirm IMSS weeks', windowEnd: '2026-10-29' }, { id: 'baby-testamento', title: 'Wills', windowEnd: '2026-09-30' }]
     expect(buildReminders({ ...base, checklist }).map(r => r.key)).toEqual(['checklist:baby-imss-weeks:2026-10-29:1d'])
     expect(buildReminders({ ...base, checklist, checklistDone: new Set(['baby-imss-weeks']) })).toEqual([])
+  })
+
+  it('dates the logging gap on the Mexico City calendar', () => {
+    // 20:00 CDMX on Oct 23 is already Oct 24 in UTC.
+    expect(buildReminders({ ...base, lastManualEntryAt: '2026-10-24T02:00:00Z' }).map(r => r.key)).toEqual(['logging-gap:2026-10-23'])
+  })
+
+  it('speaks the brief’s language so a push never mixes two', () => {
+    const digest = { weekTitle: 'Te quedan $4,200 esta semana', weekDetail: 'Hasta el dom 1 nov', householdTitle: 'Ahorro proyectado $84k', topCategories: [{ category: 'Dining Out', spent: 5_100, budget: 6_000 }] }
+    const out = buildReminders({ ...base, today: '2026-11-01', dayOfWeek: 0, digest, lang: 'es', budgets: [{ category: 'Other', spent: 12_000, budget: 3_500 }] })
+    expect(out.map(r => r.title)).toEqual(['Other se pasó del presupuesto', 'Te quedan $4,200 esta semana'])
+    expect(out[1].body).toContain('Mayores: Dining Out 85%')
+    expect(out.map(r => `${r.title} ${r.body}`).join(' ')).not.toMatch(/\b(Top|over|left|this month)\b/)
   })
 
   it('reports a fresh price change', () => {

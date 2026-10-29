@@ -94,12 +94,13 @@ async function main() {
   } catch (err) {
     res = { ok: false, status: 0, json: { error: err.message } }
   }
-  if (res.ok && res.json.skipped !== 'no-audience') {
+  // 'no-audience' (no VAPID key in Vercel / nobody subscribed) and
+  // 'ledger-missing' (server can't dedupe) both mean nothing was delivered.
+  if (res.ok && res.json.skipped !== 'no-audience' && res.json.skipped !== 'ledger-missing') {
     console.log(`✅ Daily push: ${res.json.skipped ? res.json.skipped : `${res.json.sent} device(s)`} — "${res.json.message?.title}"`)
     return
   }
-  // The server built the message but could not send it (no VAPID key in
-  // Vercel, or nobody subscribed): try the home machine's key.
+  // The server built the message but did not send it: try the home machine's key.
   const message = res.json?.message || OFFLINE_MESSAGE
   if (!res.ok) console.error(`server daily push failed (HTTP ${res.status}): ${res.json?.error || 'unknown'} — sending a generic message locally`)
   const local = await sendLocally(message)

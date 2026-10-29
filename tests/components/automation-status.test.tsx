@@ -51,11 +51,16 @@ describe('<AutomationStatus />', () => {
     fireEvent.click(dot)
     expect(await screen.findByRole('region', { name: 'Automation status' })).toBeInTheDocument()
     expect(screen.getByText('Net-worth snapshot')).toBeInTheDocument()
-    expect(screen.getByText(/939 transactions · 1 page/)).toBeInTheDocument()
+    expect(screen.getByText(/939 transactions/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Close automation status' })).toBeInTheDocument()
+    // Healthy jobs don't offer a manual run.
+    expect(screen.queryByRole('button', { name: /^Run .* now$/ })).not.toBeInTheDocument()
   })
 
   it('runs a job only after confirmation', async () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    const lateHealth = health({ status: 'late', jobs: [{ ...health().jobs[0], status: 'late' }] })
+    fetchMock.mockImplementation(async (url: string) => ({ ok: true, json: async () => (url === '/api/finance/health' ? lateHealth : { total_created: 2, item_warnings: [] }) }))
     render(<AutomationStatus variant="panel" />)
     const run = await screen.findByRole('button', { name: 'Run Recurring bills, income & MSI now' })
     fireEvent.click(run)
@@ -64,6 +69,27 @@ describe('<AutomationStatus />', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/finance/process-recurring', expect.objectContaining({ method: 'POST' })))
     expect(await screen.findByRole('status')).toHaveTextContent('Recurring bills, income & MSI ran · 2 posted')
     expect(confirm).toHaveBeenCalledTimes(2)
+  })
+
+  it('closes on Escape and returns focus to the trigger', async () => {
+    render(<AutomationStatus />)
+    const dot = await screen.findByRole('button', { name: /Automations OK/ })
+    fireEvent.click(dot)
+    await screen.findByRole('dialog', { name: 'Automation status' })
+    expect(document.activeElement).toHaveTextContent('Automations')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(dot)
+  })
+
+  it('keeps raw errors behind Show details', async () => {
+    const failing = health({ status: 'failing', jobs: [{ ...health().jobs[1], status: 'failing', last_error: 'RecurringIncome fetch: TypeError: fetch failed' }] })
+    fetchMock.mockImplementation(async () => ({ ok: true, json: async () => failing }))
+    render(<AutomationStatus variant="panel" readOnly />)
+    expect(await screen.findByText(/last run didn’t finish/)).toBeInTheDocument()
+    expect(screen.queryByText(/TypeError/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show details' }))
+    expect(screen.getByText(/TypeError: fetch failed/)).toBeInTheDocument()
   })
 
   it('says so when the health check is unreachable', async () => {

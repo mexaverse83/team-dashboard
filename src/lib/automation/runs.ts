@@ -15,7 +15,8 @@ export type AutomationJob =
   | 'mona-daemon'
 
 export type RunStatus = 'ok' | 'warning' | 'error'
-export type JobHealth = 'ok' | 'late' | 'failing'
+/** 'unknown' = no trustworthy signal (inferred from data that isn't produced every run). */
+export type JobHealth = 'ok' | 'late' | 'failing' | 'unknown'
 
 export interface JobDefinition {
   job: AutomationJob
@@ -115,12 +116,15 @@ export async function heartbeat(
   }
 }
 
+export type DedupeClaim = 'claimed' | 'duplicate' | 'unavailable'
+
 /**
  * Claims a dedupe key (e.g. `card-due:BBVA Infinite:Laura:2026-10-29`).
- * true = first claim, go ahead and send; false = already sent (or the ledger
- * is unavailable, in which case we'd rather skip than spam).
+ * 'claimed' = first claim, go ahead and send; 'duplicate' = already sent;
+ * 'unavailable' = the ledger can't be read or written (not migrated yet), so
+ * the caller can't know — it must say so rather than pretend it was sent.
  */
-export async function claimDedupeKey(supabase: SupabaseClient, job: AutomationJob, key: string, details?: Record<string, unknown>): Promise<boolean> {
+export async function claimDedupeKey(supabase: SupabaseClient, job: AutomationJob, key: string, details?: Record<string, unknown>): Promise<DedupeClaim> {
   try {
     const { data, error } = await supabase
       .from('finance_automation_runs')
@@ -136,10 +140,20 @@ export async function claimDedupeKey(supabase: SupabaseClient, job: AutomationJo
         dedupe_key: key,
       }, { onConflict: 'dedupe_key', ignoreDuplicates: true })
       .select('id')
-    if (error) return false
-    return Array.isArray(data) && data.length > 0
+    if (error) return 'unavailable'
+    return Array.isArray(data) && data.length > 0 ? 'claimed' : 'duplicate'
   } catch {
-    return false
+    return 'unavailable'
+  }
+}
+
+/** Gives a claimed key back when nothing was delivered, so the next run retries. */
+export async function releaseDedupeKey(supabase: SupabaseClient, key: string): Promise<void> {
+  try {
+    const { error } = await supabase.from('finance_automation_runs').delete().eq('dedupe_key', key)
+    if (error) console.error(`could not release dedupe key ${key}: ${error.message}`)
+  } catch (e) {
+    console.error(`could not release dedupe key ${key}: ${(e as Error).message}`)
   }
 }
 
@@ -175,7 +189,7 @@ const hoursSince = (at: string | null | undefined, now: Date) => {
   return Number.isFinite(t) ? (now.getTime() - t) / 3_600_000 : Infinity
 }
 
-/** failing beats late beats ok. A job whose latest run errored is failing even if an older run was fine. */
+/** failing beats late beats ok; 'unknown' never affects the overall status. A job whose latest run errored is failing even if an older run was fine. */
 export function computeJobHealth(
   row: Pick<HeartbeatRow, 'last_run_at' | 'last_ok_at' | 'last_status'> | null | undefined,
   expectedEveryH: number | null,

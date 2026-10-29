@@ -87,8 +87,13 @@ jobs:
             echo "::warning::$(echo "$p" | base64 -d)"
           done
 
-          recurring=$(jq -r '.jobs[] | select(.job == "process-recurring") | .status' health.json)
-          failing=$(jq -r '[.jobs[] | select(.status == "failing") | "\(.job): \(.last_error // "failed")"] | join(" | ")' health.json)
+          # Only the run ledger is trustworthy enough to fail on or to kick the
+          # processor; inferred times (ledger not migrated yet) just warn.
+          recurring=$(jq -r '.jobs[] | select(.job == "process-recurring" and .source == "ledger") | .status' health.json)
+          failing=$(jq -r '[.jobs[] | select(.status == "failing" and .source == "ledger") | "\(.job): \(.last_error // "failed")"] | join(" | ")' health.json)
+          if [ "$(jq -r '.checks.ledger // "ok"' health.json)" = "missing" ]; then
+            echo "::warning::Run ledger not migrated — job times are inferred; apply supabase-2026-10-automation-runs.sql"
+          fi
 
           if [ "$recurring" = "late" ]; then
             echo "::error::process-recurring has not succeeded in over 26h (last ok $(jq -r '.jobs[] | select(.job == "process-recurring") | .last_ok_at // "never"' health.json)). Check CRON_SECRET in Vercel → Settings → Cron Jobs."

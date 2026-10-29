@@ -5,7 +5,7 @@ import { mexicoCityToday } from '@/lib/dates'
 import { configErrorResponse, getAdminClient } from '@/lib/supabase-admin'
 import { dailyPushMessage, freshLlmDirective, latestCachedBrief, loadLiveBrief } from '@/lib/automation/live-brief'
 import { hasPushAudience, sendPush, type PushMessage } from '@/lib/automation/push'
-import { claimDedupeKey, recordRun, triggerFromAuth } from '@/lib/automation/runs'
+import { claimDedupeKey, recordRun, releaseDedupeKey, triggerFromAuth } from '@/lib/automation/runs'
 
 /**
  * The 08:00 CDMX push (MOB-04, AUTO-08). Built from the live deterministic
@@ -42,11 +42,17 @@ async function run(req: NextRequest, auth: AuthOk, send: boolean) {
     return NextResponse.json({ ok: true, sent: 0, skipped: 'no-audience', message })
   }
   // One daily push per Mexico City day, however many times the scheduler retries.
-  if (!(await claimDedupeKey(supabase, 'push-daily', `push-daily:${today}`))) {
-    return NextResponse.json({ ok: true, sent: 0, skipped: 'already-sent', message })
+  const dedupeKey = `push-daily:${today}`
+  const claim = await claimDedupeKey(supabase, 'push-daily', dedupeKey)
+  if (claim === 'duplicate') return NextResponse.json({ ok: true, sent: 0, skipped: 'already-sent', message })
+  if (claim === 'unavailable') {
+    // Without the ledger a retry could double-send; say so instead of claiming success.
+    await recordRun(supabase, { job: 'push-daily', trigger, started_at: startedAt, status: 'warning', error: 'Run ledger unavailable — run supabase-2026-10-automation-runs.sql', details: { message } })
+    return NextResponse.json({ ok: true, sent: 0, skipped: 'ledger-missing', message })
   }
   try {
     const result = await sendPush(supabase, message)
+    if (result.sent === 0) await releaseDedupeKey(supabase, dedupeKey)
     await recordRun(supabase, {
       job: 'push-daily', trigger, started_at: startedAt,
       status: result.failed > 0 && result.sent === 0 ? 'error' : 'ok',
@@ -56,6 +62,7 @@ async function run(req: NextRequest, auth: AuthOk, send: boolean) {
     })
     return NextResponse.json({ ok: true, message, ...result }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (err) {
+    await releaseDedupeKey(supabase, dedupeKey)
     await recordRun(supabase, { job: 'push-daily', trigger, started_at: startedAt, status: 'error', error: (err as Error).message })
     return NextResponse.json({ error: (err as Error).message }, { status: 503 })
   }
