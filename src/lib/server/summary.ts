@@ -14,7 +14,8 @@ import { activeBudgetRows, budgetTypeFor, buildBudgetVsActual, type BudgetRow, t
 import { buildGoals, type GoalRow } from '@/lib/summary/goals'
 import { buildEmergencyFund, deriveMonthlyEssentials, type EmergencyFundRow } from '@/lib/summary/emergency'
 import { buildBabyPlan, buildFertilityPlan, treatmentDueThisMonth, type BabyLedger } from '@/lib/summary/plans'
-import { buildYearEndPlan, projectMonthSpend } from '@/lib/summary/projection'
+import { buildYearEndPlan, projectMonthSpend, unbudgetedRoutine } from '@/lib/summary/projection'
+import { CONTROLLABLE } from '@/lib/controllable-categories'
 import { buildOwnerSpend, buildRecentTransactions, buildVariable } from '@/lib/summary/activity'
 import { buildUpcoming } from '@/lib/summary/upcoming'
 import { buildCryptoSummary, cryptoQuantities, type CryptoHoldingRow } from '@/lib/summary/crypto'
@@ -264,6 +265,13 @@ export async function buildSummary(
     budgetedCategoryIds: new Set(activeBudgets.map(b => b.category_id)),
     dayOfMonth, daysInMonth, treatmentDue, babyDue,
   })
+  const unbudgeted = unbudgetedRoutine({
+    historyTxs: historyExpenses.filter(t => !isSavingsMove(t)),
+    currentMonthTxs: monthExpenses,
+    budgetedCategoryIds: new Set(activeBudgets.map(b => b.category_id)),
+    isEveryday: id => !!id && CONTROLLABLE.has(catMap.get(id)?.name || ''),
+    month,
+  })
   // Posted income plus recurring income still due; never a baseline floor
   // that keeps expecting payroll after it landed.
   const monthIncome = expectedMonthIncome({
@@ -432,6 +440,8 @@ export async function buildSummary(
       known_upcoming_treatment: Math.round(treatmentDue),
       known_upcoming_baby: Math.round(babyDue),
       moved_to_savings: movedToSavings,
+      unbudgeted_typical: unbudgeted.typical,
+      unbudgeted_spent: unbudgeted.spent,
       projected_savings: projectedMonthSavings,
       method: spendProjection.past_day_7
         ? 'per-category pace blended with recent-month medians'

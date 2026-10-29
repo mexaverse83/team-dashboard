@@ -17,6 +17,7 @@
 //     committed = what the rest of the month still owes outside the everyday
 //                 categories:
 //                   max(subscriptions_left, fixed_left) + msi_left + plan_left
+//                     + unbudgeted_left
 //                   subscriptions_left — every subscription occurrence due this
 //                     month that has not posted (overdue ones too: the processor
 //                     may be behind);
@@ -29,7 +30,12 @@
 //                     plan's own category, often an everyday one, so they are
 //                     added (the processor posts them all on its first run);
 //                   plan_left — the treatment and baby events still owed, which
-//                     the projection adds outside the budget rows too.
+//                     the projection adds outside the budget rows too;
+//                   unbudgeted_left — routine spend in categories with no
+//                     budget row outside the everyday ones (Health,
+//                     Uncategorized): max(0, the last 3 months' median −
+//                     posted this month). A Health bill today moves from here
+//                     into spent_so_far, so the allowance holds.
 //   reserve    = RESERVE_SHARE × max(0, pool − everyday budgets left this morning)
 //                (the cushion over target if the everyday budgets are used as
 //                planned; budgets left is signed like `variable` and floored at
@@ -46,10 +52,16 @@
 // Spending exactly the allowance every remaining day lands the month at
 // target + reserve.
 //
-// state: 'risk' when room − spent ≤ 0 (even spending nothing more this month
-// leaves the target short: a no-spend day is the recovery), 'over' when
-// spent > allowance, 'tight' when under TIGHT_SHARE of the allowance is left,
-// else 'ok'.
+// state: 'risk' when pool − spent ≤ 0 (even spending nothing more this month
+// leaves the target short: a no-spend day is the recovery; the reserve is
+// cushion above target, so spending into it is 'over', not 'risk'), 'over'
+// when spent > allowance, 'tight' when under TIGHT_SHARE of the allowance is
+// left, else 'ok'. goal.no_spend_pct is on the same basis: where the month
+// lands if nothing more everyday is spent (target + pool − spent).
+//
+// The goal row's free room is what the days after today can spend once today
+// is past its allowance (tomorrow's room over days_left − 1, so it equals
+// tomorrow × the days after today), else room − spent over days_left.
 //
 // Past days (week, streak, yesterday) and tomorrow rebuild that morning's pool
 // and reserve the same way: pool(d) = pool(today) + everyday spend from d to
@@ -68,6 +80,8 @@ import { CONTROLLABLE } from '@/lib/controllable-categories'
 import { UNTRENDED_TAGS } from '@/lib/summary/projection'
 import type { SummaryResponse } from '@/lib/summary/types'
 
+/** A risk-day nudge needs at least this gap (MXN) to name an amount. */
+export const GAP_MIN = 50
 /** Share of the morning's cushion over target that the allowance holds back. */
 export const RESERVE_SHARE = 0.2
 /** Today turns 'tight' once less than this share of its allowance is left. */
@@ -99,6 +113,8 @@ export type TodayNudge =
   | { kind: 'ahead'; amount: number; url: string }
   | { kind: 'short'; amount: number; url: string }
   | { kind: 'year'; year: number; amount: number; url: string }
+  /** A no-spend day with no bill to name: how short the month lands even with nothing more spent (0 = right on target). */
+  | { kind: 'gap'; amount: number; url: string }
 
 export type TodayGoalRow =
   | { kind: 'west_month'; month: string; pct: number; buffer: number; room: number; days_left: number; url: string }
@@ -123,7 +139,7 @@ export interface WidgetToday {
   room: number
   /** What the rest of the month still owes outside the everyday categories. */
   committed: number
-  /** The month's usual remaining everyday spend per day (projection), for the no-spend estimate. */
+  /** The month's usual remaining everyday spend per day (projection). */
   usual: number
   goal: {
     label: 'WEST'
@@ -138,7 +154,7 @@ export interface WidgetToday {
     buffer: number
     /** Where the month lands if every day spends exactly its allowance (target + reserve). */
     plan_pct: number
-    /** Where the month lands after a no-spend day. */
+    /** Where the month lands if nothing more everyday is spent this month (target + pool − spent). */
     no_spend_pct: number
     stretch_target: number | null
     stretch_pct: number | null
@@ -238,6 +254,12 @@ export function scheduledParts(summary: TodayInput['summary'], monthStart: strin
   return { subscriptions: round(subscriptions), msi: round(msi), plan: round(plan) }
 }
 
+/** Routine unbudgeted, non-everyday spend still expected this month (summary.month_projection). */
+export function unbudgetedLeft(summary: TodayInput['summary']): number {
+  const mp = summary.month_projection
+  return round(Math.max(0, num(mp?.unbudgeted_typical) - num(mp?.unbudgeted_spent)))
+}
+
 /** Everything scheduled and unposted this month (subscriptions + MSI + plan events). */
 export function scheduledLeft(summary: TodayInput['summary'], monthStart: string, monthEnd: string, msiPosted: boolean): number {
   const p = scheduledParts(summary, monthStart, monthEnd, msiPosted)
@@ -247,11 +269,12 @@ export function scheduledLeft(summary: TodayInput['summary'], monthStart: string
 /**
  * What the rest of the month owes outside the everyday categories. Only the
  * subscriptions overlap the fixed budget rows (they post inside them), so only
- * those two take the larger; MSI and the treatment/baby events are added.
+ * those two take the larger; MSI, the treatment/baby events and the routine
+ * unbudgeted spend (Health…) are added.
  */
 export function committedLeft(summary: TodayInput['summary'], monthStart: string, monthEnd: string, msiPosted: boolean): number {
   const p = scheduledParts(summary, monthStart, monthEnd, msiPosted)
-  return round(Math.max(p.subscriptions, fixedLeft(summary)) + p.msi + p.plan)
+  return round(Math.max(p.subscriptions, fixedLeft(summary)) + p.msi + p.plan + unbudgetedLeft(summary))
 }
 
 /**
@@ -282,14 +305,14 @@ function everydayByDay(transactions: TodayTransaction[], names: TodayInput['cate
   return { perDay: perDay.map(round), todayByCategory }
 }
 
-function pickNudge(input: TodayInput, state: TodayState, allowance: number, daysLeft: number, today: string, buffer: number, year: TodayGoalRow | undefined): TodayNudge | null {
+function pickNudge(input: TodayInput, state: TodayState, allowance: number, daysLeft: number, today: string, buffer: number, year: TodayGoalRow | undefined, gap: number): TodayNudge | null {
   const { summary, upcoming } = input
   const dueNudge = (u: TodayInput['upcoming'][number]): TodayNudge =>
     ({ kind: 'due', label: u.label, count: u.count, amount: round(u.amount), date: u.date, days: daysBetween(today, u.date), url: URL_BILLS })
   // A no-spend day already says "spend nothing": the nudge is the next bill to keep the money for.
   if (state === 'risk') {
     const next = upcoming.find(u => u.date >= today && u.date <= addDaysKey(today, DUE_WEEK_DAYS) && u.amount >= 500)
-    return next ? dueNudge(next) : null
+    return next ? dueNudge(next) : { kind: 'gap', amount: gap >= GAP_MIN ? round(gap) : 0, url: URL_WEST }
   }
   // A big bill tomorrow (or today) is today's job: keep the money in the account.
   const soon = upcoming.find(u => u.date >= today && u.date <= addDaysKey(today, DUE_SOON_DAYS) && u.amount >= Math.max(500, allowance))
@@ -370,12 +393,14 @@ export function buildToday(input: TodayInput): WidgetToday | null {
   const room = pool - reserve
   const allowance = room > 0 ? floor10(room / daysLeft) : 0
   const left = allowance - spentToday
-  // Past the whole month's room (one purchase can do it): the target is short now, whatever the morning said.
-  const state: TodayState = room - spentToday <= 0 ? 'risk' : spentToday > allowance ? 'over' : left < allowance * TIGHT_SHARE ? 'tight' : 'ok'
   // Tomorrow's morning: its own pool and reserve, as the phone will show it then.
   const poolTomorrow = pool - spentToday
   const roomTomorrow = poolTomorrow - reserveFor(poolTomorrow, budgetLeftSigned - spentToday)
   const tomorrow = daysLeft > 1 ? floor10(roomTomorrow / (daysLeft - 1)) : null
+  // Past the whole pool (one purchase can do it): even spending nothing more
+  // leaves the target short. Inside the reserve the month still lands above
+  // target, so that is 'over' with tomorrow's figure.
+  const state: TodayState = poolTomorrow <= 0 ? 'risk' : spentToday > allowance ? 'over' : left < allowance * TIGHT_SHARE ? 'tight' : 'ok'
 
   // What a no-spend day adds: one day of the everyday spend the projection still expects.
   const usual = Math.max(0, num(mp.projected_spend) - num(mp.spent_so_far) - committed) / daysLeft
@@ -409,8 +434,13 @@ export function buildToday(input: TodayInput): WidgetToday | null {
     : null
 
   const stretch = input.stretchTarget && input.stretchTarget > 0 ? round(input.stretchTarget) : null
-  // What the days left can still spend after today's purchases (the goal row's "free" line).
-  const goals = goalRows(input, month, pct, buffer, room - spentToday, daysLeft)
+  // What the days left can still spend after today's purchases (the goal row's
+  // "free" line). Past today's allowance it is tomorrow's basis, so it reads
+  // as tomorrow × the days after today.
+  const pastToday = state === 'over' && daysLeft > 1
+  const goals = pastToday
+    ? goalRows(input, month, pct, buffer, (tomorrow || 0) * (daysLeft - 1), daysLeft - 1)
+    : goalRows(input, month, pct, buffer, room - spentToday, daysLeft)
   return {
     date: today,
     basis: 'goal',
@@ -434,14 +464,14 @@ export function buildToday(input: TodayInput): WidgetToday | null {
       pct,
       buffer: round(buffer),
       plan_pct: Math.round(((target + Math.max(0, room > 0 ? reserve : 0)) / target) * 100),
-      no_spend_pct: Math.round(((projected + usual) / target) * 100),
+      no_spend_pct: Math.round(((target + poolTomorrow) / target) * 100),
       stretch_target: stretch,
       stretch_pct: stretch ? Math.round((projected / stretch) * 100) : null,
     },
     streak,
     yesterday,
     week,
-    nudge: pickNudge(input, state, allowance, daysLeft, today, buffer, goals.find(g => g.kind === 'year')),
+    nudge: pickNudge(input, state, allowance, daysLeft, today, buffer, goals.find(g => g.kind === 'year'), -poolTomorrow),
     goals,
   }
 }

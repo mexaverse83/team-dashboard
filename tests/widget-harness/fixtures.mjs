@@ -196,7 +196,7 @@ export const goalSafe = (() => {
       pct: 105,
       buffer: 4258,
       plan_pct: 102,
-      no_spend_pct: 106,
+      no_spend_pct: 108,
       stretch_target: 115790,
       stretch_pct: 77
     },
@@ -324,7 +324,7 @@ export const spentToday = (() => {
       pct: 104,
       buffer: 3618,
       plan_pct: 102,
-      no_spend_pct: 105,
+      no_spend_pct: 108,
       stretch_target: 115790,
       stretch_pct: 76
     },
@@ -452,7 +452,7 @@ export const overToday = (() => {
       pct: 102,
       buffer: 1658,
       plan_pct: 102,
-      no_spend_pct: 102,
+      no_spend_pct: 105,
       stretch_target: 115790,
       stretch_pct: 75
     },
@@ -520,8 +520,8 @@ export const overToday = (() => {
         month: '2026-10',
         pct: 102,
         buffer: 1658,
-        room: 3040,
-        days_left: 3,
+        room: 3560,
+        days_left: 2,
         url: '/finance/investments?tab=Real%20Estate'
       },
       {
@@ -578,7 +578,7 @@ export const goalRisk = (() => {
       pct: 94,
       buffer: -4869,
       plan_pct: 100,
-      no_spend_pct: 95,
+      no_spend_pct: 98,
       stretch_target: 115790,
       stretch_pct: 69
     },
@@ -720,7 +720,7 @@ export const goodDay = (() => {
       pct: 112,
       buffer: 10599,
       plan_pct: 102,
-      no_spend_pct: 114,
+      no_spend_pct: 128,
       stretch_target: 115790,
       stretch_pct: 82
     },
@@ -850,7 +850,7 @@ export const lastDay = (() => {
       pct: 105,
       buffer: 3958,
       plan_pct: 102,
-      no_spend_pct: 107,
+      no_spend_pct: 108,
       stretch_target: 115790,
       stretch_pct: 77
     },
@@ -984,7 +984,7 @@ export const dayOneToday = (() => {
       pct: 111,
       buffer: 9271,
       plan_pct: 107,
-      no_spend_pct: 113,
+      no_spend_pct: 180,
       stretch_target: 115790,
       stretch_pct: 81
     },
@@ -1070,7 +1070,7 @@ export const goalShort = (() => {
       pct: 97,
       buffer: -2500,
       plan_pct: 100,
-      no_spend_pct: 98,
+      no_spend_pct: 108,
       stretch_target: 115790,
       stretch_pct: 71
     },

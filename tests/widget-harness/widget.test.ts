@@ -87,7 +87,10 @@ describe('widget content: the daily plan', () => {
     expect(small.allText).toContain('$1,880')
     // This month's savings target (for WEST), never a blanket "on target" for every goal,
     // and never bare "WEST" (that name is the apartment's funding, "WEST home").
-    expect(small.allText).toContain('Oct savings on target')
+    // The line under the figure says what it is (free after bills and savings),
+    // not the goal row's "Oct savings" again.
+    expect(small.allText).toContain('after bills and savings')
+    expect(small.allText.match(/Oct savings/g)).toHaveLength(1)
     expect(small.allText).not.toContain('stays on target')
     expect(small.allText).not.toMatch(/WEST \d|WEST ·/)
     expect(small.allText).toContain('105%')
@@ -109,8 +112,14 @@ describe('widget content: the daily plan', () => {
 
   it('a short forecast that today\'s room still fixes reads as a recovery, not "safe"', async () => {
     const small = await render(T({ fixture: goalShort, family: 'small' }))
-    expect(small.allText).toContain('Gets Oct savings to target')
+    expect(small.allText).toContain('Stay under it to reach target')
     expect(small.allText).not.toContain('on target')
+    // A green streak never sits beside an amber goal: the pill names the goal's state.
+    const chip = await render(T({ fixture: goalShort, family: 'medium' }))
+    expect(chip.allText).toContain('Below target')
+    expect(chip.allText).not.toContain('streak')
+    const es = await render(T({ fixture: goalShort, family: 'small', param: 'lang=es' }))
+    expect(es.allText).toContain('Quédate debajo y llegas a la meta')
     const medium = await render(T({ fixture: { ...goalShort, today: { ...goalShort.today, nudge: { kind: 'short', amount: 2500, url: '/finance/investments?tab=Real%20Estate' } } }, family: 'medium' }))
     expect(medium.allText).toContain('At your usual pace WEST ends $2.5k short. Today’s room closes it.')
     expect(medium.allText).not.toContain('Skip extras')
@@ -166,13 +175,26 @@ describe('widget content: the daily plan', () => {
     expect(circ.images[0].image.texts.map((t: { text: string }) => t.text)).toEqual(['$1.8k', 'Fri'])
     const es = await render(T({ fixture: overToday, family: 'accessoryInline', param: 'lang=es' }))
     expect(es.allText).toBe('$1,780 mañana · Ahorro oct 102%')
-    // The goal side counts today's spend: 5,640 − 2,600 free for the days left.
-    expect(r.allText).toContain('$3k free for 3 days')
+    // The goal side agrees with tomorrow's figure: today is spent, so the two
+    // days after it share tomorrow's room (2 × $1,780).
+    expect(r.allText).toContain('$3.6k free for 2 days')
+    expect(r.allText).not.toContain('for 3 days')
+    // Older payloads without the server's row: tomorrow × the days after today.
+    const olderRow = { ...overToday, today: { ...overToday.today, goals: [] } }
+    expect((await render(T({ fixture: olderRow, family: 'medium' }))).allText).toContain('$3.6k free for 2 days')
     const esMedium = await render(T({ fixture: overToday, family: 'medium', param: 'lang=es' }))
     expect(esMedium.allText).toContain('$720 de más hoy')
-    const last = await render({ fixture: { ...overToday, today: { ...overToday.today, tomorrow: null } }, family: 'small', now: NOW_TODAY })
-    expect(last.allText).toContain('Past today’s room')
-    expect(last.allText).toContain('Oct savings still on target')
+    // The month's last day, past its room but still above target: a calm word, never "No-spend day" or "$0".
+    const lastOver = { ...overToday, today: { ...overToday.today, tomorrow: null, days_left: 1 } }
+    const last = await render({ fixture: lastOver, family: 'small', now: NOW_TODAY })
+    expect(last.allText).toContain('Done for today')
+    expect(last.allText).not.toContain('No-spend')
+    for (const family of ['accessoryRectangular', 'accessoryInline']) {
+      const lock = await render({ fixture: lastOver, family, now: NOW_TODAY })
+      expect(lock.allText, family).toContain('Done for today')
+    }
+    const lastCirc = await render({ fixture: lastOver, family: 'accessoryCircular', now: NOW_TODAY })
+    expect(lastCirc.images[0].image.texts.map((t: { text: string }) => t.text)).toEqual(['102%', 'Oct'])
   })
 
   it('past the whole month\'s room (one big buy): a no-spend day, never "up to $0" or a full gauge', async () => {
@@ -183,18 +205,40 @@ describe('widget content: the daily plan', () => {
       expect(r.allText, family).toContain('No-spend day')
       expect(r.allText, family).not.toMatch(/up to \$0|\$0 tomorrow|free for/)
     }
+    // No empty bar under the savings line (it read as 0% saved).
     const rect = await render(T({ fixture: big, family: 'accessoryRectangular' }))
-    const bar = rect.images[rect.images.length - 1].image
-    expect(bar.paths.length, 'track only, no fill').toBe(1)
+    expect(rect.images).toHaveLength(0)
+    // The ring is the month's savings with nothing more spent (7,050 − 9,000 short of target), never "$0 today".
     const circ = await render(T({ fixture: big, family: 'accessoryCircular' }))
-    expect(circ.images[0].image.texts.map((t: { text: string }) => t.text)).toEqual(['$0', 'today'])
+    expect(circ.images[0].image.texts.map((t: { text: string }) => t.text)).toEqual(['98%', 'Oct'])
+    // One story: the goal reads amber with nothing free, never green "ahead" beside "No-spend day".
+    const medium = await render(T({ fixture: big, family: 'medium' }))
+    expect(medium.allText).toContain('nothing free this month')
+    expect(medium.allText).not.toMatch(/ahead/)
+    expect(medium.allText).toContain('Recovery day')
+    expect(medium.allText).toContain('keeps Oct savings at 98%')
+    // An older payload's category tip becomes today's step: the next bill.
+    expect(medium.allText).toContain('Rent +7 is due Sun')
+  })
+
+  it('spending into the reserve (past the room, not the pool) is "over" with tomorrow\'s figure, not a no-spend day', async () => {
+    // Live Oct 29 numbers: pool 7,050, room 5,640; a $6,000 buy leaves $1,050 over target.
+    const t = overToday.today
+    const band = { ...overToday, today: { ...t, state: 'risk', spent: 6000, left: 1880 - 6000, tomorrow: 420, goals: t.goals.map((g: { kind: string }) => (g.kind === 'west_month' ? { ...g, room: 840, days_left: 2 } : g)) } }
+    for (const family of ['small', 'medium', 'large', 'accessoryRectangular', 'accessoryInline']) {
+      const r = await render(T({ fixture: band, family }))
+      expect(r.allText, family).not.toContain('No-spend')
+      expect(r.allText, family).toContain('$420')
+    }
+    const medium = await render(T({ fixture: band, family: 'medium' }))
+    expect(medium.allText).toContain('$840 free for 2 days')
   })
 
   it('a goal at risk always carries today\'s recovery step, in every family, under one name', async () => {
     for (const family of ['small', 'medium', 'large', 'accessoryRectangular', 'accessoryInline']) {
       const r = await render(T({ fixture: goalRisk, family }))
       expect(r.allText, family).toContain('No-spend day')
-      if (family !== 'accessoryInline') expect(r.allText, family).toContain('lifts Oct savings to 95%')
+      if (family !== 'accessoryInline') expect(r.allText, family).toContain('lifts Oct savings to 98%')
       expect(r.allText, family).not.toMatch(/Save day|keeps Oct/)
     }
     // The nudge is the next bill, not "keep Other at $0" on top of a no-spend day.
@@ -205,7 +249,10 @@ describe('widget content: the daily plan', () => {
     expect(old.allText).not.toContain('past its budget')
     const es = await render(T({ fixture: goalRisk, family: 'small', param: 'lang=es' }))
     expect(es.allText).toContain('Día sin gastos')
-    expect(es.allText).toContain('sube el ahorro de oct a 95%')
+    expect(es.allText).toContain('sube el ahorro de oct a 98%')
+    // Without a bill to name, the nudge says where today's savings go.
+    const gap = await render(T({ fixture: { ...goalRisk, today: { ...goalRisk.today, nudge: { kind: 'gap', amount: 1750, url: '/finance/investments?tab=Real%20Estate' } } }, family: 'medium' }))
+    expect(gap.allText).toContain('WEST is $1.8k short this month. Whatever you skip today goes there.')
   })
 
   it('words today\'s nudge on the phone from its kind (EN and ES)', async () => {
@@ -213,7 +260,9 @@ describe('widget content: the daily plan', () => {
     expect(skip.allText).toContain('Other is past its budget. Keep it at $0 today.')
     const skipEs = await render(T({ fixture: goalSafe, family: 'medium', param: 'lang=es' }))
     // Everyday category names read natively in Spanish.
-    expect(skipEs.allText).toContain('Otros ya pasó su presupuesto. Hoy déjalo en $0.')
+    expect(skipEs.allText).toContain('Otros: presupuesto agotado. Hoy, $0 ahí.')
+    expect(skipEs.allText).toContain('Vas bien')
+    expect(skipEs.allText).not.toContain('En plan')
     const fits = await render({ fixture: goodDay, family: 'large', now: NOW_GOOD_DAY })
     expect(fits.allText).toContain('Dining Out has $8.9k left. Dinner out tonight fits.')
     const due = await render({ fixture: lastDay, family: 'medium', now: NOW_LAST_DAY })
@@ -262,7 +311,7 @@ describe('widget content: the daily plan', () => {
     const medium = await render({ fixture: dayOneToday, family: 'medium', now: NOW_DAY_ONE_TODAY })
     expect(medium.allText).toContain('You can spend today')
     expect(medium.allText).toContain('$2,060')
-    expect(medium.allText).toContain('Nov savings on target')
+    expect(medium.allText).toContain('after bills and savings')
     expect(medium.allText).not.toMatch(/Yesterday|streak/)
     // No lone ring on day 1: the week row waits for 3 finished days; the bills get the room.
     const large = await render({ fixture: dayOneToday, family: 'large', now: NOW_DAY_ONE_TODAY })
@@ -406,7 +455,10 @@ describe('widget content: offline, errors and older payloads', () => {
       expect(f.allText, family).toContain('Essentials only')
       expect(f.allText, family).not.toMatch(/\$0|−/)
     }
-    expect(r.allText).toContain('104%')
+    // Saved so far against a target that may be the stretch one: the amount, never a % under the forecast's name.
+    expect(r.allText).toContain('Oct saved')
+    expect(r.allText).toMatch(/of \$[\d.]+k target/)
+    expect(r.allText).not.toMatch(/Oct savings|104%/)
     const over = await render({ fixture: overBudget, family: 'medium' })
     // Calm, no "$0" hero: the budgets are spent, said in words.
     expect(over.allText).toContain('Essentials only')
@@ -415,7 +467,8 @@ describe('widget content: offline, errors and older payloads', () => {
     expect(over.allText).toContain('Other is past its budget. Keep it at $0 today.')
     expect(over.allText).not.toContain('Over today') // no goal-based status chip on the fallback
     // The old server's WEST target is the stretch one: shown neutral, never amber "short".
-    expect(over.allText).toContain('55%')
+    expect(over.allText).toContain('Oct saved')
+    expect(over.allText).not.toMatch(/\d%/)
     expect(over.allText).not.toMatch(/short|faltan/)
     const v1 = await render({ fixture: legacyV1, family: 'medium' })
     expect(v1.allText).toContain('Essentials only')
@@ -428,13 +481,13 @@ describe('widget content: offline, errors and older payloads', () => {
       expect(lock.allText, family).not.toMatch(/\$0|over|\d%/)
     }
     const rectGoal = await render({ fixture: legacyV1, family: 'accessoryRectangular' })
-    expect(rectGoal.allText).toMatch(/Oct savings \$[\d.]+k\/\$[\d.]+k/)
+    expect(rectGoal.allText).toMatch(/Oct saved \$[\d.]+k\/\$[\d.]+k/)
     const circ = await render({ fixture: legacyV1, family: 'accessoryCircular' })
     expect(circ.images[0].image.texts.map((t: { text: string }) => t.text)).toEqual(['Ess.', 'today'])
     // Day 1 on the fallback: no 0% forecast, just the target.
     const day1 = await render({ fixture: dayOne, family: 'medium', now: NOW_DAY_ONE })
     expect(day1.allText).not.toMatch(/\b0%|short/)
-    expect(day1.allText).toContain('Target $140k')
+    expect(day1.allText).toContain('of $140k target')
   })
 
   it('shows no Mona/AI text at all (the brief is not part of the daily widget)', async () => {

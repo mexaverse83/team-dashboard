@@ -209,6 +209,10 @@ export interface SummaryResponse {
     known_upcoming_treatment: number
     known_upcoming_baby?: number
     moved_to_savings?: number
+    /** Routine spend in unbudgeted, non-everyday categories (Health…): median of the last 3 complete months. */
+    unbudgeted_typical?: number
+    /** That same spend posted this month (planned tags and savings moves out). */
+    unbudgeted_spent?: number
     projected_savings: number
     method: string
   }

@@ -2,6 +2,8 @@ import { lumpSum } from '@/lib/spend-projection'
 import { buildFertilityCutRecommendations, type CutCandidate } from '@/lib/fertility-plan'
 import { BABY_PLAN_TAG } from '@/lib/baby-plan'
 import { hasTag, txAmount, type TxRow } from '@/lib/summary/history'
+import { median } from '@/lib/household-metrics'
+import { addMonthsKey } from '@/lib/dates'
 
 type KnownCash = { month: string; amount: number; label: string; posted?: boolean }
 import type { BudgetVsActualRow, PlanEvent } from '@/lib/summary/types'
@@ -40,6 +42,35 @@ export function projectMonthSpend({
     total_spent: Math.round(totalSpent),
     projected_spend: Math.round(projectedBudgeted + projectedUnbudgeted + atActuals + treatmentDue + babyDue),
     past_day_7: pastDay7,
+  }
+}
+
+/**
+ * Routine spend in categories with no budget row that are not everyday ones
+ * (Health, Uncategorized…): `typical` is the median of the last 3 complete
+ * months, `spent` what has posted this month. Planned tags are out (they sit
+ * at actuals or are scheduled elsewhere); the caller drops savings moves.
+ * The widget's daily plan reserves typical − spent for the rest of the month,
+ * so a Health bill landing mid-day doesn't shrink the day's allowance.
+ */
+export function unbudgetedRoutine({
+  historyTxs, currentMonthTxs, budgetedCategoryIds, isEveryday, month,
+}: {
+  historyTxs: TxRow[]
+  currentMonthTxs: TxRow[]
+  budgetedCategoryIds: Set<string>
+  isEveryday: (categoryId: string | null | undefined) => boolean
+  month: string
+}) {
+  const counts = (t: TxRow) => !budgetedCategoryIds.has(t.category_id || '') && !isEveryday(t.category_id) && !hasTag(t, ...UNTRENDED_TAGS)
+  const byMonth = new Map([-3, -2, -1].map(i => [addMonthsKey(month, i), 0]))
+  for (const t of historyTxs) {
+    const m = String(t.transaction_date || '').slice(0, 7)
+    if (byMonth.has(m) && counts(t)) byMonth.set(m, (byMonth.get(m) || 0) + txAmount(t))
+  }
+  return {
+    typical: Math.round(median([...byMonth.values()])),
+    spent: Math.round(currentMonthTxs.filter(counts).reduce((s, t) => s + txAmount(t), 0)),
   }
 }
 

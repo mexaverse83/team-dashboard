@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildToday, committedLeft, fixedLeft, RESERVE_SHARE, scheduledLeft, type TodayInput, type TodayTransaction } from '@/lib/widget/today'
+import { unbudgetedRoutine } from '@/lib/summary/projection'
+import type { TxRow } from '@/lib/summary/history'
 import { buildWidgetPayload } from '@/lib/widget/payload'
 import type { BudgetVsActualRow } from '@/lib/summary/types'
 
@@ -8,7 +10,7 @@ const row = (category: string, spent: number, budget: number, extra: Partial<Bud
   projected_month_total: spent, is_non_monthly: false, cycle_months: 1, ...extra,
 })
 
-const NAMES = { other: 'Other', dining: 'Dining Out', groceries: 'Groceries', maint: 'Maintenance', rent: 'Rent/Mortgage', shop: 'Shopping', ahorro: 'Ahorro WEST' }
+const NAMES = { other: 'Other', dining: 'Dining Out', groceries: 'Groceries', maint: 'Maintenance', rent: 'Rent/Mortgage', shop: 'Shopping', ahorro: 'Ahorro WEST', health: 'Health' }
 
 /** Oct 29 2026 as the live summary read it (3 days left, everyday budgets over, WEST ahead). */
 function octSummary() {
@@ -90,6 +92,38 @@ describe('buildToday (goal-safe daily allowance)', () => {
     expect(next.allowance).toBe(over.tomorrow)
     // And yesterday's room, rebuilt the next morning, is the one shown on the day.
     expect(next.yesterday).toMatchObject({ spent: 2600, room: base.allowance })
+  })
+
+  it('spending into the reserve is "over" with tomorrow\'s figure, never a no-spend day', () => {
+    const spend = (amount: number, day = 29) => {
+      const s = octSummary()
+      Object.assign(s.current_month, { day_of_month: day })
+      s.month_projection!.spent_so_far += amount
+      s.current_month.budget_vs_actual[0].spent += amount
+      return buildToday(input({ summary: s, transactions: [...octTxs(), { transaction_date: `2026-10-${day}`, amount, category_id: 'other' }] }))!
+    }
+    // Pool 7,050, room 5,640: $6,000 passes the room but leaves $1,050 over target.
+    const band = spend(6000)
+    expect(band).toMatchObject({ state: 'over', tomorrow: 420 })
+    expect(band.goal.no_spend_pct).toBe(Math.round(((84869 + 1050) / 84869) * 100))
+    // The goal row's free room agrees with tomorrow: the 2 days after today share it.
+    expect(band.goals[0]).toMatchObject({ kind: 'west_month', days_left: 2, room: 840 })
+    expect(spend(7000)).toMatchObject({ state: 'over', tomorrow: 20 })
+    expect(spend(7050).state).toBe('risk')
+    // The ordinary over-today case: free room = tomorrow × the days after today.
+    const over = spend(2600)
+    expect(over.goals[0]).toMatchObject({ days_left: 2, room: over.tomorrow! * 2 })
+  })
+
+  it('on the month\'s last day a small overrun is "over", not a missed target', () => {
+    const s = octSummary()
+    Object.assign(s.current_month, { day_of_month: 31 })
+    const base = buildToday(input({ summary: s, transactions: octTxs() }))!
+    expect(base.days_left).toBe(1)
+    s.month_projection!.spent_so_far += base.allowance + 50
+    s.current_month.budget_vs_actual[0].spent += base.allowance + 50
+    const t = buildToday(input({ summary: s, transactions: [...octTxs(), { transaction_date: '2026-10-31', amount: base.allowance + 50, category_id: 'other' }] }))!
+    expect(t).toMatchObject({ state: 'over', tomorrow: null })
   })
 
   it('turns to a no-spend day when one purchase passes the whole month\'s room', () => {
@@ -180,9 +214,13 @@ describe('buildToday (goal-safe daily allowance)', () => {
     expect(t.pool).toBeLessThanOrEqual(0)
     expect(t).toMatchObject({ state: 'risk', allowance: 0, reserve: 0 })
     expect(t.goal.pct).toBe(94)
-    expect(t.goal.no_spend_pct).toBe(Math.round(((80000 + t.usual) / 84869) * 100))
+    // Where the month lands with nothing more spent: target + pool (the pool is short).
+    expect(t.goal.no_spend_pct).toBe(Math.round(((84869 + t.pool) / 84869) * 100))
     // The next bill is the nudge, not "skip Other" (the whole day is already no-spend).
     expect(t.nudge).toMatchObject({ kind: 'due', label: 'Rent', days: 3 })
+    // Without a bill this week: how short the month lands even with no more spending.
+    const quiet = buildToday(input({ summary: s, upcoming: [] }))!
+    expect(quiet.nudge).toEqual({ kind: 'gap', amount: -quiet.pool, url: '/finance/investments?tab=Real%20Estate' })
   })
 
   it('rebuilds each earlier day\'s room for the week and the streak', () => {
@@ -210,6 +248,22 @@ describe('buildToday (goal-safe daily allowance)', () => {
     const d4 = buildToday(input({ summary: s, transactions: [{ transaction_date: '2026-10-01', amount: 100, category_id: 'other' }, { transaction_date: '2026-09-30', amount: 9000, category_id: 'other' }] }))!
     expect(d4.week.map(d => d.date)).toEqual(['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'])
     expect(d4.week[0].spent).toBe(100)
+  })
+
+  it('reserves the usual unbudgeted spend (Health…) so the allowance holds when it posts', () => {
+    // Day 1: Health usually runs $15.5k a month with no budget row; nothing posted yet.
+    const s = octSummary()
+    s.month_projection = { ...s.month_projection!, unbudgeted_typical: 15500, unbudgeted_spent: 0 }
+    const base = buildToday(input({ summary: s }))!
+    expect(base.committed).toBe(332 + 15500)
+    // A $3,000 Health bill posts today: committed falls as spent_so_far rises, the allowance holds.
+    const h = octSummary()
+    h.month_projection = { ...h.month_projection!, spent_so_far: h.month_projection!.spent_so_far + 3000, unbudgeted_typical: 15500, unbudgeted_spent: 3000 }
+    const after = buildToday(input({ summary: h, transactions: [...octTxs(), { transaction_date: '2026-10-29', amount: 3000, category_id: 'health' }] }))!
+    expect(after).toMatchObject({ pool: base.pool, allowance: base.allowance, spent: 0 })
+    // Past the usual amount, the extra lowers the pool once.
+    h.month_projection = { ...h.month_projection!, unbudgeted_spent: 18000 }
+    expect(buildToday(input({ summary: h }))!.committed).toBe(332)
   })
 
   it('is null when the ledger or category read failed (today\'s spend would be unknown)', () => {
@@ -262,5 +316,28 @@ describe('buildWidgetPayload · today', () => {
     expect(p.west_month).toMatchObject({ target: 84869, pct: 105 })
     // The phone's daily line and today's spend read the same everyday categories.
     expect(p.daily_spend.slice(22, 29)).toEqual(p.today!.week.map(d => d.spent))
+  })
+})
+
+describe('unbudgetedRoutine (summary.month_projection)', () => {
+  it('takes the median of the last 3 complete months of unbudgeted, non-everyday, unplanned spend', () => {
+    const tx = (transaction_date: string, amount: number, category_id: string | null, tags?: string[]) =>
+      ({ transaction_date, amount, category_id, tags }) as unknown as TxRow
+    const everyday = new Set(['other'])
+    const r = unbudgetedRoutine({
+      historyTxs: [
+        tx('2026-06-10', 90000, 'health'), // older than 3 months: out
+        tx('2026-07-05', 12000, 'health'), tx('2026-08-05', 15500, 'health'), tx('2026-09-05', 19000, 'health'),
+        tx('2026-09-06', 4000, null), // uncategorized counts (Sep: 23,000)
+        tx('2026-09-07', 9000, 'other'), // everyday: the allowance covers it
+        tx('2026-09-08', 45000, 'rent'), // budget row: fixedLeft covers it
+        tx('2026-09-09', 2000, 'health', ['baby']), // planned: scheduled elsewhere
+      ],
+      currentMonthTxs: [tx('2026-10-03', 3000, 'health'), tx('2026-10-04', 700, 'other'), tx('2026-10-05', 989, 'shop', ['auto-msi'])],
+      budgetedCategoryIds: new Set(['rent']),
+      isEveryday: id => everyday.has(id || ''),
+      month: '2026-10',
+    })
+    expect(r).toEqual({ typical: 15500, spent: 3000 })
   })
 })

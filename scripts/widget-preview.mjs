@@ -62,6 +62,11 @@ function boxFor(family, s) {
 }
 
 const bigBuy = { ...fixtures.overToday, today: { ...fixtures.overToday.today, spent: 9000, left: 1880 - 9000, tomorrow: 0 } }
+// Inside the reserve: today's spend passes the room but not the pool, so the month still lands above target.
+const band = (() => {
+  const t = fixtures.overToday.today
+  return { ...fixtures.overToday, today: { ...t, spent: 6000, left: 1880 - 6000, tomorrow: 420, goals: t.goals.map(g => (g.kind === 'west_month' ? { ...g, room: 840, days_left: 2 } : g)) } }
+})()
 const fallbackPast = (() => {
   const u = fixtures.underBudget, ds = [...u.daily_spend]
   ds[ds.length - 1] += 6000
@@ -86,6 +91,7 @@ const cases = [
   { name: 'rect-es-over', family: 'accessoryRectangular', param: 'lang=es', fixture: fixtures.overToday, now: fixtures.NOW_TODAY, schemes: ['dark'] },
   // Past the whole month's room in one buy (older 'over' payload with tomorrow 0): a no-spend day.
   ...['small', 'medium', 'accessoryRectangular', 'accessoryCircular'].map(family => ({ name: family.replace('accessoryRectangular', 'rect').replace('accessoryCircular', 'circ') + '-bigbuy', family, fixture: bigBuy, now: fixtures.NOW_TODAY, schemes: ['dark'] })),
+  ...['small', 'medium', 'accessoryRectangular', 'accessoryCircular'].map(family => ({ name: family.replace('accessoryRectangular', 'rect').replace('accessoryCircular', 'circ') + '-band', family, fixture: band, now: fixtures.NOW_TODAY, schemes: ['dark'] })),
   // The everyday-budget fallback after today's share is spent.
   ...['small', 'large', 'accessoryRectangular', 'accessoryInline'].map(family => ({ name: family.replace('accessoryRectangular', 'rect').replace('accessoryInline', 'inline') + '-fallback-past', family, fixture: fallbackPast, now: fixtures.NOW_WEEKDAY, schemes: ['light'] })),
   // A same-day cache on the small lock screens.
