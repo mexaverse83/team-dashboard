@@ -22,7 +22,9 @@ import { recordRun, triggerFromAuth } from '@/lib/automation/runs'
  * month close waits, HTTP 503 so schedulers retry) and `item_warnings` are
  * configuration problems that can never post (HTTP 200, close proceeds).
  * Duplicate posts are blocked by unique indexes (supabase-2026-10-recurring-idempotency.sql)
- * on top of the application-level checks.
+ * on top of the application-level checks — but ONLY once that migration is
+ * applied. Until then the guard is an app-level check-then-insert, so two
+ * overlapping runs can double-post: callers must not retry or overlap runs.
  */
 
 interface ItemWarning { item: string; message: string }

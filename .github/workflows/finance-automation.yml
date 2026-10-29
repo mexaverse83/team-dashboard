@@ -4,9 +4,12 @@ name: Finance Automation Watchdog
 # if enabled instead, Supabase pg_cron (supabase-2026-10-pg-cron.sql). This
 # workflow only WATCHES: every 6h it reads /api/finance/health and fails —
 # loudly, with an annotation — when process-recurring has not succeeded in
-# 26h or any job is failing. When the processor is late it kicks it once
-# (safe: posts are idempotent via unique indexes), then still fails so the
-# outage is visible. Manual dispatch can run the processor on demand.
+# 26h or any job is failing. When the processor is late it kicks it ONCE, with
+# no retry, then still fails so the outage is visible. Manual dispatch can run
+# the processor on demand. Re-running the processor is only duplicate-proof
+# once supabase-2026-10-recurring-idempotency.sql is applied (unique indexes);
+# before that the only guard is an app-level check-then-insert, so two
+# overlapping runs could double-post — hence POSTs are never retried here.
 #
 # The repo is PUBLIC, so Actions logs are world-readable: never echo response
 # bodies, item names or error text — only statuses and counts. Read details in
@@ -42,17 +45,22 @@ jobs:
             exit 1
           fi
 
-      # curl with retries only on 5xx / network errors (000); a 4xx is a config
-      # problem that retrying cannot fix, so it fails immediately.
+      # GET: curl with retries only on 5xx / network errors (000); a 4xx is a
+      # config problem that retrying cannot fix, so it fails immediately.
+      # POST (the processor kick): exactly one attempt, never retried — a 503
+      # from it is often persistent (month-close migration, write error) and a
+      # timeout (000) can mean the first run is still executing on Vercel.
       - name: Define request helper
         run: |
           cat > "$RUNNER_TEMP/req.sh" <<'EOF'
           #!/usr/bin/env bash
           # usage: req.sh METHOD PATH OUTFILE → prints the final HTTP code
-          method="$1"; path="$2"; out="$3"; attempt=0; max=4
+          method="$1"; path="$2"; out="$3"; attempt=0; max=4; timeout=120
+          # Non-GET: single attempt, and wait longer than the function's 300s default limit.
+          if [ "$method" != GET ]; then max=1; timeout=320; fi
           while :; do
             attempt=$((attempt+1))
-            code=$(curl -sS -m 120 -o "$out" -w '%{http_code}' -X "$method" "$BASE_URL$path" \
+            code=$(curl -sS -m "$timeout" -o "$out" -w '%{http_code}' -X "$method" "$BASE_URL$path" \
               -H "x-api-key: $API_KEY" -H 'x-automation-trigger: gha-watchdog' -H 'content-type: application/json' || true)
             code="${code:-000}"
             case "$code" in
