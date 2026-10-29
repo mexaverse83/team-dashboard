@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
 import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '@/lib/seed-finance'
+import { monthKey } from '@/lib/finance-utils'
 
 // Mock recharts
 vi.mock('recharts', () => ({
@@ -54,33 +55,16 @@ vi.mock('next/navigation', () => ({
 }))
 
 // Mock lucide-react (exhaustive)
-vi.mock('lucide-react', () => {
-  const i = (n: string) => ({ className, ...rest }: any) => <span data-testid={`icon-${n}`} className={className} />
-  return {
-    TrendingDown: i('trendingdown'), TrendingUp: i('trendingup'), Wallet: i('wallet'),
-    Percent: i('percent'), ChevronLeft: i('chevronleft'), ChevronRight: i('chevronright'),
-    Search: i('search'), Calendar: i('calendar'), Shield: i('shield'), Code: i('code'),
-    Telescope: i('telescope'), Mail: i('mail'), FlaskConical: i('flaskconical'),
-    Palette: i('palette'), Server: i('server'), Users: i('users'), DollarSign: i('dollarsign'),
-    Home: i('home'), Zap: i('zap'), LayoutGrid: i('layoutgrid'),
-    MessageCircle: i('messagecircle'), BarChart3: i('barchart3'),
-    ChevronsLeft: i('chevronsleft'), ChevronsRight: i('chevronsright'),
-    Inbox: i('inbox'), Activity: i('activity'), CheckSquare: i('checksquare'),
-    ArrowLeftRight: i('arrowleftright'), PiggyBank: i('piggybank'),
-    RefreshCw: i('refreshcw'), FileBarChart: i('filebarchart'),
-    Radio: i('radio'), Minus: i('minus'), Plus: i('plus'),
-    Pencil: i('pencil'), Trash2: i('trash2'), Calculator: i('calculator'),
-    Landmark: i('landmark'), ShieldCheck: i('shieldcheck'), Target: i('target'),
-    Menu: i('menu'), X: i('x'), CreditCard: i('creditcard'), Power: i('power'),
-    Upload: i('upload'), Download: i('download'),
-    // Icons added by newer finance components
-    AlertCircle: i('alertcircle'), AlertTriangle: i('alerttriangle'),
-    ArrowDownLeft: i('arrowdownleft'), ArrowRight: i('arrowright'), ArrowUpRight: i('arrowupright'),
-    Bitcoin: i('bitcoin'), CalendarDays: i('calendardays'), Check: i('check'),
-    CheckCircle2: i('checkcircle2'), ChevronDown: i('chevrondown'), ChevronUp: i('chevronup'),
-    Clock: i('clock'), HeartPulse: i('heartpulse'), Info: i('info'), Lightbulb: i('lightbulb'),
-    Scissors: i('scissors'), SlidersHorizontal: i('slidershorizontal'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
+// Importing every lucide icon for the mock is slow on a cold, loaded worker.
+vi.setConfig({ testTimeout: 20000 })
+
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  const icons: Record<string, unknown> = {}
+  for (const key of Object.keys(actual)) {
+    icons[key] = (props: Record<string, unknown>) => <svg data-testid={`icon-${key.toLowerCase()}`} {...props} />
   }
+  return icons
 })
 
 // Mock framer-motion
@@ -207,5 +191,54 @@ describe('Budget Builder', () => {
     await waitFor(() => {
       expect(screen.getAllByText(/Needs|Wants|Savings/).length).toBeGreaterThanOrEqual(3)
     })
+  })
+
+  it('never calls an over-budget month healthy and states gaps in points, not arrows', async () => {
+    const month = monthKey(new Date())
+    setupSupabaseMock({
+      finance_budgets: { data: [{ id: 'b1', category_id: 'cat-groc', month: `${month}-01`, amount: 1000, owner: null }], error: null },
+      finance_transactions: { data: [{ id: 'x1', type: 'expense', amount_mxn: 5000, category_id: 'cat-groc', transaction_date: `${month}-01` }], error: null },
+      finance_recurring_income: { data: [{ amount: 100000, recurrence: 'monthly', active: true, start_date: null }], error: null },
+      finance_income_sources: { data: [], error: null },
+      finance_goals: { data: [], error: null },
+      finance_installments: { data: [], error: null },
+    })
+    const Comp = (await import('@/components/finance/budget-builder-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Spending is at 500% of budget this month'))
+    expect(screen.getByText('45 pts under 50% target')).toBeInTheDocument()
+    expect(screen.getAllByText('+$4,000').length).toBeGreaterThan(0)
+    expect(screen.getByRole('status', { name: '' }).className).toContain('bg-negative-bg')
+    expect(screen.getByText('1 category over budget')).toBeInTheDocument()
+    expect(screen.getByText('Groceries $4,000 over.')).toBeInTheDocument()
+    expect(screen.queryByText('Budget looks healthy!')).not.toBeInTheDocument()
+  })
+
+  it('allocates spread (coverage) rows like the Budgets page', async () => {
+    const month = monthKey(new Date())
+    const { addMonthsKey } = await import('@/lib/dates')
+    setupSupabaseMock({
+      finance_budgets: { data: [{ id: 'b1', category_id: 'cat-groc', month: `${month}-01`, amount: 2000, owner: null }], error: null },
+      finance_transactions: { data: [
+        { id: 'x1', type: 'expense', amount_mxn: 1500, category_id: 'cat-groc', transaction_date: `${month}-01`, coverage_start: null, coverage_end: null },
+        { id: 'x2', type: 'expense', amount_mxn: 12000, category_id: 'cat-groc', transaction_date: `${addMonthsKey(month, -2)}-05`, coverage_start: `${addMonthsKey(month, -2)}-01`, coverage_end: `${addMonthsKey(month, 9)}-28` },
+      ], error: null },
+      finance_recurring_income: { data: [{ amount: 100000, recurrence: 'monthly', active: true, start_date: null }], error: null },
+      finance_income_sources: { data: [], error: null },
+      finance_goals: { data: [], error: null },
+      finance_installments: { data: [], error: null },
+    })
+    const Comp = (await import('@/components/finance/budget-builder-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Spending is at 125% of budget this month'))
+  })
+})
+
+describe('targetGap', () => {
+  it('reads as plain points against the target', async () => {
+    const { targetGap } = await import('@/components/finance/budget-builder-client')
+    expect(targetGap(38, 50)).toBe('12 pts under 50% target')
+    expect(targetGap(41, 30)).toBe('11 pts over 30% target')
+    expect(targetGap(20, 20)).toBe('On the 20% target')
   })
 })

@@ -1,283 +1,195 @@
 /**
  * Unit Tests — Subscriptions page (/finance/subscriptions)
- * Split out of tests/pages/finance.test.tsx and finance-v2.test.tsx (Mona v2 W0, pure move: no assertion changes).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
-import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '@/lib/seed-finance'
-import { monthKey } from '@/lib/finance-utils'
+import { SEED_CATEGORIES, SEED_RECURRING } from '@/lib/seed-finance'
+import { addDaysKey, localDateKey } from '@/lib/dates'
+import { advanceDueDate, describeProcessResult, latestPriceChanges } from '@/components/finance/subscriptions-client'
 
-// Mock recharts
-vi.mock('recharts', () => ({
-  PieChart: ({ children }: any) => <div data-testid="pie-chart">{children}</div>,
-  Pie: ({ children }: any) => <>{children}</>,
-  Cell: () => null,
-  AreaChart: ({ children }: any) => <div data-testid="area-chart">{children}</div>,
-  Area: () => null,
-  LineChart: ({ children }: any) => <div data-testid="line-chart">{children}</div>,
-  Line: () => null,
-  BarChart: ({ children }: any) => <div data-testid="bar-chart">{children}</div>,
-  Bar: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
-  CartesianGrid: () => null,
-  ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
-  Tooltip: () => null,
-  Legend: () => null,
-  ReferenceLine: () => null,
-}))
+// Importing every lucide icon for the mock is slow on a cold, loaded worker.
+vi.setConfig({ testTimeout: 20000 })
 
-// Mock SparklineChart
-vi.mock('@/components/ui/sparkline-chart', () => ({
-  SparklineChart: () => <div data-testid="sparkline" />,
-}))
-
-// Mock lucide-react
-vi.mock('lucide-react', () => {
-  const i = (n: string) => (props: any) => <svg data-testid={`icon-${n}`} {...props} />
-  return {
-    TrendingDown: i('trendingdown'), TrendingUp: i('trendingup'), Wallet: i('wallet'),
-    Percent: i('percent'), ChevronLeft: i('chevronleft'), ChevronRight: i('chevronright'),
-    Search: i('search'), Calendar: i('calendar'), Shield: i('shield'), Code: i('code'),
-    Telescope: i('telescope'), Mail: i('mail'), FlaskConical: i('flaskconical'),
-    Palette: i('palette'), Server: i('server'), Users: i('users'), DollarSign: i('dollarsign'),
-    Home: i('home'), Zap: i('zap'), LayoutGrid: i('layoutgrid'),
-    MessageCircle: i('messagecircle'), BarChart3: i('barchart3'),
-    ChevronsLeft: i('chevronsleft'), ChevronsRight: i('chevronsright'),
-    Inbox: i('inbox'), Activity: i('activity'), CheckSquare: i('checksquare'),
-    ArrowLeftRight: i('arrowleftright'), PiggyBank: i('piggybank'),
-    RefreshCw: i('refreshcw'), FileBarChart: i('filebarchart'),
-    Radio: i('radio'), Minus: i('minus'), Plus: i('plus'),
-    Pencil: i('pencil'), Trash2: i('trash2'), Power: i('power'), Upload: i('upload'), Download: i('download'),
-    CreditCard: i('creditcard'), Calculator: i('calculator'),
-    Landmark: i('landmark'), ShieldCheck: i('shieldcheck'), Target: i('target'),
-    Menu: i('menu'), X: i('x'),
-    // Icons added by newer finance components (weekend budget, rules, insights, etc.)
-    AlertCircle: i('alertcircle'), AlertTriangle: i('alerttriangle'),
-    ArrowDownLeft: i('arrowdownleft'), ArrowRight: i('arrowright'), ArrowUpRight: i('arrowupright'),
-    Bitcoin: i('bitcoin'), CalendarDays: i('calendardays'), Check: i('check'),
-    CheckCircle2: i('checkcircle2'), ChevronDown: i('chevrondown'), ChevronUp: i('chevronup'),
-    Clock: i('clock'), HeartPulse: i('heartpulse'), Info: i('info'), Lightbulb: i('lightbulb'),
-    Scissors: i('scissors'), SlidersHorizontal: i('slidershorizontal'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
+vi.mock('lucide-react', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>()
+  const icons: Record<string, unknown> = {}
+  for (const key of Object.keys(actual)) {
+    icons[key] = (props: Record<string, unknown>) => <svg data-testid={`icon-${key.toLowerCase()}`} {...props} />
   }
+  return icons
 })
 
-// Mock Modal
 vi.mock('@/components/ui/modal', () => ({
-  Modal: ({ children, footer, open, title }: any) => open ? <div data-testid="modal"><h2>{title}</h2>{children}{footer}</div> : null,
+  Modal: ({ children, open, title }: any) => open ? <div data-testid="modal"><h2>{title}</h2>{children}</div> : null,
 }))
 
-// Mock pdf-parser
-vi.mock('@/lib/pdf-parser', () => ({
-  parseBBVAPdf: vi.fn().mockResolvedValue([]),
-  detectBankFormat: vi.fn().mockReturnValue('unknown'),
-}))
+const TODAY = localDateKey()
+const RECURRING = [
+  ...SEED_RECURRING.map(r => ({ ...r, next_due_date: addDaysKey(TODAY, 4) })),
+  { id: 'r-due', name: 'YouTube Premium', amount: 319, currency: 'MXN', category_id: 'cat-subs', frequency: 'monthly', next_due_date: TODAY, is_active: true, merchant: 'YouTube', notes: null, owner: 'laura' },
+  { id: 'r-paused', name: 'Gym', amount: 900, currency: 'MXN', category_id: 'cat-health', frequency: 'monthly', next_due_date: TODAY, is_active: false, merchant: 'Gym', notes: null, owner: null },
+]
+const POSTED = [
+  { recurring_id: 'r-due', amount: 319, transaction_date: addDaysKey(TODAY, -30), description: 'Auto: YouTube Premium (price changed from $300 → $319)', flags: ['price_changed'] },
+]
 
-// Mock framer-motion (for budget bars / savings rate / svg gauges)
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
-    p: ({ children, ...props }: any) => <p {...props}>{children}</p>,
-    circle: (props: any) => <circle />,
-  },
-  AnimatePresence: ({ children }: any) => children,
-}))
-
-// Components call fetch() against /api/finance/* — return a graceful "not ok"
-// so widgets that depend on those endpoints render their fallback/null states.
-beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn(() =>
-    Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}), text: () => Promise.resolve('') })
-  ))
-})
-
-// Pages filter budgets/transactions by the currently displayed month, so pin
-// the seed budgets to this month (computed the same way the components do —
-// monthKey uses local time, not toISOString/UTC).
-const THIS_MONTH = monthKey(new Date())
-const CURRENT_MONTH_BUDGETS = SEED_BUDGETS.map(b => ({ ...b, month: `${THIS_MONTH}-01` }))
-
-// Generic chainable query builder: every filter/modifier returns the chain,
-// awaiting it resolves the table's mock result.
 function makeChain(res: any) {
-  const chain: any = {
-    then: (onFulfilled: any, onRejected: any) => Promise.resolve(res).then(onFulfilled, onRejected),
-  }
-  for (const m of ['select', 'order', 'eq', 'neq', 'gte', 'lte', 'lt', 'gt', 'in', 'ilike', 'limit', 'single', 'range', 'is']) {
-    chain[m] = vi.fn(() => chain)
-  }
+  const chain: any = { then: (ok: any, err: any) => Promise.resolve(res).then(ok, err) }
+  for (const m of ['select', 'order', 'eq', 'neq', 'gte', 'lte', 'lt', 'gt', 'in', 'ilike', 'limit', 'single', 'range', 'is']) chain[m] = vi.fn(() => chain)
   return chain
 }
 
-function setupSupabaseMock(overrides: Record<string, any> = {}) {
-  const defaults: Record<string, any> = {
-    finance_categories: { data: SEED_CATEGORIES, error: null },
-    finance_transactions: { data: SEED_TRANSACTIONS, error: null },
-    finance_budgets: { data: CURRENT_MONTH_BUDGETS, error: null },
-    finance_recurring: { data: SEED_RECURRING, error: null },
-  }
-  const merged = { ...defaults, ...overrides }
+const writes: Array<{ table: string; op: string; payload?: unknown; eq?: unknown[] }> = []
 
-  vi.mocked(supabase.from).mockImplementation((table: string) => {
-    const res = merged[table] || { data: [], error: null }
-    return {
-      select: vi.fn(() => makeChain(res)),
-      insert: vi.fn().mockReturnValue(Promise.resolve({ data: [{}], error: null })),
-      update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(Promise.resolve({ error: null })) }),
-      delete: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(Promise.resolve({ error: null })) }),
-    } as any
-  })
+function writeChain(table: string, op: string, payload: unknown, res: any) {
+  const entry: { table: string; op: string; payload?: unknown; eq?: unknown[] } = { table, op, payload }
+  writes.push(entry)
+  const chain = makeChain(res)
+  chain.eq = vi.fn((...args: unknown[]) => { entry.eq = args; return chain })
+  return chain
 }
 
-// The Finance V2 suite's mock: budgets not pinned to the current month, extra tables.
-function setupSupabaseMockV2(overrides: Record<string, any> = {}) {
-  const defaults: Record<string, any> = {
+function setupSupabaseMock() {
+  writes.length = 0
+  const tables: Record<string, any> = {
     finance_categories: { data: SEED_CATEGORIES, error: null },
-    finance_transactions: { data: SEED_TRANSACTIONS, error: null },
-    finance_budgets: { data: SEED_BUDGETS, error: null },
-    finance_recurring: { data: SEED_RECURRING, error: null },
-    finance_income_sources: { data: [
-      { id: 'inc1', name: 'Nexaminds Salary', type: 'salary', amount: 55000, currency: 'MXN', frequency: 'monthly', is_active: true, notes: null, created_at: '2026-01-01', updated_at: '2026-01-01' },
-      { id: 'inc2', name: 'Freelance', type: 'freelance', amount: 10000, currency: 'MXN', frequency: 'monthly', is_active: true, notes: null, created_at: '2026-01-01', updated_at: '2026-01-01' },
-    ], error: null },
-    finance_debts: { data: [
-      { id: 'd1', name: 'Credit Card', creditor: 'BBVA', balance: 45000, interest_rate: 36, minimum_payment: 2500, type: 'credit_card', start_date: '2025-06-01', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
-      { id: 'd2', name: 'Personal Loan', creditor: 'Nu', balance: 25000, interest_rate: 18, minimum_payment: 1800, type: 'personal_loan', start_date: '2025-03-01', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
-    ], error: null },
-    finance_goals: { data: [
-      { id: 'g1', name: 'MacBook Pro', target_amount: 50000, current_amount: 15000, target_date: '2026-12-01', is_completed: false, priority: 1, monthly_contribution: 5000, investment_vehicle: 'CETES', milestones_json: [], created_at: '2026-01-01', updated_at: '2026-01-01' },
-      { id: 'g2', name: 'Vacation Fund', target_amount: 30000, current_amount: 8000, target_date: '2026-08-01', is_completed: false, priority: 2, monthly_contribution: 3000, investment_vehicle: null, milestones_json: [], created_at: '2026-01-01', updated_at: '2026-01-01' },
-    ], error: null },
-    finance_emergency_fund: { data: [], error: null },
-    finance_debt_payments: { data: [
-      { principal_portion: 10000 },
-      { principal_portion: 20000 },
-    ], error: null },
+    finance_recurring: { data: RECURRING, error: null },
+    finance_debts: { data: [], error: null },
+    finance_transactions: { data: POSTED, error: null },
   }
-  const merged = { ...defaults, ...overrides }
-
-  vi.mocked(supabase.from).mockImplementation((table: string) => {
-    const res = merged[table] || { data: [], error: null }
-    const result = Promise.resolve(res)
-    return {
-      select: vi.fn().mockImplementation(() => {
-        // Chainable mock — every method returns itself
-        const chain: any = Object.assign(Promise.resolve(res), {})
-        const addMethods = (obj: any) => {
-          for (const m of ['order', 'eq', 'gte', 'lt', 'lte', 'limit', 'single', 'range']) {
-            obj[m] = vi.fn().mockImplementation(() => {
-              const next = Object.assign(Promise.resolve(res), {})
-              addMethods(next)
-              return next
-            })
-          }
-          return obj
-        }
-        return addMethods(chain)
-      }),
-      insert: vi.fn().mockReturnValue(Promise.resolve({ data: [{}], error: null })),
-      update: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(Promise.resolve({ error: null })) }),
-      delete: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(Promise.resolve({ error: null })) }),
-    } as any
-  })
+  vi.mocked(supabase.from).mockImplementation(((table: string) => ({
+    select: vi.fn(() => makeChain(tables[table] || { data: [], error: null })),
+    insert: vi.fn((payload: unknown) => writeChain(table, 'insert', payload, { data: { id: 'tx-new' }, error: null })),
+    update: vi.fn((payload: unknown) => writeChain(table, 'update', payload, { data: null, error: null })),
+    delete: vi.fn(() => writeChain(table, 'delete', null, { data: null, error: null })),
+  })) as unknown as typeof supabase.from)
 }
 
-// ==========================================
-// SUBSCRIPTIONS
-// ==========================================
-describe('Subscriptions Page', () => {
+let fetchMock: ReturnType<typeof vi.fn>
+
+async function renderPage() {
+  const Comp = (await import('@/components/finance/subscriptions-client')).default
+  render(<Comp />)
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'Subscriptions' })).toBeInTheDocument())
+}
+
+describe('Subscriptions page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setupSupabaseMock()
+    fetchMock = vi.fn(() => Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ processed_at: '2026-10-28T12:00:00Z', results: { subscriptions: 2, income: 0, installments: 0, errors: [] }, total_created: 2, ok: true }) }))
+    vi.stubGlobal('fetch', fetchMock)
   })
 
-  it('renders page header', async () => {
-    const Comp = (await import('@/components/finance/subscriptions-client')).default
-    render(<Comp />)
-    await waitFor(() => expect(screen.getByText('Subscriptions')).toBeInTheDocument())
+  it('renders the header and neutral KPIs', async () => {
+    await renderPage()
     expect(screen.getByText('Recurring charges and subscription tracking')).toBeInTheDocument()
+    expect(screen.getByText('Monthly burn')).toBeInTheDocument()
+    expect(screen.getByText('Annual projection')).toBeInTheDocument()
+    expect(screen.getByText('Next 30 days')).toBeInTheDocument()
   })
 
-  it('renders 3 KPI cards', async () => {
-    const Comp = (await import('@/components/finance/subscriptions-client')).default
-    render(<Comp />)
-    await waitFor(() => {
-      expect(screen.getByText('Monthly Burn')).toBeInTheDocument()
-      expect(screen.getByText('Annual Projection')).toBeInTheDocument()
-      // "Active" appears as both KPI label and status — check both exist
-      expect(screen.getAllByText('Active').length).toBeGreaterThanOrEqual(1)
-    })
+  it('lists subscriptions with "date · in N days" and a pill only when paused', async () => {
+    await renderPage()
+    const claude = screen.getByRole('button', { name: /^Edit Claude Pro/ })
+    expect(within(claude).getByText(/· in 4 days/)).toBeInTheDocument()
+    expect(within(claude).queryByText('Paused')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('button', { name: /^Edit Gym/ })).getByText('Paused')).toBeInTheDocument()
+    expect(screen.queryByText('Status')).not.toBeInTheDocument()
   })
 
-  it('renders subscription table with headers', async () => {
-    const Comp = (await import('@/components/finance/subscriptions-client')).default
-    render(<Comp />)
-    await waitFor(() => {
-      expect(screen.getByText('Name')).toBeInTheDocument()
-      expect(screen.getByText('Amount')).toBeInTheDocument()
-      expect(screen.getByText('Frequency')).toBeInTheDocument()
-      expect(screen.getByText('Next Due')).toBeInTheDocument()
-      expect(screen.getByText('Status')).toBeInTheDocument()
-    })
+  it('surfaces processor price changes', async () => {
+    await renderPage()
+    expect(within(screen.getByRole('button', { name: /^Edit YouTube Premium/ })).getByText('$300 → $319')).toBeInTheDocument()
   })
 
-  it('shows subscription names from seed data', async () => {
-    const Comp = (await import('@/components/finance/subscriptions-client')).default
-    render(<Comp />)
-    await waitFor(() => {
-      // Names may appear in table + upcoming section
-      expect(screen.getAllByText('Claude Pro').length).toBeGreaterThanOrEqual(1)
-      expect(screen.getAllByText('Spotify Premium').length).toBeGreaterThanOrEqual(1)
-      expect(screen.getAllByText('Netflix').length).toBeGreaterThanOrEqual(1)
-    })
+  it('replaces the duplicate upcoming list with a 30-day timeline', async () => {
+    await renderPage()
+    expect(screen.getByRole('heading', { name: 'Upcoming · next 30 days' })).toBeInTheDocument()
+    expect(screen.getAllByText('Claude Pro').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('shows active/cancelled status indicators', async () => {
-    const Comp = (await import('@/components/finance/subscriptions-client')).default
-    render(<Comp />)
-    await waitFor(() => {
-      expect(screen.getAllByText('Active').length).toBeGreaterThanOrEqual(1)
-    })
+  it('never posts without confirmation, then posts, reports and refetches', async () => {
+    await renderPage()
+    const before = vi.mocked(supabase.from).mock.calls.filter(([t]) => t === 'finance_recurring').length
+    fireEvent.click(screen.getByRole('button', { name: 'Post due items (subscriptions, income, MSI)' }))
+    const dialog = within(screen.getByTestId('modal'))
+    expect(dialog.getByText('Post due items?')).toBeInTheDocument()
+    expect(dialog.getByText(/YouTube Premium/)).toBeInTheDocument()
+    expect(dialog.queryByText(/Gym/)).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/finance/process-recurring', expect.anything())
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByTestId('modal')).not.toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/finance/process-recurring', expect.anything())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Post due items (subscriptions, income, MSI)' }))
+    fireEvent.click(within(screen.getByTestId('modal')).getByRole('button', { name: 'Post now' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Posted 2 transactions'))
+    expect(fetchMock).toHaveBeenCalledWith('/api/finance/process-recurring', { method: 'POST' })
+    await waitFor(() => expect(vi.mocked(supabase.from).mock.calls.filter(([t]) => t === 'finance_recurring').length).toBeGreaterThan(before))
   })
 
-  it('renders Upcoming section', async () => {
-    const Comp = (await import('@/components/finance/subscriptions-client')).default
-    render(<Comp />)
-    await waitFor(() => {
-      expect(screen.getByText(/Upcoming/)).toBeInTheDocument()
-    })
+  it('logging a due payment advances next_due_date so the processor does not re-post it, and undo reverts both', async () => {
+    await renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Log YouTube Premium payment' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Logged YouTube Premium'))
+    expect(writes.find(w => w.table === 'finance_transactions' && w.op === 'insert')).toBeTruthy()
+    const advanced = advanceDueDate(TODAY, 'monthly')
+    expect(writes).toContainEqual({ table: 'finance_recurring', op: 'update', payload: { next_due_date: advanced }, eq: ['id', 'r-due'] })
+    expect(screen.getByRole('status')).toHaveTextContent('Next due')
+
+    fireEvent.click(within(screen.getByRole('status')).getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(writes).toContainEqual({ table: 'finance_transactions', op: 'delete', payload: null, eq: ['id', 'tx-new'] }))
+    await waitFor(() => expect(writes).toContainEqual({ table: 'finance_recurring', op: 'update', payload: { next_due_date: TODAY }, eq: ['id', 'r-due'] }))
   })
 
-  it('monthly burn is in rose color', async () => {
-    const Comp = (await import('@/components/finance/subscriptions-client')).default
-    const { container } = render(<Comp />)
-    await waitFor(() => {
-      expect(container.querySelector('.text-rose-600')).toBeInTheDocument()
-    })
+  it('logging a payment far from its due date leaves the schedule alone', async () => {
+    await renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Log Netflix payment' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Logged Netflix'))
+    expect(writes.some(w => w.table === 'finance_recurring' && w.op === 'update')).toBe(false)
+  })
+
+  it('uses contextual labels for row actions', async () => {
+    await renderPage()
+    expect(screen.getByRole('button', { name: 'Log Netflix payment' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pause Netflix' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Resume Gym' })).toBeInTheDocument()
   })
 })
 
-describe('Subscriptions CRUD', () => {
-  beforeEach(() => { vi.clearAllMocks(); setupSupabaseMockV2() })
-
-  it('renders Add Subscription button', async () => {
-    const Comp = (await import('@/components/finance/subscriptions-client')).default
-    render(<Comp />)
-    await waitFor(() => {
-      const buttons = screen.getAllByRole('button')
-      expect(buttons.length).toBeGreaterThanOrEqual(1)
+describe('subscription helpers', () => {
+  it('shows errors and warnings from a partial 503 instead of "Service Unavailable"', () => {
+    const outcome = describeProcessResult({ ok: false, statusText: 'Service Unavailable' }, {
+      total_created: 3, ok: false, results: { errors: ['Sub Hulu: foreign-currency posting requires an explicit MXN conversion', 'Month close deferred until recurring processing succeeds'] }, item_warnings: ['Sub X: unsupported recurrence'],
     })
+    expect(outcome.tone).toBe('warning')
+    expect(outcome.title).toBe('Posted 3 transactions; 2 items need attention')
+    expect(outcome.details).toHaveLength(2)
+    expect(describeProcessResult({ ok: false, statusText: 'Service Unavailable' }, {}).tone).toBe('negative')
+    const full = describeProcessResult({ ok: false, statusText: 'Service Unavailable' }, { total_created: 0, ok: false, results: { errors: ['Sub Hulu: insert failed'] } })
+    expect(full.tone).toBe('negative')
+    expect(full.title).toBe('Could not post due items; 1 error')
+    expect(full.details).toEqual(['Sub Hulu: insert failed'])
+    expect(describeProcessResult({ ok: true }, { total_created: 0 }).title).toBe('Nothing was due')
   })
 
-  it('renders toggle/status controls', async () => {
-    const Comp = (await import('@/components/finance/subscriptions-client')).default
-    render(<Comp />)
-    await waitFor(() => {
-      // Active/cancelled status toggles
-      expect(screen.getAllByText(/Active|Cancelled/i).length).toBeGreaterThanOrEqual(1)
-    })
+  it('advances due dates on local calendar keys and clamps month ends', () => {
+    expect(advanceDueDate('2026-10-31', 'monthly')).toBe('2026-11-30')
+    expect(advanceDueDate('2026-12-15', 'monthly')).toBe('2027-01-15')
+    expect(advanceDueDate('2026-11-30', 'quarterly')).toBe('2027-02-28')
+    expect(advanceDueDate('2026-10-28', 'weekly')).toBe('2026-11-04')
+    expect(advanceDueDate('2024-02-29', 'yearly')).toBe('2025-02-28')
+  })
+
+  it('reads only the latest charge per subscription for price changes', () => {
+    expect(latestPriceChanges([
+      { recurring_id: 'a', amount: 319, transaction_date: '2026-10-01', description: 'Auto: YT (recurring)', flags: null },
+      { recurring_id: 'a', amount: 319, transaction_date: '2026-09-01', description: 'Auto: YT (price changed from $300 → $319)', flags: ['price_changed'] },
+      { recurring_id: 'b', amount: 1299, transaction_date: '2026-10-01', description: 'Auto: Max (price changed from $1,199 → $1299)', flags: ['price_changed'] },
+    ])).toEqual({ b: { from: 1199, to: 1299, date: '2026-10-01' } })
   })
 })
