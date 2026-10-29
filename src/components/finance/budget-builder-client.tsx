@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { describeBudget, type Tone } from '@/lib/budget-tone'
 import { formatDelta } from '@/lib/format'
-import { addMonthsKey, localDateKey, monthEndKey } from '@/lib/dates'
+import { addMonthsKey, localDateKey, monthEndKey, parseLocalDateKey } from '@/lib/dates'
 import { DEFAULT_CATEGORIES, defaultBudgetType, allocatedAmount, monthKey } from '@/lib/finance-utils'
 import { categoryMonthSpend, fetchBudgetTransactions, type BudgetTx } from '@/components/finance/budgets-client'
 import { getNextTreatmentEvent, getTreatmentEventForMonth } from '@/lib/fertility-plan'
@@ -191,7 +191,7 @@ export default function BudgetBuilderClient() {
       if (g.monthly_contribution && g.monthly_contribution > 0) return s + g.monthly_contribution
       const remaining = g.target_amount - g.current_amount
       if (remaining <= 0) return s
-      const targetDate = g.target_date ? new Date(g.target_date) : null
+      const targetDate = g.target_date ? parseLocalDateKey(String(g.target_date).slice(0, 10)) : null
       if (!targetDate) return s
       const monthsLeft = Math.max(1, (targetDate.getFullYear() - new Date().getFullYear()) * 12 + targetDate.getMonth() - new Date().getMonth())
       return s + Math.ceil(remaining / monthsLeft)

@@ -11,16 +11,17 @@ import { fetchWestProjection } from '@/lib/west-projection-client'
 import { buildDeterministicBrief, type BriefSummary } from '@/lib/deterministic-brief'
 import { insightFreshnessLevel, isInsightUsable } from '@/lib/insight-freshness'
 import { mexicoCityToday, parseLocalDateKey } from '@/lib/dates'
+import { nextWestMilestone, overdueWestActions, type WestMilestone } from '@/lib/west-milestones'
 import { formatDateShort } from '@/lib/format'
 import { MiniMarkdown, withMoneySpans } from '@/lib/mini-markdown'
-import { fetchLatestNetWorth, netWorthRows, type NetWorthSnapshotRow } from '@/lib/net-worth-rows'
+import { fetchLatestNetWorth, netWorthRows, PE_AT_COST_NOTE, privateEquityAtCost, type NetWorthSnapshotRow } from '@/lib/net-worth-rows'
 import Link from 'next/link'
 
 function fmtMXN(n: number) { return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)} MXN` }
 
 interface WestSnapshot {
   projectedTotal: number; target: number; gap: number; paidPct: number; investPct: number
-  growthPct: number; fundedPct: number; monthsRemaining: number; nextMilestone?: { title: string; date: string }
+  growthPct: number; fundedPct: number; monthsRemaining: number; nextMilestone?: { title: string; date: string }; overdue?: Array<{ title: string; date: string }>
 }
 interface WestProjectionData {
   target?: number
@@ -192,13 +193,16 @@ export default function InsightsClient() {
           const paidPct = (paidAmt / target) * 100
           const invPct = (invAmt / target) * 100
           const growthPct = Math.min(((projTotal - paidAmt - invAmt) / target) * 100, 100 - paidPct - invPct)
-          const nextMilestone = (wd.milestones || []).find((m: Record<string,string>) => m.status === 'pending')
+          const ms = (wd.milestones || []) as unknown as WestMilestone[]
+          const nextMilestone = nextWestMilestone(ms, mexicoCityToday())
+          const overdue = overdueWestActions(ms, mexicoCityToday()).map(m => ({ title: m.label, date: m.date }))
           setWestSnapshot({
             projectedTotal: projTotal, target, gap,
             paidPct, investPct: invPct, growthPct,
             fundedPct: (projTotal / target) * 100,
             monthsRemaining: wd.months_to_delivery || 22,
             nextMilestone: nextMilestone ? { title: nextMilestone.label, date: nextMilestone.date } : undefined,
+            overdue,
           })
         }
       }
@@ -589,7 +593,7 @@ export default function InsightsClient() {
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <p className="text-xl font-bold tabular-nums" data-money>{fmtMXN(netWorthSnapshot.net_worth)}</p>
-                      <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">Snapshot {formatDateShort(parseLocalDateKey(netWorthSnapshot.snapshot_date))} · same figure as Home</p>
+                      <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">Snapshot {formatDateShort(parseLocalDateKey(netWorthSnapshot.snapshot_date))} · same figure as Home{privateEquityAtCost(netWorthSnapshot) ? ` · ${PE_AT_COST_NOTE}` : ''}</p>
                     </div>
                   </div>
                   <div className="space-y-1.5 border-t border-[hsl(var(--border))] pt-3">
@@ -715,19 +719,29 @@ export default function InsightsClient() {
             )}
 
             {/* ── Upcoming Events ── */}
-            {westSnapshot?.nextMilestone && (
+            {(westSnapshot?.nextMilestone || (westSnapshot?.overdue?.length ?? 0) > 0) && (
               <section className="mb-8">
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">Coming Up</h2>
                 <GlassCard className="p-4">
-                  <div className="relative pl-5">
+                  <div className="relative space-y-3 pl-5">
                     <div className="absolute left-2 top-1 bottom-1 w-px bg-[hsl(var(--border))]" />
-                    <div className="relative">
-                      <div className="absolute -left-5 top-1 w-[9px] h-[9px] rounded-full border-2 border-background bg-blue-500" />
-                      <div className="flex items-baseline justify-between gap-3">
-                        <p className="text-sm font-medium leading-tight">{westSnapshot.nextMilestone.title}</p>
+                    {/* Past-dated items still to do: an action, never "coming up" on an old date. */}
+                    {westSnapshot?.overdue?.map(o => (
+                      <div key={o.title} className="relative" data-testid="west-overdue">
+                        <div className="absolute -left-5 top-1 w-[9px] h-[9px] rounded-full border-2 border-background bg-warning" />
+                        <p className="text-sm font-medium leading-tight">{o.title}</p>
+                        <p className="text-xs text-warning mt-0.5">To do · due since {formatDateShort(o.date)}</p>
                       </div>
-                      <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{formatDateShort(westSnapshot.nextMilestone.date)}</p>
-                    </div>
+                    ))}
+                    {westSnapshot?.nextMilestone && (
+                      <div className="relative">
+                        <div className="absolute -left-5 top-1 w-[9px] h-[9px] rounded-full border-2 border-background bg-blue-500" />
+                        <div className="flex items-baseline justify-between gap-3">
+                          <p className="text-sm font-medium leading-tight">{westSnapshot.nextMilestone.title}</p>
+                        </div>
+                        <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{formatDateShort(westSnapshot.nextMilestone.date)}</p>
+                      </div>
+                    )}
                   </div>
                 </GlassCard>
               </section>

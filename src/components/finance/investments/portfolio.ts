@@ -32,6 +32,12 @@ export function stockValueMXN(s: StockHolding, fxRate: number): number {
   return s.shares * s.avg_cost_basis
 }
 
+/** Private equity "net at target": shares × (target − cost) at the live rate — the Stocks tab's figure. */
+export function privateEquityNetAtTargetMXN(s: Pick<StockHolding, 'shares' | 'avg_cost_basis' | 'target_price_usd'>, fxRate: number): number {
+  const cost = s.avg_cost_basis || 0.01
+  return s.shares * ((s.target_price_usd || 0) - cost) * fxRate
+}
+
 /** Equity = value − still owed; WEST owes target − paid-to-date when known (same rule as the net-worth snapshot). */
 export function propertyEquity(p: RealEstateProperty, west?: WestPaidToDate | null): number {
   return sharedPropertyEquity(p, west)

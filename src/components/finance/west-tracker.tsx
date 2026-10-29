@@ -12,16 +12,59 @@ import { CHART } from '@/lib/chart-theme'
 import { OWNERS } from '@/lib/owners'
 import { fetchWestProjection } from '@/lib/west-projection-client'
 import { projectWest, type WestSchedule } from '@/lib/west-projection'
-import { mexicoCityToday } from '@/lib/dates'
-import { formatCompact, formatMonthShort } from '@/lib/format'
+import { mexicoCityToday, parseLocalDateKey } from '@/lib/dates'
+import { nextWestMilestone } from '@/lib/west-milestones'
+import { formatCompact, formatDateShort, formatMonthShort } from '@/lib/format'
 
 function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' ') }
 function fmt(n: number, d = 0) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n) }
 function fmtMXN(n: number) { return `$${fmt(n)} MXN` }
 function fmtShort(n: number) { return `$${(n / 1e6).toFixed(1)}M` }
+/** 'Oct 2026', or "Oct '26" (the app-wide short form — "Oct 26" reads as a day). */
 function monthLabel(key: string, year: '2-digit' | 'numeric' = 'numeric') {
   const [y, m] = key.split('-').map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year })
+  const d = new Date(y, m - 1, 1)
+  if (year === '2-digit') return `${d.toLocaleDateString('en-US', { month: 'short' })} '${String(y).slice(2)}`
+  return d.toLocaleDateString('en-US', { month: 'short', year })
+}
+
+// Projection chart tooltip: the axis' month format, the series in legend
+// order, and the stacked total (which includes Laura's Infonavit).
+const WEST_SERIES: Array<{ key: 'paid' | 'investments' | 'crypto' | 'infonavit'; label: string; color: string }> = [
+  { key: 'paid', label: 'Direct Payments', color: 'hsl(var(--chart-1))' },
+  { key: 'investments', label: 'Investments (GBM)', color: 'hsl(var(--chart-3))' },
+  { key: 'crypto', label: 'Crypto', color: 'hsl(var(--chart-5))' },
+  { key: 'infonavit', label: `${OWNERS[1]}'s Infonavit`, color: 'hsl(var(--owner-b))' },
+]
+
+interface WestTooltipProps {
+  active?: boolean
+  label?: string | number
+  payload?: Array<{ payload?: Record<string, number | string> }>
+}
+
+function WestChartTooltip({ active, label, payload }: WestTooltipProps) {
+  const row = payload?.[0]?.payload
+  if (!active || !row) return null
+  return (
+    <div style={CHART_TOOLTIP_STYLE} className="min-w-[13rem] text-xs">
+      <p className="mb-1 font-semibold">{formatMonthShort(String(label ?? row.month), { withYear: true })}</p>
+      <ul className="space-y-0.5">
+        {WEST_SERIES.map(s => (
+          <li key={s.key} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1.5"><span aria-hidden className="h-2 w-2 rounded-full" style={{ background: s.color }} />{s.label}</span>
+            <span className="tabular-nums" data-money>{fmtMXN(Number(row[s.key]) || 0)}</span>
+          </li>
+        ))}
+        <li className="mt-1 flex justify-between gap-3 border-t border-[hsl(var(--border))] pt-1 font-semibold">
+          <span>Total</span><span className="tabular-nums" data-money>{fmtMXN(Number(row.total) || 0)}</span>
+        </li>
+        <li className="flex justify-between gap-3 text-[hsl(var(--text-secondary))]">
+          <span>Property value</span><span className="tabular-nums" data-money>{fmtMXN(Number(row.property_value) || 0)}</span>
+        </li>
+      </ul>
+    </div>
+  )
 }
 
 interface WestData {
@@ -362,7 +405,9 @@ function saleMonthIn(data: WestData, months: Array<{ month: string }>): string |
 // ═══════════════════════════════════════════
 // FULL WEST TRACKER (Portfolio tab)
 // ═══════════════════════════════════════════
-export function WestTracker() {
+export interface PrivateEquityExit { netMXN: number; targetPriceUsd: number; name: string }
+
+export function WestTracker({ privateEquityExit = null }: { privateEquityExit?: PrivateEquityExit | null } = {}) {
   const [data, setData] = useState<WestData | null>(null)
   const [loading, setLoading] = useState(true)
   const [returnRate, setReturnRate] = useState(9.5) // net of GBM commission; replaced by the server's rate
@@ -431,8 +476,9 @@ export function WestTracker() {
   const gapPct = gap > 0 ? (gap / target) * 100 : 0
 
   // Calendar countdown: whole months, then the days left after them.
-  const deliveryDate = new Date(data.delivery_date)
-  const now = new Date()
+  // Local calendar dates: new Date('2027-12-31') is UTC midnight, a day early in Mexico City.
+  const deliveryDate = parseLocalDateKey(data.delivery_date)
+  const now = parseLocalDateKey(mexicoCityToday())
   const countdown = (() => {
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const end = new Date(deliveryDate.getFullYear(), deliveryDate.getMonth(), deliveryDate.getDate())
@@ -474,12 +520,12 @@ export function WestTracker() {
             <div className="flex items-center gap-4 sm:gap-6">
               <div className="text-center">
                 <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums">{monthsRemaining}</p>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Months</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">{monthsRemaining === 1 ? 'Month' : 'Months'}</p>
               </div>
               <div className="h-8 w-px bg-[hsl(var(--border))]" />
               <div className="text-center">
                 <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums">{daysRemaining}</p>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Days</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">{daysRemaining === 1 ? 'Day' : 'Days'}</p>
               </div>
               <div className="h-8 w-px bg-[hsl(var(--border))]" />
               <div className="text-center">
@@ -650,15 +696,11 @@ export function WestTracker() {
               <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(m: string) => formatMonthShort(m, { withYear: true })} interval="preserveStartEnd" />
               <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis, className: 'money-tick' }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
-              <Tooltip
-                contentStyle={CHART_TOOLTIP_STYLE}
-
-                formatter={(val: any, name: any) => [fmtMXN(Number(val) || 0), String(name)]}
-                labelFormatter={m => `Month: ${m}`}
-              />
+              <Tooltip content={<WestChartTooltip />} />
               <Area type="monotone" dataKey="paid" stackId="1" stroke="hsl(var(--chart-1))" strokeWidth={1.5} fill="url(#westPaidGrad)" name="Paid" isAnimationActive={false} />
               <Area type="monotone" dataKey="investments" stackId="1" stroke="hsl(var(--chart-3))" strokeWidth={1.5} fill="url(#westInvestGrad)" name="Investments" isAnimationActive={false} />
               <Area type="monotone" dataKey="crypto" stackId="1" stroke="hsl(var(--chart-5))" strokeWidth={1} fill="url(#westCryptoGrad)" name="Crypto" isAnimationActive={false} />
+              <Area type="monotone" dataKey="infonavit" stackId="1" stroke="hsl(var(--owner-b))" strokeWidth={1} fill="hsl(var(--owner-b))" fillOpacity={0.18} name={`${OWNERS[1]}'s Infonavit`} isAnimationActive={false} />
               <Line type="monotone" dataKey="property_value" stroke="hsl(var(--chart-1))" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" isAnimationActive={false} />
               <ReferenceLine y={target} stroke="hsl(var(--chart-6))" strokeDasharray="6 4" strokeWidth={1.5}
                 label={{ value: `Target ${fmtShort(target)}`, position: 'insideTopRight', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
@@ -673,6 +715,7 @@ export function WestTracker() {
           <LegendItem color="bg-emerald-500" label="Direct Payments" />
           <LegendItem color="bg-blue-500" label="Investments (GBM)" />
           <LegendItem color="bg-amber-500" label="Crypto" />
+          <LegendItem color="bg-pink-500" label={`${OWNERS[1]}'s Infonavit`} />
           <div className="flex items-center gap-1.5">
             <div className="h-0.5 w-4 border-t-2 border-dashed border-emerald-500" />
             <span className="text-xs text-[hsl(var(--text-secondary))]">Property Value</span>
@@ -773,13 +816,16 @@ export function WestTracker() {
           <div className="absolute left-3 top-1 bottom-1 w-px bg-[hsl(var(--border))]" />
           {data.milestones.map((ms, i) => {
             const isDone = ms.status === 'done'
-            const isCurrent = i === data.milestones.findIndex(m => m.status !== 'done')
+            const isAction = ms.status === 'action'
+            const next = nextWestMilestone(data.milestones, data.as_of || mexicoCityToday())
+            const isCurrent = ms === next && !isDone
             const isTarget = ms.status === 'target'
             return (
               <div key={i} className="relative">
                 <div className={cn(
                   "absolute -left-7 top-0.5 w-[14px] h-[14px] rounded-full border-2 flex items-center justify-center",
                   isDone ? "bg-emerald-500 border-emerald-500"
+                    : isAction ? "bg-warning border-warning"
                     : isCurrent && !isDone ? "bg-blue-500 border-blue-500 animate-pulse"
                     : isTarget ? "bg-violet-500 border-violet-500"
                     : "bg-[hsl(var(--background))] border-[hsl(var(--border))]"
@@ -788,18 +834,16 @@ export function WestTracker() {
                   {isTarget && <span className="text-[8px] text-white">🎯</span>}
                 </div>
                 <div>
-                  <span className="text-xs font-semibold text-[hsl(var(--text-secondary))]">{ms.date}</span>
+                  <span className="text-xs font-semibold text-[hsl(var(--text-secondary))]">{formatDateShort(ms.date, { withYear: true })}</span>
+                  {isAction && <span className="ml-2 text-xs font-medium text-warning">To do</span>}
                   <p className="text-sm font-medium mt-0.5">{ms.label}</p>
                 </div>
               </div>
             )
           })}
 
-          {/* Post-delivery: Nexaminds exit — speculative, dashed dot */}
-          {(() => {
-            // Dynamic: 30000 shares × $10 target × live FX (approximated at 17.13)
-            const nexamindsAtTarget = 30000 * 10 * 17.13
-            return (
+          {/* Post-delivery: private-equity exit — speculative, dashed dot. Same net-at-target figure as the Stocks tab. */}
+          {privateEquityExit && (
               <div className="relative opacity-70">
                 <div className="absolute -left-7 top-0.5 w-[14px] h-[14px] rounded-full border-2 border-dashed border-[hsl(var(--text-tertiary))] bg-[hsl(var(--background))] flex items-center justify-center">
                   <span className="text-[8px]">🔮</span>
@@ -807,15 +851,14 @@ export function WestTracker() {
                 <div>
                   <span className="text-xs font-semibold text-[hsl(var(--text-secondary))]">2028–2029</span>
                   {' '}
-                  <span className="text-xs font-medium tabular-nums text-warning">Est. {fmtMXN(nexamindsAtTarget)}</span>
-                  <p className="text-sm font-medium mt-0.5">Nexaminds Exit Event</p>
+                  <span className="text-xs font-medium tabular-nums text-warning" data-money>Est. {fmtMXN(privateEquityExit.netMXN)} net</span>
+                  <p className="text-sm font-medium mt-0.5">{privateEquityExit.name} Exit Event</p>
                   <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5 leading-relaxed">
-                    At $10/share target. Could eliminate WEST bridge financing within 12–24 months of delivery.
+                    At ${privateEquityExit.targetPriceUsd.toFixed(2)}/share target, net of cost at today&apos;s USD rate (before ISR). Could eliminate WEST bridge financing within 12–24 months of delivery.
                   </p>
                 </div>
               </div>
-            )
-          })()}
+          )}
         </div>
       </GlassCard>
 
@@ -845,12 +888,12 @@ export function WestTracker() {
 
           {/* Equity hero */}
           <div className="p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 mb-4">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-1">Equity at Delivery</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-1">Appreciation at Delivery</p>
             <p className="num-metric text-2xl sm:text-3xl font-bold text-positive tabular-nums">
               {fmtMXN(projection.equityAtDelivery)}
             </p>
             <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">
-              Even with a {fmtMXN(gap)} financing gap, you&apos;re walking into {fmtShort(projection.equityAtDelivery)}+ equity on day one.
+              Projected value minus the {fmtShort(data.target)} purchase price. Equity on day one is the projected value minus whatever is still financed{gap > 0 ? ` (${fmtMXN(gap)})` : ''}.
             </p>
           </div>
 
@@ -952,16 +995,11 @@ export function WestProjectionWithScenarios() {
               <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(m: string) => formatMonthShort(m, { withYear: true })} interval="preserveStartEnd" />
               <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis, className: 'money-tick' }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
-              <Tooltip
-                contentStyle={CHART_TOOLTIP_STYLE}
-
-                formatter={(val: any, name: any) => [fmtMXN(Number(val) || 0), String(name)]}
-
-                labelFormatter={(m: any) => `Month: ${m}`}
-              />
+              <Tooltip content={<WestChartTooltip />} />
               <Area type="monotone" dataKey="paid" stackId="1" stroke="hsl(var(--chart-1))" strokeWidth={1.5} fill="url(#pcPaidGrad)" name="Direct Payments" isAnimationActive={false} />
               <Area type="monotone" dataKey="investments" stackId="1" stroke="hsl(var(--chart-3))" strokeWidth={1.5} fill="url(#pcInvestGrad)" name="Investments (GBM)" isAnimationActive={false} />
               <Area type="monotone" dataKey="crypto" stackId="1" stroke="hsl(var(--chart-5))" strokeWidth={1} fill="url(#pcCryptoGrad)" name="Crypto" isAnimationActive={false} />
+              <Area type="monotone" dataKey="infonavit" stackId="1" stroke="hsl(var(--owner-b))" strokeWidth={1} fill="hsl(var(--owner-b))" fillOpacity={0.18} name={`${OWNERS[1]}'s Infonavit`} isAnimationActive={false} />
               <Line type="monotone" dataKey="property_value" stroke="hsl(var(--chart-1))" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" isAnimationActive={false} />
               <ReferenceLine y={target} stroke="hsl(var(--chart-6))" strokeDasharray="6 4" strokeWidth={1.5}
                 label={{ value: `Target ${fmtShort(target)}`, position: 'insideTopRight', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
@@ -976,6 +1014,7 @@ export function WestProjectionWithScenarios() {
           <LegendItem color="bg-emerald-500" label="Direct Payments" />
           <LegendItem color="bg-blue-500" label="Investments (GBM)" />
           <LegendItem color="bg-amber-500" label="Crypto" />
+          <LegendItem color="bg-pink-500" label={`${OWNERS[1]}'s Infonavit`} />
           <div className="flex items-center gap-1.5">
             <div className="h-0.5 w-4 border-t-2 border-dashed border-emerald-500" />
             <span className="text-xs text-[hsl(var(--text-secondary))]">Property Value</span>

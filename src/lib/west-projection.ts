@@ -235,7 +235,9 @@ export function buildSavingsPlan(input: SavingsPlanInputs) {
     options: feasible || shortfall <= 0 ? [] : [
       { kind: 'finance' as const, amount: shortfall, label: `Finance ${money(shortfall)} at delivery` },
       { kind: 'cut_furnishing' as const, amount: Math.min(input.furnishingBudget, shortfall), label: `Cut furnishing to ${money(Math.max(0, input.furnishingBudget - shortfall))}` },
-      { kind: 'raise_savings' as const, amount: annuity(shortfall), label: `Save ${money(annuity(shortfall))}/mo more than capacity` },
+      // Worded against the flat equivalent of capacity, so capacity + this = the
+      // "needed to close gap" headline (flat_monthly_equivalent).
+      { kind: 'raise_savings' as const, amount: annuity(shortfall), label: `Save ${money(annuity(shortfall))}/mo more than your flat-equivalent capacity (${money(annuity(Math.round(capacityFV)))})` },
     ],
   }
 }

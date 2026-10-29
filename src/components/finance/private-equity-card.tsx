@@ -7,6 +7,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { StatusPill } from '@/components/ui/status-pill'
 import { OwnerAvatar } from '@/components/ui/owner-avatar'
 import { RangeField } from '@/components/finance/investments/shared'
+import { privateEquityNetAtTargetMXN } from '@/components/finance/investments/portfolio'
 import { parseLocalDateKey } from '@/lib/dates'
 import { formatCoinPrice, formatMoney } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -55,7 +56,7 @@ export function PrivateEquityCard({ holding, fxRate }: Props) {
   const upsideMXN = targetValueUSD * fxRate - currentValueMXN
   const upsideMultiple = holding.current_price_usd > 0 ? `${(holding.target_price_usd / holding.current_price_usd).toFixed(1)}×` : '—'
   const netTargetUSD = targetValueUSD - totalCostUSD
-  const netTargetMXN = netTargetUSD * fxRate
+  const netTargetMXN = privateEquityNetAtTargetMXN(holding, fxRate)
   // Net proceeds = (scenarioPrice - costPerShare) × shares
   const scenarioValueMXN = holding.shares * (scenarioPrice - costPerShare) * fxRate
   const vsCurrent = scenarioValueMXN - currentValueMXN

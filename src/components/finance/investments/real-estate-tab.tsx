@@ -15,7 +15,7 @@ import { OWNERS } from '@/lib/owners'
 import { WestTracker } from '@/components/finance/west-tracker'
 import { HoldingFormModal, type HoldingField } from './holding-form-modal'
 import { KV, OwnerSplitCards } from './shared'
-import { propertyEquity, type Portfolio } from './portfolio'
+import { privateEquityNetAtTargetMXN, propertyEquity, type Portfolio } from './portfolio'
 import { propertyOwed } from '@/lib/property-equity'
 import type { RealEstateProperty } from './types'
 
@@ -56,6 +56,13 @@ export function RealEstateTab({ portfolio, ownerFilter, failed, onRetry, onChang
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { realEstate, byOwner } = portfolio
+  // The post-delivery exit milestone shows the Stocks tab's own net-at-target figure.
+  const peWithTarget = portfolio.privateEquity.filter(h => (h.target_price_usd ?? 0) > 0)
+  const peExit = peWithTarget.length > 0 ? {
+    netMXN: peWithTarget.reduce((s, h) => s + privateEquityNetAtTargetMXN(h, portfolio.fxRate), 0),
+    targetPriceUsd: peWithTarget[0].target_price_usd!,
+    name: peWithTarget[0].name,
+  } : null
   const today = localDateKey()
 
   const save = async () => {
@@ -83,7 +90,7 @@ export function RealEstateTab({ portfolio, ownerFilter, failed, onRetry, onChang
   return (
     <div className="space-y-4">
       {/* WEST target tracker: the household's #1 goal lives with the property */}
-      <WestTracker />
+      <WestTracker privateEquityExit={peExit} />
 
       {failed ? (
         <Card><ErrorState title="Couldn’t load properties" body="Property values didn’t load; nothing was changed." onRetry={onRetry} /></Card>
