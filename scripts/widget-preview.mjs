@@ -2,7 +2,7 @@
 // Renders the phone widget (src/widget/finance-widget.js) through the
 // Scriptable mock into PNGs: every family × light/dark plus edge cases.
 //
-//   npm run widget:preview                         → artifacts/widget-preview/
+//   npm run widget:preview                         → $TMPDIR/widget-preview/
 //   npm run widget:preview -- --out /tmp/shots --only medium,large
 //   npm run widget:preview -- --fixture live.json   (a saved GET /api/finance/widget)
 //
@@ -10,13 +10,15 @@
 import { execSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const argv = process.argv.slice(2)
 const flag = name => { const i = argv.indexOf(name); return i === -1 ? null : argv[i + 1] }
-const outDir = resolve(flag('--out') || join(root, 'artifacts', 'widget-preview'))
+// Renders are build output: default outside the repo so they never show up in git status.
+const outDir = resolve(flag('--out') || join(tmpdir(), 'widget-preview'))
 const only = (flag('--only') || '').split(',').filter(Boolean)
 mkdirSync(outDir, { recursive: true })
 
@@ -28,6 +30,13 @@ const harness = join(root, 'tests', 'widget-harness')
 const fixtures = await import(pathToFileURL(join(harness, 'fixtures.mjs')).href)
 const base = flag('--fixture') ? JSON.parse(readFileSync(resolve(flag('--fixture')), 'utf8')) : fixtures.overBudget
 const code = readFileSync(join(root, 'src', 'widget', 'finance-widget.js'), 'utf8')
+// Keep the bundled copy the widget-code route serves in step with the script.
+const { renderSourceModule } = await import(pathToFileURL(join(root, 'src', 'widget', 'sync-source.mjs')).href)
+const sourceTs = join(root, 'src', 'widget', 'finance-widget.source.ts')
+if (readFileSync(sourceTs, 'utf8') !== renderSourceModule(code)) {
+  writeFileSync(sourceTs, renderSourceModule(code))
+  console.log('updated src/widget/finance-widget.source.ts')
+}
 const strip = s => s.replace(/^export /gm, '')
 const mock = strip(readFileSync(join(harness, 'scriptable-mock.js'), 'utf8'))
 const renderer = strip(readFileSync(join(harness, 'render-dom.js'), 'utf8'))
@@ -64,6 +73,12 @@ const cases = [
   { name: 'medium-offline-cache', family: 'medium', fail: true, cache: base, schemes: BOTH },
   { name: 'large-offline-cache', family: 'large', fail: true, cache: base, schemes: ['dark'] },
   { name: 'small-offline-cache', family: 'small', fail: true, cache: base, schemes: ['light'] },
+  { name: 'medium-offline-2days', family: 'medium', fail: true, cache: fixtures.cachedTwoDaysAgo, schemes: ['light'] },
+  { name: 'small-offline-lastmonth', family: 'small', fail: true, cache: fixtures.cachedLastMonth, schemes: ['dark'] },
+  { name: 'large-offline-lastmonth', family: 'large', fail: true, cache: fixtures.cachedLastMonth, schemes: ['light'] },
+  { name: 'rect-offline-2days', family: 'accessoryRectangular', fail: true, cache: fixtures.cachedTwoDaysAgo, schemes: ['dark'] },
+  { name: 'rect-es', family: 'accessoryRectangular', param: 'lang=es', fixture: fixtures.underBudget, schemes: ['dark'] },
+  { name: 'large-under-coach', family: 'large', fixture: fixtures.underBudget, param: 'coach', schemes: ['dark'] },
   { name: 'medium-offline-empty', family: 'medium', fail: true, schemes: BOTH },
   { name: 'medium-401', family: 'medium', status: 401, fixture: { error: 'Unauthorized' }, schemes: ['light'] },
   { name: 'rect-401', family: 'accessoryRectangular', status: 401, fixture: { error: 'Unauthorized' }, schemes: ['dark'] },

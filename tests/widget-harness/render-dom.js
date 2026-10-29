@@ -37,7 +37,6 @@ export function renderWidget(widget, root, { family, dark }) {
       el.style.textAlign = node.textAlign
       el.dataset.msf = node.minimumScaleFactor
       el.dataset.base = node.font.size
-      el.dataset.size = node.font.size
       if (node.lineLimit === 1) { el.style.whiteSpace = 'pre'; el.style.overflow = 'hidden'; el.style.textOverflow = 'ellipsis' } else if (node.lineLimit > 1) {
         el.style.display = '-webkit-box'
         el.style.webkitBoxOrient = 'vertical'
@@ -105,10 +104,11 @@ export function renderWidget(widget, root, { family, dark }) {
   root.querySelectorAll('.tx').forEach(t => {
     const msf = Number(t.dataset.msf), base = Number(t.dataset.base)
     let s = 1
-    while (s > msf && (t.scrollWidth > t.clientWidth + 0.5 || t.scrollHeight > t.clientHeight + 0.5)) {
+    while (s - 0.02 >= msf - 1e-9 && (t.scrollWidth > t.clientWidth + 0.5 || t.scrollHeight > t.clientHeight + 0.5)) {
       s -= 0.02
       t.style.fontSize = (base * s) + 'px'
     }
+    t.dataset.size = String(Math.round(base * s * 100) / 100)
   })
 
   const box = root.getBoundingClientRect()
@@ -119,6 +119,16 @@ export function renderWidget(widget, root, { family, dark }) {
     return out || overflow
   }).map(e => e.textContent || 'img')
   const sizes = [...root.querySelectorAll('.tx')].map(e => Number(e.dataset.size))
+  // Text drawn into images, at the size it shows once the image is scaled.
+  const drawn = []
+  ;(function walk(n) {
+    if (n.kind === 'image' && n.image.texts) {
+      const scale = (n.imageSize || n.image.size).width / (n.image.size.width || 1)
+      n.image.texts.forEach(t => drawn.push(t.size * scale))
+    }
+    ;(n.children || []).forEach(walk)
+  })(widget)
+  sizes.push(...drawn)
   return {
     clipped,
     taps: [...root.querySelectorAll('[data-url]')].map(e => e.dataset.url),

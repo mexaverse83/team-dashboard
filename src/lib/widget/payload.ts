@@ -8,6 +8,7 @@ import { calculateDailyPlan } from '@/lib/daily-plan'
 import { controllableBudgetRows, CONTROLLABLE } from '@/lib/controllable-categories'
 import { addDaysKey, mexicoCityDateParts, parseLocalDateKey } from '@/lib/dates'
 import { buildDeterministicBrief, type BriefSummary } from '@/lib/deterministic-brief'
+import { formatMoney } from '@/lib/format'
 import { isInsightUsable } from '@/lib/insight-freshness'
 import type { SummaryResponse, SummaryUpcomingItem, SummaryVariable } from '@/lib/summary/types'
 
@@ -19,6 +20,8 @@ export const TIGHT_RATIO = 0.1
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const WEEKDAYS_ES = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
+const MONTHS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
 export interface WidgetInsight { type?: string; icon?: string; title: string; detail?: string; priority?: string; category?: string }
 export interface WidgetInsightsCache { generated_at: string | null; period_month?: string | null; insights: WidgetInsight[] }
@@ -48,13 +51,16 @@ export type WestTone = 'good' | 'warn'
 
 export interface WidgetUpcoming { date: string; label: string; amount: number; count: number; kind: SummaryUpcomingItem['kind'] }
 
+/** `through_date` (YYYY-MM-DD) lets the phone format the period end in its own language. */
+export type WidgetVariable = SummaryVariable & { through_date: string | null }
+
 export interface WidgetPayloadV2 {
   v: 2
   updated_at: string
   month: string
   day: number
   days_in_month: number
-  variable: SummaryVariable
+  variable: WidgetVariable
   status: WidgetStatus
   top_over: { name: string; pct: number; over_by: number } | null
   budget_pace: Array<{ name: string; spent: number; budget: number; pct: number; left: number }>
@@ -84,6 +90,16 @@ export function throughLabel(dateKey: string): string {
   return `${WEEKDAYS[d.getDay()]} ${MONTHS[d.getMonth()]} ${d.getDate()}`
 }
 
+/** YYYY-MM-DD for a 'Sat Oct 31' label, in the year that keeps it nearest to today. */
+export function throughDateKey(label: string | null | undefined, today: string): string | null {
+  const m = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})\b/i.exec(String(label || ''))
+  if (!m) return null
+  const month = MONTHS.findIndex(x => x.toLowerCase() === m[1].slice(0, 3).toLowerCase()) + 1
+  const [ty, tm] = today.split('-').map(Number)
+  const year = month < tm - 6 ? ty + 1 : month > tm + 6 ? ty - 1 : ty
+  return `${year}-${String(month).padStart(2, '0')}-${String(Number(m[2])).padStart(2, '0')}`
+}
+
 function lookup(names: WidgetPayloadInput['categoryNames'], id: string | null | undefined): string | undefined {
   if (!id) return undefined
   return names instanceof Map ? names.get(id) : names[id]
@@ -98,11 +114,16 @@ export function variableStatus(left: number, budget: number): WidgetStatus {
 }
 
 /** Signed everyday-budget room through month end (W3). Uses the summary's own `variable` once WS4 provides it. */
-export function deriveVariable(summary: WidgetPayloadInput['summary']): SummaryVariable {
+export function deriveVariable(summary: WidgetPayloadInput['summary'], today?: string): WidgetVariable {
   const cm = summary.current_month
   if (summary.variable && Number.isFinite(summary.variable.left)) {
-    const v = summary.variable
-    return { ...v, status: v.status || variableStatus(v.left, v.budget) }
+    const v = summary.variable as SummaryVariable & { through_date?: string | null }
+    const day = String(cm.day_of_month || 1).padStart(2, '0')
+    return {
+      ...v,
+      status: v.status || variableStatus(v.left, v.budget),
+      through_date: v.through_date || throughDateKey(v.through_label, today || `${cm.month}-${day}`),
+    }
   }
   const rows = controllableBudgetRows(cm.budget_vs_actual || [])
   const budget = round(rows.reduce((s, b) => s + (Number(b.budget) || 0), 0))
@@ -110,14 +131,34 @@ export function deriveVariable(summary: WidgetPayloadInput['summary']): SummaryV
   const left = budget - spent
   const daysIn = Number(cm.days_in_month) || 30
   const day = Math.min(daysIn, Math.max(1, Number(cm.day_of_month) || 1))
+  const end = `${cm.month}-${String(daysIn).padStart(2, '0')}`
   return {
     budget,
     spent,
     left,
     days_left: daysIn - day + 1,
-    through_label: throughLabel(`${cm.month}-${String(daysIn).padStart(2, '0')}`),
+    through_label: throughLabel(end),
     status: variableStatus(left, budget),
+    through_date: end,
   }
+}
+
+function throughLabelEs(dateKey: string): string {
+  const d = parseLocalDateKey(dateKey)
+  return `${WEEKDAYS_ES[d.getDay()]} ${d.getDate()} ${MONTHS_ES[d.getMonth()]}`
+}
+
+/**
+ * The brief's on-plan line speaks of "this week"; the widget hero is the
+ * `variable` period, so reword it to the same period end (never "Sunday"
+ * next to "thru Sat Oct 31").
+ */
+function coachTitle(directive: { title: string; rule: string }, v: WidgetVariable, lang: 'en' | 'es'): string {
+  if (directive.rule !== 'on-plan') return directive.title
+  const end = v.through_date ? (lang === 'es' ? throughLabelEs(v.through_date) : throughLabel(v.through_date)) : v.through_label
+  if (v.left < 0) return lang === 'es' ? `Fuera de plan — ${formatMoney(-v.left)} arriba` : `Over plan — ${formatMoney(-v.left)} over budget`
+  const perDay = formatMoney(v.left / Math.max(1, v.days_left))
+  return lang === 'es' ? `En plan — ${perDay}/día hasta ${end}` : `On plan — ${perDay}/day thru ${end}`
 }
 
 /** Per-day controllable spend for days 1..today, bucketed by the stored (Mexico City) date (O1). */
@@ -230,7 +271,7 @@ export function buildWidgetPayload(input: WidgetPayloadInput): WidgetPayloadV2 {
   const daysInMonth = Number(cm.days_in_month) || 30
   const day = Math.min(daysInMonth, Math.max(1, Number(cm.day_of_month) || mx.day))
 
-  const variable = deriveVariable(summary)
+  const variable = deriveVariable(summary, today)
   const ctrl = controllableBudgetRows(cm.budget_vs_actual || [])
   const pace = ctrl
     .map(b => {
@@ -247,12 +288,12 @@ export function buildWidgetPayload(input: WidgetPayloadInput): WidgetPayloadV2 {
   const funded = summary.west_plan?.funded_pct
     ?? (west?.target ? Math.round(((west.projected_at_delivery?.total_projected || 0) / west.target) * 1000) / 10 : null)
 
-  // The brief words its on-plan line as "this week"; until the summary carries
-  // its own `variable`, let it prorate the week itself rather than reuse the
-  // month-to-date fallback above.
-  const briefSummary = summary as unknown as BriefSummary
+  // Same period as the hero: the brief reads `variable` instead of prorating its own week.
+  const briefSummary = { ...summary, variable } as unknown as BriefSummary
   const coachEn = buildDeterministicBrief(briefSummary, { now, lang: 'en' })
   const coachEs = buildDeterministicBrief(briefSummary, { now, lang: 'es' })
+  const coachEnTitle = coachTitle(coachEn.directive, variable, 'en')
+  const coachEsTitle = coachTitle(coachEs.directive, variable, 'es')
   const brief = usableBrief(input.insights, now)
 
   // ── legacy (v1) fields, kept one release ──
@@ -260,7 +301,7 @@ export function buildWidgetPayload(input: WidgetPayloadInput): WidgetPayloadV2 {
   const findCat = (c: string) => brief.all.find(i => String(i.category || '').toUpperCase() === c)
   const legacyTrim = (i: WidgetInsight | undefined, len = 140) => i ? { icon: i.icon || '', title: i.title, detail: truncateWords(i.detail, len) } : null
   const weekItems = brief.all.filter(i => String(i.category || '').toUpperCase() === 'WEEK')
-  const live = { icon: '', title: coachEn.directive.title, detail: coachEn.directive.detail }
+  const live = { icon: '', title: coachEnTitle, detail: coachEn.directive.detail }
 
   return {
     v: WIDGET_PAYLOAD_VERSION,
@@ -292,8 +333,8 @@ export function buildWidgetPayload(input: WidgetPayloadInput): WidgetPayloadV2 {
       west_funded_pct: funded,
       west_months_to_delivery: summary.west_plan?.months_to_delivery ?? west?.months_to_delivery ?? null,
     },
-    coach: { title: coachEn.directive.title, url: coachEn.coach.url, question: coachEn.coach.title, rule: coachEn.directive.rule, tone: coachEn.directive.tone },
-    coach_es: { title: coachEs.directive.title, url: coachEs.coach.url, question: coachEs.coach.title },
+    coach: { title: coachEnTitle, url: coachEn.coach.url, question: coachEn.coach.title, rule: coachEn.directive.rule, tone: coachEn.directive.tone },
+    coach_es: { title: coachEsTitle, url: coachEs.coach.url, question: coachEs.coach.title },
     brief: { fresh: brief.fresh, generated_at: brief.generated_at, title: brief.title, detail: brief.detail },
 
     week_envelope_basis: 'remaining planned category spending from today through Sunday',

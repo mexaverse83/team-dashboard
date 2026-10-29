@@ -92,7 +92,7 @@ describe('GET /api/finance/widget (v2)', () => {
     const data = await res.json()
     expect(res.headers.get('Cache-Control')).toBe('no-store')
     expect(data.v).toBe(2)
-    expect(data.variable).toEqual({ budget: 38500, spent: 43986, left: -5486, days_left: 4, through_label: 'Sat Oct 31', status: 'over' })
+    expect(data.variable).toEqual({ budget: 38500, spent: 43986, left: -5486, days_left: 4, through_label: 'Sat Oct 31', through_date: '2026-10-31', status: 'over' })
     expect(data.status).toBe('over')
     expect(data.top_over).toEqual({ name: 'Other', pct: 339, over_by: 11961 })
     expect(data.budget_pace.map((b: { name: string }) => b.name)).toEqual(['Other', 'Transport', 'Groceries', 'Dining Out'])
@@ -132,10 +132,38 @@ describe('GET /api/finance/widget (v2)', () => {
     ])
   })
 
+  it('daily spend ends exactly at variable.spent', async () => {
+    state.transactions = [
+      { transaction_date: '2026-10-02', amount: 16961, category_id: 'c-other' },
+      { transaction_date: '2026-10-05', amount: 12044, category_id: 'c-groc' },
+      { transaction_date: '2026-10-09', amount: 35000, category_id: 'c-rent' },
+    ]
+    state.summary = { ...reviewSummary() }
+    const cm = (state.summary as ReturnType<typeof reviewSummary>).current_month
+    cm.budget_vs_actual = cm.budget_vs_actual.filter(r => ['Other', 'Groceries', 'Rent'].includes(r.category))
+    const data = await (await get()).json()
+    expect(data.daily_spend.reduce((s: number, v: number) => s + v, 0)).toBe(data.variable.spent)
+  })
+
+  it('words the coach line for the same period as the hero, never "Sunday"', async () => {
+    const calm = reviewSummary()
+    calm.current_month.budget_vs_actual = [row('Groceries', 9000, 13000), row('Dining Out', 6000, 15000), row('Other', 2000, 5000)]
+    state.summary = { ...calm, upcoming: [] }
+    const data = await (await get()).json()
+    expect(data.variable.through_label).toBe('Sat Oct 31')
+    expect(data.coach.rule).toBe('on-plan')
+    expect(data.coach.title).toBe('On plan — $4,000/day thru Sat Oct 31')
+    expect(data.coach_es.title).toBe('En plan — $4,000/día hasta sáb 31 oct')
+    for (const t of [data.coach.title, data.coach_es.title, data.wolff.directive.title]) {
+      expect(t).not.toMatch(/Sunday|domingo|this week|esta semana/i)
+    }
+  })
+
   it('prefers the summary contract fields once WS4 provides them', async () => {
     state.summary = { ...reviewSummary(), variable: { budget: 38500, spent: 43986, left: -5486, days_left: 4, through_label: 'Sat Oct 31', status: 'over' }, upcoming: [{ date: '2026-10-30', label: 'Balloon', amount: 90000, kind: 'west' }, { date: '2026-10-30', label: 'Salary', amount: 50000, kind: 'income' }] }
     const data = await (await get()).json()
     expect(data.variable.through_label).toBe('Sat Oct 31')
+    expect(data.variable.through_date).toBe('2026-10-31')
     expect(data.upcoming).toEqual([{ date: '2026-10-30', label: 'Balloon', amount: 90000, count: 1, kind: 'west' }])
   })
 

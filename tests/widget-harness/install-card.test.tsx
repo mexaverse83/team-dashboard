@@ -16,6 +16,10 @@ describe('WidgetInstallCard', () => {
     render(<WidgetInstallCard />)
     expect(screen.getByText(/App Store/)).toBeInTheDocument()
     for (const p of ['coach', 'goals', 'spend', 'quickadd', 'lang=es']) expect(screen.getByText(p)).toBeInTheDocument()
-    expect(screen.getAllByRole('img')).toHaveLength(2)
+    // One preview per theme (CSS shows the one matching data-theme); both say they are examples.
+    const imgs = screen.getAllByRole('img')
+    expect(imgs).toHaveLength(2)
+    for (const img of imgs) expect(img.getAttribute('alt')).toMatch(/^Example /)
+    expect(imgs.map(i => i.getAttribute('alt')).join(' ')).not.toMatch(/\$\d/)
   })
 })

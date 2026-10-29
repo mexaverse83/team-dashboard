@@ -28,6 +28,17 @@ describe('widget-code route', () => {
 })
 
 describe('widget script source', () => {
+  it('the bundled string matches finance-widget.js (run: node src/widget/sync-source.mjs)', async () => {
+    const { renderSourceModule } = await import('../../src/widget/sync-source.mjs')
+    const generated = readFileSync(resolve(process.cwd(), 'src/widget/finance-widget.source.ts'), 'utf8')
+    expect(generated).toBe(renderSourceModule(source))
+  })
+
+  it('the route reads nothing from disk', () => {
+    const route = readFileSync(resolve(process.cwd(), 'src/app/api/finance/widget-code/route.ts'), 'utf8')
+    expect(route).not.toMatch(/readFileSync|node:fs/)
+  })
+
   it('stays valid inside the loader\'s async wrapper', () => {
     expect(() => new Function(`return (async () => {\n${source}\n})`)).not.toThrow()
   })

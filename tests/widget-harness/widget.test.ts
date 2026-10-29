@@ -5,8 +5,9 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
-import { createScriptableEnv, inspectWidget, WIDGET_SIZES } from './scriptable-mock.js'
-import { dayOne, freshBrief, legacyV1, NOW_DAY_ONE, NOW_WEEKDAY, NOW_WEEKEND, overBudget, tightBudget, underBudget, weekend } from './fixtures.mjs'
+import { createScriptableEnv, drawnTextSizes, inspectWidget, walkWidget, WIDGET_SIZES } from './scriptable-mock.js'
+import * as FIXTURES from './fixtures.mjs'
+import { cachedLastMonth, cachedTwoDaysAgo, dayOne, freshBrief, legacyV1, NOW_DAY_ONE, NOW_WEEKDAY, NOW_WEEKEND, overBudget, tightBudget, underBudget, weekend } from './fixtures.mjs'
 
 const CODE = readFileSync(resolve(process.cwd(), 'src/widget/finance-widget.js'), 'utf8')
 const LOADER = { API_URL: 'https://finance.autonomis.co/api/finance/widget', APP_URL: 'https://finance.autonomis.co/finance', WIDGET_TOKEN: 'phone-token-0123456789', API_KEY: '' }
@@ -30,6 +31,8 @@ const CASES: Array<[string, Options]> = [
   ['day 1', { fixture: dayOne, now: NOW_DAY_ONE }],
   ['legacy v1 payload', { fixture: legacyV1 }],
   ['offline with cache', { fail: true, cache: overBudget }],
+  ['offline, cache from 2 days ago', { fail: true, cache: cachedTwoDaysAgo }],
+  ['offline, cache from last month', { fail: true, cache: cachedLastMonth }],
   ['offline, no cache', { fail: true }],
   ['401', { status: 401, fixture: { error: 'Unauthorized' } }],
   ['spanish', { fixture: overBudget, param: 'lang=es' }],
@@ -48,8 +51,14 @@ describe('widget harness: every family and case', () => {
         expect(r.texts.length + r.images.length).toBeGreaterThan(0)
         // (a) every link stays inside the app
         for (const url of r.urls) expect(url).toMatch(URL_RE)
-        // (b) nothing under 11pt
-        for (const t of r.texts) expect(t.font.size, `"${t.text}" is ${t.font.size}pt`).toBeGreaterThanOrEqual(11)
+        // (b) nothing under 11pt, even after iOS shrinks it to its minimumScaleFactor
+        for (const t of r.texts) {
+          const min = t.font.size * Math.min(1, t.minimumScaleFactor)
+          expect(min, `"${t.text}" can shrink to ${min.toFixed(1)}pt`).toBeGreaterThanOrEqual(10.999)
+        }
+        for (const img of r.images) {
+          for (const d of drawnTextSizes(img)) expect(d.size, `drawn "${d.text}" is ${d.size.toFixed(1)}pt`).toBeGreaterThanOrEqual(11)
+        }
         // (e) lock-screen families never paint a background
         if (family.startsWith('accessory')) expect(r.backgrounds).toHaveLength(0)
         if (family === 'accessoryInline') expect(r.texts).toHaveLength(1)
@@ -71,7 +80,7 @@ describe('widget content rules', () => {
 
   it('uses a fresh brief title on the large footer', async () => {
     const r = await render({ fixture: freshBrief, family: 'large' })
-    expect(r.allText).toContain('Hold Other spending until Sunday')
+    expect(r.allText).toContain('Hold Other spending through month end')
     expect(r.allText).not.toContain('Pause Other')
   })
 
@@ -120,8 +129,67 @@ describe('widget content rules', () => {
     const r = await render({ fail: true, cache: overBudget, family: 'medium' })
     expect(r.allText).toContain('$5,486')
     expect(r.allText).toMatch(/⚠︎ As of 9:15 AM/)
+    const old = await render({ fail: true, cache: cachedTwoDaysAgo, family: 'medium' })
+    expect(old.allText).toContain('⚠︎ As of Mon 9:15 AM')
+    const oldRect = await render({ fail: true, cache: cachedTwoDaysAgo, family: 'accessoryRectangular' })
+    expect(oldRect.allText).toContain('⚠︎ Mon 9:15 AM')
     const none = await render({ fail: true, family: 'medium' })
     expect(none.allText).toContain('Connect once to load your numbers')
+  })
+
+  it('never labels last month\'s cached numbers as this month\'s room', async () => {
+    for (const family of ['small', 'medium', 'large']) {
+      const r = await render({ fail: true, cache: cachedLastMonth, family })
+      expect(r.allText).toContain('Last month')
+      expect(r.allText).not.toContain('Left to spend')
+      expect(r.allText).toContain('As of Sep 30')
+    }
+  })
+
+  it('every v2 fixture\'s daily spend sums to the hero\'s spent', () => {
+    for (const [name, f] of Object.entries(FIXTURES)) {
+      const d = f as { v?: number; daily_spend?: number[]; variable?: { spent: number } }
+      if (!d || typeof d !== 'object' || d.v !== 2) continue
+      expect(d.daily_spend!.reduce((s, v) => s + v, 0), name).toBe(d.variable!.spent)
+    }
+  })
+
+  it('draws the spend line from 0 on day 1 and today\'s total at x(today) (O1)', async () => {
+    const spark = async (fixture: typeof overBudget, now = NOW_WEEKDAY) => {
+      const r = await render({ fixture, family: 'medium', now })
+      const img = r.images.map(i => i.image).find(i => i.paths.length > 10)!
+      const W = img.size.width, pad = 15
+      // The spend line is the path with the most points.
+      const line = [...img.paths].sort((a, b) => b.length - a.length)[0].filter((op: unknown[]) => op[0] !== 'closePath')
+      const xs = line.map((op: number[]) => op[1])
+      return { W, pad, xs, line }
+    }
+    const { W, pad, xs, line } = await spark(overBudget)
+    expect(xs[0]).toBeCloseTo(pad)
+    expect(line[0][2]).toBeCloseTo(170 * 3 * 0 + 44 * 3 - pad) // y(0) at the bottom
+    // 28 days of spend on a 31-day axis: today's total sits at x(28).
+    expect(Math.max(...xs)).toBeCloseTo(pad + (28 / 31) * (W - pad * 2))
+    const first = await spark(dayOne, NOW_DAY_ONE)
+    expect(new Set(first.xs.map((x: number) => Math.round(x))).size).toBeGreaterThanOrEqual(2)
+  })
+
+  it('formats the period end on the device in Spanish', async () => {
+    const r = await render({ fixture: overBudget, family: 'medium', param: 'lang=es' })
+    expect(r.allText).not.toContain('Sat Oct 31')
+    expect(r.allText).toMatch(/hasta sáb 31 oct/)
+    const rect = await render({ fixture: underBudget, family: 'accessoryRectangular', param: 'lang=es' })
+    expect(rect.allText).toMatch(/hasta sáb/)
+  })
+
+  it('labels the WEST ring as a percentage and the small widget "WEST · Oct"', async () => {
+    const circ = await render({ fixture: overBudget, family: 'accessoryCircular' })
+    expect(circ.images[0].image.texts.map((t: { text: string }) => t.text)).toContain('55%')
+    const small = await render({ fixture: overBudget, family: 'small' })
+    expect(small.allText).toContain('WEST · Oct')
+    const se = await render({ fixture: overBudget, family: 'small', screen: { width: 375, height: 667 } })
+    let sparks = 0
+    walkWidget(se.widget, (n: { kind: string; image?: { paths: unknown[] } }) => { if (n.kind === 'image' && n.image!.paths.length > 10) sparks++ })
+    expect(sparks).toBe(1)
   })
 
   it('caches the last good payload and sends the read-only token', async () => {

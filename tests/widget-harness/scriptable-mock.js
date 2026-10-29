@@ -93,7 +93,7 @@ export function createScriptableEnv(options = {}) {
     closeSubpath() { this.ops.push(['closePath']) }
   }
   class Img {
-    constructor(src, w, h, ops) { this.src = src; this.size = new Size(w, h); this.ops = ops }
+    constructor(src, w, h, ops, texts, paths) { this.src = src; this.size = new Size(w, h); this.ops = ops; this.texts = texts || []; this.paths = paths || [] }
   }
   const fontCss = f => `${f.weight} ${f.size}px ${f.mono ? 'ui-monospace, monospace' : f.rounded ? '"SF Pro Rounded", Inter, system-ui, sans-serif' : '-apple-system, "SF Pro Text", Inter, Arial, sans-serif'}`
   class DrawContext {
@@ -105,6 +105,8 @@ export function createScriptableEnv(options = {}) {
       this._font = Font.systemFont(17)
       this._text = new Color('000')
       this._ops = []
+      this._texts = []
+      this._paths = []
       this._c = undefined
     }
     get c() {
@@ -118,7 +120,7 @@ export function createScriptableEnv(options = {}) {
     setFillColor(col) { this._op('fill-color', c => { c.fillStyle = col.css() }) }
     setStrokeColor(col) { this._op('stroke-color', c => { c.strokeStyle = col.css() }) }
     setLineWidth(w) { this._op('line-width', c => { c.lineWidth = w }) }
-    addPath(p) { this._op('path', c => { c.beginPath(); p.ops.forEach(([m, ...a]) => c[m](...a)) }) }
+    addPath(p) { this._paths.push(p.ops.slice()); this._op('path', c => { c.beginPath(); p.ops.forEach(([m, ...a]) => c[m](...a)) }) }
     fillPath() { this._op('fill', c => c.fill()) }
     strokePath() { this._op('stroke', c => c.stroke()) }
     fillRect(r) { this._op('fillRect', c => c.fillRect(r.x, r.y, r.width, r.height)) }
@@ -130,6 +132,7 @@ export function createScriptableEnv(options = {}) {
     setTextAlignedLeft() { this._align = 'left' }
     setTextAlignedRight() { this._align = 'right' }
     drawTextInRect(t, r) {
+      this._texts.push({ text: String(t), size: this._font.size })
       this._op('text:' + t, c => {
         c.font = fontCss(this._font)
         c.fillStyle = this._text.css()
@@ -143,7 +146,7 @@ export function createScriptableEnv(options = {}) {
     drawImageInRect() {}
     getImage() {
       const c = this.c
-      return new Img(c ? this._cv.toDataURL() : '', this.size.width, this.size.height, this._ops.slice())
+      return new Img(c ? this._cv.toDataURL() : '', this.size.width, this.size.height, this._ops.slice(), this._texts.slice(), this._paths.slice())
     }
   }
 
@@ -284,6 +287,13 @@ export function createScriptableEnv(options = {}) {
 export function walkWidget(node, visit, parent = null) {
   visit(node, parent)
   for (const child of node.children || []) walkWidget(child, visit, node)
+}
+
+/** Point size a drawn label ends up at once the image is scaled to its imageSize. */
+export function drawnTextSizes(imageNode) {
+  const img = imageNode.image
+  const scale = (imageNode.imageSize || img.size).width / (img.size.width || 1)
+  return (img.texts || []).map(t => ({ text: t.text, size: t.size * scale }))
 }
 
 export function inspectWidget(widget) {

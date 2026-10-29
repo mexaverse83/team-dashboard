@@ -26,6 +26,8 @@ const PARAMETERS: Array<{ value: string; label: string }> = [
   { value: 'lang=es', label: 'Spanish labels (combine, e.g. “coach lang=es”)' },
 ]
 
+const PREVIEW_ALT = 'Example medium widget showing left to spend, spend pace and WEST progress'
+
 export function WidgetInstallCard({ className }: { className?: string }) {
   const [slot, setSlot] = useState<PhoneSlot>('0')
   const href = `/api/finance/widget-script?slot=${slot}`
@@ -37,20 +39,19 @@ export function WidgetInstallCard({ className }: { className?: string }) {
         description="Home-screen and lock-screen widgets for iPhone, via the free Scriptable app. Numbers refresh about every 30 minutes and match this dashboard."
       />
 
-      <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-start">
-        <figure className="flex flex-col gap-2">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
-            <Image src={WIDGET_PREVIEW.light} alt="Medium widget, light appearance: $14,380 left to spend, on plan, WEST 104%" width={WIDGET_PREVIEW.width} height={WIDGET_PREVIEW.height} unoptimized className="h-auto w-full max-w-[364px] drop-shadow-sm" />
-            <Image src={WIDGET_PREVIEW.dark} alt="The same widget in dark appearance" width={WIDGET_PREVIEW.width} height={WIDGET_PREVIEW.height} unoptimized className="h-auto w-full max-w-[364px]" />
-          </div>
-          <figcaption className="text-label text-fg-tertiary">Follows your iPhone’s light or dark appearance.</figcaption>
+      <div className="grid gap-5 md:grid-cols-[minmax(0,364px)_minmax(0,1fr)] md:items-start md:gap-8">
+        <figure className="flex w-full max-w-[364px] flex-col gap-2">
+          {/* One preview at native size, matching the app's theme (dark unless data-theme=light). */}
+          <Image src={WIDGET_PREVIEW.dark} alt={PREVIEW_ALT} width={WIDGET_PREVIEW.width} height={WIDGET_PREVIEW.height} unoptimized className="h-auto w-full rounded-[22px] shadow-[0_1px_3px_rgba(0,0,0,0.5)] [[data-theme=light]_&]:hidden" />
+          <Image src={WIDGET_PREVIEW.light} alt={PREVIEW_ALT} width={WIDGET_PREVIEW.width} height={WIDGET_PREVIEW.height} unoptimized className="hidden h-auto w-full rounded-[22px] shadow-[0_1px_3px_rgba(15,23,42,0.14)] [[data-theme=light]_&]:block" />
+          <figcaption className="text-label text-fg-tertiary">Example numbers. The widget follows your iPhone’s light or dark appearance.</figcaption>
         </figure>
 
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <span className="text-label font-medium text-fg-secondary">Whose phone?</span>
-            <Segmented options={PHONES.map(p => ({ value: p.value, label: p.label }))} value={slot} onChange={setSlot} ariaLabel="Whose phone" />
-            <a href={href} download="Finance.js" className={buttonVariants({ variant: 'primary', size: 'md' })}>
+            <Segmented options={PHONES.map(p => ({ value: p.value, label: p.label }))} value={slot} onChange={setSlot} ariaLabel="Whose phone" className="w-fit" />
+            <a href={href} download="Finance.js" className={buttonVariants({ variant: 'primary', size: 'md', className: 'sm:w-fit' })}>
               <Download className="h-4 w-4" aria-hidden />
               Download Finance.js
             </a>

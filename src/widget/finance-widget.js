@@ -14,7 +14,8 @@
  * @property {string} updated_at
  * @property {number} day
  * @property {number} days_in_month
- * @property {{budget:number, spent:number, left:number, days_left:number, through_label:string}} variable
+ * @property {string} month
+ * @property {{budget:number, spent:number, left:number, days_left:number, through_label:string, through_date?:string}} variable
  * @property {'ok'|'tight'|'over'} status
  * @property {{name:string, pct:number, over_by:number}|null} top_over
  * @property {Array<{name:string, spent:number, budget:number, pct:number}>} budget_pace
@@ -43,9 +44,9 @@ const STR = {
     everyday: 'everyday budgets', thru: 'thru', daysLeft: n => n === 1 ? 'last day' : n + ' days left',
     perDay: v => v + '/day', onPlan: 'On plan', tight: 'Tight', overPlan: 'Over plan',
     ofBudget: (n, p) => n + ' ' + p + '% of budget', underPace: v => v + ' under pace', overPace: v => v + ' over pace',
-    spendPace: 'Spend vs pace', west: 'WEST', savings: 'Savings goal', of: 'of', toGo: v => v + ' to go',
+    spendPace: 'Spend vs pace', west: 'WEST', savings: 'Savings goal', onTarget: 'on target', of: 'of', toGo: v => v + ' to go',
     budgets: 'Budgets', leftOf: v => v + ' left', overBy: v => v + ' over', comingUp: 'Coming up', more: n => '+' + n + ' more',
-    updated: t => 'Updated ' + t, asOf: t => 'As of ' + t, noCacheTitle: 'Mona', noCache: 'Connect once to load your numbers',
+    updated: t => 'Updated ' + t, asOf: t => 'As of ' + t, lastMonth: 'Last month', noCacheTitle: 'Mona', noCache: 'Connect once to load your numbers',
     reinstall: 'Re-install the widget from Family › Phone widget', funded: 'funded', baby: n => n + ' mo to baby',
     milestones: 'Milestones', moToKeys: n => n + ' mo to keys', nothingDue: 'Nothing due in the next 2 weeks', offline: 'Offline', open: 'Open Mona ›',
   },
@@ -54,9 +55,9 @@ const STR = {
     everyday: 'gasto diario', thru: 'hasta', daysLeft: n => n === 1 ? 'último día' : 'quedan ' + n + ' días',
     perDay: v => v + '/día', onPlan: 'En plan', tight: 'Justo', overPlan: 'Fuera de plan',
     ofBudget: (n, p) => n + ' ' + p + '% del presupuesto', underPace: v => v + ' bajo el ritmo', overPace: v => v + ' sobre el ritmo',
-    spendPace: 'Gasto vs ritmo', west: 'WEST', savings: 'Meta de ahorro', of: 'de', toGo: v => 'faltan ' + v,
+    spendPace: 'Gasto vs ritmo', west: 'WEST', savings: 'Meta de ahorro', onTarget: 'en meta', of: 'de', toGo: v => 'faltan ' + v,
     budgets: 'Presupuestos', leftOf: v => 'quedan ' + v, overBy: v => v + ' arriba', comingUp: 'Próximos cargos', more: n => '+' + n + ' más',
-    updated: t => 'Actualizado ' + t, asOf: t => 'Al ' + t, noCacheTitle: 'Mona', noCache: 'Conéctate una vez para cargar tus números',
+    updated: t => 'Actualizado ' + t, asOf: t => 'Al ' + t, lastMonth: 'Mes pasado', noCacheTitle: 'Mona', noCache: 'Conéctate una vez para cargar tus números',
     reinstall: 'Reinstala el widget desde Family › Phone widget', funded: 'cubierto', baby: n => n + ' meses para el bebé',
     milestones: 'Hitos', moToKeys: n => n + ' meses para la entrega', nothingDue: 'Nada por pagar en 2 semanas', offline: 'Sin conexión', open: 'Abrir Mona ›',
   },
@@ -148,7 +149,25 @@ function formatter(fmt) {
 }
 const dateOf = key => new Date(String(key).slice(0, 10) + 'T12:00:00')
 const timeLabel = iso => formatter('h:mm a').string(new Date(iso))
-const shortThru = label => String(label || '').split(' ')[0]
+const dayStart = t => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime()
+/** Cache stamp: time today, weekday + time this week, else the date — old numbers must not read as current. */
+function stampTime(iso) {
+  const t = new Date(iso)
+  const days = Math.round((dayStart(new Date()) - dayStart(t)) / 86400000)
+  if (days <= 0) return formatter('h:mm a').string(t)
+  if (days <= 6) return formatter('EEE h:mm a').string(t)
+  return formatter(LANG === 'es' ? 'd MMM' : 'MMM d').string(t)
+}
+// Period end, formatted on the device so lang=es never shows the server's English label.
+const thruDate = v => (v && /^\d{4}-\d{2}-\d{2}/.test(String(v.through_date || '')) ? dateOf(v.through_date) : null)
+function thruLabel(v) {
+  const d = thruDate(v)
+  return d ? formatter(LANG === 'es' ? 'EEE d MMM' : 'EEE MMM d').string(d) : String(v.through_label || '')
+}
+function thruShort(v) {
+  const d = thruDate(v)
+  return d ? formatter('EEE').string(d) : String(v.through_label || '').split(' ')[0]
+}
 
 // ── Text + drawn primitives ──
 const WEIGHTS = { regular: 'systemFont', medium: 'mediumSystemFont', semibold: 'semiboldSystemFont', bold: 'boldSystemFont', hero: 'boldRoundedSystemFont', num: 'semiboldRoundedSystemFont' }
@@ -158,7 +177,8 @@ function txt(stack, s, size, color, weight, opts) {
   t.font = Font[WEIGHTS[weight || 'semibold']](size)
   t.textColor = color
   t.lineLimit = o.lines || 1
-  t.minimumScaleFactor = o.msf || 0.85
+  // Never let iOS shrink text below 11pt.
+  t.minimumScaleFactor = Math.min(1, Math.max(o.msf || 0.85, 11 / size))
   if (o.opacity != null) t.textOpacity = o.opacity
   return t
 }
@@ -228,27 +248,28 @@ function ringImage(size, pct, fill, track, lw, big, small, textColor) {
   if (big) {
     ctx.setTextAlignedCenter()
     ctx.setTextColor(textColor || WHITE)
-    const bigSize = Math.round(size * (small ? 0.26 : 0.3) * Math.min(1, 3.4 / Math.max(3.4, big.length))) * 3
+    const bigSize = Math.max(13, Math.round(size * (small ? 0.26 : 0.3) * Math.min(1, 3.4 / Math.max(3.4, big.length)))) * 3
     ctx.setFont(Font.boldRoundedSystemFont(bigSize))
     const top = small ? c - bigSize * 0.72 : c - bigSize * 0.62
     ctx.drawTextInRect(big, new Rect(0, top, S, bigSize * 1.3))
     if (small) {
-      const ss = Math.round(size * 0.13) * 3
+      const ss = Math.max(11, Math.round(size * 0.13)) * 3
       ctx.setFont(Font.semiboldSystemFont(ss))
       ctx.drawTextInRect(small, new Rect(0, top + bigSize * 1.08, S, ss * 1.4))
     }
   }
   return ctx.getImage()
 }
-/** Cumulative everyday spend vs a straight budget-pace line, drawn over the whole month (O1). */
+/** Cumulative everyday spend vs a straight budget-pace line, drawn over the whole month (O1).
+ * Both lines start at 0 on the month's first morning; day i's running total sits at x(i). */
 function sparkImage(w, h, daily, perDay, daysInMonth, color) {
   const ctx = canvas(w, h), W = w * 3, H = h * 3, pad = 5 * 3
   const cum = []
   ;(daily || []).reduce((s, v, i) => (cum[i] = s + (Number(v) || 0)), 0)
   const budgetEnd = Math.max(1, perDay * daysInMonth)
   const max = Math.max(cum[cum.length - 1] || 0, budgetEnd) * 1.04
-  const span = Math.max(1, daysInMonth - 1)
-  const x = i => pad + (i / span) * (W - pad * 2)
+  const span = Math.max(1, daysInMonth)
+  const x = i => pad + (Math.min(i, span) / span) * (W - pad * 2)
   const y = v => H - pad - (v / max) * (H - pad * 2)
   // Budget line: dashed, from zero to the month's budget.
   const dash = 4 * 3, gap = 3.5 * 3
@@ -264,35 +285,32 @@ function sparkImage(w, h, daily, perDay, daysInMonth, color) {
     ctx.setLineWidth(1.5 * 3)
     ctx.strokePath()
   }
-  if (cum.length > 1) {
-    const area = new Path()
-    area.move(new Point(x(0), y(0)))
-    cum.forEach((v, i) => area.addLine(new Point(x(i), y(v))))
-    area.addLine(new Point(x(cum.length - 1), y(0)))
-    area.closeSubpath()
-    ctx.addPath(area)
-    ctx.setFillColor(new Color(color.hex || '#10B981', 0.14))
-    ctx.fillPath()
-    const line = new Path()
-    cum.forEach((v, i) => (i ? line.addLine(new Point(x(i), y(v))) : line.move(new Point(x(i), y(v)))))
-    ctx.addPath(line)
-    ctx.setStrokeColor(color)
-    ctx.setLineWidth(2.2 * 3)
-    ctx.strokePath()
-  }
-  if (cum.length > 1) {
-    const lx = x(cum.length - 1), ly = y(cum[cum.length - 1])
-    const halo = new Path()
-    halo.addEllipse(new Rect(lx - 6 * 3, ly - 6 * 3, 12 * 3, 12 * 3))
-    ctx.addPath(halo)
-    ctx.setFillColor(new Color(color.hex || '#10B981', 0.25))
-    ctx.fillPath()
-    const dot = new Path()
-    dot.addEllipse(new Rect(lx - 3.5 * 3, ly - 3.5 * 3, 7 * 3, 7 * 3))
-    ctx.addPath(dot)
-    ctx.setFillColor(color)
-    ctx.fillPath()
-  }
+  if (!cum.length) return ctx.getImage()
+  const pts = [new Point(x0, y0)].concat(cum.map((v, i) => new Point(x(i + 1), y(v))))
+  const last = pts[pts.length - 1]
+  const area = new Path()
+  pts.forEach((p, i) => (i ? area.addLine(p) : area.move(p)))
+  area.addLine(new Point(last.x, y0))
+  area.closeSubpath()
+  ctx.addPath(area)
+  ctx.setFillColor(new Color(color.hex || '#10B981', 0.14))
+  ctx.fillPath()
+  const line = new Path()
+  pts.forEach((p, i) => (i ? line.addLine(p) : line.move(p)))
+  ctx.addPath(line)
+  ctx.setStrokeColor(color)
+  ctx.setLineWidth(2.2 * 3)
+  ctx.strokePath()
+  const halo = new Path()
+  halo.addEllipse(new Rect(last.x - 6 * 3, last.y - 6 * 3, 12 * 3, 12 * 3))
+  ctx.addPath(halo)
+  ctx.setFillColor(new Color(color.hex || '#10B981', 0.25))
+  ctx.fillPath()
+  const dot = new Path()
+  dot.addEllipse(new Rect(last.x - 3.5 * 3, last.y - 3.5 * 3, 7 * 3, 7 * 3))
+  ctx.addPath(dot)
+  ctx.setFillColor(color)
+  ctx.fillPath()
   return ctx.getImage()
 }
 
@@ -311,6 +329,14 @@ const STATUS = {
   tight: () => ({ word: STR.tight, color: C.warn, chip: C.chip.warn, fill: FILL.warn }),
   over: () => ({ word: STR.overPlan, color: C.bad, chip: C.chip.bad, fill: FILL.bad }),
 }
+/** Cached numbers from an earlier month: never label them as this month's room. */
+function fromLastMonth(d) {
+  return !!d.__stale && !!d.month && d.month !== formatter('yyyy-MM').string(new Date())
+}
+function heroLabel(d) {
+  if (fromLastMonth(d)) return STR.lastMonth
+  return d.variable.left < 0 ? STR.over : STR.left
+}
 const westFill = wm => wm.pct >= 100 ? FILL.good : FILL.warn
 const westColor = wm => wm.pct >= 100 ? C.good : C.warn
 
@@ -323,10 +349,11 @@ function normalize(raw) {
   const budget = rows.reduce((s, b) => s + (b.budget || 0), 0)
   const spent = rows.reduce((s, b) => s + (b.spent || 0), 0)
   const dim = raw.days_in_month || 30, day = raw.day || 1
-  const end = new Date(String(raw.month || '2000-01') + '-' + String(dim).padStart(2, '0') + 'T12:00:00')
+  const endKey = String(raw.month || '2000-01') + '-' + String(dim).padStart(2, '0')
+  const end = dateOf(endKey)
   return Object.assign({}, raw, {
     v: 1,
-    variable: { budget, spent, left: budget - spent, days_left: dim - day + 1, through_label: formatter('EEE MMM d').string(end) },
+    variable: { budget, spent, left: budget - spent, days_left: dim - day + 1, through_label: formatter('EEE MMM d').string(end), through_date: endKey },
     daily_spend: [], daily_budget_pace: budget / dim, upcoming: [], milestones: {},
     coach: null, brief: { fresh: false, generated_at: null, title: null },
   })
@@ -367,7 +394,7 @@ async function loadData() {
 // ── Shared blocks ──
 function heroBlock(stack, d, size) {
   const v = d.variable, over = v.left < 0
-  txt(stack, over ? STR.over : STR.left, 12, C.sub, 'semibold')
+  txt(stack, heroLabel(d), 12, fromLastMonth(d) ? C.warn : C.sub, 'semibold')
   const hero = txt(stack, money(Math.abs(v.left)), size, over ? C.bad : C.text, 'hero', { msf: 0.55, opacity: d.__stale ? 0.6 : 1 })
   return hero
 }
@@ -395,8 +422,11 @@ function chip(stack, st) {
   c.addSpacer(5)
   txt(c, st.word, 11, st.color, 'bold')
 }
-function paceCaption(d) {
-  if (d.top_over && d.top_over.pct > 100) return { text: STR.ofBudget(d.top_over.name, d.top_over.pct), color: C.warn }
+function paceCaption(d, narrow) {
+  if (d.top_over && d.top_over.pct > 100) {
+    const t = d.top_over
+    return { text: narrow ? t.name + ' ' + t.pct + '%' : STR.ofBudget(t.name, t.pct), color: C.warn }
+  }
   const cum = (d.daily_spend || []).reduce((s, v) => s + v, 0)
   const expected = (d.daily_budget_pace || 0) * (d.daily_spend || []).length
   if (!expected || (d.daily_spend || []).length < 3) return { text: STR.spendPace, color: C.faint }
@@ -405,7 +435,7 @@ function paceCaption(d) {
   return diff < 0 ? { text: STR.underPace(moneyShort(-diff)), color: C.good } : { text: STR.overPace(moneyShort(diff)), color: C.warn }
 }
 function stampText(d) {
-  return d.__stale ? '⚠︎ ' + STR.asOf(timeLabel(d.updated_at)) : STR.updated(timeLabel(d.updated_at))
+  return d.__stale ? '⚠︎ ' + STR.asOf(stampTime(d.updated_at)) : STR.updated(timeLabel(d.updated_at))
 }
 function headerLine(d) {
   if (d.__stale) return { text: stampText(d), color: C.warn }
@@ -421,19 +451,21 @@ function small(w, d, m) {
   if (hasParam('goals')) return smallGoals(w, d)
   const top = w.addStack()
   top.centerAlignContent()
-  txt(top, d.variable.left < 0 ? STR.over : STR.left, 12, C.sub, 'semibold')
+  txt(top, heroLabel(d), 12, fromLastMonth(d) ? C.warn : C.sub, 'semibold')
   top.addSpacer()
-  const dot = top.addImage(dotImage(8, st.fill))
-  dot.imageSize = new Size(8, 8)
+  if (!fromLastMonth(d)) {
+    const dot = top.addImage(dotImage(8, st.fill))
+    dot.imageSize = new Size(8, 8)
+  }
   w.addSpacer(1)
   const v = d.variable, over = v.left < 0
   txt(w, money(Math.abs(v.left)), 30, over ? C.bad : C.text, 'hero', { msf: 0.55, opacity: d.__stale ? 0.6 : 1 })
   const perDay = v.left > 0 && v.days_left > 0 ? STR.perDay(moneyShort(v.left / v.days_left)) + ' · ' : ''
   if (d.__stale) txt(w, stampText(d), 11, C.warn, 'medium')
-  else txt(w, perDay + STR.thru + ' ' + (perDay ? shortThru(v.through_label) : v.through_label), 11, C.faint, 'medium')
+  else txt(w, perDay + STR.thru + ' ' + (perDay ? thruShort(v) : thruLabel(v)), 11, C.faint, 'medium')
   w.addSpacer()
-  if (m.small >= 150 && (d.daily_spend || []).length) {
-    const sh = 26
+  if ((d.daily_spend || []).length) {
+    const sh = m.small >= 150 ? 26 : 20
     const img = w.addImage(sparkImage(cw, sh, d.daily_spend, d.daily_budget_pace, d.days_in_month, over ? FILL.bad : FILL.good))
     img.imageSize = new Size(cw, sh)
     w.addSpacer()
@@ -442,7 +474,7 @@ function small(w, d, m) {
   if (wm) {
     const r = w.addStack()
     r.centerAlignContent()
-    txt(r, (wm.label ? STR.west + ' ' + wm.label : STR.savings), 11, C.sub, 'semibold')
+    txt(r, (wm.label ? STR.west + ' · ' + wm.label : STR.savings), 11, C.sub, 'semibold')
     r.addSpacer()
     txt(r, wm.pct + '%', 11, westColor(wm), 'bold')
     w.addSpacer(4)
@@ -479,7 +511,7 @@ function medium(w, d, m, inLarge) {
   const hl = headerLine(d)
   txt(head, hl.text, 12, hl.color, 'semibold')
   head.addSpacer()
-  chip(head, st)
+  if (!fromLastMonth(d)) chip(head, st)
   w.addSpacer(m.height < 160 ? 4 : 7)
 
   const body = w.addStack()
@@ -488,7 +520,7 @@ function medium(w, d, m, inLarge) {
   left.layoutVertically()
   left.url = URLS.budgets
   heroBlock(left, d, m.height < 160 ? 28 : 32)
-  txt(left, STR.everyday + ' · ' + STR.thru + ' ' + d.variable.through_label, 11, C.faint, 'medium')
+  txt(left, STR.everyday + ' · ' + STR.thru + ' ' + thruLabel(d.variable), 11, C.faint, 'medium')
   body.addSpacer(10)
   const right = body.addStack()
   right.layoutVertically()
@@ -505,7 +537,7 @@ function medium(w, d, m, inLarge) {
     const img = right.addImage(sparkImage(sw, 44, d.daily_spend, d.daily_budget_pace, d.days_in_month, over ? FILL.bad : FILL.good))
     img.imageSize = new Size(sw, 44)
     right.addSpacer(2)
-    const cap = paceCaption(d)
+    const cap = paceCaption(d, sw < 125)
     const capRow = right.addStack()
     capRow.addSpacer()
     txt(capRow, cap.text, 11, cap.color, 'semibold', { msf: 0.8 })
@@ -573,14 +605,18 @@ function large(w, d, m) {
   const foot = w.addStack()
   foot.centerAlignContent()
   const c = coachFor(d)
-  const coach = d.brief && d.brief.fresh && d.brief.title ? d.brief.title : (c ? c.title : null)
+  // Last month's advice is no advice; a stale header already carries the stamp.
+  const coach = fromLastMonth(d) ? null : d.brief && d.brief.fresh && d.brief.title ? d.brief.title : (c ? c.title : null)
   if (coach) {
     const cs = foot.addStack()
     cs.url = coachLink(d)
     txt(cs, '🐾 ' + coach, 12, C.accent, 'semibold', { msf: 0.75 })
   }
   foot.addSpacer()
-  txt(foot, d.__stale ? stampText(d) : timeLabel(d.updated_at), 11, d.__stale ? C.warn : C.faint, 'medium')
+  if (!d.__stale) {
+    foot.addSpacer(8)
+    txt(foot, timeLabel(d.updated_at), 11, C.faint, 'medium')
+  }
 }
 
 // ── Lock screen (spec §5): white only, no backgrounds ──
@@ -594,13 +630,13 @@ function lockRect(w, d, m) {
   top.addSpacer(4)
   txt(top, over ? STR.overShort : STR.leftShort, 12, whiteA(0.8), 'semibold')
   top.addSpacer()
-  txt(top, d.__stale ? '⚠︎ ' + timeLabel(d.updated_at) : STR.thru + ' ' + shortThru(v.through_label), 11, whiteA(0.7), 'medium')
+  txt(top, d.__stale ? '⚠︎ ' + stampTime(d.updated_at) : STR.thru + ' ' + thruShort(v), 11, whiteA(0.7), 'medium')
   const wm = d.west_month
   if (wm) {
     w.addSpacer(5)
     addBar(w, cw, 5, wm.pct / 100, WHITE, whiteA(0.25))
     w.addSpacer(4)
-    txt(w, STR.west + ' ' + wm.pct + '% · ' + STR.toGo(moneyShort(wm.gap)), 11, whiteA(0.85), 'semibold')
+    txt(w, STR.west + ' ' + wm.pct + '% · ' + (wm.gap > 0 ? STR.toGo(moneyShort(wm.gap)) : STR.onTarget), 11, whiteA(0.85), 'semibold')
   }
 }
 function lockCirc(w, d) {
@@ -613,7 +649,7 @@ function lockCirc(w, d) {
     img = ringImage(58, pct, WHITE, whiteA(0.25), 5, moneyShort(Math.abs(v.left)).replace(MINUS, ''), v.left < 0 ? STR.overShort : STR.leftShort)
   } else {
     const wm = d.west_month
-    img = ringImage(58, wm ? wm.pct / 100 : 0, WHITE, whiteA(0.25), 5, wm ? String(wm.pct) : '–', STR.west)
+    img = ringImage(58, wm ? wm.pct / 100 : 0, WHITE, whiteA(0.25), 5, wm ? wm.pct + '%' : '–', STR.west)
   }
   const s = w.addImage(img)
   s.imageSize = new Size(58, 58)
