@@ -8,7 +8,10 @@
 --   1. adds is_household(): true only for a signed-in allow-listed email,
 --   2. drops EVERY existing policy on the finance tables below,
 --   3. re-creates one `TO authenticated USING (is_household())` policy each,
---   4. makes the automation and push tables service-role only,
+--   4. makes the automation and push tables service-role only, plus the
+--      legacy agent-dashboard tables (agents, tickets, messages,
+--      agent_metrics, agent_costs) the app stopped using in June 2026 —
+--      anon can still read them today (agents 7 rows, tickets 36),
 --   5. revokes anon's table grants as a second layer.
 -- finance_monthly_savings is deliberately NOT touched: its policies are being
 -- reworked separately (supabase-fix-monthly-savings-rls.sql /
@@ -73,8 +76,12 @@ DECLARE
     'finance_audit_reports', 'finance_checklist_status'
   ];
   -- Written and read only by API routes (service role bypasses RLS).
+  -- The legacy agent-dashboard tables are dead (app is finance-only since
+  -- June 2026) but still hold data; lock them the same way rather than DROP,
+  -- so the household can decide to delete them separately.
   v_service_only text[] := ARRAY[
-    'finance_automation_runs', 'finance_automation_heartbeats', 'finance_push_subscriptions'
+    'finance_automation_runs', 'finance_automation_heartbeats', 'finance_push_subscriptions',
+    'agents', 'tickets', 'messages', 'agent_metrics', 'agent_costs'
   ];
   v_table text;
   v_policy record;
@@ -107,6 +114,7 @@ SELECT c.relname AS table_name, c.relrowsecurity AS rls_on,
   FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = 'public'
   LEFT JOIN pg_policies p ON p.schemaname = 'public' AND p.tablename = c.relname
- WHERE c.relkind = 'r' AND (c.relname LIKE 'finance\_%' OR c.relname = 'crypto_transactions')
+ WHERE c.relkind = 'r' AND (c.relname LIKE 'finance\_%' OR c.relname IN
+       ('crypto_transactions', 'agents', 'tickets', 'messages', 'agent_metrics', 'agent_costs'))
  GROUP BY c.relname, c.relrowsecurity
  ORDER BY c.relname;

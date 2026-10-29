@@ -36,6 +36,8 @@ export const CHECKED_TABLES = [
   'finance_emergency_fund', 'finance_insights_cache', 'finance_wolff_chat',
   'finance_audit_reports', 'finance_checklist_status', 'finance_monthly_savings',
   'finance_automation_runs', 'finance_automation_heartbeats', 'finance_push_subscriptions',
+  // Legacy agent-dashboard tables (unused since June 2026, still populated).
+  'agents', 'tickets', 'messages', 'agent_metrics', 'agent_costs',
 ]
 
 /** Reads Content-Range "0-0/839" → 839; "*\/0" → 0. */
