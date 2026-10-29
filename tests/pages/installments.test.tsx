@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
-import { SEED_CATEGORIES } from '@/lib/seed-finance'
+import { SEED_CATEGORIES } from '../fixtures/seed-finance'
 import { addMonthsKey, localDateKey } from '@/lib/dates'
 import { monthlyIncomeFrom } from '@/components/finance/installments-client'
 

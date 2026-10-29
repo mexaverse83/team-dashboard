@@ -7,8 +7,11 @@ vi.mock('framer-motion', async () => {
   const React = await import('react')
   const h = (tag: string) => ({ children, initial, animate, transition, whileHover, whileTap, exit, variants, whileInView, layout, layoutId, ...rest }: any) =>
     React.createElement(tag, rest, children)
+  const tags = { div: h('div'), span: h('span'), li: h('li'), ul: h('ul'), p: h('p'), a: h('a'), button: h('button'), section: h('section'), nav: h('nav'), header: h('header') }
   return {
-    motion: { div: h('div'), span: h('span'), li: h('li'), ul: h('ul'), p: h('p'), a: h('a'), button: h('button'), section: h('section'), nav: h('nav'), header: h('header') },
+    motion: tags,
+    m: tags,
+    useDragControls: () => ({ start: () => {} }),
     AnimatePresence: ({ children }: any) => children,
     LazyMotion: ({ children }: any) => children,
     domAnimation: {},

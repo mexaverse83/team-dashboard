@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
-import { SEED_CATEGORIES, SEED_BUDGETS } from '@/lib/seed-finance'
+import { SEED_CATEGORIES, SEED_BUDGETS } from '../fixtures/seed-finance'
 import { monthKey } from '@/lib/finance-utils'
 
 // Importing every lucide icon for the mock is slow on a cold, loaded worker.

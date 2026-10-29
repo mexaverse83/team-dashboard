@@ -24,18 +24,10 @@ export function safeEqual(provided: string | null | undefined, expected: string 
   return timingSafeEqual(a, b)
 }
 
-// The service-role key used to double as an API key (widget, insights and
-// scripts forwarded it when FINANCE_API_KEY was unset). Kept behind a flag
-// until every caller sends FINANCE_API_KEY; set FINANCE_ALLOW_SERVICE_KEY_AS_API_KEY=0 to drop it.
-function serviceKeyAcceptedAsApiKey() {
-  return process.env.FINANCE_ALLOW_SERVICE_KEY_AS_API_KEY !== '0'
-}
-
+// Only FINANCE_API_KEY is an API key. The service-role key is never accepted
+// as one (CH-03): it is a database credential, not a caller identity.
 function hasValidApiKey(req: NextRequest) {
-  const key = req.headers.get('x-api-key')
-  if (!key) return false
-  if (safeEqual(key, process.env.FINANCE_API_KEY)) return true
-  return serviceKeyAcceptedAsApiKey() && safeEqual(key, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  return safeEqual(req.headers.get('x-api-key'), process.env.FINANCE_API_KEY)
 }
 
 function hasValidCronSecret(req: NextRequest) {

@@ -40,9 +40,7 @@ describe('authorizeFinanceRequest', () => {
     expect(await authorizeFinanceRequest(req({ 'x-api-key': 'finance-key' }), { allowCron: true })).toEqual({ ok: true, method: 'api-key' })
     expect((await authorizeFinanceRequest(req({ 'x-api-key': 'finance-key-x' }))).ok).toBe(false)
   })
-  it('accepts the service-role key as an API key only while the transition flag allows it', async () => {
-    expect((await authorizeFinanceRequest(req({ 'x-api-key': 'service-key' }))).ok).toBe(true)
-    vi.stubEnv('FINANCE_ALLOW_SERVICE_KEY_AS_API_KEY', '0')
+  it('never accepts the service-role key as an API key', async () => {
     expect((await authorizeFinanceRequest(req({ 'x-api-key': 'service-key' }))).ok).toBe(false)
   })
   it('accepts an allow-listed session and reports its email', async () => {

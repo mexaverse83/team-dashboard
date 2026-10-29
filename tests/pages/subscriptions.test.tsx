@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
-import { SEED_CATEGORIES, SEED_RECURRING } from '@/lib/seed-finance'
+import { SEED_CATEGORIES, SEED_RECURRING } from '../fixtures/seed-finance'
 import { addDaysKey, localDateKey } from '@/lib/dates'
 import { advanceDueDate, describeProcessResult, latestPriceChanges } from '@/components/finance/subscriptions-client'
 

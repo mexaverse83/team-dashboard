@@ -46,10 +46,10 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 // Prefer the production summary: it runs with the service role and sees
 // RLS-hidden tables (finance_recurring_income holds the salaries!). The local
 // dev server only has the anon key, which understates income by ~$195k/mo and
-// makes every cash-flow insight a false alarm. Requires FINANCE_API_KEY (or
-// SUPABASE_SERVICE_ROLE_KEY) in .env.local; falls back to localhost otherwise.
+// makes every cash-flow insight a false alarm. Requires FINANCE_API_KEY in .env.local
+// (the service-role key is not an API key); falls back to localhost otherwise.
 const PROD_URL = env.INSIGHTS_SUMMARY_URL || 'https://finance.autonomis.co'
-const API_KEY = env.FINANCE_API_KEY || env.SUPABASE_SERVICE_ROLE_KEY || ''
+const API_KEY = env.FINANCE_API_KEY || ''
 
 const baseUrlArg = process.argv.indexOf('--base-url')
 const BASE_URL = baseUrlArg > -1 ? process.argv[baseUrlArg + 1] : 'http://localhost:3000'

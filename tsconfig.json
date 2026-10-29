@@ -23,9 +23,6 @@
       }
     ],
     "paths": {
-      "@/lib/seed-finance": [
-        "./tests/fixtures/seed-finance.ts"
-      ],
       "@/*": [
         "./src/*"
       ]
