@@ -99,7 +99,6 @@ describe('Server Component Architecture', () => {
   it('client components have use client directive', () => {
     const fs = require('fs')
     const clients = [
-      'src/components/finance/overview-client.tsx',
       'src/components/finance/transactions-client.tsx',
       'src/components/finance/budgets-client.tsx',
       'src/components/finance/subscriptions-client.tsx',

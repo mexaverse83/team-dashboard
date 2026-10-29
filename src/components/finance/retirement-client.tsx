@@ -1,13 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { GlassCard } from '@/components/ui/glass-card'
-import { OwnerDot } from '@/components/finance/owner-dot'
-import { Pencil } from 'lucide-react'
-
-function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' ') }
-function fmt(n: number) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) }
-function fmtMXN(n: number) { return `$${fmt(n)} MXN` }
+import { useState } from 'react'
+import { HardHat, Info, Lock, Pencil } from 'lucide-react'
+import { Card, CardHeader } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Stat } from '@/components/ui/stat'
+import { Modal } from '@/components/ui/modal'
+import { MoneyText } from '@/components/ui/money-text'
+import { OwnerAvatar } from '@/components/ui/owner-avatar'
+import { StatusPill } from '@/components/ui/status-pill'
+import { ErrorState } from '@/components/ui/error-state'
+import { useFinanceData } from '@/hooks/use-finance-data'
+import { formatDateShort, formatMoney, formatPct } from '@/lib/format'
+import { canonicalOwner, ownersEqual } from '@/lib/owners'
+import { KV } from '@/components/finance/investments/shared'
+import { TabSkeleton } from '@/components/finance/investments/tab-skeleton'
 
 interface RetirementRecord {
   id: string
@@ -37,13 +44,18 @@ const MONTHLY_CONTRIBUTIONS: Record<string, number> = {
   laura: 4810,
 }
 
-function yearsToRetirement(owner: string, retirementAge = 65): number {
+const DEFAULT_RETURN = 0.085
+const SCENARIOS = [
+  { key: 'conservative', label: 'Conservative', rate: 0.07 },
+  { key: 'base', label: 'Base', rate: DEFAULT_RETURN },
+  { key: 'optimistic', label: 'Optimistic', rate: 0.10 },
+] as const
+
+function yearsToRetirement(owner: string, retirementAge = 65, now = new Date()): number {
   const dob = OWNER_DOB[owner.toLowerCase()]
   if (!dob) return 30
-  const birthDate = new Date(dob)
-  const retirementDate = new Date(birthDate)
-  retirementDate.setFullYear(birthDate.getFullYear() + retirementAge)
-  const now = new Date()
+  const [y, m, d] = dob.split('-').map(Number)
+  const retirementDate = new Date(y + retirementAge, m - 1, d)
   return Math.max(0, (retirementDate.getTime() - now.getTime()) / (365.25 * 24 * 3600 * 1000))
 }
 
@@ -51,399 +63,263 @@ function project(balance: number, rate: number, years: number) {
   return Math.round(balance * Math.pow(1 + rate, years))
 }
 
-// ─── AFORE Card ───
-function AforeCard({ record, onEdit }: { record: RetirementRecord; onEdit: (r: RetirementRecord) => void }) {
+function updatedLabel(date: string | null) {
+  return date ? `Updated ${formatDateShort(date, { withYear: 'auto' })}` : 'Balance date unknown'
+}
+
+function RecordCard({ record, onEdit }: { record: RetirementRecord; onEdit: (r: RetirementRecord) => void }) {
+  const isAfore = record.instrument_type === 'afore'
   const years = yearsToRetirement(record.owner, record.retirement_age ?? 65)
-  const rate = record.annual_return_rate ?? 0.085
-  const projected = project(record.current_balance, rate, years)
-  const monthlyContrib = MONTHLY_CONTRIBUTIONS[record.owner.toLowerCase()] ?? 0
-
+  const rate = record.annual_return_rate ?? DEFAULT_RETURN
   return (
-    <GlassCard className="p-4 relative group border-l-2 border-slate-600">
-      <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-        <button aria-label="Edit" onClick={() => onEdit(record)} className="p-2 sm:p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
-          <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
-        </button>
+    <Card className="flex flex-col">
+      <div className="flex items-start gap-3">
+        <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-3 text-fg-secondary">
+          {isAfore ? <Lock className="h-4 w-4" /> : <HardHat className="h-4 w-4" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h4 className="flex items-center gap-1.5 text-sm font-semibold">
+            <span className="truncate">{record.name}</span>
+            <OwnerAvatar owner={record.owner} size={16} />
+          </h4>
+          <p className="text-label text-fg-secondary">{isAfore ? (record.institution || 'Check the AFORE app') : 'Infonavit'}</p>
+        </div>
+        <Button variant="ghost" size="icon" className="-mr-2 -mt-2" aria-label={`Update ${record.name}`} onClick={() => onEdit(record)}>
+          <Pencil className="h-4 w-4" />
+        </Button>
       </div>
 
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-3 pr-9 sm:pr-0">
-        <div className="h-10 w-10 rounded-xl bg-slate-700/50 border border-slate-600/50 flex items-center justify-center text-lg shrink-0">
-          🔒
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <h4 className="text-sm font-semibold truncate">{record.name}</h4>
-            <OwnerDot owner={record.owner} size="sm" />
-          </div>
-          <p className="text-xs text-[hsl(var(--text-secondary))]">{record.institution || 'Check AFORE app'}</p>
-        </div>
-      </div>
+      <Stat className="mt-3" size="sm" money label={updatedLabel(record.last_updated)} value={formatMoney(record.current_balance)} />
 
-      {/* Balance */}
-      <p className="text-xl font-bold tabular-nums">{fmtMXN(record.current_balance)}</p>
-      <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
-        Updated {record.last_updated ?? 'unknown'}
-      </p>
+      {isAfore ? (
+        <dl className="mt-3 flex-1 space-y-1.5 border-t border-border pt-3">
+          <KV label="Monthly contribution (est.)"><MoneyText value={MONTHLY_CONTRIBUTIONS[record.owner.toLowerCase()] ?? 0} /></KV>
+          <KV label="Avg return">{formatPct(rate * 100, { decimals: 1 })}</KV>
+          <KV label="Years to 65">{years.toFixed(1)}</KV>
+          <KV label="Projected at 65 (base)" strong><MoneyText value={project(record.current_balance, rate, years)} /></KV>
+        </dl>
+      ) : (
+        <div className="mt-3 flex-1 rounded-xl border border-positive/30 bg-positive-bg p-3 text-label">
+          <p className="font-semibold text-fg">Earmarked for the WEST apartment</p>
+          <p className="text-fg-secondary">Applied at delivery — Dec 2027</p>
+        </div>
+      )}
 
-      {/* Data rows */}
-      <div className="space-y-2 mt-3 pt-3 border-t border-[hsl(var(--border))] text-xs">
-        <div className="flex justify-between">
-          <span className="text-[hsl(var(--text-secondary))]">Monthly contribution (est.)</span>
-          <span className="tabular-nums">≈ {fmtMXN(monthlyContrib)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-[hsl(var(--text-secondary))]">Avg return</span>
-          <span className="tabular-nums">{((record.annual_return_rate ?? 0.085) * 100).toFixed(1)}%</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-[hsl(var(--text-secondary))]">Years to 65</span>
-          <span className="tabular-nums">{years.toFixed(1)} yr</span>
-        </div>
-        <div className="flex justify-between font-semibold border-t border-[hsl(var(--border))] pt-2">
-          <span className="text-[hsl(var(--text-secondary))]">Projected at 65 (base)</span>
-          <span className="tabular-nums text-slate-600">{fmtMXN(projected)}</span>
-        </div>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
+        {isAfore
+          ? <><StatusPill>AFORE</StatusPill><StatusPill>Locked until 65</StatusPill></>
+          : <><StatusPill>Infonavit</StatusPill><StatusPill tone="positive">Available for WEST</StatusPill></>}
       </div>
-
-      {/* Badges */}
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[hsl(var(--border))]">
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-600 font-medium">AFORE</span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-500/10 text-slate-600 font-medium">🔒 Locked until 65</span>
-      </div>
-    </GlassCard>
+    </Card>
   )
 }
 
-// ─── Infonavit Card ───
-function InfonavitCard({ record, onEdit }: { record: RetirementRecord; onEdit: (r: RetirementRecord) => void }) {
-  return (
-    <GlassCard className="p-4 relative group border-l-2 border-emerald-500">
-      <div className="absolute top-3 right-3 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-        <button aria-label="Edit" onClick={() => onEdit(record)} className="p-2 sm:p-1 rounded hover:bg-[hsl(var(--bg-elevated))]">
-          <Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-secondary))]" />
-        </button>
-      </div>
-
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-3 pr-9 sm:pr-0">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white text-lg shrink-0">
-          🏗️
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <h4 className="text-sm font-semibold truncate">{record.name}</h4>
-            <OwnerDot owner={record.owner} size="sm" />
-          </div>
-          <p className="text-xs text-[hsl(var(--text-secondary))]">Infonavit</p>
-        </div>
-      </div>
-
-      {/* Balance */}
-      <p className="text-xl font-bold tabular-nums text-emerald-600">{fmtMXN(record.current_balance)}</p>
-      <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
-        Updated {record.last_updated ?? 'unknown'}
-      </p>
-
-      {/* WEST earmark box */}
-      <div className="flex items-center gap-2 mt-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-        <span className="text-sm shrink-0">🏗️</span>
-        <div>
-          <p className="text-xs font-medium text-emerald-600">Earmarked: WEST Apartment</p>
-          <p className="text-xs text-[hsl(var(--text-secondary))]">Applied at delivery — Dec 2027</p>
-        </div>
-      </div>
-
-      {/* Badges */}
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[hsl(var(--border))]">
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-medium">Infonavit</span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-medium">✅ Available for WEST</span>
-      </div>
-    </GlassCard>
-  )
-}
-
-// ─── Edit Modal ───
 function EditModal({ record, onSave, onClose }: {
   record: RetirementRecord
-  onSave: (id: string, updates: { current_balance?: number; institution?: string; annual_return_rate?: number; notes?: string }) => Promise<void>
+  onSave: (id: string, updates: { current_balance?: number; institution?: string; annual_return_rate?: number; notes?: string }) => Promise<boolean>
   onClose: () => void
 }) {
-  const [balance, setBalance] = useState(record.current_balance)
+  const [balance, setBalance] = useState(String(record.current_balance))
   const [institution, setInstitution] = useState(record.institution ?? '')
-  const [rate, setRate] = useState((record.annual_return_rate ?? 0.085) * 100)
+  const [rate, setRate] = useState(String(((record.annual_return_rate ?? DEFAULT_RETURN) * 100).toFixed(1)))
   const [notes, setNotes] = useState(record.notes ?? '')
   const [saving, setSaving] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const input = 'h-11 w-full rounded-xl border border-border bg-surface-2 px-3 text-sm text-fg'
 
   const handleSave = async () => {
-    setSaving(true)
-    await onSave(record.id, {
-      current_balance: balance,
+    setSaving(true); setFailed(false)
+    const ok = await onSave(record.id, {
+      current_balance: parseFloat(balance) || 0,
       institution: institution || undefined,
-      annual_return_rate: rate / 100,
+      annual_return_rate: (parseFloat(rate) || DEFAULT_RETURN * 100) / 100,
       notes: notes || undefined,
     })
     setSaving(false)
-    onClose()
+    if (ok) onClose()
+    else setFailed(true)
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-sm space-y-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-4 sm:p-6" onClick={e => e.stopPropagation()}>
-        <h2 className="font-semibold">Update {record.name}</h2>
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Balance (MXN)</label>
-            <input type="number" step="any" value={balance} onChange={e => setBalance(parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-slate-500" />
-          </div>
-          {record.instrument_type === 'afore' && (
-            <>
-              <div>
-                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Institution</label>
-                <input type="text" placeholder="SURA AFORE" value={institution} onChange={e => setInstitution(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm focus:outline-none focus:ring-1 focus:ring-slate-500" />
-              </div>
-              <div>
-                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Annual Return Rate (%)</label>
-                <input type="number" step="0.1" min="0" max="20" value={rate} onChange={e => setRate(parseFloat(e.target.value) || 8.5)}
-                  className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm font-mono focus:outline-none focus:ring-1 focus:ring-slate-500" />
-              </div>
-            </>
-          )}
-          <div>
-            <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Notes</label>
-            <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-[hsl(var(--accent))] border border-[hsl(var(--border))] text-sm resize-none focus:outline-none focus:ring-1 focus:ring-slate-500" />
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2 rounded-lg text-sm bg-[hsl(var(--accent))]">Cancel</button>
-          <button onClick={handleSave} disabled={saving}
-            className="flex-1 py-2 rounded-lg text-sm bg-slate-600 hover:bg-slate-500 text-white disabled:opacity-50">
-            {saving ? 'Saving...' : 'Update'}
-          </button>
-        </div>
+    <Modal open onClose={onClose} title={`Update ${record.name}`} footer={(
+      <div className="flex gap-2">
+        <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
+        <Button className="flex-1" disabled={saving} onClick={handleSave}>{saving ? 'Saving…' : 'Update'}</Button>
       </div>
-    </div>
+    )}>
+      <div className="space-y-3">
+        <div>
+          <label htmlFor="ret-balance" className="mb-1 block text-label font-medium text-fg-secondary">Balance (MXN)</label>
+          <input id="ret-balance" type="number" inputMode="decimal" step="any" value={balance} onChange={e => setBalance(e.target.value)} className={`${input} tabular-nums font-mono`} />
+        </div>
+        {record.instrument_type === 'afore' && (
+          <>
+            <div>
+              <label htmlFor="ret-institution" className="mb-1 block text-label font-medium text-fg-secondary">Institution</label>
+              <input id="ret-institution" type="text" placeholder="SURA AFORE" value={institution} onChange={e => setInstitution(e.target.value)} className={input} />
+            </div>
+            <div>
+              <label htmlFor="ret-rate" className="mb-1 block text-label font-medium text-fg-secondary">Annual return rate (%)</label>
+              <input id="ret-rate" type="number" inputMode="decimal" step="0.1" min="0" max="20" value={rate} onChange={e => setRate(e.target.value)} className={`${input} tabular-nums font-mono`} />
+            </div>
+          </>
+        )}
+        <div>
+          <label htmlFor="ret-notes" className="mb-1 block text-label font-medium text-fg-secondary">Notes</label>
+          <textarea id="ret-notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} className="w-full resize-none rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm text-fg" />
+        </div>
+        {failed && <p role="alert" className="text-[0.8125rem] text-negative">Couldn&apos;t save. Try again.</p>}
+      </div>
+    </Modal>
   )
 }
 
+async function fetchRecords(signal: AbortSignal): Promise<RetirementRecord[]> {
+  const res = await fetch('/api/finance/retirement', { signal, cache: 'no-store' })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const json = await res.json()
+  return json.records || []
+}
+
 // ═══════════════════════════════════════════
-// MAIN RETIREMENT TAB
+// RETIREMENT TAB
 // ═══════════════════════════════════════════
 interface RetirementTabProps {
+  /** 'All' or an owner name in any casing. */
   ownerFilter: string
 }
 
 export function RetirementTab({ ownerFilter }: RetirementTabProps) {
-  const [records, setRecords] = useState<RetirementRecord[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: records, error, loading, refresh } = useFinanceData('retirement', fetchRecords)
   const [editingRecord, setEditingRecord] = useState<RetirementRecord | null>(null)
 
-  const fetchData = () => {
-    setLoading(true)
-    fetch('/api/finance/retirement')
-      .then(r => r.ok ? r.json() : { records: [] })
-      .then(d => setRecords(d.records || []))
-      .catch(() => setRecords([]))
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { fetchData() }, [])
-
   const handleSave = async (id: string, updates: Record<string, unknown>) => {
-    await fetch('/api/finance/retirement', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...updates }),
-    })
-    fetchData()
+    try {
+      const res = await fetch('/api/finance/retirement', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updates }),
+      })
+      if (!res.ok) return false
+      await refresh()
+      return true
+    } catch {
+      return false
+    }
   }
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        {[1, 2, 3].map(i => <div key={i} className="h-48 rounded-xl bg-[hsl(var(--accent))] animate-pulse" />)}
-      </div>
-    )
+  if (loading) return <TabSkeleton />
+  if (!records) {
+    return <Card><ErrorState title="Couldn’t load retirement accounts" body="Balances are safe; they just didn’t load." onRetry={() => { void refresh() }} /></Card>
   }
 
-  // Filter by owner
-  const filtered = ownerFilter === 'all'
-    ? records
-    : records.filter(r => r.owner.toLowerCase() === ownerFilter.toLowerCase())
-
-  const totalRetirement = filtered.reduce((s, r) => s + r.current_balance, 0)
+  const filtered = ownerFilter.toLowerCase() === 'all' ? records : records.filter(r => ownersEqual(r.owner, ownerFilter))
+  const total = filtered.reduce((s, r) => s + r.current_balance, 0)
   const aforeTotal = filtered.filter(r => r.instrument_type === 'afore').reduce((s, r) => s + r.current_balance, 0)
   const westEarmarked = filtered.filter(r => r.is_usable_for_west).reduce((s, r) => s + (r.west_amount || r.current_balance), 0)
 
-  // Projection rows (AFORE only, no Infonavit — it's going to WEST not retirement)
-  const aforeRecords = filtered.filter(r => r.instrument_type === 'afore')
-  const projectionRows = aforeRecords.map(r => {
+  // Projections cover AFORE only — Infonavit goes to WEST, not retirement
+  const projectionRows = filtered.filter(r => r.instrument_type === 'afore').map(r => {
     const years = yearsToRetirement(r.owner, r.retirement_age ?? 65)
     return {
-      name: r.owner.charAt(0).toUpperCase() + r.owner.slice(1),
+      id: r.id,
       owner: r.owner,
-      yearsToRetirement: years.toFixed(1),
-      current: r.current_balance,
-      conservative: project(r.current_balance, 0.07, years),
-      base: project(r.current_balance, 0.085, years),
-      optimistic: project(r.current_balance, 0.10, years),
+      name: canonicalOwner(r.owner) ?? r.owner,
+      years,
+      values: SCENARIOS.map(s => project(r.current_balance, s.rate, years)),
     }
   })
-
-  const projTotals = {
-    conservative: projectionRows.reduce((s, r) => s + r.conservative, 0),
-    base: projectionRows.reduce((s, r) => s + r.base, 0),
-    optimistic: projectionRows.reduce((s, r) => s + r.optimistic, 0),
-  }
+  const projTotals = SCENARIOS.map((_, i) => projectionRows.reduce((s, r) => s + r.values[i], 0))
+  const contributions = Object.values(MONTHLY_CONTRIBUTIONS).reduce((a, b) => a + b, 0)
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div>
-        <h2 className="text-lg font-semibold">Retirement</h2>
-        <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">AFORE & long-term savings</p>
+      {error && <p role="status" className="text-label text-warning">Showing the last loaded balances — refresh failed.</p>}
+
+      <div className="flex items-start gap-2.5 rounded-xl border border-border bg-surface-2 px-4 py-3 text-[0.8125rem] text-fg-secondary">
+        <Lock aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>These funds are <span className="font-medium text-fg">locked until age 65</span> and not available for WEST or other short-term goals — except Laura&apos;s Infonavit, earmarked below.</span>
       </div>
 
-      {/* Lock banner */}
-      <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-sm text-[hsl(var(--text-secondary))]">
-        <span className="text-base shrink-0">🔒</span>
-        <span>These funds are <span className="font-medium text-[hsl(var(--foreground))]">locked until age 65</span> and not available for WEST or other short-term goals.</span>
-      </div>
+      <Card>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <Stat money label="Total retirement" value={formatMoney(total)} hint="Counts toward net worth" />
+          <Stat money label="AFORE combined" value={formatMoney(aforeTotal)} hint="Locked until 65" />
+          <Stat className="col-span-2 sm:col-span-1" money label="Available for WEST" value={formatMoney(westEarmarked)} hint="Laura’s Infonavit" />
+        </div>
+      </Card>
 
-      {/* KPIs */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
-        <GlassCard>
-          <span className="block text-[10px] sm:text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Total Retirement</span>
-          <p className="text-lg sm:text-3xl font-bold tabular-nums mt-1 whitespace-nowrap">{fmtMXN(totalRetirement).replace(/ MXN$/, '')}<span className="text-[11px] sm:text-3xl font-semibold sm:font-bold text-[hsl(var(--text-tertiary))] sm:text-current"> MXN</span></p>
-          <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">Net worth contribution</p>
-        </GlassCard>
+      {filtered.length === 0 ? (
+        <Card variant="subtle"><ErrorState variant="empty" title="No retirement accounts for this owner" body="AFORE and Infonavit balances show up here." /></Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map(r => <RecordCard key={r.id} record={r} onEdit={setEditingRecord} />)}
+        </div>
+      )}
 
-        <GlassCard>
-          <span className="block text-[10px] sm:text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">AFORE Combined</span>
-          <p className="text-lg sm:text-3xl font-bold tabular-nums mt-1 whitespace-nowrap">{fmtMXN(aforeTotal).replace(/ MXN$/, '')}<span className="text-[11px] sm:text-3xl font-semibold sm:font-bold text-[hsl(var(--text-tertiary))] sm:text-current"> MXN</span></p>
-          <div className="flex items-center gap-1 mt-1">
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-500/10 text-slate-600 font-medium">🔒 Locked</span>
-          </div>
-        </GlassCard>
-
-        <GlassCard className="col-span-2 sm:col-span-1">
-          <span className="block text-[10px] sm:text-xs font-medium uppercase tracking-wider text-[hsl(var(--text-secondary))]">Available for WEST</span>
-          <p className="text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">{fmtMXN(westEarmarked)}</p>
-          <div className="flex items-center gap-1 mt-1">
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-medium">✅ Laura&apos;s Infonavit</span>
-          </div>
-        </GlassCard>
-      </div>
-
-      {/* Cards */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map(r => (
-          r.instrument_type === 'afore'
-            ? <AforeCard key={r.id} record={r} onEdit={setEditingRecord} />
-            : <InfonavitCard key={r.id} record={r} onEdit={setEditingRecord} />
-        ))}
-        {filtered.length === 0 && (
-          <div className="col-span-full text-center py-12 text-[hsl(var(--text-secondary))]">
-            <p className="text-2xl mb-2">🏦</p>
-            <p className="text-sm">No retirement records for this owner</p>
-          </div>
-        )}
-      </div>
-
-      {/* Projection table (AFORE only) */}
       {projectionRows.length > 0 && (
-        <GlassCard className="p-4 sm:p-5">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-4">
-            Retirement Projections at Age 65
-          </h3>
-
-          {/* Desktop */}
-          <div className="hidden sm:block overflow-x-auto">
+        <Card>
+          <CardHeader title="Projections at age 65" description="Balance-only compounding, before future contributions." />
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[hsl(var(--border))]">
-                  <th className="text-left text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider py-3 px-3">Person</th>
-                  <th className="text-right text-xs font-medium text-amber-600 uppercase tracking-wider py-3 px-3">Conservative (7%)</th>
-                  <th className="text-right text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider py-3 px-3">Base (8.5%)</th>
-                  <th className="text-right text-xs font-medium text-emerald-600 uppercase tracking-wider py-3 px-3">Optimistic (10%)</th>
+                <tr className="border-b border-border text-label text-fg-secondary">
+                  <th scope="col" className="px-3 py-2.5 text-left font-medium">Person</th>
+                  {SCENARIOS.map(s => <th key={s.key} scope="col" className="px-3 py-2.5 text-right font-medium">{s.label} ({formatPct(s.rate * 100, { decimals: s.rate === DEFAULT_RETURN ? 1 : 0 })})</th>)}
                 </tr>
               </thead>
               <tbody>
                 {projectionRows.map(row => (
-                  <tr key={row.name} className="border-b border-[hsl(var(--border))] last:border-0">
-                    <td className="py-3 px-3">
+                  <tr key={row.id} className="border-b border-border last:border-0">
+                    <td className="px-3 py-3">
                       <span className="flex items-center gap-2">
-                        <OwnerDot owner={row.owner} size="sm" />
-                        <span className="font-medium">{row.name}</span>
-                        <span className="text-xs text-[hsl(var(--text-secondary))]">{row.yearsToRetirement}yr to 65</span>
+                        <OwnerAvatar owner={row.owner} size={18} showName />
+                        <span className="text-label text-fg-tertiary">{row.years.toFixed(1)} yr to 65</span>
                       </span>
                     </td>
-                    <td className="py-3 px-3 text-right tabular-nums text-amber-600">{fmtMXN(row.conservative)}</td>
-                    <td className="py-3 px-3 text-right tabular-nums font-semibold">{fmtMXN(row.base)}</td>
-                    <td className="py-3 px-3 text-right tabular-nums text-emerald-600">{fmtMXN(row.optimistic)}</td>
+                    {row.values.map((v, i) => <td key={i} className={`px-3 py-3 text-right ${i === 1 ? 'font-semibold' : 'text-fg-secondary'}`}><MoneyText value={v} /></td>)}
                   </tr>
                 ))}
-                <tr className="bg-[hsl(var(--bg-elevated))]/50">
-                  <td className="py-3 px-3 font-bold text-sm">Combined</td>
-                  <td className="py-3 px-3 text-right tabular-nums font-bold text-amber-600">{fmtMXN(projTotals.conservative)}</td>
-                  <td className="py-3 px-3 text-right tabular-nums font-bold">{fmtMXN(projTotals.base)}</td>
-                  <td className="py-3 px-3 text-right tabular-nums font-bold text-emerald-600">{fmtMXN(projTotals.optimistic)}</td>
+                <tr className="bg-surface-2">
+                  <th scope="row" className="px-3 py-3 text-left font-semibold">Combined</th>
+                  {projTotals.map((v, i) => <td key={i} className="px-3 py-3 text-right font-semibold"><MoneyText value={v} /></td>)}
                 </tr>
               </tbody>
             </table>
           </div>
-
-          {/* Mobile */}
-          <div className="sm:hidden space-y-3">
+          <div className="space-y-2 sm:hidden">
             {projectionRows.map(row => (
-              <div key={row.name} className="p-3 rounded-lg border border-[hsl(var(--border))]">
-                <div className="flex items-center gap-2 mb-2">
-                  <OwnerDot owner={row.owner} size="sm" />
-                  <span className="text-sm font-semibold">{row.name}</span>
-                  <span className="text-xs text-[hsl(var(--text-secondary))]">{row.yearsToRetirement}yr to 65</span>
-                  <span className="ml-auto text-[10px] text-[hsl(var(--text-tertiary))]">MXN</span>
+              <div key={row.id} className="rounded-xl border border-border p-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <OwnerAvatar owner={row.owner} size={18} showName />
+                  <span className="text-label text-fg-tertiary">{row.years.toFixed(1)} yr to 65</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div>
-                    <p className="text-[10px] text-amber-600 uppercase">Conservative</p>
-                    <p className="text-sm font-semibold tabular-nums">{fmtMXN(row.conservative).replace(/ MXN$/, '')}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[hsl(var(--text-secondary))] uppercase">Base</p>
-                    <p className="text-sm font-bold tabular-nums">{fmtMXN(row.base).replace(/ MXN$/, '')}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-emerald-600 uppercase">Optimistic</p>
-                    <p className="text-sm font-semibold tabular-nums">{fmtMXN(row.optimistic).replace(/ MXN$/, '')}</p>
-                  </div>
-                </div>
+                <dl className="grid grid-cols-3 gap-2">
+                  {SCENARIOS.map((s, i) => (
+                    <div key={s.key}>
+                      <dt className="text-micro text-fg-tertiary">{s.label}</dt>
+                      <dd className={`tabular-nums text-sm ${i === 1 ? 'font-semibold' : ''}`} data-money="">{formatMoney(row.values[i], { mode: 'compact' })}</dd>
+                    </div>
+                  ))}
+                </dl>
               </div>
             ))}
           </div>
-
-          <p className="text-[10px] text-[hsl(var(--text-secondary))] mt-3">
-            * Balance-only projection. Future employer contributions (est. {fmtMXN(Object.values(MONTHLY_CONTRIBUTIONS).reduce((a, b) => a + b, 0))}/mo combined) not included.
+          <p className="mt-3 text-label text-fg-tertiary">
+            Employer contributions (est. {formatMoney(contributions)}/mo combined) are not included.
           </p>
-        </GlassCard>
+        </Card>
       )}
 
-      {/* Info banner */}
-      <div className="flex gap-3 p-4 rounded-lg bg-[hsl(var(--bg-elevated))] border border-[hsl(var(--border))] text-xs text-[hsl(var(--text-secondary))]">
-        <span className="text-base shrink-0">ℹ️</span>
+      <div className="flex gap-3 rounded-xl border border-border bg-surface-2 p-4 text-label text-fg-secondary">
+        <Info aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
         <p className="leading-relaxed">
-          AFORE contributions are made automatically by your employer (6.5% of salary). Balances update with contributions + returns.
-          To get your exact current balance, check your AFORE app or{' '}
-          <a href="https://afore.mx" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">afore.mx</a>.
+          Employers contribute to AFORE automatically (6.5% of salary). For the exact balance, check your AFORE app or{' '}
+          <a href="https://afore.mx" target="_blank" rel="noreferrer" className="font-medium text-fg underline underline-offset-2">afore.mx</a>.
         </p>
       </div>
 
-      {/* Edit modal */}
-      {editingRecord && (
-        <EditModal record={editingRecord} onSave={handleSave} onClose={() => setEditingRecord(null)} />
-      )}
+      {editingRecord && <EditModal record={editingRecord} onSave={handleSave} onClose={() => setEditingRecord(null)} />}
     </div>
   )
 }

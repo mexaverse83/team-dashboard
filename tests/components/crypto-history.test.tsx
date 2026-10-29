@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CryptoClient } from '@/components/finance/crypto-client'
+import { formatDateShort } from '@/lib/format'
 
 const holding = {
   id: 'aero-position', symbol: 'AERO', name: 'Aerodrome', owner: 'Bernardo',
@@ -33,8 +34,8 @@ describe('crypto transaction history', () => {
     const history = within(screen.getByRole('table'))
     expect(history.getByText('2,440.199')).toBeInTheDocument()
     expect(history.getByText('723.172')).toBeInTheDocument()
-    expect(history.getByText('10-08')).toBeInTheDocument()
-    expect(history.getByText('09-25')).toBeInTheDocument()
+    expect(history.getByText(formatDateShort('2026-10-08'))).toBeInTheDocument()
+    expect(history.getByText(formatDateShort('2026-09-25'))).toBeInTheDocument()
     expect(history.getAllByText(/Sell/)).toHaveLength(2)
     expect(screen.getByRole('link', { name: 'View transaction history (2)' })).toHaveAttribute('href', '#crypto-transactions')
   })

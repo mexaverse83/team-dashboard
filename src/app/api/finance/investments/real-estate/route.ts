@@ -1,61 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { holdingsRoute } from '../holdings-route'
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) throw new Error(`Missing env: URL=${!!url} KEY=${!!key}`)
-  return createClient(url, key)
-}
+const route = holdingsRoute('finance_real_estate', 'properties', 'Real estate')
 
-export async function GET(req: NextRequest) {
-  const auth = await authorizeFinanceRequest(req)
-  if (!auth.ok) return auth.response
-  try {
-    const supabase = getSupabase()
-    const { data, error } = await supabase.from('finance_real_estate').select('*').order('created_at', { ascending: false })
-    if (error) throw error
-    return NextResponse.json({ properties: data || [] })
-  } catch (e: unknown) {
-    console.error('Real estate GET error:', e)
-    return NextResponse.json({ properties: [] })
-  }
-}
-
-export async function POST(req: NextRequest) {
-  const auth = await authorizeFinanceRequest(req)
-  if (!auth.ok) return auth.response
-  try {
-    const supabase = getSupabase()
-    const body = await req.json()
-    const { id, ...fields } = body
-
-    if (id) {
-      const { error } = await supabase.from('finance_real_estate').update({ ...fields, updated_at: new Date().toISOString() }).eq('id', id)
-      if (error) throw error
-    } else {
-      const { error } = await supabase.from('finance_real_estate').insert(fields)
-      if (error) throw error
-    }
-    return NextResponse.json({ ok: true })
-  } catch (e: unknown) {
-    console.error('Real estate POST error:', e)
-    return NextResponse.json({ error: 'Save failed' }, { status: 500 })
-  }
-}
-
-export async function DELETE(req: NextRequest) {
-  const auth = await authorizeFinanceRequest(req)
-  if (!auth.ok) return auth.response
-  try {
-    const supabase = getSupabase()
-    const { id } = await req.json()
-    const { error } = await supabase.from('finance_real_estate').delete().eq('id', id)
-    if (error) throw error
-    return NextResponse.json({ ok: true })
-  } catch (e: unknown) {
-    console.error('Real estate DELETE error:', e)
-    return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
-  }
-}
+export const GET = route.GET
+export const POST = route.POST
+export const DELETE = route.DELETE

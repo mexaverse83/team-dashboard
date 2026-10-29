@@ -1,4 +1,4 @@
-import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceRecurring } from './finance-types'
+import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceRecurring } from '@/lib/finance-types'
 
 export const SEED_CATEGORIES: FinanceCategory[] = [
   { id: 'cat-rent', name: 'Rent/Mortgage', icon: '🏠', color: '#8B5CF6', type: 'expense', is_default: true, sort_order: 1 },
