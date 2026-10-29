@@ -271,6 +271,7 @@ export async function buildSummary(
     budgetedCategoryIds: new Set(activeBudgets.map(b => b.category_id)),
     isEveryday: id => !!id && CONTROLLABLE.has(catMap.get(id)?.name || ''),
     month,
+    today,
   })
   // Posted income plus recurring income still due; never a baseline floor
   // that keeps expecting payroll after it landed.
@@ -442,6 +443,7 @@ export async function buildSummary(
       moved_to_savings: movedToSavings,
       unbudgeted_typical: unbudgeted.typical,
       unbudgeted_spent: unbudgeted.spent,
+      unbudgeted_spent_today: unbudgeted.spent_today,
       projected_savings: projectedMonthSavings,
       method: spendProjection.past_day_7
         ? 'per-category pace blended with recent-month medians'

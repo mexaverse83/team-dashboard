@@ -251,19 +251,42 @@ describe('buildToday (goal-safe daily allowance)', () => {
   })
 
   it('reserves the usual unbudgeted spend (Health…) so the allowance holds when it posts', () => {
-    // Day 1: Health usually runs $15.5k a month with no budget row; nothing posted yet.
+    // Day 1: Health usually runs $15.5k a month with no budget row; nothing posted yet: the whole month is reserved.
+    const d1 = octSummary()
+    d1.current_month.day_of_month = 1
+    d1.month_projection = { ...d1.month_projection!, unbudgeted_typical: 15500, unbudgeted_spent: 0 }
+    expect(committedLeft(d1, '2026-10-01', '2026-10-31', true)).toBe(332 + 15500)
+    // Day 29 of 31: only the usual month's share of the 3 days left (15,500 × 3/31).
     const s = octSummary()
     s.month_projection = { ...s.month_projection!, unbudgeted_typical: 15500, unbudgeted_spent: 0 }
     const base = buildToday(input({ summary: s }))!
-    expect(base.committed).toBe(332 + 15500)
-    // A $3,000 Health bill posts today: committed falls as spent_so_far rises, the allowance holds.
+    expect(base.committed).toBe(332 + 1500)
+    // A $1,000 Health bill posts today: committed falls as spent_so_far rises, the allowance holds.
     const h = octSummary()
-    h.month_projection = { ...h.month_projection!, spent_so_far: h.month_projection!.spent_so_far + 3000, unbudgeted_typical: 15500, unbudgeted_spent: 3000 }
-    const after = buildToday(input({ summary: h, transactions: [...octTxs(), { transaction_date: '2026-10-29', amount: 3000, category_id: 'health' }] }))!
-    expect(after).toMatchObject({ pool: base.pool, allowance: base.allowance, spent: 0 })
-    // Past the usual amount, the extra lowers the pool once.
-    h.month_projection = { ...h.month_projection!, unbudgeted_spent: 18000 }
+    h.month_projection = { ...h.month_projection!, spent_so_far: h.month_projection!.spent_so_far + 1000, unbudgeted_typical: 15500, unbudgeted_spent: 1000, unbudgeted_spent_today: 1000 }
+    const after = buildToday(input({ summary: h, transactions: [...octTxs(), { transaction_date: '2026-10-29', amount: 1000, category_id: 'health' }] }))!
+    expect(after).toMatchObject({ committed: 332 + 500, pool: base.pool, allowance: base.allowance, spent: 0 })
+    // Past the usual share, the extra lowers the pool once.
+    h.month_projection = { ...h.month_projection!, unbudgeted_spent: 3000, unbudgeted_spent_today: 3000 }
     expect(buildToday(input({ summary: h }))!.committed).toBe(332)
+    // Posted earlier in the month counts against what is left of the usual month.
+    h.month_projection = { ...h.month_projection!, unbudgeted_spent: 15000, unbudgeted_spent_today: 0 }
+    expect(buildToday(input({ summary: h }))!.committed).toBe(332 + 500)
+  })
+
+  it('does not hold back a whole month of unbudgeted spend late in the month (no false risk)', () => {
+    // The live day-29 case: pool 7,050 before any unbudgeted reserve. A lumpy
+    // median (0 / 7,000 / 9,000 → 7,000; or 8,000) used to reserve all of it and flip to 'risk'.
+    const plain = buildToday(input())!
+    expect(plain).toMatchObject({ state: 'ok', pool: 7050, allowance: 1880 })
+    const s = octSummary()
+    s.month_projection = { ...s.month_projection!, unbudgeted_typical: 8000, unbudgeted_spent: 0 }
+    const t = buildToday(input({ summary: s }))!
+    expect(t.committed).toBe(plain.committed + Math.round(8000 * 3 / 31))
+    expect(t.state).toBe('ok')
+    expect(t.pool).toBe(7050 - 774)
+    expect(t.goal.no_spend_pct).toBeGreaterThan(100)
+    expect(t.allowance).toBeGreaterThan(0)
   })
 
   it('is null when the ledger or category read failed (today\'s spend would be unknown)', () => {
@@ -338,6 +361,10 @@ describe('unbudgetedRoutine (summary.month_projection)', () => {
       isEveryday: id => everyday.has(id || ''),
       month: '2026-10',
     })
-    expect(r).toEqual({ typical: 15500, spent: 3000 })
+    expect(r).toEqual({ typical: 15500, spent: 3000, spent_today: 0 })
+    expect(unbudgetedRoutine({
+      historyTxs: [], currentMonthTxs: [tx('2026-10-03', 3000, 'health'), tx('2026-10-05', 1200, null), tx('2026-10-05', 500, 'other')],
+      budgetedCategoryIds: new Set(), isEveryday: id => everyday.has(id || ''), month: '2026-10', today: '2026-10-05',
+    })).toEqual({ typical: 0, spent: 4200, spent_today: 1200 })
   })
 })

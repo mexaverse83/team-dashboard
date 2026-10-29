@@ -50,17 +50,20 @@ export function projectMonthSpend({
  * (Health, Uncategorized…): `typical` is the median of the last 3 complete
  * months, `spent` what has posted this month. Planned tags are out (they sit
  * at actuals or are scheduled elsewhere); the caller drops savings moves.
- * The widget's daily plan reserves typical − spent for the rest of the month,
- * so a Health bill landing mid-day doesn't shrink the day's allowance.
+ * The widget's daily plan reserves typical − spent, prorated by the days
+ * left; `spent_today` lets a Health bill landing mid-day not shrink the day's
+ * allowance.
  */
 export function unbudgetedRoutine({
-  historyTxs, currentMonthTxs, budgetedCategoryIds, isEveryday, month,
+  historyTxs, currentMonthTxs, budgetedCategoryIds, isEveryday, month, today,
 }: {
   historyTxs: TxRow[]
   currentMonthTxs: TxRow[]
   budgetedCategoryIds: Set<string>
   isEveryday: (categoryId: string | null | undefined) => boolean
   month: string
+  /** YYYY-MM-DD (Mexico City): splits out what posted today. */
+  today?: string
 }) {
   const counts = (t: TxRow) => !budgetedCategoryIds.has(t.category_id || '') && !isEveryday(t.category_id) && !hasTag(t, ...UNTRENDED_TAGS)
   const byMonth = new Map([-3, -2, -1].map(i => [addMonthsKey(month, i), 0]))
@@ -68,9 +71,11 @@ export function unbudgetedRoutine({
     const m = String(t.transaction_date || '').slice(0, 7)
     if (byMonth.has(m) && counts(t)) byMonth.set(m, (byMonth.get(m) || 0) + txAmount(t))
   }
+  const posted = currentMonthTxs.filter(counts)
   return {
     typical: Math.round(median([...byMonth.values()])),
-    spent: Math.round(currentMonthTxs.filter(counts).reduce((s, t) => s + txAmount(t), 0)),
+    spent: Math.round(posted.reduce((s, t) => s + txAmount(t), 0)),
+    spent_today: Math.round(posted.filter(t => !!today && String(t.transaction_date || '').slice(0, 10) === today).reduce((s, t) => s + txAmount(t), 0)),
   }
 }
 

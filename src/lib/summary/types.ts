@@ -213,6 +213,8 @@ export interface SummaryResponse {
     unbudgeted_typical?: number
     /** That same spend posted this month (planned tags and savings moves out). */
     unbudgeted_spent?: number
+    /** The part of unbudgeted_spent dated today (Mexico City). */
+    unbudgeted_spent_today?: number
     projected_savings: number
     method: string
   }

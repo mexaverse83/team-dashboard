@@ -33,9 +33,12 @@
 //                     the projection adds outside the budget rows too;
 //                   unbudgeted_left — routine spend in categories with no
 //                     budget row outside the everyday ones (Health,
-//                     Uncategorized): max(0, the last 3 months' median −
-//                     posted this month). A Health bill today moves from here
-//                     into spent_so_far, so the allowance holds.
+//                     Uncategorized), from the last 3 months' median U:
+//                     max(0, min(U − posted before today, U × days_left /
+//                     days_in_month) − posted today). Prorated, so late in
+//                     the month it doesn't hold back a whole month's worth;
+//                     a Health bill today moves from here into spent_so_far,
+//                     so the allowance holds.
 //   reserve    = RESERVE_SHARE × max(0, pool − everyday budgets left this morning)
 //                (the cushion over target if the everyday budgets are used as
 //                planned; budgets left is signed like `variable` and floored at
@@ -254,10 +257,24 @@ export function scheduledParts(summary: TodayInput['summary'], monthStart: strin
   return { subscriptions: round(subscriptions), msi: round(msi), plan: round(plan) }
 }
 
-/** Routine unbudgeted, non-everyday spend still expected this month (summary.month_projection). */
+/**
+ * Routine unbudgeted, non-everyday spend still expected this month
+ * (summary.month_projection), as of this morning: what is left of the usual
+ * month, capped at the usual month's share of the days left (today included),
+ * so day 29 of 31 holds back 3/31 of it, not a whole month the projection
+ * doesn't expect. Then today's postings come off, so a Health bill landing
+ * today moves from here into spent_so_far and the pool holds.
+ */
 export function unbudgetedLeft(summary: TodayInput['summary']): number {
   const mp = summary.month_projection
-  return round(Math.max(0, num(mp?.unbudgeted_typical) - num(mp?.unbudgeted_spent)))
+  const typical = Math.max(0, num(mp?.unbudgeted_typical))
+  if (!typical) return 0
+  const daysIn = num(summary.current_month.days_in_month) || 30
+  const day = Math.min(daysIn, Math.max(1, num(summary.current_month.day_of_month) || 1))
+  const spentToday = Math.max(0, num(mp?.unbudgeted_spent_today))
+  const spentBefore = Math.max(0, num(mp?.unbudgeted_spent) - spentToday)
+  const morning = Math.min(typical - spentBefore, typical * (daysIn - day + 1) / daysIn)
+  return round(Math.max(0, morning - spentToday))
 }
 
 /** Everything scheduled and unposted this month (subscriptions + MSI + plan events). */
