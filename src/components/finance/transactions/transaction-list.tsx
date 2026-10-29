@@ -83,7 +83,7 @@ function TransactionRow({ tx, open, onOpenChange, onEdit, onDelete }: RowProps) 
         <button type="button" aria-label={rowAriaLabel(tx)}
           onClick={() => { if (swiped.current) { swiped.current = false; return } if (open) { onOpenChange(false); return } onEdit(tx) }}
           className="flex min-h-[60px] min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none sm:px-4">
-          <CategoryIcon name={tx.category?.name} emoji={tx.category?.icon} colorIndex={tx.category?.sort_order ?? 0} size={36} className="rounded-xl" />
+          <CategoryIcon name={tx.category?.name} itemName={tx.merchant} emoji={tx.category?.icon} colorIndex={tx.category?.sort_order ?? 0} size={36} className="rounded-xl" />
           <span className="min-w-0 flex-1">
             <span className="flex min-w-0 items-center gap-1.5">
               <span className="truncate text-[0.9375rem] font-medium text-fg">{name}</span>

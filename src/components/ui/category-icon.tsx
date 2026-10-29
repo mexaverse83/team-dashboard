@@ -1,12 +1,14 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
-import { categoryColor, getCategoryIcon } from '@/lib/category-icons'
+import { categoryColor, getCategoryIcon, getItemIcon } from '@/lib/category-icons'
 
 export interface CategoryIconProps extends React.HTMLAttributes<HTMLSpanElement> {
   /** Category name ('Dining Out'); picks the lucide icon. */
   name: string | null | undefined
   /** DB emoji, used only when the name has no lucide mapping. */
   emoji?: string | null
+  /** The row's own name (subscription, merchant): a specific match wins over the category icon. */
+  itemName?: string | null
   /** Palette slot (category sort_order or list index) → --cat-1..8. */
   colorIndex?: number | null
   /** Chip size in px (default 28). */
@@ -16,8 +18,8 @@ export interface CategoryIconProps extends React.HTMLAttributes<HTMLSpanElement>
 }
 
 /** Lucide icon in a rounded chip tinted with the category colour at 12% (VIS-10). */
-export function CategoryIcon({ name, emoji, colorIndex = 0, size = 28, label, className, style, ...props }: CategoryIconProps) {
-  const Icon = getCategoryIcon(name)
+export function CategoryIcon({ name, itemName, emoji, colorIndex = 0, size = 28, label, className, style, ...props }: CategoryIconProps) {
+  const Icon = getItemIcon(itemName) ?? getCategoryIcon(name)
   const fallback = emoji || (name ? name.trim().charAt(0).toUpperCase() : '•')
   return (
     <span

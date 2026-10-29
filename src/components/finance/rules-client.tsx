@@ -226,7 +226,7 @@ export default function RulesClient() {
             <Button variant="secondary" onClick={runLearn} disabled={learning}>
               <Wand2 className="h-4 w-4" aria-hidden="true" /> {learning ? 'Analyzing…' : 'Learn from history'}
             </Button>
-            <Button onClick={openCreate}><Plus className="h-4 w-4" aria-hidden="true" /> New rule</Button>
+            <Button onClick={openCreate} className="flex-1 sm:flex-none"><Plus className="h-4 w-4" aria-hidden="true" /> New rule</Button>
           </>}
         />
 

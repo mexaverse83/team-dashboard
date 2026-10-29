@@ -267,7 +267,7 @@ export function InstallmentsClient() {
         <PageHeader
           title="MSI Installments"
           description="Meses Sin Intereses — interest-free installment plans"
-          actions={<Button onClick={openAdd}><Plus className="h-4 w-4" aria-hidden="true" /> Add MSI plan</Button>}
+          actions={<Button onClick={openAdd} className="w-full sm:w-auto"><Plus className="h-4 w-4" aria-hidden="true" /> Add MSI plan</Button>}
         />
 
         {msiIncomeRatio > 30 && (

@@ -2,7 +2,7 @@
 // categories this map doesn't know, so new categories still get a glyph.
 import {
   Baby, Banknote, Briefcase, Building2, Car, Clapperboard, CreditCard, Droplets, Dumbbell, Fuel, Gift,
-  GraduationCap, HeartPulse, House, Landmark, Laptop, Package, PawPrint, PiggyBank, Plane, Receipt,
+  GraduationCap, HeartPulse, House, Landmark, Laptop, Package, PawPrint, PiggyBank, Plane, Plug, Receipt,
   Shield, Shirt, ShoppingBag, ShoppingCart, Smartphone, TrendingUp, UtensilsCrossed, Wallet, Wifi, Wrench, Zap,
   type LucideIcon,
 } from 'lucide-react'
@@ -18,7 +18,8 @@ const BY_NAME: Record<string, LucideIcon> = {
   restaurants: UtensilsCrossed,
   transport: Car,
   transportation: Car,
-  utilities: Zap,
+  // Utilities and Electricity sit side by side on Budgets: distinct glyphs.
+  utilities: Plug,
   electricity: Zap,
   subscriptions: Smartphone,
   entertainment: Clapperboard,
@@ -58,7 +59,8 @@ const BY_KEYWORD: Array<[RegExp, LucideIcon]> = [
   [/grocer|super|despensa/i, ShoppingCart],
   [/dining|restaurant|food|comida|caf[eé]|bar\b/i, UtensilsCrossed],
   [/uber|taxi|transport|car\b|auto/i, Car],
-  [/electric|luz|cfe|util/i, Zap],
+  [/electric|luz|cfe/i, Zap],
+  [/util/i, Plug],
   [/phone|cel|subscri|streaming/i, Smartphone],
   [/health|medic|doctor|pharma|farmacia|salud|dental/i, HeartPulse],
   [/insur|seguro/i, Shield],
@@ -78,6 +80,24 @@ export function getCategoryIcon(name: string | null | undefined): LucideIcon | n
   if (!key) return null
   if (BY_NAME[key]) return BY_NAME[key]
   for (const [pattern, icon] of BY_KEYWORD) if (pattern.test(key)) return icon
+  return null
+}
+
+/**
+ * Item-name icons (a subscription or transaction's own name) that are more
+ * specific than its category: "Internet" and "Celular" under Utilities.
+ */
+const BY_ITEM: Array<[RegExp, LucideIcon]> = [
+  [/internet|wi-?fi|izzi|totalplay|telmex|megacable|infinitum/i, Wifi],
+  [/celular|\bcel\b|telcel|movistar|at&t|iphone|phone|tel[eé]fono/i, Smartphone],
+  [/\bagua\b|water/i, Droplets],
+  [/\bgas\b|gasolina|fuel/i, Fuel],
+]
+
+export function getItemIcon(itemName: string | null | undefined): LucideIcon | null {
+  const key = String(itemName ?? '').trim()
+  if (!key) return null
+  for (const [pattern, icon] of BY_ITEM) if (pattern.test(key)) return icon
   return null
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { Baby, House, Package, ShoppingCart, UtensilsCrossed, Zap } from 'lucide-react'
-import { categoryColor, categoryColorVar, getCategoryIcon } from '@/lib/category-icons'
+import { Baby, House, Package, Plug, ShoppingCart, Smartphone, UtensilsCrossed, Wifi, Zap } from 'lucide-react'
+import { categoryColor, categoryColorVar, getCategoryIcon, getItemIcon } from '@/lib/category-icons'
 
 describe('category icons', () => {
   it('maps known names case-insensitively', () => {
@@ -17,6 +17,18 @@ describe('category icons', () => {
     expect(getCategoryIcon('Zzz unknown')).toBeNull()
     expect(getCategoryIcon('')).toBeNull()
     expect(getCategoryIcon(null)).toBeNull()
+  })
+
+  it('gives Utilities and Electricity different glyphs', () => {
+    expect(getCategoryIcon('Utilities')).toBe(Plug)
+    expect(getCategoryIcon('Electricity')).toBe(Zap)
+  })
+
+  it('lets a specific item name (Internet, Celular) override the generic category icon', () => {
+    expect(getItemIcon('Internet Izzi')).toBe(Wifi)
+    expect(getItemIcon('Celular Laura')).toBe(Smartphone)
+    expect(getItemIcon('Netflix')).toBeNull()
+    expect(getItemIcon(null)).toBeNull()
   })
 
   it('cycles the 8-slot token palette', () => {

@@ -342,7 +342,7 @@ export default function SubscriptionsClient() {
               aria-label="Post due items (subscriptions, income, MSI)">
               {processing ? 'Posting…' : <>Post due items<span className="hidden xl:inline font-normal text-fg-secondary"> (subscriptions, income, MSI)</span></>}
             </Button>
-            <Button onClick={openAdd}><Plus className="h-4 w-4" aria-hidden="true" /> Add subscription</Button>
+            <Button onClick={openAdd} className="flex-1 sm:flex-none"><Plus className="h-4 w-4" aria-hidden="true" /> Add subscription</Button>
           </>}
         />
 
@@ -390,7 +390,7 @@ export default function SubscriptionsClient() {
                       <button type="button" onClick={() => openEdit(sub)}
                         aria-label={`Edit ${sub.name}, ${formatMoney(sub.amount)} ${FREQUENCY_LABEL[sub.frequency]?.toLowerCase() ?? sub.frequency}${due ? `, next ${formatDateShort(due)}` : ''}`}
                         className="flex min-h-[60px] min-w-0 flex-1 items-center gap-3 px-4 py-2.5 text-left hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-none">
-                        <CategoryIcon name={sub.category?.name} emoji={sub.category?.icon} colorIndex={sub.category?.sort_order ?? 0} size={36} className="rounded-xl" />
+                        <CategoryIcon name={sub.category?.name} itemName={sub.name} emoji={sub.category?.icon} colorIndex={sub.category?.sort_order ?? 0} size={36} className="rounded-xl" />
                         <span className="min-w-0 flex-1">
                           <span className="flex min-w-0 flex-wrap items-center gap-1.5">
                             <span className="truncate text-[0.9375rem] font-medium text-fg">{sub.name}</span>
