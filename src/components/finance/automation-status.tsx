@@ -84,11 +84,11 @@ export function summarizeHealth(health: HealthResponse | undefined): { tone: Ton
   const failing = health.jobs.filter(j => j.status === 'failing')
   const late = health.jobs.filter(j => j.status === 'late')
   if (failing.length) {
-    return { tone: 'negative', text: failing.length === 1 ? `${failing[0].label || failing[0].job} failing` : `${failing.length} automations failing`, short: 'Failing' }
+    return { tone: 'negative', text: failing.length === 1 ? `${failing[0].label || failing[0].job} failing` : `${failing.length} automations failing`, short: 'Sync failing' }
   }
   if (late.length || (health.status !== 'ok' && health.status !== 'unknown')) {
     const label = late.length === 1 ? `${late[0].label || late[0].job} late` : late.length ? `${late.length} automations late` : 'Automation needs attention'
-    return { tone: 'warning', text: label, short: 'Late' }
+    return { tone: 'warning', text: label, short: 'Sync late' }
   }
   const recurring = health.jobs.find(j => j.job === 'process-recurring')
   const at = recurring?.last_ok_at ? new Date(recurring.last_ok_at) : null

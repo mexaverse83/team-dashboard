@@ -142,6 +142,54 @@ function useQuickAdd(before?: () => void) {
   }
 }
 
+/**
+ * Desktop nav scroll region: keeps the current page's link in view (it can sit
+ * below the fold on laptop-height windows) and fades whichever edge has more
+ * links past it, so the list visibly scrolls.
+ */
+function useNavScroll(pathname: string) {
+  const ref = useRef<HTMLElement>(null)
+  const [edges, setEdges] = useState({ top: false, bottom: false })
+
+  const measure = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    const top = el.scrollTop > 2
+    const bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 2
+    setEdges(prev => (prev.top === top && prev.bottom === bottom ? prev : { top, bottom }))
+  }, [])
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    // Scroll only this list (scrollIntoView would also move the page), leaving
+    // room under the link for the bottom fade.
+    const link = el.querySelector<HTMLElement>('[aria-current="page"]')
+    if (link) {
+      const box = el.getBoundingClientRect()
+      const at = link.getBoundingClientRect()
+      if (at.bottom > box.bottom - 40) el.scrollTop += at.bottom - box.bottom + 48
+      else if (at.top < box.top) el.scrollTop -= box.top - at.top + 8
+    }
+    measure()
+  }, [pathname, measure])
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.addEventListener('scroll', measure, { passive: true })
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(el)
+    if (el.firstElementChild) observer?.observe(el.firstElementChild)
+    return () => { el.removeEventListener('scroll', measure); observer?.disconnect() }
+  }, [measure])
+
+  const fade = edges.top || edges.bottom
+    ? `linear-gradient(to bottom, ${edges.top ? 'transparent 0, #000 28px' : '#000 0'}, ${edges.bottom ? '#000 calc(100% - 40px), transparent 100%' : '#000 100%'})`
+    : undefined
+  return { ref, style: fade ? { maskImage: fade, WebkitMaskImage: fade } : undefined, moreBelow: edges.bottom }
+}
+
 export function Sidebar() {
   // The sign-in screen shouldn't offer navigation to pages it can't open yet.
   if (usePathname() === '/finance/login') return null
@@ -157,6 +205,7 @@ function SidebarNav() {
   const currentItem = currentFinanceNavItem(pathname)
   const dockRoutes = mobileDockItems.map(item => item.href)
   const otherRouteActive = !dockRoutes.some(href => isFinanceRouteActive(pathname, href))
+  const navScroll = useNavScroll(pathname)
 
   const closeMobile = useCallback(() => setMobileRoute(null), [])
   const quickAdd = useQuickAdd(closeMobile)
@@ -301,19 +350,22 @@ function SidebarNav() {
           <PrivacyButton className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-fg-secondary hover:text-fg" />
         </div>
 
-        <nav aria-label="Primary finance navigation" className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-2">
-          <NavSections pathname={pathname} compact />
-          <MoreGroup pathname={pathname} compact />
+        <nav ref={navScroll.ref} style={navScroll.style} data-more-below={navScroll.moreBelow ? '' : undefined}
+          aria-label="Primary finance navigation" className="sidebar-nav-scroll -mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-2">
+          <div>
+            <NavSections pathname={pathname} compact />
+            <MoreGroup pathname={pathname} compact />
+          </div>
         </nav>
 
-        <div className="sidebar-footer mt-auto shrink-0 space-y-3 border-t border-border pt-4">
+        {/* Kept short so the nav above gets the height on laptop windows. */}
+        <div className="sidebar-footer mt-auto shrink-0 space-y-2 border-t border-border pt-3">
           <FinanceAuthBadge collapsed={false} />
-          <div className="flex items-center justify-between gap-2 px-1">
-            <span className="text-label text-fg-secondary">Theme</span>
+          <AutomationStatus placement="beside" align="start" className="px-0" />
+          <div className="flex items-center justify-between gap-2 pl-2">
+            <p className="min-w-0 text-micro leading-tight text-fg-tertiary">v2.2 · Mona Finance</p>
             <ThemeToggle compact />
           </div>
-          <AutomationStatus placement="beside" align="start" className="px-0" />
-          <p className="px-2 text-micro text-fg-tertiary">v2.2 · Mona Finance</p>
         </div>
       </aside>
     </>
