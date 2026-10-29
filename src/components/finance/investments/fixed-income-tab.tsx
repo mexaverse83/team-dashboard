@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/ui/error-state'
 import { effectiveNetRate, normalizeRate } from '@/lib/fixed-income'
 import { formatDateShort, formatMoney, formatPct } from '@/lib/format'
 import { OWNERS, ownersEqual } from '@/lib/owners'
+import { cn } from '@/lib/utils'
 import { HoldingFormModal, type HoldingField } from './holding-form-modal'
 import { KV, OwnerSplitCards, TierBadge } from './shared'
 import type { Portfolio } from './portfolio'
@@ -136,7 +137,7 @@ export function FixedIncomeTab({ portfolio, ownerFilter, failed, onRetry, onChan
             action={<Button variant="secondary" size="sm" onClick={() => setForm(EMPTY_FI)}><Shield aria-hidden className="h-4 w-4" />Add instrument</Button>} />
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={cn('grid grid-cols-1 gap-3 sm:grid-cols-2', fiGroups.length > 2 && 'lg:grid-cols-3')}>
           {fiGroups.map(group => {
             const inst = group.representative
             const multi = ownerFilter === 'All' && group.allMembers.length > 1
@@ -149,8 +150,8 @@ export function FixedIncomeTab({ portfolio, ownerFilter, failed, onRetry, onChan
                     {inst.institution.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h4 className="flex items-center gap-1.5 text-sm font-semibold">
-                      <span className="truncate">{name}</span>
+                    <h4 className="flex items-start gap-1.5 text-sm font-semibold">
+                      <span className="line-clamp-2 min-w-0">{name}</span>
                       {(multi ? group.allMembers : group.filtered.slice(0, 1)).map(i => <OwnerAvatar key={i.id} owner={i.owner} size={16} />)}
                     </h4>
                     <p className="text-label text-fg-secondary">{inst.institution}</p>

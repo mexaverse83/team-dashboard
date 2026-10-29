@@ -3,8 +3,8 @@ import coreWebVitals from "eslint-config-next/core-web-vitals";
 // toISOString() is UTC: after 18:00 in Mexico City it already says tomorrow,
 // and month keys from local midnights land in the previous month (CH-10).
 const NO_UTC_DATE_KEYS = {
-  selector: "CallExpression[callee.property.name='slice'][callee.object.type='CallExpression'][callee.object.callee.property.name='toISOString']",
-  message: "toISOString().slice(...) is a UTC date. Use localDateKey()/monthKey()/mexicoCityToday() from '@/lib/dates'.",
+  selector: "CallExpression[callee.property.name=/^(slice|split|substring|substr)$/][callee.object.type='CallExpression'][callee.object.callee.property.name='toISOString']",
+  message: "toISOString().slice/split(...) is a UTC date. Use localDateKey()/monthKey()/mexicoCityToday() from '@/lib/dates'.",
 };
 
 // NEXT_PUBLIC_* values are inlined into browser JS; a key or secret there is

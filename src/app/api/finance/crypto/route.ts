@@ -87,10 +87,16 @@ export async function POST(req: NextRequest) {
   try { sb = getSupabase() } catch (e) { return configErrorResponse(e) }
 
   if (id) {
-    // Update
+    // Partial update: only fields present in the body, so editing notes never wipes cost basis
+    const patch: Record<string, unknown> = { symbol, name: COIN_NAMES[symbol], quantity }
+    if (avg_cost_basis_usd !== undefined) patch.avg_cost_basis_usd = avg_cost_basis_usd ?? null
+    if (cost_currency !== undefined) patch.cost_currency = cost_currency || 'MXN'
+    if (wallet_address !== undefined) patch.wallet_address = wallet_address || null
+    if (notes !== undefined) patch.notes = notes || null
+    if (owner !== undefined) patch.owner = canonicalOwner(owner) || OWNERS[0]
     const { data, error } = await sb
       .from('finance_crypto_holdings')
-      .update(record)
+      .update(patch)
       .eq('id', id)
       .select()
       .single()

@@ -7,6 +7,7 @@ import { Segmented } from '@/components/ui/segmented'
 import { StatusPill } from '@/components/ui/status-pill'
 import { OwnerAvatar } from '@/components/ui/owner-avatar'
 import { RangeField } from '@/components/finance/investments/shared'
+import { parseLocalDateKey } from '@/lib/dates'
 import { formatCoinPrice, formatMoney } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -59,8 +60,8 @@ export function PrivateEquityCard({ holding, fxRate }: Props) {
   const scenarioValueMXN = holding.shares * (scenarioPrice - costPerShare) * fxRate
   const vsCurrent = scenarioValueMXN - currentValueMXN
 
-  const exitStart = new Date(holding.expected_exit_start)
-  const exitEnd = new Date(holding.expected_exit_end)
+  const exitStart = parseLocalDateKey(holding.expected_exit_start)
+  const exitEnd = parseLocalDateKey(holding.expected_exit_end)
   const validExit = !Number.isNaN(exitStart.getTime()) && !Number.isNaN(exitEnd.getTime())
   const exitYears = validExit ? (exitStart.getFullYear() === exitEnd.getFullYear() ? `${exitStart.getFullYear()}` : `${exitStart.getFullYear()}–${exitEnd.getFullYear()}`) : 'TBD'
   const preset = PRESETS.find(p => Math.abs(scenarioPrice - p.price) < 0.01)?.label ?? ''

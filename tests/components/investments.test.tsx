@@ -1,6 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { computePortfolio, groupFixedIncome } from '@/components/finance/investments/portfolio'
+import { completeNetWorthPoints, computePortfolio, groupFixedIncome, paddedDomain } from '@/components/finance/investments/portfolio'
+import { HoldingFormModal } from '@/components/finance/investments/holding-form-modal'
+import { PrivateEquityCard } from '@/components/finance/private-equity-card'
 import type { FixedIncomeInstrument, RealEstateProperty, StockHolding } from '@/components/finance/investments/types'
 import { FamilyFutureStrip } from '@/components/finance/family-tracker'
 
@@ -69,6 +71,23 @@ describe('investments portfolio math (F12)', () => {
     expect(p.pl).toBeCloseTo(p.totals.fixedIncome - p.totals.fixedIncomeCost, 6)
   })
 
+  it('counts only AFORE as locked retirement; Infonavit is earmarked for WEST', () => {
+    const p = computePortfolio({ ...base, retirement: [
+      { owner: 'bernardo', current_balance: 1000000, instrument_type: 'afore' },
+      { owner: 'laura', current_balance: 350000, instrument_type: 'infonavit' },
+    ], ownerFilter: 'All' })
+    expect(p.totals.retirement).toBe(1350000)
+    expect(p.totals.retirementLocked).toBe(1000000)
+  })
+
+  it('drops leading incomplete net-worth snapshots and pads the sparkline domain', () => {
+    const pts = [{ date: 'a', net_worth: 2000000 }, { date: 'a2', net_worth: 10000000 }, { date: 'b', net_worth: 13000000 }, { date: 'c', net_worth: 13700000 }]
+    expect(completeNetWorthPoints(pts).map(p => p.date)).toEqual(['b', 'c'])
+    const [lo, hi] = paddedDomain([13000000, 13700000])
+    expect(lo).toBeLessThan(13000000)
+    expect(hi).toBeGreaterThan(13700000)
+  })
+
   it('groups one fund held by both owners into a single card', () => {
     const groups = groupFixedIncome(fixedIncome, 'All', NOW)
     expect(groups).toHaveLength(1)
@@ -95,11 +114,15 @@ describe('Investments page states', () => {
     const { InvestmentsClient } = await import('@/components/finance/investments-client')
     render(<InvestmentsClient />)
     expect(await screen.findByText(/Couldn.t load stocks\./)).toBeInTheDocument()
-    const stocksCard = await screen.findByRole('button', { name: /Stocks: not loaded/ })
+    const stocksCard = await screen.findByRole('button', { name: /Stocks didn.t load\. Retry/ })
     expect(stocksCard).toHaveTextContent('—')
     expect(stocksCard).not.toHaveTextContent('$0')
     expect(screen.getByRole('button', { name: /Fixed Income: \$/ })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0)
+    const stockCalls = () => fetchMock.mock.calls.filter(([u]) => String(u).includes('/investments/stocks')).length
+    const before = stockCalls()
+    fireEvent.click(stocksCard)
+    await waitFor(() => expect(stockCalls()).toBeGreaterThan(before))
   })
 })
 
@@ -122,5 +145,34 @@ describe('FamilyFutureStrip', () => {
   it('renders nothing without a plan', async () => {
     const { container } = render(<FamilyFutureStrip baby={null} />)
     await waitFor(() => expect(container).toBeEmptyDOMElement())
+  })
+})
+
+describe('HoldingFormModal', () => {
+  it('selects the owner segment for lowercase-owned rows and offers delete when editing', () => {
+    const onDelete = vi.fn()
+    render(
+      <HoldingFormModal<{ id: string; owner: string }>
+        open title="Edit stock" value={{ id: 's1', owner: 'laura' }} onChange={() => {}}
+        fields={[{ kind: 'owner', key: 'owner' }]} onSubmit={() => {}} onClose={() => {}}
+        saving={false} submitLabel="Save" onDelete={onDelete} deleteLabel="Delete holding" />,
+    )
+    expect(screen.getByRole('radio', { name: /Laura/ })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Delete holding' }))
+    expect(onDelete).toHaveBeenCalled()
+  })
+})
+
+describe('PrivateEquityCard', () => {
+  afterEach(() => { vi.unstubAllEnvs() })
+
+  it('reads the exit window as local calendar years (Jan 1 is not the previous year)', () => {
+    vi.stubEnv('TZ', 'America/Mexico_City')
+    render(<PrivateEquityCard fxRate={18} holding={{
+      id: 'pe', name: 'Acme', ticker: 'ACME', owner: 'bernardo', shares: 1000, current_price_usd: 2, target_price_usd: 10,
+      avg_cost_basis: 0.5, expected_exit_start: '2028-01-01', expected_exit_end: '2029-01-01',
+    }} />)
+    expect(screen.getAllByText(/2028–2029/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/2027/)).toBeNull()
   })
 })

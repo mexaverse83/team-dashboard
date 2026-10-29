@@ -66,6 +66,24 @@ describe('investments API failures are loud (F18, VIS-17)', () => {
     expect(res.status).toBe(500)
   })
 
+  it('crypto: editing only notes keeps the cost basis and currency', async () => {
+    const res = await crypto.POST(post('/api/finance/crypto', { id: 'c1', symbol: 'BTC', quantity: 0.5, notes: 'cold wallet' }))
+    expect(res.status).toBe(200)
+    const write = state.writes.find(w => w.table === 'finance_crypto_holdings' && w.op === 'update')
+    const patch = write?.payload as Record<string, unknown>
+    expect(patch.notes).toBe('cold wallet')
+    expect(patch.quantity).toBe(0.5)
+    expect('avg_cost_basis_usd' in patch).toBe(false)
+    expect('cost_currency' in patch).toBe(false)
+    expect('owner' in patch).toBe(false)
+  })
+
+  it('crypto: a new holding still gets insert defaults', async () => {
+    await crypto.POST(post('/api/finance/crypto', { symbol: 'BTC', quantity: 0, owner: 'laura' }))
+    const write = state.writes.find(w => w.op === 'insert')
+    expect(write?.payload).toMatchObject({ avg_cost_basis_usd: null, cost_currency: 'MXN', owner: 'Laura' })
+  })
+
   it('crypto: a holdings read error is a 500 that still carries prices', async () => {
     state.fail = 'finance_crypto_holdings'
     const res = await crypto.GET(get('/api/finance/crypto'))

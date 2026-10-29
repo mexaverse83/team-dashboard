@@ -84,7 +84,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
       {failedSources.length > 0 && <SourceError what={failedSources.join(', ')} onRetry={retry} />}
 
       <Tabs value={activeTab} onValueChange={selectTab}>
-        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]">
+        <div className="-mx-4 overflow-x-auto px-4 [mask-image:linear-gradient(to_right,#000_calc(100%-2rem),transparent)] [scrollbar-width:none] sm:mx-0 sm:px-0 sm:[mask-image:none]">
           <TabsList aria-label="Investment views" className="w-max max-w-none overflow-visible">
             {INVESTMENT_TABS.map(tab => (
               <TabsTrigger key={tab} value={tab} className="relative shrink-0">
@@ -98,7 +98,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
         <TabsContent value="Portfolio">
           {loading ? <TabSkeleton /> : (
             <PortfolioTab portfolio={portfolio} ownerFilter={ownerFilter} errors={errors} netWorth={netWorth.data}
-              baby={baby.data} onOpenTab={tab => selectTab(tab)} />
+              baby={baby.data} onOpenTab={tab => selectTab(tab)} onRetry={retry} />
           )}
         </TabsContent>
         <TabsContent value="Crypto">

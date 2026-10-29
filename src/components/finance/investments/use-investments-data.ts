@@ -58,10 +58,13 @@ export function useInvestmentsData() {
   return useFinanceData<InvestmentsData>('investments', fetchInvestments)
 }
 
-export interface NetWorthData { latest: { date: string; net_worth: number } | null; points: NetWorthPoint[] }
+export interface NetWorthData {
+  latest: { date: string; net_worth: number; total_assets?: number; total_liabilities?: number } | null
+  points: NetWorthPoint[]
+}
 
 async function fetchNetWorth(signal: AbortSignal): Promise<NetWorthData> {
-  const json = await getJson<{ snapshots?: Array<{ snapshot_date: string; net_worth: number }>; summary?: { latest?: { date: string; net_worth: number } | null } }>(
+  const json = await getJson<{ snapshots?: Array<{ snapshot_date: string; net_worth: number }>; summary?: { latest?: NetWorthData['latest'] } }>(
     '/api/finance/net-worth?days=365', signal,
   )
   return {

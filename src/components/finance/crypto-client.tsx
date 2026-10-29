@@ -13,6 +13,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { ErrorState } from '@/components/ui/error-state'
 import { OwnerFilterControl } from '@/components/finance/investments/shared'
 import { TabSkeleton } from '@/components/finance/investments/tab-skeleton'
+import { cryptoCostMXN, cryptoValueMXN, usdMxnRate } from '@/components/finance/investments/portfolio'
 import { OWNERS, ownersEqual } from '@/lib/owners'
 import { localDateKey } from '@/lib/dates'
 import { formatCoinPrice, formatDateShort, formatDelta, formatMoney, formatPct } from '@/lib/format'
@@ -117,14 +118,8 @@ function CoinLogo({ symbol, size = 32 }: { symbol: string; size?: number }) {
 const qty = (n: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 8 }).format(n)
 const usd = (n: number) => formatMoney(n, { currency: 'USD', showCurrency: true })
 
-function getValueMXN(h: Holding, prices: Prices | null) {
-  return h.quantity * (prices?.[h.symbol]?.mxn ?? 0)
-}
-
-function getCostMXN(h: Holding, usdToMxn: number) {
-  if (!h.avg_cost_basis_usd) return 0
-  return h.quantity * (h.cost_currency === 'USD' ? h.avg_cost_basis_usd * usdToMxn : h.avg_cost_basis_usd)
-}
+const getValueMXN = (h: Holding, prices: Prices | null) => cryptoValueMXN(h, prices)
+const getCostMXN = (h: Holding, usdToMxn: number) => cryptoCostMXN(h, usdToMxn)
 
 const inputClass = 'h-11 w-full rounded-xl border border-border bg-surface-2 px-3 text-sm text-fg placeholder:text-fg-tertiary'
 
@@ -199,13 +194,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
     setRefreshing(false)
   }
 
-  const usdToMxn = useMemo(() => {
-    if (!prices) return 17
-    for (const p of Object.values(prices)) {
-      if (p.usd > 0 && p.mxn > 0) return p.mxn / p.usd
-    }
-    return 17
-  }, [prices])
+  const usdToMxn = useMemo(() => usdMxnRate(prices), [prices])
 
   const filtered = useMemo(() => {
     const f = ownerFilter === 'All' ? holdings : holdings.filter(h => ownersEqual(h.owner, ownerFilter))
@@ -257,6 +246,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
   const handleSaveHolding = async () => {
     if (!holdingForm) return
     setSaving(true); setActionError(null)
+    const existing = holdingForm.id ? holdings.find(h => h.id === holdingForm.id) : undefined
     try {
       const res = await fetch('/api/finance/crypto', {
         method: 'POST',
@@ -264,7 +254,11 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
         body: JSON.stringify({
           id: holdingForm.id,
           symbol: holdingForm.symbol,
-          quantity: holdingForm.id ? holdings.find(h => h.id === holdingForm.id)?.quantity ?? 0 : 0,
+          ...(existing ? {
+            quantity: existing.quantity,
+            avg_cost_basis_usd: existing.avg_cost_basis_usd ?? null,
+            cost_currency: existing.cost_currency ?? 'MXN',
+          } : { quantity: 0 }),
           owner: holdingForm.owner,
           wallet_address: holdingForm.wallet_address || null,
           notes: holdingForm.notes || null,

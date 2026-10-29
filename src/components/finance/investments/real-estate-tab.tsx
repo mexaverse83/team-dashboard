@@ -74,6 +74,7 @@ export function RealEstateTab({ portfolio, ownerFilter, failed, onRetry, onChang
     try {
       const res = await fetch('/api/finance/investments/real-estate', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
       if (!res.ok) throw new Error('Delete failed')
+      setForm(null)
       await onChanged()
     } catch { setError('Couldn’t delete this property.') }
   }
@@ -172,6 +173,8 @@ export function RealEstateTab({ portfolio, ownerFilter, failed, onRetry, onChang
         saving={saving}
         submitLabel={form?.id ? 'Save' : 'Add property'}
         error={form ? error : null}
+        onDelete={form?.id ? () => remove(form.id as string) : undefined}
+        deleteLabel="Delete property"
       />
     </div>
   )

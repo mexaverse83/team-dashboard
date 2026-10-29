@@ -35,6 +35,8 @@ export type CryptoPrices = Record<string, { usd: number; mxn: number; change24h?
 export interface RetirementRecordLite {
   owner: string
   current_balance: number
+  /** 'afore' is locked until 65; 'infonavit' is earmarked for WEST. */
+  instrument_type?: string
 }
 
 export interface NetWorthPoint { date: string; net_worth: number }

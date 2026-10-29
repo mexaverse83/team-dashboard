@@ -61,6 +61,7 @@ export function StocksTab({ portfolio, ownerFilter, failed, onRetry, onChanged }
     try {
       const res = await fetch('/api/finance/investments/stocks', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
       if (!res.ok) throw new Error('Delete failed')
+      setForm(null)
       await onChanged()
     } catch { setError('Couldn’t delete this holding.') }
   }
@@ -171,6 +172,8 @@ export function StocksTab({ portfolio, ownerFilter, failed, onRetry, onChanged }
         saving={saving}
         submitLabel={form?.id ? 'Save' : 'Add stock'}
         error={form ? error : null}
+        onDelete={form?.id ? () => remove(form.id as string) : undefined}
+        deleteLabel="Delete holding"
       />
     </div>
   )

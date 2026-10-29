@@ -5,7 +5,8 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/segmented'
 import { OwnerAvatar } from '@/components/ui/owner-avatar'
-import { OWNERS } from '@/lib/owners'
+import { Trash2 } from 'lucide-react'
+import { OWNERS, ownersEqual } from '@/lib/owners'
 import { cn } from '@/lib/utils'
 
 type Key<T> = Extract<keyof T, string>
@@ -31,6 +32,9 @@ export interface HoldingFormModalProps<T> {
   saving: boolean
   submitLabel: string
   error?: string | null
+  /** Shown as a destructive footer action when editing an existing row. */
+  onDelete?: () => void
+  deleteLabel?: string
 }
 
 const inputClass = 'h-11 w-full rounded-xl border border-border bg-surface-2 px-3 text-sm text-fg placeholder:text-fg-tertiary focus:border-border-strong focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]'
@@ -40,7 +44,7 @@ const inputClass = 'h-11 w-full rounded-xl border border-border bg-surface-2 px-
  * class passes a field list instead of hand-writing a near-identical form.
  * Required fields gate the submit button.
  */
-export function HoldingFormModal<T extends object>({ open, title, value, onChange, fields, onSubmit, onClose, saving, submitLabel, error }: HoldingFormModalProps<T>) {
+export function HoldingFormModal<T extends object>({ open, title, value, onChange, fields, onSubmit, onClose, saving, submitLabel, error, onDelete, deleteLabel = 'Delete' }: HoldingFormModalProps<T>) {
   const idPrefix = React.useId()
   const record = value as Record<string, unknown>
   const set = (patch: Partial<T>) => onChange({ ...value, ...patch })
@@ -90,7 +94,7 @@ export function HoldingFormModal<T extends object>({ open, title, value, onChang
         )
       case 'owner':
         return (
-          <Segmented ariaLabel={f.label ?? 'Owner'} size="sm" fullWidth value={String(record[f.key] ?? OWNERS[0])}
+          <Segmented ariaLabel={f.label ?? 'Owner'} size="sm" fullWidth value={OWNERS.find(o => ownersEqual(o, record[f.key] as string | null | undefined)) ?? OWNERS[0]}
             onChange={v => set({ [f.key]: v } as Partial<T>)}
             options={OWNERS.map(o => ({ value: o, label: o, icon: <OwnerAvatar owner={o} size={16} aria-hidden /> }))} />
         )
@@ -114,6 +118,11 @@ export function HoldingFormModal<T extends object>({ open, title, value, onChang
       title={title}
       footer={(
         <div className="flex gap-2">
+          {onDelete && (
+            <Button variant="ghost" size="icon" aria-label={deleteLabel} onClick={onDelete} disabled={saving} className="shrink-0 text-negative">
+              <Trash2 aria-hidden className="h-4 w-4" />
+            </Button>
+          )}
           <Button variant="secondary" className="flex-1" onClick={onClose}>Cancel</Button>
           <Button className="flex-1" onClick={onSubmit} disabled={saving || missing}>{saving ? 'Saving…' : submitLabel}</Button>
         </div>

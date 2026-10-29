@@ -113,6 +113,8 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
   const cryptoTotal = coins.reduce((s, h) => s + cryptoValueMXN(h, prices), 0)
   const cryptoCost = coins.reduce((s, h) => s + cryptoCostMXN(h, fxRate), 0)
   const retirementTotal = ret.reduce((s, r) => s + (r.current_balance || 0), 0)
+  // Only AFORE is locked until 65; Infonavit is earmarked for WEST
+  const retirementLocked = ret.filter(r => r.instrument_type !== 'infonavit').reduce((s, r) => s + (r.current_balance || 0), 0)
 
   const total = cryptoTotal + stocksTotal + fiTotal + reTotal + retirementTotal
   // P&L only over classes with a real cost basis (crypto, public stocks, FI)
@@ -130,7 +132,7 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
     fixedIncome: fi,
     realEstate: re,
     fiGroups,
-    totals: { crypto: cryptoTotal, stocks: stocksTotal, publicStocks: publicTotal, privateEquity: peTotal, fixedIncome: fiTotal, fixedIncomeCost: fiCost, realEstate: reTotal, retirement: retirementTotal, total },
+    totals: { crypto: cryptoTotal, stocks: stocksTotal, publicStocks: publicTotal, privateEquity: peTotal, fixedIncome: fiTotal, fixedIncomeCost: fiCost, realEstate: reTotal, retirement: retirementTotal, retirementLocked, total },
     cryptoCost,
     pl,
     plPct,
@@ -152,3 +154,24 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
 }
 
 export type Portfolio = ReturnType<typeof computePortfolio>
+
+/**
+ * Sparkline points from the first complete snapshot on: leading snapshots
+ * worth under 80% of the latest come from before every asset class was
+ * tracked and would draw a misleading cliff.
+ */
+export function completeNetWorthPoints<P extends { net_worth: number }>(points: readonly P[]): P[] {
+  if (points.length === 0) return []
+  const floor = points[points.length - 1].net_worth * 0.8
+  const start = points.findIndex(p => p.net_worth >= floor)
+  return points.slice(start < 0 ? 0 : start)
+}
+
+/** Y domain padded so small moves don't fill the whole sparkline height. */
+export function paddedDomain(values: readonly number[]): [number, number] {
+  if (values.length === 0) return [0, 1]
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const pad = Math.max((max - min) * 0.15, Math.abs(max) * 0.05, 1)
+  return [Math.floor(min - pad), Math.ceil(max + pad)]
+}

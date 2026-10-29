@@ -11,10 +11,10 @@ import { OwnerBar } from '@/components/finance/owner-dot'
 import { FamilyFutureStrip, type FamilyFutureBaby } from '@/components/finance/family-tracker'
 // Static: this whole tab is already a dynamic chunk, so WEST and recharts share it
 import { WestProjectionWithScenarios } from '@/components/finance/west-tracker'
-import { formatDateShort, formatDelta, formatMoney, formatPct, EMPTY_VALUE } from '@/lib/format'
+import { formatCompact, formatDateShort, formatDelta, formatMoney, formatPct, EMPTY_VALUE } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ASSET_COLOR } from './shared'
-import type { Portfolio } from './portfolio'
+import { completeNetWorthPoints, paddedDomain, type Portfolio } from './portfolio'
 import type { InvestmentSource, InvestmentsTab } from './types'
 import type { NetWorthData } from './use-investments-data'
 
@@ -26,11 +26,12 @@ interface Props {
   netWorth: NetWorthData | undefined
   baby: FamilyFutureBaby | null | undefined
   onOpenTab: (tab: InvestmentsTab) => void
+  onRetry?: () => void
 }
 
 type AssetName = keyof typeof ASSET_COLOR
 
-export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, onOpenTab }: Props) {
+export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, onOpenTab, onRetry }: Props) {
   const { totals, positions, byOwner, pl, plPct } = portfolio
   const anyError = Object.keys(errors).length > 0
 
@@ -45,8 +46,10 @@ export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, o
     .filter(c => !errors[c.source] && c.value > 0)
     .map(c => ({ name: c.name, value: c.value, pct: totals.total > 0 ? (c.value / totals.total) * 100 : 0 }))
 
-  const points = netWorth?.points ?? []
+  const points = completeNetWorthPoints(netWorth?.points ?? [])
   const latest = netWorth?.latest ?? null
+  const yDomain = paddedDomain(points.map(p => p.net_worth))
+  const westEarmarked = totals.retirement - totals.retirementLocked
 
   return (
     <div className="space-y-4">
@@ -66,7 +69,12 @@ export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, o
               <p className="text-label font-medium text-fg-secondary">Household net worth</p>
               <p className="text-xl font-semibold"><MoneyText value={latest.net_worth} /></p>
               <p className="text-label text-fg-tertiary">
-                Snapshot {formatDateShort(latest.date, { withYear: 'auto' })} · <Link href="/finance" className="underline-offset-2 hover:underline">same as Home</Link>
+                {latest.total_assets != null && latest.total_liabilities != null
+                  ? <>{formatCompact(latest.total_assets)} assets − {formatCompact(latest.total_liabilities)} debts &amp; MSI</>
+                  : 'Assets minus debts & MSI'}
+              </p>
+              <p className="text-label text-fg-tertiary">
+                Snapshot {formatDateShort(latest.date, { withYear: 'auto' })}{totals.privateEquity > 0 && ' · private equity at cost'} · <Link href="/finance" className="underline-offset-2 hover:underline">same as Home</Link>
               </p>
             </div>
           )}
@@ -84,7 +92,7 @@ export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, o
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="date" hide />
-                <YAxis hide domain={['dataMin', 'dataMax']} />
+                <YAxis hide domain={yDomain} />
                 <Tooltip {...chartTooltipProps} formatter={v => [moneyTooltipFormatter(v), 'Net worth']} labelFormatter={l => formatDateShort(String(l), { withYear: true })} />
                 <Area type="monotone" dataKey="net_worth" stroke="hsl(var(--positive))" strokeWidth={1.5} fill="url(#netWorthGrad)" isAnimationActive={false} />
               </AreaChart>
@@ -132,9 +140,9 @@ export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, o
               <button
                 key={c.name}
                 type="button"
-                onClick={() => onOpenTab(c.tab)}
+                onClick={() => (failed && onRetry ? onRetry() : onOpenTab(c.tab))}
                 className={cn('min-w-0 text-left', i === classes.length - 1 && classes.length % 2 === 1 && 'col-span-2 sm:col-span-1')}
-                aria-label={`${c.name}: ${failed ? 'not loaded' : formatMoney(c.value)}. Open ${c.name}`}
+                aria-label={failed && onRetry ? `${c.name} didn't load. Retry` : `${c.name}: ${failed ? 'not loaded' : formatMoney(c.value)}. Open ${c.name}`}
               >
                 <Card interactive className="h-full">
                   <div className="flex items-center gap-2">
@@ -147,8 +155,8 @@ export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, o
                     {failed ? <span className="text-fg-tertiary">{EMPTY_VALUE}</span> : <MoneyText value={c.value} />}
                   </p>
                   <p className="mt-0.5 text-label text-fg-tertiary">
-                    {failed ? <span className="text-warning">Didn&apos;t load · tap to retry</span>
-                      : c.locked ? <span className="inline-flex items-center gap-1"><Landmark aria-hidden className="h-3 w-3" />Locked until 65</span>
+                    {failed ? <span className="text-warning">{onRetry ? 'Didn’t load · tap to retry' : 'Didn’t load · open to retry'}</span>
+                      : c.locked ? <span className="inline-flex items-center gap-1"><Landmark aria-hidden className="h-3 w-3 shrink-0" />{westEarmarked > 0 ? `AFORE locked to 65 · ${formatCompact(westEarmarked)} Infonavit for WEST` : 'Locked until 65'}</span>
                       : `${c.count} ${c.count === 1 ? c.noun : c.noun === 'property' ? 'properties' : `${c.noun}s`}${c.note ? ` · ${c.note}` : ''}`}
                   </p>
                   {!failed && !c.locked && ownerFilter === 'All' && c.split && (c.split.a > 0 || c.split.b > 0) && (
