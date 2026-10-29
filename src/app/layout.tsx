@@ -4,6 +4,8 @@ import "./globals.css"
 import { Sidebar } from "@/components/Sidebar"
 import { CommandPalette } from "@/components/command-palette"
 import { PwaRegister } from "@/components/pwa-register"
+import { ThemeSync } from "@/components/ui/theme-toggle"
+import { THEME_COLORS, THEME_INIT_SCRIPT } from "@/lib/theme"
 
 // Self-hosted via next/font: no render-blocking Google Fonts request chain.
 const inter = Inter({
@@ -12,8 +14,8 @@ const inter = Inter({
   variable: "--font-inter",
 })
 
-// Display face for headings and hero numerals — gives the product a voice
-// beyond default Inter-everywhere.
+// Display face for headings and hero numerals (VIS-19: kept until the couple
+// decides; numerals in tables use Inter tabular figures via .num).
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   display: "swap",
@@ -40,7 +42,8 @@ export const metadata: Metadata = {
 }
 
 export const viewport = {
-  themeColor: '#080d19',
+  // Default (dark) chrome; the init script swaps it for a saved Light choice.
+  themeColor: THEME_COLORS.dark,
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover' as const,
@@ -48,9 +51,15 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
+    // data-theme / color-scheme are set by the init script before paint, so the
+    // server markup intentionally differs from the hydrated <html> attributes.
+    <html lang="en" data-theme="dark" className={`${inter.variable} ${spaceGrotesk.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="finance-app min-h-screen">
-        <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-emerald-600 focus:p-3 focus:text-white">Skip to content</a>
+        <a href="#main-content" className="btn-primary sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:p-3">Skip to content</a>
+        <ThemeSync />
         <PwaRegister />
         <CommandPalette />
         <div className="flex min-h-screen min-w-0">

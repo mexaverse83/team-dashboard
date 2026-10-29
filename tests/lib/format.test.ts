@@ -6,7 +6,9 @@ import {
   formatDateShort,
   formatDelta,
   formatMoney,
+  formatMonthLong,
   formatMonthShort,
+  formatTrendPct,
   formatPct,
   formatRelativeDue,
   formatWeekdayShort,
@@ -166,5 +168,22 @@ describe('format snapshot', () => {
       delta: formatDelta(v),
     }))
     expect(table).toMatchSnapshot()
+  })
+})
+
+describe('formatMonthLong / formatTrendPct (WS1)', () => {
+  it('prints period headers', () => {
+    expect(formatMonthLong('2026-09')).toBe('September 2026')
+    expect(formatMonthLong('2026-09-30', { short: true })).toBe('Sep 2026')
+    expect(formatMonthLong('nope')).toBe('—')
+  })
+
+  it('clamps runaway trends', () => {
+    expect(formatTrendPct(43.4)).toBe('+43%')
+    expect(formatTrendPct(-12)).toBe('\u221212%')
+    expect(formatTrendPct(0.2)).toBe('0%')
+    expect(formatTrendPct(3401)).toBe('>10×')
+    expect(formatTrendPct(-5000)).toBe('\u2212999%')
+    expect(formatTrendPct(NaN)).toBe('—')
   })
 })

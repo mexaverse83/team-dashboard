@@ -39,7 +39,7 @@ export interface ChartLegendItem {
 /** 12px legend that shows the true stroke and dash of each series (never a grey square). */
 export function ChartLegend({ items, className }: { items: ChartLegendItem[]; className?: string }) {
   return (
-    <ul className={cn('flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-label text-fg-secondary', className)}>
+    <ul className={cn('flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-[0.75rem]/4 text-fg-secondary', className)}>
       {items.map(item => (
         <li key={item.label} className="inline-flex items-center gap-1.5">
           <svg aria-hidden="true" width="16" height="10" viewBox="0 0 16 10" className="shrink-0">

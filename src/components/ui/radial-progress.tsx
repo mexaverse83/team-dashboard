@@ -16,8 +16,8 @@ export function RadialProgress({
   max = 100,
   size = 120,
   strokeWidth = 8,
-  color = 'hsl(225, 75%, 48%)',
-  trackColor = 'hsl(34, 26%, 89%)',
+  color = 'hsl(var(--positive))',
+  trackColor = 'hsl(var(--surface-3))',
   label,
   sublabel,
 }: RadialProgressProps) {
@@ -28,7 +28,7 @@ export function RadialProgress({
 
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
+      <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -52,7 +52,7 @@ export function RadialProgress({
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-lg font-bold" style={{ color }}>{label ?? `${Math.round(percentage * 100)}%`}</span>
-        {sublabel && <span className="text-xs text-[hsl(var(--text-secondary))]">{sublabel}</span>}
+        {sublabel && <span className="text-xs text-fg-secondary">{sublabel}</span>}
       </div>
     </div>
   )

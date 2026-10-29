@@ -695,10 +695,22 @@ input, textarea, select {
 
 /* ── Mona v2 utilities (W0) ─────────────────────────────────────────────── */
 
-/* Numbers that line up: tabular figures, right-aligned in table cells. */
-.num {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
+/* Numbers that line up: tabular figures, right-aligned in table cells.
+   Layered so text-left/text-center utilities can override the alignment. */
+@layer components {
+  .num {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+}
+
+/* Days still to come in a heatmap: hatched, distinct from a no-spend day. */
+.heatmap-future {
+  background-image: repeating-linear-gradient(135deg, hsl(var(--border)) 0 1px, transparent 1px 6px);
+}
+/* Inter's tabular figures + open single-storey forms keep money columns aligned (VIS-19). */
+.num, .num-metric, [data-money] {
+  font-feature-settings: 'tnum' 1, 'cv11' 1;
 }
 
 /* One primary button style (MOB-10): dark text on mint in dark, white on deep green in light. */

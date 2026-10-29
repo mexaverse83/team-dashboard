@@ -1,426 +1,605 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { AlertTriangle, ArrowRight, Building2, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  AreaChart, Area, BarChart, Bar,
+} from 'recharts'
 import { supabase } from '@/lib/supabase'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { OWNERS, ownersEqual } from '@/lib/owners'
-import { GlassCard } from '@/components/ui/glass-card'
-import { AnimatedNumber } from '@/components/ui/animated-number'
-import { TrendBadge } from '@/components/ui/trend-badge'
+import { useFinanceData } from '@/hooks/use-finance-data'
 import { PageTransition } from '@/components/page-transition'
-import { cn } from '@/lib/utils'
-
-import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
-import { enrichTransactions, DEFAULT_CATEGORIES } from '@/lib/finance-utils'
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  AreaChart, Area, BarChart, Bar,
-} from 'recharts'
+import { Page, PageHeader } from '@/components/ui/page'
+import { Card, CardHeader } from '@/components/ui/card'
+import { Stat } from '@/components/ui/stat'
+import { Segmented } from '@/components/ui/segmented'
+import { StatusPill } from '@/components/ui/status-pill'
+import { CategoryIcon } from '@/components/ui/category-icon'
+import { ErrorState } from '@/components/ui/error-state'
+import { Button } from '@/components/ui/button'
+import { ProgressBar } from '@/components/ui/progress-bar'
+import { ChartFigure, ChartGrid, ChartLegend } from '@/components/ui/finance-chart'
 import { OwnerBar } from '@/components/finance/owner-dot'
+import {
+  CHART, chartAnimationProps, chartTooltipProps, chartXAxisMonthProps, chartYAxisMoneyProps,
+  describeSeries, moneyTooltipFormatter, monthTick, trimLeadingSparse,
+} from '@/lib/chart-theme'
+import { categoryColor } from '@/lib/category-icons'
+import { addMonthsKey, localDateKey, monthKey } from '@/lib/dates'
+import { formatCompact, formatMoney, formatMonthLong, formatMonthShort, formatPct } from '@/lib/format'
+import { ownerColor } from '@/lib/owners'
+import type { Tone } from '@/lib/budget-tone'
+import type { FinanceCategory } from '@/lib/finance-types'
+import { DEFAULT_CATEGORIES } from '@/lib/finance-utils'
 
-import { tooltipStyle } from '@/lib/chart-style'
+// Reports (UX-10, VIS-14, F15, perf-08): every number answers "for which
+// period?". Default is the last full month; the trend charts show the 12
+// months leading up to it (or the whole selected range).
+
+type ReportTx = {
+  id: string
+  type: 'expense' | 'income'
+  amount_mxn: number
+  category_id: string
+  merchant: string | null
+  transaction_date: string
+  owner: string | null
+}
+
+type PeriodMode = 'month' | '6m' | 'ytd' | 'all'
+
+interface InvestmentAudit {
+  score: number
+  score_label: string
+  net_worth: { total: number; by_class: Record<string, number> }
+  findings: Array<{ severity: string; title: string; detail: string }>
+}
+
+interface WestSnapshot {
+  target: number
+  months_to_delivery: number
+  projected_at_delivery?: { total_projected: number; gap: number }
+}
+
+const TX_COLUMNS = 'id,type,amount_mxn,category_id,merchant,transaction_date,owner'
+
+const PERIOD_OPTIONS = [
+  { value: 'month' as const, label: 'Month' },
+  { value: '6m' as const, label: '6 mo', ariaLabel: 'Last 6 months' },
+  { value: 'ytd' as const, label: 'YTD', ariaLabel: 'Year to date' },
+  { value: 'all' as const, label: 'All', ariaLabel: 'All time' },
+]
+
+const NET_WORTH_CLASSES = [
+  { key: 'real_estate', label: 'Real estate (equity)', color: 'hsl(var(--cat-3))', note: '+10–15%/yr est.' },
+  { key: 'fixed_income', label: 'Fixed income (GBM)', color: 'hsl(var(--cat-1))', note: '9.5% net' },
+  { key: 'retirement', label: 'Retirement (locked)', color: 'hsl(var(--cat-5))', note: '+8.5%/yr est.' },
+  { key: 'crypto', label: 'Crypto', color: 'hsl(var(--cat-4))', note: 'volatile' },
+]
+
+async function loadReportData(): Promise<{ categories: FinanceCategory[]; transactions: ReportTx[] }> {
+  const [catRes, transactions] = await Promise.all([
+    supabase.from('finance_categories').select('*').order('sort_order'),
+    fetchAllRows<ReportTx>(
+      (from, to) => supabase.from('finance_transactions').select(TX_COLUMNS)
+        .order('transaction_date', { ascending: true }).order('id', { ascending: true }).range(from, to),
+      1000, 20000, true,
+    ),
+  ])
+  const categories = catRes.data && catRes.data.length > 0 ? (catRes.data as FinanceCategory[]) : DEFAULT_CATEGORIES
+  return { categories, transactions }
+}
+
+async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
+  const res = await fetch(url, { signal })
+  if (!res.ok) throw new Error(`${url} → ${res.status}`)
+  return res.json() as Promise<T>
+}
+
+/** One-line failure for a secondary card: says what's missing, offers Retry, takes little room. */
+function InlineLoadError({ title, onRetry, className }: { title: string; onRetry: () => void; className?: string }) {
+  return (
+    <div role="alert" className={`flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 ${className ?? ''}`}>
+      <span className="flex min-w-0 items-center gap-2 text-sm text-fg-secondary">
+        <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0 text-warning" />
+        <span>{title}</span>
+      </span>
+      <Button size="sm" variant="secondary" onClick={onRetry}><RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />Retry</Button>
+    </div>
+  )
+}
+
+function monthRange(from: string, to: string): string[] {
+  const months: string[] = []
+  for (let m = from; m <= to && months.length < 600; m = addMonthsKey(m, 1)) months.push(m)
+  return months
+}
+
+function sumBy(rows: ReportTx[], type: ReportTx['type']): number {
+  return rows.reduce((s, t) => (t.type === type ? s + (Number(t.amount_mxn) || 0) : s), 0)
+}
 
 export default function ReportsClient() {
-  const [categories, setCategories] = useState<FinanceCategory[]>([])
-  const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
-  const [loading, setLoading] = useState(true)
-  const [investmentAudit, setInvestmentAudit] = useState<{
-    score: number; score_label: string;
-    net_worth: { total: number; by_class: Record<string, number> };
-    findings: Array<{ severity: string; title: string; detail: string }>;
-  } | null>(null)
+  const currentMonth = monthKey(new Date())
+  const lastFullMonth = addMonthsKey(currentMonth, -1)
+  const [mode, setMode] = useState<PeriodMode>('month')
+  const [selectedMonth, setSelectedMonth] = useState(lastFullMonth)
 
-  useEffect(() => {
-    Promise.all([
-      supabase.from('finance_categories').select('*').order('sort_order'),
-      fetchAllRows<FinanceTransaction>((from, to) => supabase.from('finance_transactions').select('*').order('transaction_date', { ascending: true }).range(from, to)).then(rows => ({ data: rows })),
-    ]).then(([catRes, txRes]) => {
-      const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
-      const txs = txRes.data || []
-      setCategories(cats)
-      setTransactions(enrichTransactions(txs, cats))
-      setLoading(false)
-    })
-    // Load investment audit for reports
-    fetch('/api/finance/audit/investments')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => d && setInvestmentAudit(d))
-      .catch(() => null)
-  }, [])
+  const { data, error, loading, refresh } = useFinanceData('reports:transactions', loadReportData)
+  const { data: investmentAudit, error: auditError, refresh: refreshAudit } = useFinanceData<InvestmentAudit>(
+    'reports:investment-audit', signal => getJson<InvestmentAudit>('/api/finance/audit/investments', signal),
+  )
+  const { data: west, error: westError, refresh: refreshWest } = useFinanceData<WestSnapshot>(
+    'reports:west', signal => getJson<WestSnapshot>('/api/finance/investments/west-projection', signal),
+  )
 
-  // Monthly income vs expenses
+  const transactions = useMemo(() => data?.transactions ?? [], [data])
+  const categories = useMemo(() => data?.categories ?? [], [data])
+  const firstMonth = transactions.length > 0 ? transactions[0].transaction_date.slice(0, 7) : currentMonth
+
+  // ── Period ──────────────────────────────────────────────────────────
+  const period = useMemo(() => {
+    const yearStart = `${currentMonth.slice(0, 4)}-01`
+    switch (mode) {
+      case 'month': {
+        const partial = selectedMonth === currentMonth
+        return {
+          from: selectedMonth, to: selectedMonth,
+          label: `${formatMonthLong(selectedMonth)}${partial ? ' (so far)' : ''}`,
+          short: formatMonthLong(selectedMonth, { short: true }),
+        }
+      }
+      case '6m': {
+        const from = addMonthsKey(currentMonth, -6)
+        const label = `${formatMonthLong(from, { short: true })} – ${formatMonthLong(lastFullMonth, { short: true })}`
+        return { from, to: lastFullMonth, label, short: 'Last 6 mo' }
+      }
+      case 'ytd':
+        return { from: yearStart, to: currentMonth, label: `${currentMonth.slice(0, 4)} to date`, short: `${currentMonth.slice(0, 4)} YTD` }
+      case 'all':
+        return { from: firstMonth, to: currentMonth, label: `All time · since ${formatMonthLong(firstMonth, { short: true })}`, short: 'All time' }
+    }
+  }, [mode, selectedMonth, currentMonth, lastFullMonth, firstMonth])
+
+  const inPeriod = useCallback(
+    (t: ReportTx) => { const m = t.transaction_date.slice(0, 7); return m >= period.from && m <= period.to },
+    [period],
+  )
+  const periodTx = useMemo(() => transactions.filter(inPeriod), [transactions, inPeriod])
+  const periodMonths = Math.max(1, monthRange(period.from, period.to).length)
+
+  // ── KPIs ────────────────────────────────────────────────────────────
+  const income = sumBy(periodTx, 'income')
+  const spending = sumBy(periodTx, 'expense')
+  const net = income - spending
+  const savingsRate = income > 0 ? (net / income) * 100 : null
+
+  // A month in progress is compared with the same days of the previous month,
+  // not the whole of it — otherwise spending always looks "down".
+  const partialMonth = mode === 'month' && selectedMonth === currentMonth
+  const asOfDay = partialMonth ? Number(localDateKey().slice(8, 10)) : null
+  const previous = useMemo(() => {
+    if (mode !== 'month') return null
+    const prev = addMonthsKey(selectedMonth, -1)
+    if (prev < firstMonth) return null
+    const rows = transactions.filter(t => t.transaction_date.startsWith(prev) && (asOfDay == null || Number(t.transaction_date.slice(8, 10)) <= asOfDay))
+    return { month: prev, income: sumBy(rows, 'income'), spending: sumBy(rows, 'expense') }
+  }, [mode, selectedMonth, transactions, firstMonth, asOfDay])
+
+  const deltaTone = (delta: number, goodWhenUp: boolean): Tone =>
+    Math.abs(delta) < 1 ? 'neutral' : (delta > 0) === goodWhenUp ? 'positive' : 'negative'
+
+  // ── Trend window: 12 months up to the selected month, or the whole range ──
+  const trendMonths = useMemo(() => {
+    const to = mode === 'month' ? selectedMonth : period.to
+    const from = mode === 'month' ? addMonthsKey(selectedMonth, -11) : period.from
+    return monthRange(from < firstMonth ? firstMonth : from, to)
+  }, [mode, selectedMonth, period, firstMonth])
+
   const monthlyData = useMemo(() => {
-    const map: Record<string, { income: number; expenses: number }> = {}
-    transactions.forEach(t => {
-      const month = t.transaction_date.slice(0, 7)
-      if (!map[month]) map[month] = { income: 0, expenses: 0 }
-      if (t.type === 'income') map[month].income += t.amount_mxn
-      else map[month].expenses += t.amount_mxn
-    })
-    return Object.entries(map)
-      .map(([month, data]) => ({ month, ...data, net: data.income - data.expenses }))
-      .sort((a, b) => a.month.localeCompare(b.month))
-  }, [transactions])
+    const map = new Map(trendMonths.map(m => [m, { month: m, income: 0, spending: 0 }]))
+    for (const t of transactions) {
+      const row = map.get(t.transaction_date.slice(0, 7))
+      if (!row) continue
+      if (t.type === 'income') row.income += Number(t.amount_mxn) || 0
+      else row.spending += Number(t.amount_mxn) || 0
+    }
+    return trimLeadingSparse(Array.from(map.values()), ['income', 'spending'])
+  }, [transactions, trendMonths])
+  // One month axis for every trend chart, so they start together.
+  const chartMonths = useMemo(() => monthlyData.map(r => r.month), [monthlyData])
 
-  // By-owner monthly spending
-  const ownerMonthly = useMemo(() => {
-    const map: Record<string, { bernardo: number; laura: number }> = {}
-    transactions.filter(t => t.type === 'expense').forEach(t => {
-      const m = t.transaction_date.slice(0, 7)
-      if (!map[m]) map[m] = { bernardo: 0, laura: 0 }
-      if (ownersEqual(t.owner, OWNERS[0])) map[m].bernardo += t.amount_mxn
-      else if (ownersEqual(t.owner, OWNERS[1])) map[m].laura += t.amount_mxn
-    })
-    return Object.entries(map).map(([month, d]) => ({ month, ...d })).sort((a, b) => a.month.localeCompare(b.month)).slice(-6)
-  }, [transactions])
+  const catById = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories])
+  const sortIndex = useMemo(() => new Map(categories.map((c, i) => [c.id, i])), [categories])
 
-  // By-owner category breakdown
-  const ownerByCategory = useMemo(() => {
-    const map: Record<string, { name: string; bernardo: number; laura: number; icon: string }> = {}
-    transactions.filter(t => t.type === 'expense').forEach(t => {
-      const catName = t.category?.name || 'Other'
-      const catIcon = t.category?.icon || '📦'
-      if (!map[catName]) map[catName] = { name: catName, bernardo: 0, laura: 0, icon: catIcon }
-      if (ownersEqual(t.owner, OWNERS[0])) map[catName].bernardo += t.amount_mxn
-      else if (ownersEqual(t.owner, OWNERS[1])) map[catName].laura += t.amount_mxn
-    })
-    return Object.values(map).sort((a, b) => (b.bernardo + b.laura) - (a.bernardo + a.laura)).slice(0, 8)
-  }, [transactions])
+  const trend = useMemo(() => {
+    const window = new Set(chartMonths)
+    const totals = new Map<string, number>()
+    for (const t of transactions) {
+      if (t.type !== 'expense' || !window.has(t.transaction_date.slice(0, 7))) continue
+      totals.set(t.category_id, (totals.get(t.category_id) || 0) + (Number(t.amount_mxn) || 0))
+    }
+    // Top 6 by spend, then drawn in category sort order so colours stay put.
+    const top = Array.from(totals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([id]) => id)
+      .sort((a, b) => (sortIndex.get(a) ?? 99) - (sortIndex.get(b) ?? 99))
+    const series = top.map((id, i) => ({ id, key: `c${i}`, name: catById.get(id)?.name || 'Other', color: categoryColor(i) }))
+    const keyOf = new Map(series.map(s => [s.id, s.key]))
+    const rows = new Map(chartMonths.map(m => [m, Object.fromEntries([['month', m], ...series.map(s => [s.key, 0])]) as Record<string, number | string>]))
+    for (const t of transactions) {
+      const key = keyOf.get(t.category_id)
+      const row = key && t.type === 'expense' ? rows.get(t.transaction_date.slice(0, 7)) : undefined
+      if (row && key) row[key] = (row[key] as number) + (Number(t.amount_mxn) || 0)
+    }
+    return { series, rows: series.length ? Array.from(rows.values()) : [] }
+  }, [transactions, chartMonths, catById, sortIndex])
 
-  // Category trends (stacked area)
-  const categoryTrends = useMemo(() => {
-    const map: Record<string, Record<string, number>> = {}
-    const topCats = new Set<string>()
-    // Find top 6 expense categories
-    const catTotals: Record<string, number> = {}
-    transactions.filter(t => t.type === 'expense').forEach(t => {
-      catTotals[t.category_id] = (catTotals[t.category_id] || 0) + t.amount_mxn
-    })
-    Object.entries(catTotals).sort((a, b) => b[1] - a[1]).slice(0, 6).forEach(([id]) => topCats.add(id))
-
-    transactions.filter(t => t.type === 'expense' && topCats.has(t.category_id)).forEach(t => {
-      const month = t.transaction_date.slice(0, 7)
-      if (!map[month]) map[month] = {}
-      const catName = t.category?.name || 'Other'
-      map[month][catName] = (map[month][catName] || 0) + t.amount_mxn
-    })
-    return Object.entries(map)
-      .map(([month, cats]) => ({ month, ...cats }))
-      .sort((a, b) => a.month.localeCompare(b.month))
-  }, [transactions])
-
-  const topCatNames = useMemo(() => {
-    const catTotals: Record<string, number> = {}
-    transactions.filter(t => t.type === 'expense').forEach(t => {
-      const name = t.category?.name || 'Other'
-      catTotals[name] = (catTotals[name] || 0) + t.amount_mxn
-    })
-    return Object.entries(catTotals).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name]) => name)
-  }, [transactions])
-
-  const catColors: Record<string, string> = {}
-  categories.forEach(c => { catColors[c.name] = c.color })
-
-  // Top merchants
   const topMerchants = useMemo(() => {
-    const map: Record<string, { total: number; count: number }> = {}
-    transactions.filter(t => t.type === 'expense' && t.merchant).forEach(t => {
-      if (!map[t.merchant!]) map[t.merchant!] = { total: 0, count: 0 }
-      map[t.merchant!].total += t.amount_mxn
-      map[t.merchant!].count++
-    })
-    return Object.entries(map)
-      .map(([merchant, data]) => ({ merchant, ...data }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10)
-  }, [transactions])
+    const map = new Map<string, { total: number; count: number }>()
+    for (const t of periodTx) {
+      if (t.type !== 'expense' || !t.merchant) continue
+      const cur = map.get(t.merchant) || { total: 0, count: 0 }
+      cur.total += Number(t.amount_mxn) || 0
+      cur.count++
+      map.set(t.merchant, cur)
+    }
+    return Array.from(map.entries()).map(([merchant, d]) => ({ merchant, ...d })).sort((a, b) => b.total - a.total).slice(0, 8)
+  }, [periodTx])
 
-  // KPIs
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount_mxn, 0)
-  const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount_mxn, 0)
-  const net = totalIncome - totalExpenses
-  const savingsRate = totalIncome > 0 ? Math.round((net / totalIncome) * 100) : 0
+  const ownerMonthly = useMemo(() => {
+    const months = chartMonths.slice(-6)
+    const map = new Map(months.map(m => [m, { month: m, a: 0, b: 0 }]))
+    for (const t of transactions) {
+      const row = t.type === 'expense' ? map.get(t.transaction_date.slice(0, 7)) : undefined
+      if (!row) continue
+      if (ownersEqual(t.owner, OWNERS[0])) row.a += Number(t.amount_mxn) || 0
+      else if (ownersEqual(t.owner, OWNERS[1])) row.b += Number(t.amount_mxn) || 0
+    }
+    return Array.from(map.values()).some(r => r.a + r.b > 0) ? Array.from(map.values()) : []
+  }, [transactions, chartMonths])
 
-  if (loading) return <div className="h-8 w-36 rounded bg-[hsl(var(--muted))] animate-pulse" />
+  const ownerByCategory = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; icon: string; a: number; b: number }>()
+    for (const t of periodTx) {
+      if (t.type !== 'expense') continue
+      const cat = catById.get(t.category_id)
+      const cur = map.get(t.category_id) || { id: t.category_id, name: cat?.name || 'Other', icon: cat?.icon || '', a: 0, b: 0 }
+      if (ownersEqual(t.owner, OWNERS[0])) cur.a += Number(t.amount_mxn) || 0
+      else if (ownersEqual(t.owner, OWNERS[1])) cur.b += Number(t.amount_mxn) || 0
+      map.set(t.category_id, cur)
+    }
+    return Array.from(map.values()).filter(c => c.a + c.b > 0).sort((x, y) => (y.a + y.b) - (x.a + x.b)).slice(0, 8)
+  }, [periodTx, catById])
+
+  const animation = chartAnimationProps()
+
+  if (loading) {
+    return (
+      <Page aria-busy="true">
+        <div className="h-9 w-40 rounded-lg skeleton" />
+        <div className="h-28 rounded-xl skeleton" />
+        <div className="h-72 rounded-xl skeleton" />
+      </Page>
+    )
+  }
+
+  const picker = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Segmented ariaLabel="Report period" size="sm" options={PERIOD_OPTIONS} value={mode} onChange={setMode} />
+      {mode === 'month' && (
+        <div className="flex items-center gap-1" role="group" aria-label="Month">
+          <button
+            type="button"
+            aria-label="Previous month"
+            disabled={selectedMonth <= firstMonth}
+            onClick={() => setSelectedMonth(m => addMonthsKey(m, -1))}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-fg-secondary hover:bg-surface-2 hover:text-fg disabled:opacity-40"
+          >
+            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+          </button>
+          <span className="min-w-[5.5rem] text-center text-sm font-medium text-fg" aria-live="polite">{period.short}</span>
+          <button
+            type="button"
+            aria-label="Next month"
+            disabled={selectedMonth >= currentMonth}
+            onClick={() => setSelectedMonth(m => addMonthsKey(m, 1))}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-fg-secondary hover:bg-surface-2 hover:text-fg disabled:opacity-40"
+          >
+            <ChevronRight aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+
+  const perMonthHint = (n: number) => (periodMonths > 1 ? `avg ${formatCompact(n / periodMonths)}/mo` : period.short)
+  const prevLabel = previous ? `${formatMonthShort(previous.month, { withYear: false })}${asOfDay != null ? ` 1–${asOfDay}` : ''}` : ''
+  // One precision per KPI row: always compact, always signed.
+  const delta = (n: number) => formatCompact(n, { sign: 'always' })
+  const tone = (n: number, goodWhenUp: boolean): Tone => (previous ? deltaTone(n, goodWhenUp) : 'neutral')
+  const nwTotal = investmentAudit?.net_worth.total ?? 0
+  const findings = investmentAudit?.findings.filter(f => f.severity !== 'green').slice(0, 3) ?? []
+  const westProjected = west?.projected_at_delivery?.total_projected
+  // Non-breaking spaces keep "Nov '25" from wrapping apart at phone width.
+  const nb = (m: string) => formatMonthShort(m, { withYear: true }).replace(/ /g, '\u00a0')
+  const trendLabel = monthlyData.length > 0 ? `${nb(monthlyData[0].month)}\u00a0–\u00a0${nb(monthlyData[monthlyData.length - 1].month)}` : ''
 
   return (
     <PageTransition>
-    <div className="space-y-6">
-      <div>
-        <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Reports</h1>
-        <p className="text-[hsl(var(--text-secondary))]">Financial trends and analytics</p>
-      </div>
+      <Page>
+        <PageHeader
+          title="Reports"
+          description="Financial trends and analytics"
+          meta={<span data-testid="report-period">{period.label}</span>}
+          actions={picker}
+        />
 
-      {/* KPIs */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-        <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Income</span>
-          <p className="num-metric text-lg min-[400px]:text-xl sm:text-3xl font-bold text-emerald-600 mt-1">${totalIncome.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-        </GlassCard>
-        <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Expenses</span>
-          <p className="num-metric text-lg min-[400px]:text-xl sm:text-3xl font-bold text-rose-600 mt-1">${totalExpenses.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-        </GlassCard>
-        <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Net</span>
-          <p className={cn("num-metric text-lg min-[400px]:text-xl sm:text-3xl font-bold mt-1", net >= 0 ? "text-emerald-600" : "text-rose-600")}>${Math.abs(net).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-        </GlassCard>
-        <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Savings Rate</span>
-          <p className="num-metric text-lg min-[400px]:text-xl sm:text-3xl font-bold mt-1">{savingsRate}%</p>
-        </GlassCard>
-      </div>
-
-      {/* Income vs Expenses */}
-      <GlassCard>
-        <h3 className="text-base font-semibold mb-4">Income vs Expenses</h3>
-        <div className="h-52 sm:h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} />
-              <YAxis tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-              <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
-              <Line type="monotone" dataKey="income" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} name="Income" />
-              <Line type="monotone" dataKey="expenses" stroke="hsl(var(--chart-6))" strokeWidth={2} dot={false} name="Expenses" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="flex items-center justify-center gap-6 mt-2">
-          <div className="flex items-center gap-1.5">
-            <div className="h-2 w-6 rounded-full bg-emerald-500" />
-            <span className="text-xs text-[hsl(var(--text-secondary))]">Income</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="h-2 w-6 rounded-full bg-rose-500" />
-            <span className="text-xs text-[hsl(var(--text-secondary))]">Expenses</span>
-          </div>
-        </div>
-      </GlassCard>
-
-      {/* Category Trends + Top Merchants */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <GlassCard>
-          <h3 className="text-base font-semibold mb-4">Category Trends</h3>
-          <div className="h-52 sm:h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={categoryTrends}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} />
-                <YAxis tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-                <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
-                {topCatNames.map(name => (
-                  <Area key={name} type="monotone" dataKey={name} stackId="1" stroke={catColors[name] || '#6B7280'} fill={catColors[name] || '#6B7280'} fillOpacity={0.3} strokeWidth={1.5} />
-                ))}
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </GlassCard>
-
-        <GlassCard>
-          <h3 className="text-base font-semibold mb-4">Top Merchants</h3>
-          <div className="space-y-3">
-            {topMerchants.map((m, i) => (
-              <div key={m.merchant} className="flex items-center gap-2 sm:gap-3">
-                <span className="text-sm font-bold text-[hsl(var(--text-tertiary))] w-5 sm:w-7 shrink-0">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{m.merchant}</p>
-                  <div className="h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] mt-1">
-                    <div className="h-1.5 rounded-full bg-gradient-to-r from-rose-400/60 to-rose-600/60"
-                      style={{ width: `${topMerchants[0] ? (m.total / topMerchants[0].total) * 100 : 0}%` }} />
-                  </div>
-                </div>
-                <span className="text-sm font-semibold tabular-nums shrink-0">${m.total.toLocaleString()}</span>
-                <span className="text-xs text-[hsl(var(--text-tertiary))] shrink-0 w-12 text-right">{m.count} txns</span>
-              </div>
-            ))}
-          </div>
-        </GlassCard>
-      </div>
-      {/* ── INVESTMENTS & NET WORTH SECTION ── */}
-      {investmentAudit && (() => {
-        const nw = investmentAudit.net_worth
-        const nwItems = [
-          { label: 'Real Estate (equity)', value: nw.by_class.real_estate || 0, color: 'bg-violet-500' },
-          { label: 'Retirement (locked)', value: nw.by_class.retirement || 0, color: 'bg-slate-500' },
-          { label: 'Fixed Income (GBM)', value: nw.by_class.fixed_income || 0, color: 'bg-emerald-500' },
-          { label: 'Crypto', value: nw.by_class.crypto || 0, color: 'bg-amber-500' },
-        ]
-        const investmentRows = [
-          { asset: 'Crypto', color: 'bg-amber-500', value: nw.by_class.crypto || 0, momChange: null, ytdReturn: null, ytdEstimate: 'volatile' },
-          { asset: 'Fixed Income (GBM)', color: 'bg-emerald-500', value: nw.by_class.fixed_income || 0, momChange: null, ytdReturn: 9.5, ytdEstimate: '9.5% net' },
-          { asset: 'Real Estate', color: 'bg-violet-500', value: nw.by_class.real_estate || 0, momChange: null, ytdReturn: null, ytdEstimate: '+10–15% est.' },
-          { asset: 'Retirement (AFORE)', color: 'bg-slate-500', value: nw.by_class.retirement || 0, momChange: null, ytdReturn: null, ytdEstimate: '+8.5% est.' },
-        ]
-        const topFindings = investmentAudit.findings.filter(f => f.severity !== 'green').slice(0, 3)
-        const fmtN = (n: number) => `$${n.toLocaleString()} MXN`
-
-        return (
+        {error && !data ? (
+          <Card><ErrorState title="Couldn't load your transactions" body="Reports need the full ledger. Nothing is shown rather than partial totals." onRetry={() => { void refresh() }} /></Card>
+        ) : (
           <>
-            <div className="flex items-center justify-between mb-3 mt-8">
-              <h2 className="text-base font-semibold">Investments & Net Worth</h2>
+            {/* KPIs: neutral values, colour only on the comparison */}
+            <Card>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4 lg:divide-x lg:divide-border [&>*]:lg:pl-5 [&>*:first-child]:lg:pl-0">
+                <Stat
+                  label="Income"
+                  money
+                  value={formatMoney(income)}
+                  delta={previous ? delta(income - previous.income) : undefined}
+                  tone={tone(income - (previous?.income ?? 0), true)}
+                  hint={previous ? `vs ${prevLabel}` : perMonthHint(income)}
+                />
+                <Stat
+                  label="Spending"
+                  money
+                  value={formatMoney(spending)}
+                  delta={previous ? delta(spending - previous.spending) : undefined}
+                  tone={tone(spending - (previous?.spending ?? 0), false)}
+                  hint={previous ? `vs ${prevLabel}` : perMonthHint(spending)}
+                />
+                <Stat
+                  label="Net saved"
+                  money
+                  value={formatMoney(net)}
+                  hint={net < 0 ? 'Spent more than earned' : period.short}
+                  tone={net < 0 ? 'negative' : 'neutral'}
+                />
+                <Stat
+                  label="Savings rate"
+                  value={savingsRate == null ? '—' : formatPct(savingsRate)}
+                  hint={savingsRate == null ? 'No income recorded' : period.short}
+                />
+              </div>
+            </Card>
+
+            {/* Income vs Spending */}
+            <Card>
+              <CardHeader
+                title="Income vs Spending"
+                description={trendLabel ? `Monthly · ${trendLabel}` : 'Monthly'}
+                action={<ChartLegend items={[{ label: 'Income', color: CHART.series.income }, { label: 'Expenses', color: CHART.series.spend }]} />}
+              />
+              {monthlyData.length === 0 ? (
+                <ErrorState variant="empty" compact title="No transactions in this range" body="Pick another period to see the trend." />
+              ) : (
+                <ChartFigure
+                  summary={`${describeSeries('Income', monthlyData.map(r => ({ x: r.month, y: r.income })))}. ${describeSeries('Spending', monthlyData.map(r => ({ x: r.month, y: r.spending })))}.`}
+                  table={{ columns: ['Month', 'Income', 'Spending'], rows: monthlyData.map(r => [formatMonthLong(r.month, { short: true }), formatMoney(r.income), formatMoney(r.spending)]) }}
+                >
+                  <div className="h-56 sm:h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={monthlyData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                        <ChartGrid />
+                        <XAxis dataKey="month" {...chartXAxisMonthProps} interval="preserveStartEnd" minTickGap={16} />
+                        <YAxis {...chartYAxisMoneyProps} />
+                        <Tooltip {...chartTooltipProps} labelFormatter={l => formatMonthLong(String(l))} formatter={moneyTooltipFormatter} />
+                        <Line type="linear" dataKey="income" name="Income" stroke={CHART.series.income} strokeWidth={CHART.strokeWidth} dot={monthlyData.length <= 2} {...animation} />
+                        <Line type="linear" dataKey="spending" name="Spending" stroke={CHART.series.spend} strokeWidth={CHART.strokeWidth} dot={monthlyData.length <= 2} {...animation} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </ChartFigure>
+              )}
+            </Card>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/* Category Trends */}
+              <Card>
+                <CardHeader title="Category Trends" description={`Top ${trend.series.length || ''} spending categories by month`.replace('Top  ', 'Top ')} />
+                {trend.rows.length === 0 ? (
+                  <ErrorState variant="empty" compact title="No spending in this range" body="Category trends appear once expenses are recorded." />
+                ) : (
+                  <>
+                    <ChartLegend className="mb-2 justify-start" items={trend.series.map(s => ({ label: s.name, color: s.color, kind: 'area' as const }))} />
+                    <ChartFigure summary={`Stacked monthly spending for ${trend.series.map(s => s.name).join(', ')}`}>
+                      <div className="h-56 sm:h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={trend.rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                            <ChartGrid />
+                            <XAxis dataKey="month" {...chartXAxisMonthProps} interval="preserveStartEnd" minTickGap={16} />
+                            <YAxis {...chartYAxisMoneyProps} />
+                            <Tooltip {...chartTooltipProps} labelFormatter={l => formatMonthLong(String(l))} formatter={moneyTooltipFormatter} />
+                            {trend.series.map(s => (
+                              <Area key={s.key} type="linear" dataKey={s.key} name={s.name} stackId="1" stroke={s.color} fill={s.color} fillOpacity={0.22} strokeWidth={1.5} {...animation} />
+                            ))}
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </ChartFigure>
+                  </>
+                )}
+              </Card>
+
+              {/* Top merchants for the period */}
+              <Card>
+                <CardHeader title="Top Merchants" description={period.label} />
+                {topMerchants.length === 0 ? (
+                  <ErrorState variant="empty" compact title="No merchant spending" body="Nothing recorded with a merchant in this period." />
+                ) : (
+                  <ol className="space-y-3">
+                    {topMerchants.map((m, i) => (
+                      <li key={m.merchant} className="flex items-center gap-3">
+                        <span className="w-5 shrink-0 text-right text-label font-medium text-fg-tertiary tabular-nums">{i + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <p className="truncate text-sm font-medium text-fg">{m.merchant}</p>
+                            <span className="num shrink-0 text-sm font-semibold text-fg" data-money>{formatMoney(m.total)}</span>
+                          </div>
+                          <div className="mt-1.5 flex items-center gap-3">
+                            <div className="h-1.5 flex-1 rounded-full bg-surface-3" aria-hidden="true">
+                              <div className="h-1.5 rounded-full bg-fg-tertiary" style={{ width: `${(m.total / topMerchants[0].total) * 100}%` }} />
+                            </div>
+                            <span className="w-14 shrink-0 text-right text-label text-fg-tertiary">{m.count} {m.count === 1 ? 'txn' : 'txns'}</span>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </Card>
             </div>
 
-            {/* Net Worth Statement */}
-            <GlassCard className="mb-4">
-              <h3 className="text-sm font-semibold mb-4">Net Worth Statement</h3>
-              <div className="space-y-2 text-sm">
-                {nwItems.map(item => (
-                  <div key={item.label} className="flex items-center justify-between gap-3">
-                    <span className="flex min-w-0 items-center gap-2 text-[hsl(var(--text-secondary))]">
-                      <span className={`h-2 w-2 rounded-full shrink-0 ${item.color}`} />
-                      {item.label}
-                    </span>
-                    <div className="text-right shrink-0 flex flex-col items-end sm:block">
-                      <span className="font-medium tabular-nums">{fmtN(item.value)}</span>
-                      <span className="text-xs text-[hsl(var(--text-secondary))] sm:ml-2 tabular-nums">
-                        ({nw.total > 0 ? ((item.value / nw.total) * 100).toFixed(1) : 0}%)
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                <div className="pt-2 mt-1 border-t border-[hsl(var(--border))] flex justify-between gap-3 font-bold">
-                  <span>Total Net Worth</span>
-                  <span className="tabular-nums">{fmtN(nw.total)}</span>
-                </div>
-              </div>
-            </GlassCard>
-
-            {/* WEST compact */}
-            <GlassCard className="mb-4 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-semibold flex items-center gap-2">🏗️ WEST Apartment</h3>
-                <span className="text-xs text-emerald-600 tabular-nums font-semibold">91.2% funded</span>
-              </div>
-              <div className="flex h-2 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))] mb-2">
-                <div className="h-full bg-emerald-500" style={{ width: '22.4%' }} />
-                <div className="h-full bg-blue-500" style={{ width: '6.7%' }} />
-                <div className="h-full bg-amber-500/60" style={{ width: '62.1%' }} />
-              </div>
-              <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 text-xs text-[hsl(var(--text-secondary))]">
-                <span>Projected $10,213,365 / $11,204,000</span>
-                <span className="text-red-600">Gap $990,635</span>
-              </div>
-              <p className="text-xs text-[hsl(var(--text-secondary))] mt-1">
-                Est. market value: <span className="text-emerald-600 font-medium">$16,753,803 MXN</span> · +$5,549,803 equity
-              </p>
-            </GlassCard>
-
-            {/* Investment Performance */}
-            <GlassCard className="mb-4">
-              <h3 className="text-sm font-semibold mb-4">Investment Performance</h3>
-              {/* Desktop table */}
-              <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[hsl(var(--border))]">
-                      <th className="text-left text-xs text-[hsl(var(--text-secondary))] uppercase tracking-wider py-2 px-3">Asset</th>
-                      <th className="text-right text-xs text-[hsl(var(--text-secondary))] uppercase tracking-wider py-2 px-3">Current Value</th>
-                      <th className="text-right text-xs text-[hsl(var(--text-secondary))] uppercase tracking-wider py-2 px-3">MoM</th>
-                      <th className="text-right text-xs text-[hsl(var(--text-secondary))] uppercase tracking-wider py-2 px-3">Return YTD</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {investmentRows.map(row => (
-                      <tr key={row.asset} className="border-b border-[hsl(var(--border))] last:border-0">
-                        <td className="py-2.5 px-3 font-medium">
-                          <span className="flex items-center gap-2">
-                            <span className={`h-2 w-2 rounded-full ${row.color}`} />
-                            {row.asset}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums">{fmtN(row.value)}</td>
-                        <td className="py-2.5 px-3 text-right text-[hsl(var(--text-secondary))] text-xs">Manual</td>
-                        <td className="py-2.5 px-3 text-right tabular-nums text-xs">
-                          {row.ytdReturn !== null
-                            ? <span className={row.ytdReturn >= 0 ? 'text-emerald-600' : 'text-red-600'}>{row.ytdReturn >= 0 ? '+' : ''}{row.ytdReturn.toFixed(1)}%</span>
-                            : <span className="text-[hsl(var(--text-secondary))]">Est. {row.ytdEstimate}</span>}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {/* Mobile stacked */}
-              <div className="sm:hidden space-y-2">
-                {investmentRows.map(row => (
-                  <div key={row.asset} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className={`h-2 w-2 rounded-full shrink-0 ${row.color}`} />
-                      <span className="text-sm font-medium">{row.asset}</span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold tabular-nums">{fmtN(row.value)}</p>
-                      <p className="text-xs text-[hsl(var(--text-secondary))]">Est. {row.ytdEstimate}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
-
-            {/* Top Audit Findings */}
-            {topFindings.length > 0 && (
-              <GlassCard className="mb-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold">Top Audit Findings</h3>
-                  <a href="/finance/audit" className="inline-flex min-h-10 sm:min-h-0 items-center text-xs text-blue-600 hover:underline">View all →</a>
-                </div>
-                <div className="space-y-2">
-                  {topFindings.map((f, i) => (
-                    <div key={i} className="flex items-start gap-2.5">
-                      <span className="text-xs mt-0.5 shrink-0">{f.severity === 'red' ? '🔴' : '🟡'}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium leading-tight">{f.title}</p>
-                        <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5 line-clamp-1">{f.detail}</p>
+            {/* By owner */}
+            <section aria-labelledby="by-owner" className="flex flex-col gap-4">
+              <h2 id="by-owner" className="text-lg font-semibold text-fg">By Owner</h2>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
+                <Card>
+                  <CardHeader
+                    title="Monthly Spending Comparison"
+                    description={ownerMonthly.length ? `${nb(ownerMonthly[0].month)} – ${nb(ownerMonthly[ownerMonthly.length - 1].month)}` : 'Last 6 months'}
+                    action={<ChartLegend items={[{ label: OWNERS[0], color: ownerColor(OWNERS[0]), kind: 'bar' }, { label: OWNERS[1], color: ownerColor(OWNERS[1]), kind: 'bar' }]} />}
+                  />
+                  {ownerMonthly.length === 0 ? (
+                    <ErrorState variant="empty" compact title="No owner-tagged spending" body="Spending tagged to a person shows here." />
+                  ) : (
+                    <ChartFigure summary={`${describeSeries(OWNERS[0], ownerMonthly.map(r => ({ x: r.month, y: r.a })))}. ${describeSeries(OWNERS[1], ownerMonthly.map(r => ({ x: r.month, y: r.b })))}.`}>
+                      <div className="h-52 sm:h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={ownerMonthly} barCategoryGap={CHART.bar.categoryGap} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                            <ChartGrid />
+                            <XAxis dataKey="month" {...chartXAxisMonthProps} tickFormatter={monthTick} />
+                            <YAxis {...chartYAxisMoneyProps} />
+                            <Tooltip {...chartTooltipProps} cursor={{ fill: 'hsl(var(--surface-2))' }} labelFormatter={l => formatMonthLong(String(l))} formatter={moneyTooltipFormatter} />
+                            <Bar dataKey="a" name={OWNERS[0]} fill={ownerColor(OWNERS[0])} radius={CHART.bar.radius} maxBarSize={CHART.bar.maxBarSize} {...animation} />
+                            <Bar dataKey="b" name={OWNERS[1]} fill={ownerColor(OWNERS[1])} radius={CHART.bar.radius} maxBarSize={CHART.bar.maxBarSize} {...animation} />
+                          </BarChart>
+                        </ResponsiveContainer>
                       </div>
-                    </div>
-                  ))}
+                    </ChartFigure>
+                  )}
+                </Card>
+
+                <Card>
+                  <CardHeader title="Category Breakdown by Person" description={period.label} />
+                  {ownerByCategory.length === 0 ? (
+                    <ErrorState variant="empty" compact title="No owner-tagged spending" body="Spending tagged to a person shows here." />
+                  ) : (
+                    <ul className="space-y-3.5">
+                      {ownerByCategory.map(cat => (
+                        <li key={cat.id} className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-3 text-sm">
+                            <span className="flex min-w-0 items-center gap-2">
+                              <CategoryIcon name={cat.name} emoji={cat.icon} colorIndex={sortIndex.get(cat.id) ?? 0} size={24} />
+                              <span className="truncate text-fg">{cat.name}</span>
+                            </span>
+                            <span className="num shrink-0 font-medium text-fg" data-money>{formatMoney(cat.a + cat.b)}</span>
+                          </div>
+                          <OwnerBar bernardo={cat.a} laura={cat.b} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Card>
+              </div>
+            </section>
+
+            {/* Investments & net worth (live, from the audit + WEST endpoints — each card stands alone) */}
+            {(investmentAudit || west || auditError || westError) && (
+              <section aria-labelledby="investments" className="flex flex-col gap-4">
+                <h2 id="investments" className="text-lg font-semibold text-fg">Investments & Net Worth</h2>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
+                  {investmentAudit ? (
+                    <Card>
+                      <CardHeader title="Net Worth Statement" description="Current balances by asset class" />
+                      <ul className="space-y-2.5 text-sm">
+                        {NET_WORTH_CLASSES.map(item => {
+                          const value = investmentAudit.net_worth.by_class[item.key] || 0
+                          return (
+                            <li key={item.key} className="flex items-center justify-between gap-3">
+                              <span className="flex min-w-0 items-center gap-2 text-fg-secondary">
+                                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: item.color }} />
+                                <span className="min-w-0">
+                                  <span className="block truncate">{item.label}</span>
+                                  <span className="block text-label text-fg-tertiary">{item.note}</span>
+                                </span>
+                              </span>
+                              <span className="shrink-0 text-right">
+                                <span className="num block font-medium text-fg" data-money>{formatMoney(value)}</span>
+                                <span className="num block text-label text-fg-tertiary">{nwTotal > 0 ? formatPct((value / nwTotal) * 100, { decimals: 1 }) : '—'}</span>
+                              </span>
+                            </li>
+                          )
+                        })}
+                        <li className="flex justify-between gap-3 border-t border-border pt-2.5 font-semibold text-fg">
+                          <span>Total net worth</span>
+                          <span className="num" data-money>{formatMoney(nwTotal)}</span>
+                        </li>
+                      </ul>
+                    </Card>
+                  ) : auditError && westError ? (
+                    <InlineLoadError className="lg:col-span-2" title="Couldn't load investments or the WEST projection" onRetry={() => { void refreshAudit(); void refreshWest() }} />
+                  ) : auditError ? (
+                    <InlineLoadError title="Couldn't load investments" onRetry={() => { void refreshAudit() }} />
+                  ) : null}
+
+                  <div className="flex flex-col gap-4">
+                    {west && westProjected != null && west.target > 0 ? (
+                      <Card data-testid="west-card">
+                        <CardHeader
+                          title={<span className="inline-flex items-center gap-2"><Building2 aria-hidden="true" className="h-4 w-4 text-fg-tertiary" />WEST apartment</span>}
+                          description={`Delivery in ${west.months_to_delivery} months`}
+                          action={<StatusPill tone={westProjected >= west.target ? 'positive' : 'warning'}>{formatPct((westProjected / west.target) * 100)} funded</StatusPill>}
+                        />
+                        <ProgressBar value={westProjected} max={west.target} tone={westProjected >= west.target ? 'positive' : 'warning'} label="WEST funding projected at delivery" />
+                        <div className="mt-2 flex flex-wrap justify-between gap-x-3 gap-y-1 text-label text-fg-secondary">
+                          <span>Projected <span className="num font-medium text-fg" data-money>{formatCompact(westProjected)}</span> of <span className="num" data-money>{formatCompact(west.target)}</span></span>
+                          {(west.projected_at_delivery?.gap ?? 0) > 0 && <span>Gap <span className="num font-medium text-fg" data-money>{formatCompact(west.projected_at_delivery!.gap)}</span></span>}
+                        </div>
+                        <Link href="/finance/investments?tab=Real%20Estate" className="mt-3 inline-flex min-h-11 items-center gap-1 text-sm font-medium text-info hover:underline sm:min-h-0">
+                          Open the WEST plan <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+                        </Link>
+                      </Card>
+                    ) : westError && !auditError ? (
+                      <InlineLoadError title="Couldn't load the WEST projection" onRetry={() => { void refreshWest() }} />
+                    ) : null}
+                    {findings.length > 0 && (
+                      <Card>
+                        <CardHeader
+                          title="Top Audit Findings"
+                          action={<Link href="/finance/audit" className="inline-flex min-h-11 items-center text-sm font-medium text-info hover:underline sm:min-h-0">View all</Link>}
+                        />
+                        <ul className="space-y-3">
+                          {findings.map((f, i) => (
+                            <li key={i} className="flex items-start gap-3">
+                              <StatusPill tone={f.severity === 'red' ? 'negative' : 'warning'} className="mt-0.5">{f.severity === 'red' ? 'Act' : 'Watch'}</StatusPill>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium leading-tight text-fg">{f.title}</p>
+                                <p className="mt-0.5 line-clamp-2 text-label text-fg-secondary">{f.detail}</p>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </Card>
+                    )}
+                  </div>
                 </div>
-              </GlassCard>
+              </section>
             )}
           </>
-        )
-      })()}
-
-      {/* By Owner Section */}
-      <h3 className="text-lg font-semibold mt-2">By Owner</h3>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <GlassCard>
-          <h3 className="text-base font-semibold mb-4">Monthly Spending Comparison</h3>
-          <div className="h-52 sm:h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={ownerMonthly}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 83%)" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} />
-                <YAxis tick={{ fontSize: 11, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
-                <Tooltip {...tooltipStyle} formatter={(v: number | undefined) => [`$${(v ?? 0).toLocaleString()}`, '']} />
-                <Legend />
-                <Bar dataKey="bernardo" name={OWNERS[0]} fill="#3B82F6" radius={[4,4,0,0]} />
-                <Bar dataKey="laura" name={OWNERS[1]} fill="#EC4899" radius={[4,4,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </GlassCard>
-
-        <GlassCard>
-          <h3 className="text-base font-semibold mb-4">Category Breakdown by Person</h3>
-          <div className="space-y-3">
-            {ownerByCategory.map(cat => {
-              const total = cat.bernardo + cat.laura
-              return (
-                <div key={cat.name} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>{cat.icon} {cat.name}</span>
-                    <span className="font-medium tabular-nums">${total.toLocaleString()}</span>
-                  </div>
-                  <OwnerBar bernardo={cat.bernardo} laura={cat.laura} />
-                </div>
-              )
-            })}
-          </div>
-        </GlassCard>
-      </div>
-    </div>
+        )}
+      </Page>
     </PageTransition>
   )
 }

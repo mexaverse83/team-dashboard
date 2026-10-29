@@ -18,6 +18,8 @@ export interface SegmentedProps<T extends string> {
   onChange: (value: T) => void
   /** Required: names the group for VoiceOver ("Transaction type"). */
   ariaLabel: string
+  /** Id of a visible label; takes precedence over ariaLabel when set. */
+  ariaLabelledBy?: string
   size?: 'sm' | 'md'
   /** Stretch segments to fill the width. */
   fullWidth?: boolean
@@ -29,7 +31,7 @@ export interface SegmentedProps<T extends string> {
  * role=radio + aria-checked, roving tabindex and arrow-key navigation.
  * md segments are 44px tall; sm (36px) segments keep a 44px hit area.
  */
-export function Segmented<T extends string>({ options, value, onChange, ariaLabel, size = 'md', fullWidth = false, className }: SegmentedProps<T>) {
+export function Segmented<T extends string>({ options, value, onChange, ariaLabel, ariaLabelledBy, size = 'md', fullWidth = false, className }: SegmentedProps<T>) {
   const refs = React.useRef<Array<HTMLButtonElement | null>>([])
   const enabled = options.filter(o => !o.disabled)
 
@@ -51,7 +53,8 @@ export function Segmented<T extends string>({ options, value, onChange, ariaLabe
   return (
     <div
       role="radiogroup"
-      aria-label={ariaLabel}
+      aria-label={ariaLabelledBy ? undefined : ariaLabel}
+      aria-labelledby={ariaLabelledBy}
       className={cn('inline-flex gap-1 rounded-xl border border-border bg-surface-2 p-1', fullWidth && 'flex w-full', className)}
     >
       {options.map((option, index) => {

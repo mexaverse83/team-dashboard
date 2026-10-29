@@ -1,10 +1,10 @@
 /**
  * Unit Tests — Reports page (/finance/reports)
- * Split out of tests/pages/finance.test.tsx (Mona v2 W0, pure move: no assertion changes).
+ * Mona v2 WS1: period picker (default last full month), token charts, strict ledger reads.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
 import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '@/lib/seed-finance'
 import { monthKey } from '@/lib/finance-utils'
@@ -29,40 +29,9 @@ vi.mock('recharts', () => ({
   ReferenceLine: () => null,
 }))
 
-// Mock SparklineChart
-vi.mock('@/components/ui/sparkline-chart', () => ({
-  SparklineChart: () => <div data-testid="sparkline" />,
+vi.mock('next/link', () => ({
+  default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
 }))
-
-// Mock lucide-react
-vi.mock('lucide-react', () => {
-  const i = (n: string) => (props: any) => <svg data-testid={`icon-${n}`} {...props} />
-  return {
-    TrendingDown: i('trendingdown'), TrendingUp: i('trendingup'), Wallet: i('wallet'),
-    Percent: i('percent'), ChevronLeft: i('chevronleft'), ChevronRight: i('chevronright'),
-    Search: i('search'), Calendar: i('calendar'), Shield: i('shield'), Code: i('code'),
-    Telescope: i('telescope'), Mail: i('mail'), FlaskConical: i('flaskconical'),
-    Palette: i('palette'), Server: i('server'), Users: i('users'), DollarSign: i('dollarsign'),
-    Home: i('home'), Zap: i('zap'), LayoutGrid: i('layoutgrid'),
-    MessageCircle: i('messagecircle'), BarChart3: i('barchart3'),
-    ChevronsLeft: i('chevronsleft'), ChevronsRight: i('chevronsright'),
-    Inbox: i('inbox'), Activity: i('activity'), CheckSquare: i('checksquare'),
-    ArrowLeftRight: i('arrowleftright'), PiggyBank: i('piggybank'),
-    RefreshCw: i('refreshcw'), FileBarChart: i('filebarchart'),
-    Radio: i('radio'), Minus: i('minus'), Plus: i('plus'),
-    Pencil: i('pencil'), Trash2: i('trash2'), Power: i('power'), Upload: i('upload'), Download: i('download'),
-    CreditCard: i('creditcard'), Calculator: i('calculator'),
-    Landmark: i('landmark'), ShieldCheck: i('shieldcheck'), Target: i('target'),
-    Menu: i('menu'), X: i('x'),
-    // Icons added by newer finance components (weekend budget, rules, insights, etc.)
-    AlertCircle: i('alertcircle'), AlertTriangle: i('alerttriangle'),
-    ArrowDownLeft: i('arrowdownleft'), ArrowRight: i('arrowright'), ArrowUpRight: i('arrowupright'),
-    Bitcoin: i('bitcoin'), CalendarDays: i('calendardays'), Check: i('check'),
-    CheckCircle2: i('checkcircle2'), ChevronDown: i('chevrondown'), ChevronUp: i('chevronup'),
-    Clock: i('clock'), HeartPulse: i('heartpulse'), Info: i('info'), Lightbulb: i('lightbulb'),
-    Scissors: i('scissors'), SlidersHorizontal: i('slidershorizontal'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
-  }
-})
 
 // Mock Modal
 vi.mock('@/components/ui/modal', () => ({
@@ -135,84 +104,198 @@ function setupSupabaseMock(overrides: Record<string, any> = {}) {
 // ==========================================
 // REPORTS
 // ==========================================
+// Seed data covers Jan–Feb 2026; pin "today" to mid-March so the default
+// period (last full month) is February 2026.
+const sumSeed = (type: 'income' | 'expense', month: string) =>
+  SEED_TRANSACTIONS.filter(t => t.type === type && t.transaction_date.startsWith(month)).reduce((s, t) => s + t.amount_mxn, 0)
+const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`
+
 describe('Reports Page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 2, 15, 12))
     setupSupabaseMock()
   })
+  afterEach(() => { vi.useRealTimers() })
+
+  const load = async () => (await import('@/components/finance/reports-client')).default
 
   it('renders page header', async () => {
-    const Comp = (await import('@/components/finance/reports-client')).default
+    const Comp = await load()
     render(<Comp />)
     await waitFor(() => expect(screen.getByText('Reports')).toBeInTheDocument())
     expect(screen.getByText('Financial trends and analytics')).toBeInTheDocument()
   })
 
-  it('renders 4 KPI cards', async () => {
-    const Comp = (await import('@/components/finance/reports-client')).default
+  it('defaults to the last full month and prints the period', async () => {
+    const Comp = await load()
     render(<Comp />)
-    await waitFor(() => {
-      expect(screen.getByText('Total Income')).toBeInTheDocument()
-      expect(screen.getByText('Total Expenses')).toBeInTheDocument()
-      expect(screen.getByText('Net')).toBeInTheDocument()
-      expect(screen.getByText('Savings Rate')).toBeInTheDocument()
-    })
+    await waitFor(() => expect(screen.getByTestId('report-period')).toHaveTextContent('February 2026'))
+    expect(screen.getByRole('radio', { name: 'Month' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getAllByText(money(sumSeed('expense', '2026-02'))).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(money(sumSeed('income', '2026-02'))).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('vs Jan').length).toBe(2)
   })
 
-  it('income is emerald, expenses is rose', async () => {
-    const Comp = (await import('@/components/finance/reports-client')).default
+  it('renders 4 KPI stats with neutral values (colour only on deltas)', async () => {
+    const Comp = await load()
     const { container } = render(<Comp />)
     await waitFor(() => {
-      expect(container.querySelector('.text-emerald-600')).toBeInTheDocument()
-      expect(container.querySelector('.text-rose-600')).toBeInTheDocument()
+      for (const label of ['Income', 'Spending', 'Net saved', 'Savings rate']) expect(screen.getAllByText(label).length).toBeGreaterThanOrEqual(1)
     })
+    expect(container.querySelector('.text-emerald-600, .text-rose-600')).toBeNull()
+    container.querySelectorAll('.num-metric').forEach(el => expect(el.className).toContain('text-fg'))
   })
 
-  it('renders Income vs Expenses line chart', async () => {
-    const Comp = (await import('@/components/finance/reports-client')).default
+  it('switches to All time and to a previous month', async () => {
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByTestId('report-period')).toHaveTextContent('February 2026'))
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+    expect(screen.getByTestId('report-period')).toHaveTextContent('January 2026')
+    expect(screen.getByRole('button', { name: 'Previous month' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('radio', { name: 'All time' }))
+    expect(screen.getByTestId('report-period')).toHaveTextContent('All time · since Jan 2026')
+    const all = sumSeed('expense', '2026-01') + sumSeed('expense', '2026-02')
+    expect(screen.getAllByText(money(all)).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('renders Income vs Spending line chart with a legend', async () => {
+    const Comp = await load()
     render(<Comp />)
     await waitFor(() => {
-      expect(screen.getByText('Income vs Expenses')).toBeInTheDocument()
+      expect(screen.getByText('Income vs Spending')).toBeInTheDocument()
       expect(screen.getByTestId('line-chart')).toBeInTheDocument()
     })
+    expect(screen.getAllByText('Income').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText('Expenses').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('renders Category Trends area chart', async () => {
-    const Comp = (await import('@/components/finance/reports-client')).default
+  it('renders Category Trends area chart with a category legend', async () => {
+    const Comp = await load()
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getByText('Category Trends')).toBeInTheDocument()
       expect(screen.getByTestId('area-chart')).toBeInTheDocument()
     })
+    expect(screen.getAllByText('Groceries').length).toBeGreaterThanOrEqual(1)
   })
 
-  it('renders Top Merchants section', async () => {
-    const Comp = (await import('@/components/finance/reports-client')).default
+  it('renders Top Merchants for the period with transaction counts', async () => {
+    const Comp = await load()
     render(<Comp />)
-    await waitFor(() => {
-      expect(screen.getByText('Top Merchants')).toBeInTheDocument()
-      // Check some merchants from seed data
-      expect(screen.getAllByText(/Walmart|HEB|Starbucks/).length).toBeGreaterThanOrEqual(1)
-    })
+    await waitFor(() => expect(screen.getByText('Top Merchants')).toBeInTheDocument())
+    const card = screen.getByText('Top Merchants').closest('[data-variant]') as HTMLElement
+    expect(within(card).getAllByText(/Walmart|HEB/).length).toBeGreaterThanOrEqual(1)
+    expect(within(card).getAllByText(/txns/).length).toBeGreaterThanOrEqual(1)
   })
 
-  it('shows Income/Expenses legend', async () => {
-    const Comp = (await import('@/components/finance/reports-client')).default
+  it('reads the ledger strictly with an id tiebreaker and narrow columns', async () => {
+    const Comp = await load()
     render(<Comp />)
-    await waitFor(() => {
-      // Legend below Income vs Expenses chart
-      const incomeLabels = screen.getAllByText('Income')
-      const expenseLabels = screen.getAllByText('Expenses')
-      expect(incomeLabels.length).toBeGreaterThanOrEqual(1)
-      expect(expenseLabels.length).toBeGreaterThanOrEqual(1)
-    })
+    await waitFor(() => expect(screen.getByText('Top Merchants')).toBeInTheDocument())
+    const txCall = vi.mocked(supabase.from).mock.results.find((_, i) => vi.mocked(supabase.from).mock.calls[i][0] === 'finance_transactions')
+    const select = (txCall!.value as any).select
+    expect(select).toHaveBeenCalledWith('id,type,amount_mxn,category_id,merchant,transaction_date,owner')
+    const chain = select.mock.results[0].value
+    expect(chain.order).toHaveBeenCalledWith('id', { ascending: true })
   })
 
-  it('shows transaction count per merchant', async () => {
-    const Comp = (await import('@/components/finance/reports-client')).default
+  it('shows an error state instead of $0 totals when the ledger read fails', async () => {
+    setupSupabaseMock({ finance_transactions: { data: null, error: { message: 'boom' } } })
+    const Comp = await load()
     render(<Comp />)
-    await waitFor(() => {
-      expect(screen.getAllByText(/txns/).length).toBeGreaterThanOrEqual(1)
-    })
+    await waitFor(() => expect(screen.getByText("Couldn't load your transactions")).toBeInTheDocument())
+    expect(screen.queryByText('Net saved')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  const tx = (id: string, type: 'income' | 'expense', date: string, amount: number, extra: Record<string, unknown> = {}) =>
+    ({ id, type, amount_mxn: amount, category_id: 'cat-groc', merchant: 'HEB', transaction_date: date, owner: 'Bernardo', ...extra })
+
+  function stubApis(routes: Record<string, unknown>) {
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      const key = Object.keys(routes).find(k => String(url).includes(k))
+      return key
+        ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(routes[key]), text: () => Promise.resolve('') })
+        : Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}), text: () => Promise.resolve('') })
+    }))
+  }
+
+  it('labels the 6-month and YTD ranges', async () => {
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByTestId('report-period')).toHaveTextContent('February 2026'))
+    fireEvent.click(screen.getByRole('radio', { name: 'Last 6 months' }))
+    expect(screen.getByTestId('report-period')).toHaveTextContent('Sep 2025 – Feb 2026')
+    fireEvent.click(screen.getByRole('radio', { name: 'Year to date' }))
+    expect(screen.getByTestId('report-period')).toHaveTextContent('2026 to date')
+  })
+
+  it("marks the current month as '(so far)' and compares it with the same days of last month", async () => {
+    setupSupabaseMock({ finance_transactions: { data: [
+      tx('a', 'expense', '2026-02-05', 1000),
+      tx('b', 'expense', '2026-02-25', 9000), // after day 15 — excluded from the comparison
+      tx('c', 'expense', '2026-03-10', 1500),
+    ], error: null } })
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByTestId('report-period')).toHaveTextContent('February 2026'))
+    fireEvent.click(screen.getByRole('button', { name: 'Next month' }))
+    expect(screen.getByTestId('report-period')).toHaveTextContent('March 2026 (so far)')
+    expect(screen.getAllByText('vs Feb 1–15').length).toBe(2)
+    expect(screen.getByText('+$500')).toBeInTheDocument()
+  })
+
+  it('trend window covers the 12 months up to the selected month and skips sparse leading months', async () => {
+    vi.setSystemTime(new Date(2026, 9, 15, 12))
+    const rows = [
+      tx('old', 'expense', '2024-06-10', 50000), // outside the 12-month window
+      tx('stray', 'expense', '2025-10-03', 40), // stray legacy row — immaterial
+      ...['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'].flatMap((m, i) => [
+        tx(`i${i}`, 'income', `${m}-01`, 180000),
+        tx(`e${i}`, 'expense', `${m}-12`, 90000),
+      ]),
+    ]
+    setupSupabaseMock({ finance_transactions: { data: rows, error: null } })
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByTestId('report-period')).toHaveTextContent('September 2026'))
+    const card = screen.getByText('Income vs Spending').closest('[data-variant]') as HTMLElement
+    expect(card.textContent).toContain("Monthly · Jan\u00a0'26\u00a0–\u00a0Sep\u00a0'26")
+  })
+
+  it('renders the live WEST card even when the investment audit fails', async () => {
+    stubApis({ 'west-projection': { target: 11204000, months_to_delivery: 14, projected_at_delivery: { total_projected: 10200000, gap: 1004000 } } })
+    const Comp = await load()
+    render(<Comp />)
+    const card = await screen.findByTestId('west-card')
+    expect(card).toHaveTextContent('91% funded')
+    expect(card).toHaveTextContent('Delivery in 14 months')
+    expect(screen.getByText("Couldn't load investments")).toBeInTheDocument()
+    expect(screen.queryByText('Net Worth Statement')).toBeNull()
+  })
+
+  it('shows the net-worth statement when only the WEST endpoint fails', async () => {
+    stubApis({ 'audit/investments': { score: 70, score_label: 'Fair', net_worth: { total: 1000000, by_class: { fixed_income: 1000000 } }, findings: [] } })
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText('Net Worth Statement')).toBeInTheDocument())
+    expect(screen.getByText("Couldn't load the WEST projection")).toBeInTheDocument()
+    expect(screen.queryByTestId('west-card')).toBeNull()
+  })
+})
+
+describe('trimLeadingSparse', () => {
+  it('drops leading months that are immaterial next to the median, keeps zeros inside the range', async () => {
+    const { trimLeadingSparse } = await import('@/lib/chart-theme')
+    const rows = [
+      { m: '2025-11', a: 120, b: 0 }, { m: '2025-12', a: 0, b: 0 }, { m: '2026-01', a: 900, b: 300 },
+      { m: '2026-02', a: 180000, b: 90000 }, { m: '2026-03', a: 0, b: 0 }, { m: '2026-04', a: 170000, b: 95000 },
+    ]
+    expect(trimLeadingSparse(rows, ['a', 'b']).map(r => r.m)).toEqual(['2026-02', '2026-03', '2026-04'])
+    expect(trimLeadingSparse([{ a: 0 }], ['a'])).toEqual([])
+    expect(trimLeadingSparse([{ a: 5 }], ['a'])).toEqual([{ a: 5 }])
   })
 })

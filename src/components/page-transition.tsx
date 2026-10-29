@@ -1,16 +1,8 @@
-'use client'
-
-import { motion } from 'framer-motion'
 import { ReactNode } from 'react'
 
+// CSS-only entrance (perf-12): content is visible in the server HTML instead
+// of waiting for hydration, no motion runtime ships with every page, and
+// prefers-reduced-motion disables it in globals.css.
 export function PageTransition({ children }: { children: ReactNode }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-    >
-      {children}
-    </motion.div>
-  )
+  return <div className="animate-fade-up">{children}</div>
 }

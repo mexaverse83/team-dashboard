@@ -1,10 +1,10 @@
 /**
  * Unit Tests — Debt planner (/finance/debt)
- * Split out of tests/pages/finance-v2.test.tsx (Mona v2 W0, pure move: no assertion changes).
+ * Mona v2 WS1 rebuild on the shared primitives (PageHeader, Card, Stat, tokens).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
 import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '@/lib/seed-finance'
 
@@ -53,35 +53,10 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }))
 
-// Mock lucide-react (exhaustive)
-vi.mock('lucide-react', () => {
-  const i = (n: string) => ({ className, ...rest }: any) => <span data-testid={`icon-${n}`} className={className} />
-  return {
-    TrendingDown: i('trendingdown'), TrendingUp: i('trendingup'), Wallet: i('wallet'),
-    Percent: i('percent'), ChevronLeft: i('chevronleft'), ChevronRight: i('chevronright'),
-    Search: i('search'), Calendar: i('calendar'), Shield: i('shield'), Code: i('code'),
-    Telescope: i('telescope'), Mail: i('mail'), FlaskConical: i('flaskconical'),
-    Palette: i('palette'), Server: i('server'), Users: i('users'), DollarSign: i('dollarsign'),
-    Home: i('home'), Zap: i('zap'), LayoutGrid: i('layoutgrid'),
-    MessageCircle: i('messagecircle'), BarChart3: i('barchart3'),
-    ChevronsLeft: i('chevronsleft'), ChevronsRight: i('chevronsright'),
-    Inbox: i('inbox'), Activity: i('activity'), CheckSquare: i('checksquare'),
-    ArrowLeftRight: i('arrowleftright'), PiggyBank: i('piggybank'),
-    RefreshCw: i('refreshcw'), FileBarChart: i('filebarchart'),
-    Radio: i('radio'), Minus: i('minus'), Plus: i('plus'),
-    Pencil: i('pencil'), Trash2: i('trash2'), Calculator: i('calculator'),
-    Landmark: i('landmark'), ShieldCheck: i('shieldcheck'), Target: i('target'),
-    Menu: i('menu'), X: i('x'), CreditCard: i('creditcard'), Power: i('power'),
-    Upload: i('upload'), Download: i('download'),
-    // Icons added by newer finance components
-    AlertCircle: i('alertcircle'), AlertTriangle: i('alerttriangle'),
-    ArrowDownLeft: i('arrowdownleft'), ArrowRight: i('arrowright'), ArrowUpRight: i('arrowupright'),
-    Bitcoin: i('bitcoin'), CalendarDays: i('calendardays'), Check: i('check'),
-    CheckCircle2: i('checkcircle2'), ChevronDown: i('chevrondown'), ChevronUp: i('chevronup'),
-    Clock: i('clock'), HeartPulse: i('heartpulse'), Info: i('info'), Lightbulb: i('lightbulb'),
-    Scissors: i('scissors'), SlidersHorizontal: i('slidershorizontal'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
-  }
-})
+// Real lucide icons render in jsdom; next/link as a plain anchor.
+vi.mock('next/link', () => ({
+  default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
+}))
 
 // Mock framer-motion
 vi.mock('framer-motion', () => ({
@@ -153,12 +128,12 @@ function setupSupabaseMock(overrides: Record<string, any> = {}) {
     } as any
   })
 }
-
 // ==========================================
 // DEBT PLANNER
 // ==========================================
 describe('Debt Planner', () => {
   beforeEach(() => { vi.clearAllMocks(); setupSupabaseMock() })
+  afterEach(() => { vi.useRealTimers() })
 
   it('renders page header', async () => {
     const Comp = (await import('@/components/finance/debt-client')).default
@@ -229,5 +204,81 @@ describe('Debt Planner', () => {
       expect(screen.getByText('30%')).toBeInTheDocument()
       expect(screen.getByText('of original debt paid off')).toBeInTheDocument()
     })
+  })
+
+  it('KPIs and balances are neutral (no rose/emerald), with a Recommended pill on the cheaper strategy', async () => {
+    const Comp = (await import('@/components/finance/debt-client')).default
+    const { container } = render(<Comp />)
+    await waitFor(() => expect(screen.getByText('Recommended')).toBeInTheDocument())
+    expect(container.querySelector('.text-rose-600, .text-emerald-600')).toBeNull()
+  })
+
+  it('logs a payment with a local-calendar payment_date', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    // 20:30 in Mexico City is already the next day in UTC.
+    vi.setSystemTime(new Date(2026, 9, 28, 20, 30))
+    const Comp = (await import('@/components/finance/debt-client')).default
+    render(<Comp />)
+    const logButtons = await screen.findAllByRole('button', { name: /Log payment for Credit Card/ })
+    fireEvent.click(logButtons[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Log Payment & Update Balance' }))
+    await waitFor(() => {
+      const inserts = vi.mocked(supabase.from).mock.results
+        .filter((_, i) => vi.mocked(supabase.from).mock.calls[i][0] === 'finance_debt_payments')
+        .flatMap(r => (r.value as any).insert.mock.calls)
+      expect(inserts.length).toBeGreaterThanOrEqual(1)
+      expect(inserts[0][0].payment_date).toBe('2026-10-28')
+    })
+  })
+
+  it('a failed read shows an error with Retry, not "No debts tracked yet"', async () => {
+    setupSupabaseMock({ finance_debts: { data: null, error: { message: 'permission denied' } } })
+    const Comp = (await import('@/components/finance/debt-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText("Couldn't load your debts")).toBeInTheDocument())
+    expect(screen.queryByText('No debts tracked yet')).toBeNull()
+    expect(screen.queryByText('Total Debt')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  it('a failed save keeps the modal open and says why', async () => {
+    setupSupabaseMock()
+    const base = vi.mocked(supabase.from).getMockImplementation()!
+    vi.mocked(supabase.from).mockImplementation(((table: string) => {
+      const b = base(table)
+      return table === 'finance_debts' ? { ...b, insert: vi.fn().mockReturnValue(Promise.resolve({ data: null, error: { message: 'rls says no' } })) } : b
+    }) as any)
+    const Comp = (await import('@/components/finance/debt-client')).default
+    render(<Comp />)
+    fireEvent.click((await screen.findAllByRole('button', { name: /Add Debt/ }))[0])
+    fireEvent.change(screen.getByLabelText('Debt Name *'), { target: { value: 'Amex' } })
+    fireEvent.change(screen.getByLabelText('Balance *'), { target: { value: '1000' } })
+    fireEvent.change(screen.getByLabelText('Rate % *'), { target: { value: '30' } })
+    fireEvent.change(screen.getByLabelText('Minimum *'), { target: { value: '200' } })
+    expect(screen.getByRole('radiogroup', { name: 'Type' })).toBeInTheDocument()
+    fireEvent.click(within(screen.getByTestId('modal')).getByRole('button', { name: 'Add Debt' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Couldn't save the debt: rls says no"))
+    expect(screen.getByTestId('modal')).toBeInTheDocument()
+  })
+
+  it('hides the KPI row when there are no debts', async () => {
+    setupSupabaseMock({ finance_debts: { data: [], error: null } })
+    const Comp = (await import('@/components/finance/debt-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText('No debts tracked yet')).toBeInTheDocument())
+    expect(screen.queryByText('Total Debt')).toBeNull()
+  })
+
+  it('says minimums do not cover interest instead of a 30-year date', async () => {
+    setupSupabaseMock({ finance_debts: { data: [
+      { id: 'd9', name: 'Old Card', creditor: 'X', balance: 100000, interest_rate: 60, minimum_payment: 1000, type: 'credit_card', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
+    ], error: null } })
+    const Comp = (await import('@/components/finance/debt-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getAllByText("Minimums don't cover interest").length).toBeGreaterThanOrEqual(1))
+    expect(screen.queryByText(/360 months/)).toBeNull()
+    const { simulatePayoff } = await import('@/components/finance/debt-client')
+    expect(simulatePayoff([{ balance: 100000, interest_rate: 60, minimum_payment: 1000 } as any], 'avalanche', 0).stalled).toBe(true)
+    expect(simulatePayoff([{ balance: 10000, interest_rate: 12, minimum_payment: 1000 } as any], 'avalanche', 0).stalled).toBe(false)
   })
 })

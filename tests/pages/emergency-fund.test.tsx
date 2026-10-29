@@ -1,10 +1,10 @@
 /**
  * Unit Tests — Emergency fund (/finance/emergency-fund)
- * Split out of tests/pages/finance-v2.test.tsx (Mona v2 W0, pure move: no assertion changes).
+ * Mona v2 WS1 rebuild on the shared primitives (PageHeader, Card, Stat, tokens).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
 import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '@/lib/seed-finance'
 
@@ -53,35 +53,10 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }))
 
-// Mock lucide-react (exhaustive)
-vi.mock('lucide-react', () => {
-  const i = (n: string) => ({ className, ...rest }: any) => <span data-testid={`icon-${n}`} className={className} />
-  return {
-    TrendingDown: i('trendingdown'), TrendingUp: i('trendingup'), Wallet: i('wallet'),
-    Percent: i('percent'), ChevronLeft: i('chevronleft'), ChevronRight: i('chevronright'),
-    Search: i('search'), Calendar: i('calendar'), Shield: i('shield'), Code: i('code'),
-    Telescope: i('telescope'), Mail: i('mail'), FlaskConical: i('flaskconical'),
-    Palette: i('palette'), Server: i('server'), Users: i('users'), DollarSign: i('dollarsign'),
-    Home: i('home'), Zap: i('zap'), LayoutGrid: i('layoutgrid'),
-    MessageCircle: i('messagecircle'), BarChart3: i('barchart3'),
-    ChevronsLeft: i('chevronsleft'), ChevronsRight: i('chevronsright'),
-    Inbox: i('inbox'), Activity: i('activity'), CheckSquare: i('checksquare'),
-    ArrowLeftRight: i('arrowleftright'), PiggyBank: i('piggybank'),
-    RefreshCw: i('refreshcw'), FileBarChart: i('filebarchart'),
-    Radio: i('radio'), Minus: i('minus'), Plus: i('plus'),
-    Pencil: i('pencil'), Trash2: i('trash2'), Calculator: i('calculator'),
-    Landmark: i('landmark'), ShieldCheck: i('shieldcheck'), Target: i('target'),
-    Menu: i('menu'), X: i('x'), CreditCard: i('creditcard'), Power: i('power'),
-    Upload: i('upload'), Download: i('download'),
-    // Icons added by newer finance components
-    AlertCircle: i('alertcircle'), AlertTriangle: i('alerttriangle'),
-    ArrowDownLeft: i('arrowdownleft'), ArrowRight: i('arrowright'), ArrowUpRight: i('arrowupright'),
-    Bitcoin: i('bitcoin'), CalendarDays: i('calendardays'), Check: i('check'),
-    CheckCircle2: i('checkcircle2'), ChevronDown: i('chevrondown'), ChevronUp: i('chevronup'),
-    Clock: i('clock'), HeartPulse: i('heartpulse'), Info: i('info'), Lightbulb: i('lightbulb'),
-    Scissors: i('scissors'), SlidersHorizontal: i('slidershorizontal'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
-  }
-})
+// Real lucide icons render in jsdom; next/link as a plain anchor.
+vi.mock('next/link', () => ({
+  default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
+}))
 
 // Mock framer-motion
 vi.mock('framer-motion', () => ({
@@ -153,52 +128,170 @@ function setupSupabaseMock(overrides: Record<string, any> = {}) {
     } as any
   })
 }
-
 // ==========================================
 // EMERGENCY FUND
 // ==========================================
+const FUND_ROW = {
+  id: 'ef1', current_amount: 390000, target_amount: 150000, target_months: 6,
+  created_at: '2026-02-16T10:00:00Z', updated_at: '2026-02-16T10:00:00Z',
+  account_allocation_json: { tier1: 100000, tier2: 190000, tier3: 100000, monthly_essentials: 25000, monthly_saving: 8000, risk_answers: null },
+}
+
+function stubSummary(emergency_fund: Record<string, unknown> | null, extra: Record<string, unknown> = {}) {
+  vi.stubGlobal('fetch', vi.fn((url: string) => {
+    if (String(url).includes('/api/finance/summary') && emergency_fund) {
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ emergency_fund, ...extra }), text: () => Promise.resolve('') })
+    }
+    return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}), text: () => Promise.resolve('') })
+  }))
+}
+
 describe('Emergency Fund', () => {
   beforeEach(() => { vi.clearAllMocks(); setupSupabaseMock() })
+  afterEach(() => { vi.useRealTimers() })
+
+  const load = async () => (await import('@/components/finance/emergency-fund-client')).default
 
   it('renders page header', async () => {
-    const Comp = (await import('@/components/finance/emergency-fund-client')).default
+    const Comp = await load()
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getByText('Emergency Fund')).toBeInTheDocument()
     })
   })
 
-  it('renders monthly essentials input', async () => {
-    const Comp = (await import('@/components/finance/emergency-fund-client')).default
+  it('renders monthly essentials input inside the settings disclosure', async () => {
+    const Comp = await load()
     render(<Comp />)
-    await waitFor(() => {
-      expect(screen.getByText(/Monthly Essentials/)).toBeInTheDocument()
-    })
+    await waitFor(() => expect(screen.getByLabelText(/Monthly Essentials/)).toBeInTheDocument())
+    expect(screen.getByLabelText(/Monthly Essentials/).closest('details')).not.toBeNull()
+    expect(screen.getByText('Fund settings')).toBeInTheDocument()
   })
 
-  it('renders MX account recommendations', async () => {
-    const Comp = (await import('@/components/finance/emergency-fund-client')).default
+  it('renders MX account recommendations with an as-of date', async () => {
+    const Comp = await load()
     render(<Comp />)
     await waitFor(() => {
-      // MX-specific account names
       expect(screen.getAllByText(/Nu México|Hey Banco|Mercado Pago|CETES|Supertasas|Kubo/).length).toBeGreaterThanOrEqual(1)
     })
+    expect(screen.getByText(/rates as of Feb 2026/)).toBeInTheDocument()
   })
 
   it('renders liquidity tier allocation', async () => {
-    const Comp = (await import('@/components/finance/emergency-fund-client')).default
+    const Comp = await load()
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getAllByText(/Tier|tier/).length).toBeGreaterThanOrEqual(1)
     })
   })
 
-  it('shows risk assessment questions', async () => {
-    const Comp = (await import('@/components/finance/emergency-fund-client')).default
+  it('shows risk assessment questions as radio groups', async () => {
+    const Comp = await load()
     render(<Comp />)
     await waitFor(() => {
-      // Risk score quiz should be visible
       expect(screen.getAllByText(/risk|Risk|income|dependents|insurance/i).length).toBeGreaterThanOrEqual(1)
     })
+    expect(screen.getByRole('radiogroup', { name: 'Health insurance coverage?' })).toBeInTheDocument()
+  })
+
+  it('leads with months covered from the summary and badges a manual essentials basis', async () => {
+    stubSummary(
+      { target: 150000, current: 390000, target_months: 6, monthly_essentials: 25000, months_covered: 15.6, funded_pct: 260, gap: 0, risk_score: 10, essentials_basis: 'manual' },
+      { staleness: { ef_confirmed_at: '2026-02-16', gbm_confirmed_at: null, real_estate_confirmed_at: null } },
+    )
+    setupSupabaseMock({ finance_emergency_fund: { data: [FUND_ROW], error: null } })
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByTestId('ef-months')).toHaveTextContent('15.6 months'))
+    expect(screen.getByTestId('ef-basis')).toHaveTextContent('Manual estimate')
+    expect(screen.getByText('Balance last confirmed Feb 16')).toBeInTheDocument()
+    expect(screen.getByText('Surplus')).toBeInTheDocument()
+  })
+
+  it('offers the surplus as a link (no write) when the balance is freshly confirmed and essentials derived', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 28, 12))
+    stubSummary(
+      { target: 150000, current: 390000, target_months: 6, monthly_essentials: 25000, months_covered: 15.6, funded_pct: 260, gap: 0, risk_score: 10, essentials_basis: 'derived' },
+      { staleness: { ef_confirmed_at: '2026-10-20', gbm_confirmed_at: null, real_estate_confirmed_at: null } },
+    )
+    const Comp = await load()
+    render(<Comp />)
+    const link = await screen.findByRole('link', { name: /Plan it for WEST/ })
+    expect(link).toHaveAttribute('href', '/finance/investments?tab=Real%20Estate')
+    expect(screen.getByText('$240,000')).toBeInTheDocument()
+    expect(vi.mocked(supabase.from).mock.results.some(r => (r.value as any).update.mock.calls.length > 0)).toBe(false)
+  })
+
+  it('asks to confirm a stale balance before suggesting where to move the surplus', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 28, 12))
+    stubSummary(
+      { target: 150000, current: 390000, target_months: 6, monthly_essentials: 25000, months_covered: 15.6, funded_pct: 260, gap: 0, risk_score: 10, essentials_basis: 'manual' },
+      { staleness: { ef_confirmed_at: '2026-02-16T18:00:00Z', gbm_confirmed_at: null, real_estate_confirmed_at: null } },
+    )
+    const Comp = await load()
+    render(<Comp />)
+    const box = await screen.findByTestId('ef-confirm-first')
+    expect(box).toHaveTextContent('last confirmed Feb 16 (8 months ago)')
+    expect(box).toHaveTextContent('essentials are a manual estimate')
+    expect(screen.getByRole('button', { name: 'Confirm your balance first' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Plan it for WEST/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm your balance first' }))
+    expect((document.getElementById('fund-settings') as HTMLDetailsElement).open).toBe(true)
+  })
+
+  it('never labels a settings save as a balance confirmation', async () => {
+    setupSupabaseMock({ finance_emergency_fund: { data: [{ ...FUND_ROW, updated_at: '2026-10-01T12:00:00Z' }], error: null } })
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText(/Settings last saved Oct 1 · balance not confirmed/)).toBeInTheDocument())
+    expect(screen.queryByText(/Balance last confirmed/)).toBeNull()
+  })
+
+  it('shows a skeleton, not placeholder money, while loading', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    vi.mocked(supabase.from).mockImplementation((() => ({
+      select: () => { const p: any = new Promise(() => {}); p.order = () => p; p.limit = () => p; return p },
+    })) as any)
+    const Comp = await load()
+    const { container } = render(<Comp />)
+    expect(screen.getByTestId('ef-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('ef-months')).toBeNull()
+    expect(container.textContent).not.toMatch(/\$93|\$25,000|3\.7/)
+  })
+
+  it('shows an error state when both the summary and the fund row fail', async () => {
+    setupSupabaseMock({ finance_emergency_fund: { data: null, error: { message: 'rls' } } })
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText("Couldn't load your emergency fund")).toBeInTheDocument())
+    expect(screen.queryByTestId('ef-months')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  it('shows a setup prompt when there is no fund yet', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}), text: () => Promise.resolve('') })))
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText('No emergency fund set up yet')).toBeInTheDocument())
+    expect(screen.queryByTestId('ef-months')).toBeNull()
+  })
+
+  it('shows a derived basis and a gap when essentials come from spending', async () => {
+    stubSummary({ target: 450000, current: 390000, target_months: 6, monthly_essentials: 75000, months_covered: 5.2, funded_pct: 87, gap: 60000, risk_score: 10, essentials_basis: 'derived' })
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByTestId('ef-basis')).toHaveTextContent('From your spending'))
+    expect(screen.getByTestId('ef-months')).toHaveTextContent('5.2 months')
+    expect(screen.getByText('Gap')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Plan it for WEST/ })).toBeNull()
+  })
+
+  it('uses tokens, not indigo', async () => {
+    const Comp = await load()
+    const { container } = render(<Comp />)
+    await waitFor(() => expect(screen.getByText('Emergency Fund')).toBeInTheDocument())
+    expect(container.innerHTML).not.toMatch(/indigo|violet/)
   })
 })

@@ -1,10 +1,10 @@
 /**
  * Unit Tests — Expense audit (/finance/audit)
- * Split out of tests/pages/finance-v2.test.tsx (Mona v2 W0, pure move: no assertion changes).
+ * Mona v2 WS1 rebuild on the shared primitives (PageHeader, Card, Stat, tokens).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
 import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '@/lib/seed-finance'
 
@@ -53,35 +53,10 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }))
 
-// Mock lucide-react (exhaustive)
-vi.mock('lucide-react', () => {
-  const i = (n: string) => ({ className, ...rest }: any) => <span data-testid={`icon-${n}`} className={className} />
-  return {
-    TrendingDown: i('trendingdown'), TrendingUp: i('trendingup'), Wallet: i('wallet'),
-    Percent: i('percent'), ChevronLeft: i('chevronleft'), ChevronRight: i('chevronright'),
-    Search: i('search'), Calendar: i('calendar'), Shield: i('shield'), Code: i('code'),
-    Telescope: i('telescope'), Mail: i('mail'), FlaskConical: i('flaskconical'),
-    Palette: i('palette'), Server: i('server'), Users: i('users'), DollarSign: i('dollarsign'),
-    Home: i('home'), Zap: i('zap'), LayoutGrid: i('layoutgrid'),
-    MessageCircle: i('messagecircle'), BarChart3: i('barchart3'),
-    ChevronsLeft: i('chevronsleft'), ChevronsRight: i('chevronsright'),
-    Inbox: i('inbox'), Activity: i('activity'), CheckSquare: i('checksquare'),
-    ArrowLeftRight: i('arrowleftright'), PiggyBank: i('piggybank'),
-    RefreshCw: i('refreshcw'), FileBarChart: i('filebarchart'),
-    Radio: i('radio'), Minus: i('minus'), Plus: i('plus'),
-    Pencil: i('pencil'), Trash2: i('trash2'), Calculator: i('calculator'),
-    Landmark: i('landmark'), ShieldCheck: i('shieldcheck'), Target: i('target'),
-    Menu: i('menu'), X: i('x'), CreditCard: i('creditcard'), Power: i('power'),
-    Upload: i('upload'), Download: i('download'),
-    // Icons added by newer finance components
-    AlertCircle: i('alertcircle'), AlertTriangle: i('alerttriangle'),
-    ArrowDownLeft: i('arrowdownleft'), ArrowRight: i('arrowright'), ArrowUpRight: i('arrowupright'),
-    Bitcoin: i('bitcoin'), CalendarDays: i('calendardays'), Check: i('check'),
-    CheckCircle2: i('checkcircle2'), ChevronDown: i('chevrondown'), ChevronUp: i('chevronup'),
-    Clock: i('clock'), HeartPulse: i('heartpulse'), Info: i('info'), Lightbulb: i('lightbulb'),
-    Scissors: i('scissors'), SlidersHorizontal: i('slidershorizontal'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
-  }
-})
+// Real lucide icons render in jsdom; next/link as a plain anchor.
+vi.mock('next/link', () => ({
+  default: ({ children, href, ...props }: any) => <a href={href} {...props}>{children}</a>,
+}))
 
 // Mock framer-motion
 vi.mock('framer-motion', () => ({
@@ -153,15 +128,17 @@ function setupSupabaseMock(overrides: Record<string, any> = {}) {
     } as any
   })
 }
-
 // ==========================================
 // EXPENSE AUDIT
 // ==========================================
 describe('Expense Audit', () => {
   beforeEach(() => { vi.clearAllMocks(); setupSupabaseMock() })
+  afterEach(() => { vi.useRealTimers() })
+
+  const load = async () => (await import('@/components/finance/audit-client'))
 
   it('renders page header', async () => {
-    const Comp = (await import('@/components/finance/audit-client')).default
+    const Comp = (await load()).default
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getByText('Expense Audit')).toBeInTheDocument()
@@ -169,7 +146,7 @@ describe('Expense Audit', () => {
   })
 
   it('renders Spending Heatmap section', async () => {
-    const Comp = (await import('@/components/finance/audit-client')).default
+    const Comp = (await load()).default
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getByText('Spending Heatmap')).toBeInTheDocument()
@@ -177,7 +154,7 @@ describe('Expense Audit', () => {
   })
 
   it('renders Category Scorecards section', async () => {
-    const Comp = (await import('@/components/finance/audit-client')).default
+    const Comp = (await load()).default
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getByText('Category Scorecards')).toBeInTheDocument()
@@ -185,7 +162,7 @@ describe('Expense Audit', () => {
   })
 
   it('renders Money Leaks section', async () => {
-    const Comp = (await import('@/components/finance/audit-client')).default
+    const Comp = (await load()).default
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getByText(/Money Leaks/)).toBeInTheDocument()
@@ -193,7 +170,7 @@ describe('Expense Audit', () => {
   })
 
   it('renders Largest Expenses section', async () => {
-    const Comp = (await import('@/components/finance/audit-client')).default
+    const Comp = (await load()).default
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getByText(/Largest Expenses/)).toBeInTheDocument()
@@ -201,7 +178,7 @@ describe('Expense Audit', () => {
   })
 
   it('renders Most Frequent Purchases section', async () => {
-    const Comp = (await import('@/components/finance/audit-client')).default
+    const Comp = (await load()).default
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getByText(/Most Frequent/)).toBeInTheDocument()
@@ -209,20 +186,182 @@ describe('Expense Audit', () => {
   })
 
   it('renders Merchant Concentration section', async () => {
-    const Comp = (await import('@/components/finance/audit-client')).default
+    const Comp = (await load()).default
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getByText(/Merchant Concentration/)).toBeInTheDocument()
     })
   })
 
-  it('heatmap renders day/hour grid', async () => {
-    const Comp = (await import('@/components/finance/audit-client')).default
+  it('section headers use icons, not emoji', async () => {
+    const Comp = (await load()).default
     const { container } = render(<Comp />)
-    await waitFor(() => {
-      // Heatmap grid cells
-      const cells = container.querySelectorAll('[title]')
-      expect(cells.length).toBeGreaterThanOrEqual(1)
+    await waitFor(() => expect(screen.getByText(/Merchant Concentration/)).toBeInTheDocument())
+    const headings = Array.from(container.querySelectorAll('h1, h2, h3')).map(h => h.textContent || '')
+    expect(headings.join(' ')).not.toMatch(/\p{Extended_Pictographic}/u)
+  })
+
+  it('heatmap is a weekday × week table with a Less → More legend', async () => {
+    const Comp = (await load()).default
+    const { container } = render(<Comp />)
+    await waitFor(() => expect(screen.getByRole('table', { name: /Spending by day/ })).toBeInTheDocument())
+    expect(screen.queryByRole('grid')).toBeNull()
+    expect(within(screen.getByRole('table', { name: /Spending by day/ })).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+    expect(container.querySelectorAll('[data-date]').length).toBeGreaterThanOrEqual(28)
+    expect(screen.getByText('Less')).toBeInTheDocument()
+    expect(screen.getByText('More')).toBeInTheDocument()
+  })
+
+  it("places '2026-10-28' in the Wednesday column (local date, not UTC)", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 28, 20))
+    setupSupabaseMock({
+      finance_transactions: { data: [{ ...SEED_TRANSACTIONS[3], id: 'oct28', transaction_date: '2026-10-28', amount_mxn: 1234 }], error: null },
     })
+    const Comp = (await load()).default
+    const { container } = render(<Comp />)
+    await waitFor(() => expect(container.querySelector('[data-date="2026-10-28"]')).not.toBeNull())
+    const cell = container.querySelector('[data-date="2026-10-28"]') as HTMLElement
+    expect(cell.dataset.weekday).toBe('Wed')
+    expect(cell.getAttribute('aria-label')).toBe('Wed Oct 28: $1,234')
+    // Oct 1 2026 is a Thursday: first row has three leading blanks.
+    expect((container.querySelector('[data-date="2026-10-01"]') as HTMLElement).dataset.weekday).toBe('Thu')
+  })
+
+  it('buildSpendingHeatmap sums per local day and normalises intensity', async () => {
+    const { buildSpendingHeatmap } = await load()
+    const { grid, byWeekday, max } = buildSpendingHeatmap('2026-10', [
+      { transaction_date: '2026-10-28', amount_mxn: 300 },
+      { transaction_date: '2026-10-28', amount_mxn: 100 },
+      { transaction_date: '2026-10-31', amount_mxn: 200 },
+    ], '2026-10-31')
+    expect(max).toBe(400)
+    const cells = grid.flat().filter(Boolean)
+    expect(cells).toHaveLength(31)
+    const oct28 = cells.find(c => c!.date === '2026-10-28')!
+    expect(oct28).toMatchObject({ weekday: 'Wed', amount: 400, count: 2, intensity: 1 })
+    expect(cells.find(c => c!.date === '2026-10-31')!.weekday).toBe('Sat')
+    expect(byWeekday.find(d => d.label === 'Wed')!.amount).toBe(400)
+  })
+
+  it('one huge day does not flatten the rest of the heatmap; future days are marked', async () => {
+    const { buildSpendingHeatmap } = await load()
+    const rows = [
+      { transaction_date: '2026-10-01', amount_mxn: 75000 }, // rent + WEST
+      ...Array.from({ length: 20 }, (_, i) => ({ transaction_date: `2026-10-${String(i + 2).padStart(2, '0')}`, amount_mxn: 200 + i * 100 })),
+    ]
+    const { grid, peak } = buildSpendingHeatmap('2026-10', rows, '2026-10-28')
+    const cells = grid.flat().filter(Boolean) as Array<{ date: string; intensity: number; future: boolean }>
+    const small = cells.find(c => c.date === '2026-10-02')!.intensity
+    const mid = cells.find(c => c.date === '2026-10-21')!.intensity
+    expect(cells.find(c => c.date === '2026-10-01')!.intensity).toBe(1)
+    expect(mid).toBeGreaterThan(0.5)
+    expect(mid - small).toBeGreaterThan(0.3)
+    expect(peak?.date).toBe('2026-10-01')
+    expect(cells.filter(c => c.future).map(c => c.date)).toEqual(['2026-10-29', '2026-10-30', '2026-10-31'])
+  })
+
+  it('isScheduledSpend separates bills from everyday spend', async () => {
+    const { isScheduledSpend } = await load()
+    const base = { recurring_id: null, installment_id: null, is_recurring: false, source: null, tags: [] as string[] }
+    expect(isScheduledSpend(base)).toBe(false)
+    expect(isScheduledSpend({ ...base, recurring_id: 'r01' })).toBe(true)
+    expect(isScheduledSpend({ ...base, installment_id: 'i1' })).toBe(true)
+    expect(isScheduledSpend({ ...base, tags: ['auto-msi'] })).toBe(true)
+  })
+
+  it('clamps runaway category trends instead of printing four-digit percentages', async () => {
+    // Current month: a huge grocery bill; previous month: a small one → +12,400%.
+    const current = [{ ...SEED_TRANSACTIONS[3], id: 'big', category_id: 'cat-groc', amount_mxn: 500000 }]
+    const previous = [{ ...SEED_TRANSACTIONS[3], id: 'small', category_id: 'cat-groc', amount_mxn: 4000 }]
+    setupSupabaseMock()
+    const base = vi.mocked(supabase.from).getMockImplementation()!
+    let txCalls = 0
+    vi.mocked(supabase.from).mockImplementation(((table: string) => {
+      if (table !== 'finance_transactions') return base(table)
+      txCalls++
+      setupSupabaseMock({ finance_transactions: { data: txCalls % 2 === 1 ? current : previous, error: null } })
+      const builder = vi.mocked(supabase.from).getMockImplementation()!(table)
+      vi.mocked(supabase.from).mockImplementation(self)
+      return builder
+    }) as any)
+    const self = vi.mocked(supabase.from).getMockImplementation()!
+    const Comp = (await load()).default
+    const { container } = render(<Comp />)
+    await waitFor(() => expect(screen.getAllByText('>10×').length).toBeGreaterThanOrEqual(1))
+    expect(container.textContent).not.toMatch(/\d{4,}%/)
+  })
+
+  it('KPI values stay neutral; tone only on the comparison', async () => {
+    const Comp = (await load()).default
+    const { container } = render(<Comp />)
+    await waitFor(() => expect(screen.getByText('Monthly Spend')).toBeInTheDocument())
+    expect(container.querySelector('.text-rose-600, .text-emerald-600, .text-indigo-600')).toBeNull()
+    const spend = within(screen.getByText('Monthly Spend').parentElement as HTMLElement)
+    expect(spend.getByText(/^\$/).className).toContain('text-fg')
+  })
+
+  it('flag toggles expose pressed state', async () => {
+    const Comp = (await load()).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /^Flag / }).length).toBeGreaterThanOrEqual(1))
+    const flag = screen.getAllByRole('button', { name: /^Flag / })[0]
+    expect(flag).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(flag)
+    expect(flag).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  // Leak detection reads its own usage window (anchored to today / month end), not just the selected month.
+  function mockUsage(usage: any[], { usageError = false } = {}) {
+    setupSupabaseMock({ finance_recurring: { data: [SEED_RECURRING[0]], error: null }, finance_transactions: { data: [], error: null } })
+    const base = vi.mocked(supabase.from).getMockImplementation()!
+    const usageFilters: Array<[string, unknown[]]> = []
+    vi.mocked(supabase.from).mockImplementation(((table: string) => {
+      const builder = base(table)
+      if (table !== 'finance_transactions') return builder
+      return {
+        ...builder,
+        select: (cols: string) => {
+          if (!String(cols).includes('recurring_id')) return builder.select(cols)
+          const res = usageError ? { data: null, error: { message: 'boom' } } : { data: usage, error: null }
+          const chain: any = Promise.resolve(res)
+          for (const m of ['eq', 'gte', 'lte', 'lt', 'order', 'range']) chain[m] = (...args: unknown[]) => { usageFilters.push([m, args]); return chain }
+          return chain
+        },
+      }
+    }) as any)
+    return usageFilters
+  }
+
+  it('does not flag a monthly sub charged within 30 days but before the 1st', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 3, 12))
+    const filters = mockUsage([{ id: 'u1', transaction_date: '2026-09-20', recurring_id: 'r01', merchant: 'Claude', description: null }])
+    const Comp = (await load()).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText('No leaks detected')).toBeInTheDocument())
+    expect(filters).toContainEqual(['lte', ['transaction_date', '2026-10-03']])
+  })
+
+  it('past months judge usage up to month end and hide the destructive triage buttons', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 28, 12))
+    const filters = mockUsage([])
+    const Comp = (await load()).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText(/Claude Pro — no usage/)).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+    await waitFor(() => expect(filters).toContainEqual(['lte', ['transaction_date', '2026-09-30']]))
+    await waitFor(() => expect(screen.getByText(/triage from the current month/)).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
+  })
+
+  it('a failed usage read flags no subscriptions instead of all of them', async () => {
+    mockUsage([], { usageError: true })
+    const Comp = (await load()).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText(/couldn't check subscription usage/)).toBeInTheDocument())
+    expect(screen.queryByText(/no usage this/)).toBeNull()
   })
 })

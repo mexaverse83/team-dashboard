@@ -99,6 +99,21 @@ export function trimLeadingEmpty<T extends Record<string, unknown>>(rows: readon
   return first === -1 ? [] : rows.slice(first)
 }
 
+/**
+ * Drop leading periods whose combined value is immaterial — under `ratio` of the
+ * median non-zero period. A few stray legacy rows would otherwise start the
+ * chart months early with a fake ramp up from ~0.
+ */
+export function trimLeadingSparse<T extends Record<string, unknown>>(rows: readonly T[], keys: Array<keyof T>, ratio = 0.05): T[] {
+  const totals = rows.map(row => keys.reduce((s, k) => s + Math.abs(Number(row[k]) || 0), 0))
+  const nonZero = totals.filter(t => t > 0).sort((a, b) => a - b)
+  if (nonZero.length === 0) return []
+  const mid = Math.floor(nonZero.length / 2)
+  const median = nonZero.length % 2 ? nonZero[mid] : (nonZero[mid - 1] + nonZero[mid]) / 2
+  const first = totals.findIndex(t => t > 0 && t >= median * ratio)
+  return first === -1 ? [] : rows.slice(first)
+}
+
 /** Text alternative for a series: "Balance: $120k in Jul to $98k in Dec". */
 export function describeSeries(label: string, points: Array<{ x: string; y: number }>): string {
   if (points.length === 0) return `${label}: no data`

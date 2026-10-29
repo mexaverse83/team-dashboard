@@ -35,6 +35,25 @@ export function useThemePreference(): [ThemePreference, (pref: ThemePreference) 
   return [pref, setPref]
 }
 
+/**
+ * Mounted once in the root layout: re-applies the stored preference after
+ * hydration and follows the OS while it is 'system', even on pages without a
+ * <ThemeToggle/>.
+ */
+export function ThemeSync() {
+  const [pref] = useThemePreference()
+  useEffect(() => {
+    applyThemePreference(pref)
+    if (pref !== 'system') return
+    let media: MediaQueryList | null = null
+    try { media = window.matchMedia('(prefers-color-scheme: light)') } catch { return }
+    const onChange = () => applyThemePreference('system')
+    media?.addEventListener?.('change', onChange)
+    return () => media?.removeEventListener?.('change', onChange)
+  }, [pref])
+  return null
+}
+
 const OPTIONS = [
   { value: 'system' as const, label: 'System', icon: <Monitor aria-hidden="true" className="h-4 w-4" /> },
   { value: 'light' as const, label: 'Light', icon: <Sun aria-hidden="true" className="h-4 w-4" /> },

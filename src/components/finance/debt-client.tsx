@@ -1,28 +1,53 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Plus, Pencil, Trash2, CreditCard } from 'lucide-react'
+import { Plus, Pencil, Trash2, CreditCard, Car, House, GraduationCap, FileText, HeartPulse, Snowflake, Mountain, Target, Gauge, type LucideIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
+import { Page, PageHeader } from '@/components/ui/page'
+import { Card, CardHeader } from '@/components/ui/card'
+import { Stat } from '@/components/ui/stat'
+import { StatusPill } from '@/components/ui/status-pill'
+import { Button } from '@/components/ui/button'
+import { Segmented } from '@/components/ui/segmented'
+import { EmptyState } from '@/components/ui/empty-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { Modal } from '@/components/ui/modal'
+import { ChartFigure, ChartGrid, ChartLegend } from '@/components/ui/finance-chart'
 import { cn } from '@/lib/utils'
-import { motion } from 'framer-motion'
 import type { FinanceDebt } from '@/lib/finance-types'
 import { OwnerDot } from '@/components/finance/owner-dot'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 import { inputCls } from '@/lib/form-style'
-import { tooltipStyle } from '@/lib/chart-style'
+import { CHART, chartAnimationProps, chartAxisProps, chartTooltipProps, chartYAxisMoneyProps, moneyTooltipFormatter } from '@/lib/chart-theme'
+import { addMonthsKey, localDateKey, monthKey } from '@/lib/dates'
+import { formatCompact, formatMoney, formatMonthLong, formatPct } from '@/lib/format'
 
-const DEBT_ICONS: Record<string, string> = { credit_card: '💳', auto_loan: '🚗', mortgage: '🏠', student_loan: '🎓', personal_loan: '📄', medical: '🏥', other: '📄' }
+const DEBT_ICONS: Record<string, LucideIcon> = { credit_card: CreditCard, auto_loan: Car, mortgage: House, student_loan: GraduationCap, personal_loan: FileText, medical: HeartPulse, other: FileText }
+const DEBT_TYPES = [
+  { key: 'credit_card', label: 'Credit Card' }, { key: 'auto_loan', label: 'Auto' }, { key: 'mortgage', label: 'Mortgage' },
+  { key: 'student_loan', label: 'Student' }, { key: 'personal_loan', label: 'Personal' },
+]
+const rateTone = (rate: number) => (rate >= 25 ? 'text-negative' : rate >= 15 ? 'text-warning' : 'text-fg')
+
+function DebtIcon({ type }: { type: string }) {
+  const Icon = DEBT_ICONS[type] || FileText
+  return (
+    <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-3 text-fg-secondary">
+      <Icon className="h-4 w-4" />
+    </span>
+  )
+}
 
 interface DebtForm { name: string; creditor: string; balance: string; interest_rate: string; minimum_payment: string; type: string }
 const emptyForm: DebtForm = { name: '', creditor: '', balance: '', interest_rate: '', minimum_payment: '', type: 'credit_card' }
 
 // Simulate payoff schedule
-function simulatePayoff(debts: FinanceDebt[], strategy: 'snowball' | 'avalanche', extra: number) {
-  if (debts.length === 0) return { months: 0, totalInterest: 0, timeline: [] as { month: number; balance: number }[] }
+// `stalled` = payments never clear the balance (minimums don't cover interest);
+// `months` is then the simulation cap, not a real payoff date.
+export function simulatePayoff(debts: FinanceDebt[], strategy: 'snowball' | 'avalanche', extra: number) {
+  if (debts.length === 0) return { months: 0, totalInterest: 0, stalled: false, timeline: [] as { month: number; balance: number }[] }
 
   const sorted = [...debts].sort((a, b) =>
     strategy === 'snowball' ? a.balance - b.balance : b.interest_rate - a.interest_rate
@@ -58,13 +83,15 @@ function simulatePayoff(debts: FinanceDebt[], strategy: 'snowball' | 'avalanche'
     timeline.push({ month, balance: balances.reduce((s, b) => s + b, 0) })
   }
 
-  return { months: month, totalInterest: Math.round(totalInterest), timeline }
+  return { months: month, totalInterest: Math.round(totalInterest), stalled: balances.some(b => b > 0), timeline }
 }
 
 export default function DebtClient() {
   const [debts, setDebts] = useState<FinanceDebt[]>([])
   const [paidPrincipal, setPaidPrincipal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'balance' | 'rate'>('rate')
   const [extraPayment, setExtraPayment] = useState(0)
 
@@ -76,12 +103,14 @@ export default function DebtClient() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
-    const [{ data }, payments] = await Promise.all([
+    const [{ data, error }, payments] = await Promise.all([
       supabase.from('finance_debts').select('*').eq('is_active', true).order('balance'),
       supabase.from('finance_debt_payments').select('principal_portion'),
     ])
-    setDebts(data || [])
-    setPaidPrincipal((payments.data || []).reduce((s, p) => s + Number(p.principal_portion || 0), 0))
+    // A failed read must not look like "no debts".
+    setLoadError(!!error)
+    if (!error) setDebts(data || [])
+    if (!payments.error) setPaidPrincipal((payments.data || []).reduce((s, p) => s + Number(p.principal_portion || 0), 0))
     setLoading(false)
   }, [])
 
@@ -98,10 +127,10 @@ export default function DebtClient() {
   const baselineSnowball = useMemo(() => simulatePayoff(debts, 'snowball', 0), [debts])
   const baselineAvalanche = useMemo(() => simulatePayoff(debts, 'avalanche', 0), [debts])
 
-  const winner = avalanche.totalInterest <= snowball.totalInterest ? 'avalanche' : 'snowball'
+  const winner = avalanche.stalled !== snowball.stalled ? (avalanche.stalled ? 'snowball' : 'avalanche') : avalanche.totalInterest <= snowball.totalInterest ? 'avalanche' : 'snowball'
   const bestResult = winner === 'avalanche' ? avalanche : snowball
-  const debtFreeDate = new Date()
-  debtFreeDate.setMonth(debtFreeDate.getMonth() + bestResult.months)
+  const debtFreeMonth = addMonthsKey(monthKey(new Date()), bestResult.months)
+  const baseline = winner === 'avalanche' ? baselineAvalanche : baselineSnowball
   const monthsSaved = Math.max(0, (winner === 'avalanche' ? baselineAvalanche.months : baselineSnowball.months) - bestResult.months)
   const interestSaved = Math.max(0, (winner === 'avalanche' ? baselineAvalanche.totalInterest : baselineSnowball.totalInterest) - bestResult.totalInterest)
 
@@ -129,18 +158,21 @@ export default function DebtClient() {
   const handleSave = async () => {
     if (!form.name || !form.balance || !form.interest_rate || !form.minimum_payment) return
     setSaving(true)
+    setActionError(null)
     const record = { name: form.name, creditor: form.creditor || null, balance: parseFloat(form.balance), interest_rate: parseFloat(form.interest_rate), minimum_payment: parseFloat(form.minimum_payment), type: form.type, is_active: true }
-    if (editingId) {
-      await supabase.from('finance_debts').update(record).eq('id', editingId)
-    } else {
-      await supabase.from('finance_debts').insert(record)
-    }
-    setSaving(false); setModalOpen(false); fetchData()
+    const { error } = editingId
+      ? await supabase.from('finance_debts').update(record).eq('id', editingId)
+      : await supabase.from('finance_debts').insert(record)
+    setSaving(false)
+    if (error) { setActionError(`Couldn't save the debt: ${error.message}`); return }
+    setModalOpen(false); fetchData()
   }
 
   const handleDelete = async (id: string) => {
-    await supabase.from('finance_debts').delete().eq('id', id)
-    setDeleteConfirm(null); fetchData()
+    const { error } = await supabase.from('finance_debts').delete().eq('id', id)
+    setDeleteConfirm(null)
+    if (error) { setActionError(`Couldn't delete the debt: ${error.message}`); return }
+    setActionError(null); fetchData()
   }
 
   const [paymentDebt, setPaymentDebt] = useState<string | null>(null)
@@ -152,199 +184,225 @@ export default function DebtClient() {
     const debt = debts.find(d => d.id === paymentDebt)
     if (!debt) return
     setPaymentSaving(true)
+    setActionError(null)
     const amount = parseFloat(paymentAmount)
     const monthlyRate = (debt.interest_rate || 0) / 100 / 12
     const interestPortion = Math.round(debt.balance * monthlyRate * 100) / 100
     const principalPortion = Math.round((amount - interestPortion) * 100) / 100
     const newBalance = Math.max(0, Math.round((debt.balance - principalPortion) * 100) / 100)
 
-    await supabase.from('finance_debt_payments').insert({
+    const fail = (what: string, message: string) => { setActionError(`Couldn't ${what}: ${message}`); setPaymentSaving(false) }
+    const { error: payErr } = await supabase.from('finance_debt_payments').insert({
       debt_id: paymentDebt,
-      payment_date: new Date().toISOString().slice(0, 10),
+      payment_date: localDateKey(),
       amount,
       principal_portion: principalPortion,
       interest_portion: interestPortion,
       remaining_balance: newBalance,
     })
-    await supabase.from('finance_debts').update({ balance: newBalance }).eq('id', paymentDebt)
-    if (newBalance <= 0) {
-      await supabase.from('finance_debts').update({ is_active: false }).eq('id', paymentDebt)
-    }
+    if (payErr) return fail('log the payment', payErr.message)
+    const { error: balErr } = await supabase.from('finance_debts').update(newBalance <= 0 ? { balance: newBalance, is_active: false } : { balance: newBalance }).eq('id', paymentDebt)
+    if (balErr) { fetchData(); return fail('update the balance (the payment was logged)', balErr.message) }
     setPaymentDebt(null); setPaymentAmount(''); setPaymentSaving(false); fetchData()
   }
 
-  if (loading) return <div className="h-8 w-48 rounded bg-[hsl(var(--muted))] animate-pulse" />
+  if (loading) return <Page aria-busy="true"><div className="h-9 w-48 rounded-lg skeleton" /><div className="h-28 rounded-xl skeleton" /></Page>
+
+  if (loadError && debts.length === 0) {
+    return (
+      <PageTransition>
+      <Page>
+        <PageHeader title="Debt Planner" description="Snowball vs avalanche debt elimination" />
+        <Card><ErrorState title="Couldn't load your debts" body="Nothing is shown rather than an empty list." onRetry={() => { setLoading(true); void fetchData() }} /></Card>
+      </Page>
+      </PageTransition>
+    )
+  }
+
+  const stallNote = "Minimums don't cover interest"
+
+  const sortedDebts = [...debts].sort((a, b) => sortBy === 'balance' ? a.balance - b.balance : b.interest_rate - a.interest_rate)
+  const openPayment = (debt: FinanceDebt) => { setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }
 
   return (
     <PageTransition>
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Debt Planner</h1>
-          <p className="text-[hsl(var(--text-secondary))]">Snowball vs avalanche debt elimination</p>
-        </div>
-      </div>
+    <Page>
+      <PageHeader
+        title="Debt Planner"
+        description="Snowball vs avalanche debt elimination"
+        actions={<Button onClick={openAdd}><Plus aria-hidden="true" className="h-4 w-4" />Add Debt</Button>}
+      />
 
-      {/* Hero KPIs */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
-        <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Total Debt</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-rose-600 mt-1">${totalDebt.toLocaleString()}</p>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{debts.length} accounts</p>
-        </GlassCard>
-        <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Monthly Minimum</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums mt-1">${totalMinimum.toLocaleString()}</p>
-        </GlassCard>
-        <GlassCard>
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Avg Interest</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-amber-600 mt-1">{weightedAvgRate.toFixed(1)}%</p>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">weighted by balance</p>
-        </GlassCard>
-        <GlassCard className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent pointer-events-none" />
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Debt-Free Date</span>
-          <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-emerald-600 mt-1">{debts.length > 0 ? debtFreeDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'}</p>
-          <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{bestResult.months} months away</p>
-        </GlassCard>
-      </div>
+      {actionError && !modalOpen && !paymentDebt && (
+        <div role="alert" className="flex items-start justify-between gap-3 rounded-xl border border-negative/30 bg-negative-bg p-3 text-sm text-fg">
+          <span>{actionError}</span>
+          <Button size="sm" variant="ghost" onClick={() => setActionError(null)}>Dismiss</Button>
+        </div>
+      )}
+      {loadError && <Card><ErrorState compact title="Couldn't refresh your debts" body="Showing the last loaded list." onRetry={() => { void fetchData() }} /></Card>}
+
+      {/* KPIs — neutral values; rate tone only where it means something */}
+      {debts.length > 0 && <Card>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4 lg:divide-x lg:divide-border [&>*]:lg:pl-5 [&>*:first-child]:lg:pl-0">
+          <Stat label="Total Debt" money value={formatMoney(totalDebt)} hint={`${debts.length} ${debts.length === 1 ? 'account' : 'accounts'}`} />
+          <Stat label="Monthly Minimum" money value={formatMoney(totalMinimum)} hint="across all debts" />
+          <Stat label="Avg Interest" value={formatPct(weightedAvgRate, { decimals: 1 })} hint="weighted by balance" />
+          <Stat
+            label="Debt-Free Date"
+            value={bestResult.stalled ? 'Never' : formatMonthLong(debtFreeMonth, { short: true })}
+            hint={bestResult.stalled ? stallNote : `${bestResult.months} months away`}
+            tone={bestResult.stalled ? 'negative' : 'neutral'}
+          />
+        </div>
+      </Card>}
 
       {/* Strategy Comparison */}
       {debts.length > 0 && (
-        <GlassCard>
-          <h3 className="text-base font-semibold mb-4">Snowball vs Avalanche</h3>
-          <div className="h-44 sm:h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
-                <XAxis dataKey="month" interval="preserveStartEnd" minTickGap={12} tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} label={{ value: 'Months', position: 'insideBottom', offset: -5, fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} />
-                <YAxis width={48} tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
-                <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
-                <Line type="monotone" dataKey="snowball" name="Snowball" stroke="hsl(var(--chart-3))" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="avalanche" name="Avalanche" stroke="hsl(var(--chart-5))" strokeWidth={2.5} dot={false} strokeDasharray="6 3" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1.5 mt-2 mb-4">
-            <div className="flex items-center gap-1.5"><div className="h-2 w-6 rounded-full bg-blue-500" /><span className="text-xs text-[hsl(var(--text-secondary))]">Snowball (smallest first)</span></div>
-            <div className="flex items-center gap-1.5"><div className="h-2 w-6 rounded-full bg-amber-500" /><span className="text-xs text-[hsl(var(--text-secondary))]">Avalanche (highest rate first)</span></div>
-          </div>
+        <Card>
+          <CardHeader
+            title="Snowball vs Avalanche"
+            description="Total balance month by month"
+            action={<ChartLegend items={[{ label: 'Snowball', color: CHART.series.info }, { label: 'Avalanche', color: CHART.series.target, dash: '6 3' }]} />}
+          />
+          {(snowball.stalled || avalanche.stalled) && (
+            <p role="status" className="mb-3 rounded-lg bg-warning-bg p-3 text-sm text-fg">{stallNote} — at this payment level the balance never reaches zero. Raise the payment with the slider below.</p>
+          )}
+          <ChartFigure summary={`Snowball ${snowball.stalled ? 'never pays off' : `pays off in ${snowball.months} months`} with ${formatCompact(snowball.totalInterest)} interest; avalanche ${avalanche.stalled ? 'never pays off' : `in ${avalanche.months} months`} with ${formatCompact(avalanche.totalInterest)} interest`}>
+            <div className="h-44 sm:h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <ChartGrid />
+                  <XAxis dataKey="month" {...chartAxisProps} interval="preserveStartEnd" minTickGap={16} tickFormatter={(v: number) => `${v} mo`} />
+                  <YAxis {...chartYAxisMoneyProps} />
+                  <Tooltip {...chartTooltipProps} labelFormatter={l => `Month ${l}`} formatter={moneyTooltipFormatter} />
+                  <Line type="linear" dataKey="snowball" name="Snowball" stroke={CHART.series.info} strokeWidth={CHART.strokeWidth} dot={false} {...chartAnimationProps()} />
+                  <Line type="linear" dataKey="avalanche" name="Avalanche" stroke={CHART.series.target} strokeWidth={CHART.strokeWidth} dot={false} strokeDasharray="6 3" {...chartAnimationProps()} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </ChartFigure>
 
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[
-              { name: 'Snowball', icon: '❄️', color: 'blue', months: snowball.months, interest: snowball.totalInterest, pro: 'Quick wins — motivating' },
-              { name: 'Avalanche', icon: '🏔️', color: 'amber', months: avalanche.months, interest: avalanche.totalInterest, pro: 'Least total interest' },
-            ].map(s => {
-              const isWinner = s.name.toLowerCase() === winner
+              { name: 'Snowball', Icon: Snowflake, result: snowball, pro: 'Smallest balance first — quick wins' },
+              { name: 'Avalanche', Icon: Mountain, result: avalanche, pro: 'Highest rate first — least total interest' },
+            ].map(st => {
+              const isWinner = st.name.toLowerCase() === winner
               return (
-                <div key={s.name} className={cn("p-4 rounded-xl border transition-all",
-                  isWinner ? "border-emerald-500/50 bg-emerald-500/5" : "border-[hsl(var(--border))]"
-                )}>
-                  {isWinner && <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 mb-2 block">⭐ Recommended</span>}
-                  <div className="flex items-center gap-2 mb-2"><span className="text-lg">{s.icon}</span><span className="text-sm font-semibold">{s.name}</span></div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div><span className="text-xs text-[hsl(var(--text-tertiary))]">Time</span><p className="text-sm font-bold tabular-nums">{s.months} months</p></div>
-                    <div><span className="text-xs text-[hsl(var(--text-tertiary))]">Total Interest</span><p className="text-sm font-bold tabular-nums text-rose-600">${s.interest.toLocaleString()}</p></div>
+                <div key={st.name} className={cn('rounded-xl border p-4', isWinner ? 'border-positive/40 bg-positive-bg' : 'border-border bg-surface-2')}>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-fg"><st.Icon aria-hidden="true" className="h-4 w-4 text-fg-tertiary" />{st.name}</span>
+                    {isWinner && <StatusPill tone="positive">Recommended</StatusPill>}
                   </div>
-                  <p className="text-xs text-[hsl(var(--text-tertiary))] mt-2 italic">{s.pro}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Stat size="sm" label="Time" value={st.result.stalled ? 'Never' : `${st.result.months} months`} />
+                    <Stat size="sm" label={st.result.stalled ? 'Interest (30 yrs)' : 'Total Interest'} money value={formatMoney(st.result.totalInterest)} />
+                  </div>
+                  <p className="mt-2 text-label text-fg-secondary">{st.pro}</p>
                 </div>
               )
             })}
           </div>
-        </GlassCard>
+        </Card>
       )}
 
       {/* Accelerator + Countdown */}
       {debts.length > 0 && (
-        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-          <GlassCard>
-            <h3 className="text-base font-semibold mb-4">💨 Accelerate Payoff</h3>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader title={<span className="inline-flex items-center gap-2"><Gauge aria-hidden="true" className="h-4 w-4 text-fg-tertiary" />Accelerate Payoff</span>} />
             <div className="space-y-4">
               <div>
-                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Extra monthly payment</label>
-                <input type="range" min={0} max={20000} step={500} value={extraPayment}
-                  onChange={e => setExtraPayment(Number(e.target.value))} className="w-full accent-emerald-500" />
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-xs text-[hsl(var(--text-tertiary))]">$0</span>
-                  <span className="text-lg font-bold tabular-nums text-emerald-600">+${extraPayment.toLocaleString()}/mo</span>
-                  <span className="text-xs text-[hsl(var(--text-tertiary))]">$20,000</span>
+                <label htmlFor="extra-payment" className="mb-1 block text-label font-medium text-fg-secondary">Extra monthly payment</label>
+                <input id="extra-payment" type="range" min={0} max={20000} step={500} value={extraPayment}
+                  onChange={e => setExtraPayment(Number(e.target.value))} className="w-full accent-[hsl(var(--primary))]" aria-valuetext={`${formatMoney(extraPayment)} per month`} />
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="text-label text-fg-tertiary">$0</span>
+                  <span className="num text-lg font-semibold text-fg" data-money>+{formatMoney(extraPayment)}/mo</span>
+                  <span className="text-label text-fg-tertiary">$20,000</span>
                 </div>
               </div>
-              <div className="flex gap-2">
-                {[1000, 2500, 5000, 10000].map(amt => (
-                  <button key={amt} onClick={() => setExtraPayment(amt)}
-                    className={cn("flex-1 py-1.5 rounded-lg text-xs font-medium transition-all border",
-                      extraPayment === amt ? "border-emerald-500 bg-emerald-500/10 text-emerald-600" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
-                    )}>+${(amt / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}k</button>
-                ))}
-              </div>
+              <Segmented
+                ariaLabel="Extra payment presets"
+                size="sm"
+                fullWidth
+                value={String(extraPayment)}
+                onChange={v => setExtraPayment(Number(v))}
+                options={[1000, 2500, 5000, 10000].map(amt => ({ value: String(amt), label: `+${formatCompact(amt)}` }))}
+              />
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-lg bg-emerald-500/10"><span className="text-xs text-emerald-600/70">Time Saved</span><p className="text-lg font-bold text-emerald-600 tabular-nums">{monthsSaved} months</p></div>
-                <div className="p-3 rounded-lg bg-emerald-500/10"><span className="text-xs text-emerald-600/70">Interest Saved</span><p className="text-lg font-bold text-emerald-600 tabular-nums">${interestSaved.toLocaleString()}</p></div>
+                <div className="rounded-lg bg-surface-2 p-3"><Stat size="sm" label="Time Saved" value={bestResult.stalled ? '—' : baseline.stalled ? 'Pays off' : `${monthsSaved} months`} hint={baseline.stalled && !bestResult.stalled ? 'vs never at minimums' : undefined} /></div>
+                <div className="rounded-lg bg-surface-2 p-3"><Stat size="sm" label="Interest Saved" money value={bestResult.stalled ? '—' : formatMoney(interestSaved)} hint={baseline.stalled && !bestResult.stalled ? 'vs 30 years of minimums' : undefined} /></div>
               </div>
             </div>
-          </GlassCard>
+          </Card>
 
-          <GlassCard className="relative overflow-hidden flex flex-col items-center justify-center text-center py-8">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-emerald-500/5 pointer-events-none" />
-            <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.6 }}>
-              <span className="text-5xl mb-3 block">🎯</span>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))] mb-1">Debt-Free Countdown</p>
-              <p className="num-metric text-4xl sm:text-5xl font-black tabular-nums text-emerald-600">{bestResult.months}</p>
-              <p className="text-sm text-[hsl(var(--text-secondary))] mt-1">months to go</p>
-              <div className="relative h-32 w-32 mx-auto mt-4">
-                <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(34, 22%, 85%)" strokeWidth="6" />
-                  <motion.circle cx="50" cy="50" r="42" fill="none" stroke="#10B981" strokeWidth="6" strokeLinecap="round"
-                    strokeDasharray={`${2 * Math.PI * 42}`} initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
-                    animate={{ strokeDashoffset: 2 * Math.PI * 42 * (1 - pctPaid) }} transition={{ duration: 1.2 }} />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-sm font-bold text-emerald-600 tabular-nums">{Math.round(pctPaid * 100)}%</span>
-                </div>
+          <Card className="flex flex-col items-center justify-center py-8 text-center">
+            <Target aria-hidden="true" className="mb-3 h-6 w-6 text-fg-tertiary" />
+            <p className="text-label font-medium text-fg-secondary">Debt-Free Countdown</p>
+            {bestResult.stalled ? (
+              <>
+                <p className="text-2xl font-semibold text-fg">Not at this pace</p>
+                <p className="mt-1 text-sm text-fg-secondary">{stallNote}</p>
+              </>
+            ) : (
+              <>
+                <p className="num-metric text-4xl font-semibold text-fg sm:text-5xl" data-privacy-exempt>{bestResult.months}</p>
+                <p className="mt-1 text-sm text-fg-secondary">months to go</p>
+              </>
+            )}
+            <div className="relative mx-auto mt-4 h-32 w-32">
+              <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(var(--surface-3))" strokeWidth="6" />
+                <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(var(--positive))" strokeWidth="6" strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 42}`} strokeDashoffset={2 * Math.PI * 42 * (1 - pctPaid)} className="transition-[stroke-dashoffset] duration-700" />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-sm font-semibold tabular-nums text-fg">{Math.round(pctPaid * 100)}%</span>
               </div>
-              <p className="text-xs text-[hsl(var(--text-tertiary))] mt-2">of original debt paid off</p>
-            </motion.div>
-          </GlassCard>
+            </div>
+            <p className="mt-2 text-label text-fg-tertiary">of original debt paid off</p>
+          </Card>
         </div>
       )}
 
       {/* Debt Inventory */}
-      <GlassCard>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-          <h3 className="text-base font-semibold">Debt Inventory</h3>
-          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors">
-            <Plus className="h-4 w-4" /> Add Debt
-          </button>
-        </div>
+      <Card>
+        <CardHeader
+          title="Debt Inventory"
+          action={debts.length > 1 ? (
+            <Segmented ariaLabel="Sort debts" size="sm" value={sortBy} onChange={setSortBy}
+              options={[{ value: 'balance' as const, label: 'Snowball' }, { value: 'rate' as const, label: 'Avalanche' }]} />
+          ) : undefined}
+        />
 
         {debts.length === 0 ? (
-          <div className="text-center py-8"><p className="text-4xl mb-3">💸</p><p className="text-sm text-[hsl(var(--text-tertiary))]">No debts tracked yet. Add your first one to see payoff strategies.</p></div>
+          <EmptyState title="No debts tracked yet" description="Add your first one to see payoff strategies." action={<Button variant="secondary" onClick={openAdd}><Plus aria-hidden="true" className="h-4 w-4" />Add Debt</Button>} />
         ) : (
           <>
-            <div className="hidden sm:block overflow-x-auto">
+            <div className="hidden overflow-x-auto sm:block">
               <table className="w-full">
-                <thead><tr className="border-b border-[hsl(var(--border))]">
-                  {['Creditor', 'Type', 'Balance', 'Rate', 'Minimum', ''].map((h, i) => (
-                    <th key={i} className={cn("text-xs font-medium text-[hsl(var(--text-secondary))] uppercase tracking-wider py-3 px-3", i >= 2 ? "text-right" : "text-left")}>{h}</th>
+                <thead><tr className="border-b border-border">
+                  {['Debt', 'Type', 'Balance', 'Rate', 'Minimum', ''].map((h, i) => (
+                    <th key={i} scope="col" className={`px-3 py-3 text-label font-medium text-fg-secondary ${i >= 2 ? 'text-right' : 'text-left'}`}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
-                  {debts.sort((a, b) => sortBy === 'balance' ? a.balance - b.balance : b.interest_rate - a.interest_rate).map((debt, i) => (
-                    <tr key={debt.id} className="border-b border-[hsl(var(--border))] last:border-0 hover:bg-[hsl(var(--bg-elevated))]/50 transition-colors group">
-                      <td className="py-3 px-3"><div className="flex items-center gap-2"><span>{DEBT_ICONS[debt.type] || '📄'}</span><div><p className="text-sm font-medium flex items-center gap-2">{debt.name} <OwnerDot owner={debt.owner} /></p><p className="text-xs text-[hsl(var(--text-tertiary))]">{debt.creditor}</p></div></div></td>
-                      <td className="py-3 px-3"><span className="text-xs px-2 py-0.5 rounded-full bg-[hsl(var(--bg-elevated))] capitalize">{debt.type.replace('_', ' ')}</span></td>
-                      <td className="py-3 px-3 text-right text-sm font-semibold tabular-nums text-rose-600">${debt.balance.toLocaleString()}</td>
-                      <td className="py-3 px-3 text-right"><span className={cn("text-sm font-medium tabular-nums", debt.interest_rate >= 25 ? "text-rose-600" : debt.interest_rate >= 15 ? "text-amber-600" : "")}>{debt.interest_rate}%</span></td>
-                      <td className="py-3 px-3 text-right text-sm tabular-nums">${debt.minimum_payment.toLocaleString()}</td>
-                      <td className="py-2 px-2 w-16">
-                        <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                          <button onClick={(e) => { e.stopPropagation(); setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }} className="p-1 rounded hover:bg-emerald-500/10" title="Log payment"><CreditCard className="h-3.5 w-3.5 text-emerald-600" /></button>
-                          <button aria-label="Edit" onClick={() => openEdit(debt)} className="p-1 rounded hover:bg-[hsl(var(--bg-elevated))]"><Pencil className="h-3.5 w-3.5 text-[hsl(var(--text-tertiary))]" /></button>
+                  {sortedDebts.map(debt => (
+                    <tr key={debt.id} className="group border-b border-border transition-colors last:border-0 hover:bg-surface-2">
+                      <td className="px-3 py-3"><div className="flex items-center gap-3"><DebtIcon type={debt.type} /><div><p className="flex items-center gap-2 text-sm font-medium text-fg">{debt.name} <OwnerDot owner={debt.owner} /></p><p className="text-label text-fg-tertiary">{debt.creditor}</p></div></div></td>
+                      <td className="px-3 py-3"><StatusPill tone="neutral" className="capitalize">{debt.type.replace('_', ' ')}</StatusPill></td>
+                      <td className="num px-3 py-3 text-sm font-semibold text-fg" data-money>{formatMoney(debt.balance)}</td>
+                      <td className={cn('num px-3 py-3 text-sm font-medium', rateTone(debt.interest_rate))}>{debt.interest_rate}%</td>
+                      <td className="num px-3 py-3 text-sm text-fg" data-money>{formatMoney(debt.minimum_payment)}</td>
+                      <td className="w-36 px-2 py-2">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button size="icon" variant="ghost" aria-label={`Log payment for ${debt.name}`} onClick={() => openPayment(debt)}><CreditCard aria-hidden="true" className="h-4 w-4" /></Button>
+                          <Button size="icon" variant="ghost" aria-label={`Edit ${debt.name}`} onClick={() => openEdit(debt)}><Pencil aria-hidden="true" className="h-4 w-4" /></Button>
                           {deleteConfirm === debt.id ? (
-                            <div className="flex gap-0.5"><button onClick={() => handleDelete(debt.id)} className="px-1.5 py-0.5 rounded text-[10px] bg-rose-600 text-white">Del</button><button onClick={() => setDeleteConfirm(null)} className="px-1.5 py-0.5 rounded text-[10px] bg-[hsl(var(--bg-elevated))]">No</button></div>
+                            <div className="flex gap-1"><Button size="sm" variant="danger" onClick={() => handleDelete(debt.id)}>Delete</Button><Button size="sm" variant="ghost" onClick={() => setDeleteConfirm(null)}>Keep</Button></div>
                           ) : (
-                            <button aria-label="Delete" onClick={() => setDeleteConfirm(debt.id)} className="p-1 rounded hover:bg-rose-500/10"><Trash2 className="h-3.5 w-3.5 text-rose-600" /></button>
+                            <Button size="icon" variant="ghost" aria-label={`Delete ${debt.name}`} onClick={() => setDeleteConfirm(debt.id)} className="text-negative"><Trash2 aria-hidden="true" className="h-4 w-4" /></Button>
                           )}
                         </div>
                       </td>
@@ -353,69 +411,56 @@ export default function DebtClient() {
                 </tbody>
               </table>
             </div>
-            <div className="sm:hidden space-y-2">
-              {debts.map(debt => (
-                <div key={debt.id} className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))]/30 border border-[hsl(var(--border))]">
-                  <div className="flex items-center justify-between gap-3" onClick={() => openEdit(debt)}>
-                    <div className="flex min-w-0 items-center gap-2"><span className="shrink-0 text-lg">{DEBT_ICONS[debt.type] || '📄'}</span><div className="min-w-0"><p className="text-sm font-medium flex min-w-0 items-center gap-2"><span className="truncate">{debt.name}</span> <OwnerDot owner={debt.owner} className="shrink-0" /></p>{debt.creditor && <p className="truncate text-xs text-[hsl(var(--text-tertiary))]">{debt.creditor}</p>}</div></div>
-                    <span className="shrink-0 whitespace-nowrap text-sm font-bold tabular-nums text-rose-600">${debt.balance.toLocaleString()}</span>
+            <ul className="space-y-2 sm:hidden">
+              {sortedDebts.map(debt => (
+                <li key={debt.id} className="rounded-xl border border-border bg-surface-2 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3"><DebtIcon type={debt.type} /><div className="min-w-0"><p className="flex min-w-0 items-center gap-2 text-sm font-medium text-fg"><span className="truncate">{debt.name}</span> <OwnerDot owner={debt.owner} className="shrink-0" /></p>{debt.creditor && <p className="truncate text-label text-fg-tertiary">{debt.creditor}</p>}</div></div>
+                    <span className="num shrink-0 whitespace-nowrap text-sm font-semibold text-fg" data-money>{formatMoney(debt.balance)}</span>
                   </div>
-                  <div className="flex items-center justify-between gap-2 mt-1.5">
-                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-[hsl(var(--text-tertiary))]"><span className={cn("whitespace-nowrap", debt.interest_rate >= 25 ? "text-rose-600" : debt.interest_rate >= 15 ? "text-amber-600" : "")}>{debt.interest_rate}% APR</span><span className="whitespace-nowrap">Min: ${debt.minimum_payment.toLocaleString()}</span></div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-label text-fg-secondary"><span className={cn('whitespace-nowrap font-medium', rateTone(debt.interest_rate))}>{debt.interest_rate}% APR</span><span className="whitespace-nowrap">Min {formatMoney(debt.minimum_payment)}</span></div>
                     <div className="-mr-1.5 flex shrink-0 gap-0.5">
-                      <button onClick={(e) => { e.stopPropagation(); setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }} className="p-1.5 rounded-lg hover:bg-emerald-500/10 text-emerald-600" title="Log payment"><CreditCard className="h-3.5 w-3.5" /></button>
-                      <button aria-label="Edit" onClick={() => openEdit(debt)} className="p-1.5 rounded-lg hover:bg-blue-500/10 text-blue-600"><Pencil className="h-3.5 w-3.5" /></button>
+                      <Button size="icon" variant="ghost" aria-label={`Log payment for ${debt.name}`} onClick={() => openPayment(debt)}><CreditCard aria-hidden="true" className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" aria-label={`Edit ${debt.name}`} onClick={() => openEdit(debt)}><Pencil aria-hidden="true" className="h-4 w-4" /></Button>
                       {deleteConfirm === debt.id ? (
-                        <div className="flex gap-1"><button onClick={() => handleDelete(debt.id)} className="px-2.5 rounded-lg text-xs font-semibold bg-rose-600 text-white">Del</button><button onClick={() => setDeleteConfirm(null)} className="px-2.5 rounded-lg text-xs bg-[hsl(var(--bg-elevated))]">No</button></div>
+                        <div className="flex gap-1"><Button size="sm" variant="danger" onClick={() => handleDelete(debt.id)}>Delete</Button><Button size="sm" variant="ghost" onClick={() => setDeleteConfirm(null)}>Keep</Button></div>
                       ) : (
-                        <button aria-label="Delete" onClick={() => setDeleteConfirm(debt.id)} className="p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                        <Button size="icon" variant="ghost" aria-label={`Delete ${debt.name}`} onClick={() => setDeleteConfirm(debt.id)} className="text-negative"><Trash2 aria-hidden="true" className="h-4 w-4" /></Button>
                       )}
                     </div>
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
-            <div className="flex items-center justify-center gap-2 mt-4 pt-3 border-t border-[hsl(var(--border))]">
-              <span className="text-xs text-[hsl(var(--text-tertiary))]">Sort by:</span>
-              {[{ key: 'balance' as const, label: '❄️ Snowball' }, { key: 'rate' as const, label: '🏔️ Avalanche' }].map(s => (
-                <button key={s.key} onClick={() => setSortBy(s.key)} className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-all", sortBy === s.key ? "bg-blue-600 text-white" : "text-[hsl(var(--text-secondary))] hover:bg-[hsl(var(--bg-elevated))]")}>{s.label}</button>
-              ))}
-            </div>
+            </ul>
           </>
         )}
-      </GlassCard>
+      </Card>
 
       {/* Add/Edit Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit Debt' : 'Add Debt'}>
+      <Modal open={modalOpen} onClose={() => { setModalOpen(false); setActionError(null) }} title={editingId ? 'Edit Debt' : 'Add Debt'}>
         <form onSubmit={e => { e.preventDefault(); handleSave() }} className="space-y-4">
-          <div><label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Debt Name *</label><input type="text" required placeholder="e.g., BBVA Credit Card" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} /></div>
+          {actionError && <p role="alert" className="rounded-lg bg-negative-bg p-3 text-sm text-fg">{actionError}</p>}
+          <div><label htmlFor="debt-name" className="mb-1 block text-label font-medium text-fg-secondary">Debt Name *</label><input id="debt-name" type="text" required placeholder="e.g., BBVA Credit Card" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} /></div>
           <div>
-            <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Type</label>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-              {[{ key: 'credit_card', icon: '💳', label: 'Credit Card' }, { key: 'auto_loan', icon: '🚗', label: 'Auto' }, { key: 'mortgage', icon: '🏠', label: 'Mortgage' }, { key: 'student_loan', icon: '🎓', label: 'Student' }, { key: 'personal_loan', icon: '📄', label: 'Personal' }].map(t => (
-                <button key={t.key} type="button" onClick={() => setForm(f => ({ ...f, type: t.key }))}
-                  className={cn("p-2.5 rounded-lg border text-xs text-center transition-all", form.type === t.key ? "border-blue-500 bg-blue-500/10" : "border-[hsl(var(--border))]")}>
-                  <span className="text-lg block">{t.icon}</span>{t.label}
-                </button>
-              ))}
-            </div>
+            <p id="debt-type-label" className="mb-1 block text-label font-medium text-fg-secondary">Type</p>
+            <Segmented ariaLabel="Debt type" ariaLabelledBy="debt-type-label" size="sm" fullWidth className="flex-wrap" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} options={DEBT_TYPES.map(t => ({ value: t.key, label: t.label }))} />
           </div>
-          <div><label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Creditor</label><input type="text" placeholder="e.g., BBVA, Banorte..." value={form.creditor} onChange={e => setForm(f => ({ ...f, creditor: e.target.value }))} className={inputCls} /></div>
+          <div><label htmlFor="debt-creditor" className="mb-1 block text-label font-medium text-fg-secondary">Creditor</label><input id="debt-creditor" type="text" placeholder="e.g., BBVA, Banorte..." value={form.creditor} onChange={e => setForm(f => ({ ...f, creditor: e.target.value }))} className={inputCls} /></div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div><label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Balance *</label><input type="number" step="100" required placeholder="45000" value={form.balance} onChange={e => setForm(f => ({ ...f, balance: e.target.value }))} className={cn(inputCls, "font-semibold")} /></div>
-            <div><label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Rate % *</label><input type="number" step="0.1" required placeholder="36.0" value={form.interest_rate} onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))} className={inputCls} /></div>
-            <div><label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Minimum *</label><input type="number" step="100" required placeholder="1800" value={form.minimum_payment} onChange={e => setForm(f => ({ ...f, minimum_payment: e.target.value }))} className={inputCls} /></div>
+            <div><label htmlFor="debt-balance" className="mb-1 block text-label font-medium text-fg-secondary">Balance *</label><input id="debt-balance" type="number" step="100" required placeholder="45000" value={form.balance} onChange={e => setForm(f => ({ ...f, balance: e.target.value }))} className={cn(inputCls, "font-semibold")} /></div>
+            <div><label htmlFor="debt-rate" className="mb-1 block text-label font-medium text-fg-secondary">Rate % *</label><input id="debt-rate" type="number" step="0.1" required placeholder="36.0" value={form.interest_rate} onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))} className={inputCls} /></div>
+            <div><label htmlFor="debt-minimum" className="mb-1 block text-label font-medium text-fg-secondary">Minimum *</label><input id="debt-minimum" type="number" step="100" required placeholder="1800" value={form.minimum_payment} onChange={e => setForm(f => ({ ...f, minimum_payment: e.target.value }))} className={inputCls} /></div>
           </div>
-          <button type="submit" disabled={saving || !form.name || !form.balance || !form.interest_rate || !form.minimum_payment}
-            className="w-full py-2.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
-            {saving ? 'Saving...' : editingId ? 'Update Debt' : 'Add Debt'}
-          </button>
+          <Button type="submit" size="lg" className="w-full" disabled={saving || !form.name || !form.balance || !form.interest_rate || !form.minimum_payment}>
+            {saving ? 'Saving…' : editingId ? 'Update Debt' : 'Add Debt'}
+          </Button>
         </form>
       </Modal>
 
       {/* Log Payment Modal */}
-      <Modal open={!!paymentDebt} onClose={() => { setPaymentDebt(null); setPaymentAmount('') }}
-        title={`💳 Log Payment — ${debts.find(d => d.id === paymentDebt)?.name || ''}`}>
+      <Modal open={!!paymentDebt} onClose={() => { setPaymentDebt(null); setPaymentAmount(''); setActionError(null) }}
+        title={`Log Payment — ${debts.find(d => d.id === paymentDebt)?.name || ''}`}>
         {(() => {
           const debt = debts.find(d => d.id === paymentDebt)
           if (!debt) return null
@@ -426,31 +471,31 @@ export default function DebtClient() {
           const newBalance = Math.max(0, Math.round((debt.balance - principal) * 100) / 100)
           return (
             <div className="space-y-4">
-              <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))] text-sm space-y-1">
-                <div className="flex justify-between"><span className="text-[hsl(var(--text-secondary))]">Current balance</span><span className="font-medium tabular-nums">${debt.balance.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-[hsl(var(--text-secondary))]">Rate</span><span>{debt.interest_rate}% APR</span></div>
+              <div className="space-y-1 rounded-lg bg-surface-2 p-3 text-sm">
+                <div className="flex justify-between"><span className="text-fg-secondary">Current balance</span><span className="num font-medium" data-money>{formatMoney(debt.balance)}</span></div>
+                <div className="flex justify-between"><span className="text-fg-secondary">Rate</span><span>{debt.interest_rate}% APR</span></div>
               </div>
               <div>
-                <label className="text-xs text-[hsl(var(--text-secondary))] mb-1 block">Payment Amount</label>
-                <input type="number" step="100" value={paymentAmount}
+                <label htmlFor="debt-payment-amount" className="mb-1 block text-label font-medium text-fg-secondary">Payment Amount</label>
+                <input id="debt-payment-amount" type="number" step="100" value={paymentAmount}
                   onChange={e => setPaymentAmount(e.target.value)} className={inputCls} autoFocus />
               </div>
               {amount > 0 && (
-                <div className="p-3 rounded-lg border border-[hsl(var(--border))] text-sm space-y-1">
-                  <div className="flex justify-between"><span className="text-amber-600">→ Interest</span><span className="tabular-nums">${interest.toLocaleString()}</span></div>
-                  <div className="flex justify-between"><span className="text-emerald-600">→ Principal</span><span className="tabular-nums font-medium">${principal.toLocaleString()}</span></div>
-                  <div className="flex justify-between pt-1 border-t border-[hsl(var(--border))]"><span className="font-medium">New balance</span><span className="tabular-nums font-bold">${newBalance.toLocaleString()}</span></div>
+                <div className="space-y-1 rounded-lg border border-border p-3 text-sm">
+                  <div className="flex justify-between"><span className="text-fg-secondary">Interest</span><span className="num" data-money>{formatMoney(interest, { mode: 'precise' })}</span></div>
+                  <div className="flex justify-between"><span className="text-fg-secondary">Principal</span><span className="num font-medium" data-money>{formatMoney(principal, { mode: 'precise' })}</span></div>
+                  <div className="flex justify-between border-t border-border pt-1"><span className="font-medium">New balance</span><span className="num font-semibold" data-money>{formatMoney(newBalance, { mode: 'precise' })}</span></div>
                 </div>
               )}
-              <button onClick={handleLogPayment} disabled={paymentSaving || amount <= 0}
-                className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors disabled:opacity-50">
-                {paymentSaving ? 'Processing...' : 'Log Payment & Update Balance'}
-              </button>
+              {actionError && <p role="alert" className="rounded-lg bg-negative-bg p-3 text-sm text-fg">{actionError}</p>}
+              <Button size="lg" className="w-full" onClick={handleLogPayment} disabled={paymentSaving || amount <= 0}>
+                {paymentSaving ? 'Processing…' : 'Log Payment & Update Balance'}
+              </Button>
             </div>
           )
         })()}
       </Modal>
-    </div>
+    </Page>
     </PageTransition>
   )
 }

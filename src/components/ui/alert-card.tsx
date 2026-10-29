@@ -17,28 +17,28 @@ interface AlertCardProps {
 
 const SEVERITY_STYLES: Record<AlertSeverity, { bg: string; border: string; icon: typeof Info; iconColor: string }> = {
   info: {
-    bg: 'bg-[hsl(225,75%,48%)/0.08]',
-    border: 'border-[hsl(225,75%,48%)/0.25]',
+    bg: 'bg-info-bg',
+    border: 'border-info/25',
     icon: Info,
-    iconColor: 'text-blue-600',
+    iconColor: 'text-info',
   },
   success: {
-    bg: 'bg-[hsl(142,71%,45%)/0.08]',
-    border: 'border-[hsl(142,71%,45%)/0.25]',
+    bg: 'bg-positive-bg',
+    border: 'border-positive/25',
     icon: CheckCircle2,
-    iconColor: 'text-emerald-600',
+    iconColor: 'text-positive',
   },
   warning: {
-    bg: 'bg-[hsl(38,92%,50%)/0.08]',
-    border: 'border-[hsl(38,92%,50%)/0.3]',
+    bg: 'bg-warning-bg',
+    border: 'border-warning/30',
     icon: AlertTriangle,
-    iconColor: 'text-amber-600',
+    iconColor: 'text-warning',
   },
   danger: {
-    bg: 'bg-[hsl(0,84%,60%)/0.08]',
-    border: 'border-[hsl(0,84%,60%)/0.3]',
+    bg: 'bg-negative-bg',
+    border: 'border-negative/30',
     icon: AlertCircle,
-    iconColor: 'text-rose-600',
+    iconColor: 'text-negative',
   },
 }
 
@@ -85,7 +85,8 @@ export function AlertCard({
         {onDismiss && (
           <button
             onClick={onDismiss}
-            className="shrink-0 h-5 w-5 rounded hover:bg-[hsl(var(--muted))] flex items-center justify-center text-[hsl(var(--text-tertiary))] hover:text-[hsl(var(--text-primary))] transition-colors"
+            type="button"
+            className="-m-2 shrink-0 h-9 w-9 rounded-lg hover:bg-[hsl(var(--muted))] flex items-center justify-center text-[hsl(var(--text-tertiary))] hover:text-[hsl(var(--text-primary))] transition-colors"
             aria-label="Dismiss"
           >
             <X className="h-3 w-3" />
