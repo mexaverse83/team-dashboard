@@ -156,9 +156,10 @@ function throughLabelEs(dateKey: string): string {
 function coachTitle(directive: { title: string; rule: string }, v: WidgetVariable, lang: 'en' | 'es'): string {
   if (directive.rule !== 'on-plan') return directive.title
   const end = v.through_date ? (lang === 'es' ? throughLabelEs(v.through_date) : throughLabel(v.through_date)) : v.through_label
-  if (v.left < 0) return lang === 'es' ? `Fuera de plan — ${formatMoney(-v.left)} arriba` : `Over plan — ${formatMoney(-v.left)} over budget`
+  // Budget wording: on the widget "plan" means only the WEST savings plan.
+  if (v.left < 0) return lang === 'es' ? `Excedido — ${formatMoney(-v.left)} arriba` : `Over budget — ${formatMoney(-v.left)} over`
   const perDay = formatMoney(v.left / Math.max(1, v.days_left))
-  return lang === 'es' ? `En plan — ${perDay}/día hasta ${end}` : `On plan — ${perDay}/day thru ${end}`
+  return lang === 'es' ? `En presupuesto — ${perDay}/día hasta ${end}` : `Within budget — ${perDay}/day thru ${end}`
 }
 
 /** Per-day controllable spend for days 1..today, bucketed by the stored (Mexico City) date (O1). */

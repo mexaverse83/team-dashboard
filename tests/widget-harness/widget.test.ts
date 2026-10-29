@@ -84,6 +84,20 @@ describe('widget content rules', () => {
     expect(r.allText).not.toContain('Pause Other')
   })
 
+  it('never shows yesterday\'s cached brief as today\'s advice when offline', async () => {
+    const sameDay = await render({ fail: true, cache: freshBrief, family: 'large' })
+    expect(sameDay.allText).toContain('Hold Other spending through month end')
+    const nextDay = await render({ fail: true, cache: freshBrief, family: 'large', now: '2026-10-29T09:00:00-06:00' })
+    expect(nextDay.allText).not.toContain('Hold Other spending through month end')
+    expect(nextDay.allText).toContain('Pause Other — $12k over')
+  })
+
+  it('drops bills already past from a cached "Coming up" list', async () => {
+    const r = await render({ fail: true, cache: overBudget, family: 'large', now: '2026-11-02T08:00:00-06:00' })
+    expect(r.allText).not.toContain('Rent')
+    expect(r.allText).toContain('Seguro Sportage')
+  })
+
   it('(f) a 401 shows the re-install message, even with cached numbers', async () => {
     for (const family of ['medium', 'small', 'accessoryRectangular']) {
       const r = await render({ status: 401, cache: overBudget, family })

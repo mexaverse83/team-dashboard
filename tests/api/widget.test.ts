@@ -152,8 +152,8 @@ describe('GET /api/finance/widget (v2)', () => {
     const data = await (await get()).json()
     expect(data.variable.through_label).toBe('Sat Oct 31')
     expect(data.coach.rule).toBe('on-plan')
-    expect(data.coach.title).toBe('On plan — $4,000/day thru Sat Oct 31')
-    expect(data.coach_es.title).toBe('En plan — $4,000/día hasta sáb 31 oct')
+    expect(data.coach.title).toBe('Within budget — $4,000/day thru Sat Oct 31')
+    expect(data.coach_es.title).toBe('En presupuesto — $4,000/día hasta sáb 31 oct')
     for (const t of [data.coach.title, data.coach_es.title, data.wolff.directive.title]) {
       expect(t).not.toMatch(/Sunday|domingo|this week|esta semana/i)
     }

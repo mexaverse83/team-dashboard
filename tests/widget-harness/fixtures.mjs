@@ -59,8 +59,8 @@ export const underBudget = (() => {
   ]
   d.daily_spend = scaleTo(d.daily_spend, d.variable.spent)
   d.west_month = { ...d.west_month, projected_savings: 158200, surplus_so_far: 158200, gap: 0, pct: 104, tone: 'good' }
-  d.coach = { title: 'On plan — $3,595/day thru Sat Oct 31', url: '/finance/ask?prompt=Can%20we%20spend%20a%20little%20extra%20this%20weekend%3F', question: 'Can we spend a little extra this weekend?', rule: 'on-plan', tone: 'positive' }
-  d.coach_es = { title: 'En plan — $3,595/día hasta sáb 31 oct', url: '/finance/ask?prompt=%C2%BFPodemos%20gastar%20un%20poco%20extra%20este%20fin%3F', question: '¿Podemos gastar un poco extra este fin?' }
+  d.coach = { title: 'Within budget — $3,595/day thru Sat Oct 31', url: '/finance/ask?prompt=Can%20we%20spend%20a%20little%20extra%20this%20weekend%3F', question: 'Can we spend a little extra this weekend?', rule: 'on-plan', tone: 'positive' }
+  d.coach_es = { title: 'En presupuesto — $3,595/día hasta sáb 31 oct', url: '/finance/ask?prompt=%C2%BFPodemos%20gastar%20un%20poco%20extra%20este%20fin%3F', question: '¿Podemos gastar un poco extra este fin?' }
   return d
 })()
 
@@ -69,8 +69,8 @@ export const tightBudget = (() => {
   d.variable = { ...d.variable, spent: 36100, left: 2400, status: 'tight' }
   d.status = 'tight'
   d.daily_spend = scaleTo(d.daily_spend, d.variable.spent)
-  d.coach = { ...d.coach, title: 'On plan — $600/day thru Sat Oct 31' }
-  d.coach_es = { ...d.coach_es, title: 'En plan — $600/día hasta sáb 31 oct' }
+  d.coach = { ...d.coach, title: 'Within budget — $600/day thru Sat Oct 31' }
+  d.coach_es = { ...d.coach_es, title: 'En presupuesto — $600/día hasta sáb 31 oct' }
   d.west_month = { ...overBudget.west_month, projected_savings: 131000, surplus_so_far: 131000, gap: 21583, pct: 86, tone: 'warn' }
   return d
 })()
@@ -103,8 +103,8 @@ export const dayOne = (() => {
   d.budget_pace = d.budget_pace.map(b => ({ ...b, spent: 0, pct: 0, left: b.budget }))
   d.daily_spend = [0]
   d.daily_budget_pace = 1283
-  d.coach = { ...d.coach, title: 'On plan — $1,283/day thru Mon Nov 30' }
-  d.coach_es = { ...d.coach_es, title: 'En plan — $1,283/día hasta lun 30 nov' }
+  d.coach = { ...d.coach, title: 'Within budget — $1,283/day thru Mon Nov 30' }
+  d.coach_es = { ...d.coach_es, title: 'En presupuesto — $1,283/día hasta lun 30 nov' }
   d.west_month = { label: 'Nov', month: '2026-11', target: 140000, projected_savings: 0, surplus_so_far: 0, gap: 140000, pct: 0, tone: 'warn' }
   d.upcoming = [{ date: '2026-11-01', label: 'Rent', amount: 47938, count: 7, kind: 'bill' }]
   return d

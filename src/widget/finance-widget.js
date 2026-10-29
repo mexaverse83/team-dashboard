@@ -334,6 +334,16 @@ const STATUS = {
   tight: () => ({ word: STR.tight, color: C.warn, chip: C.chip.warn, fill: FILL.warn }),
   over: () => ({ word: STR.overPlan, color: C.bad, chip: C.chip.bad, fill: FILL.bad }),
 }
+const todayKey = () => formatter('yyyy-MM-dd').string(new Date())
+/**
+ * The server decides brief.fresh at fetch time. A cached (offline) payload
+ * re-checks on the device: yesterday's brief is never shown as today's advice.
+ */
+function briefIsToday(d) {
+  if (!d.brief || !d.brief.fresh || !d.brief.title) return false
+  if (!d.__stale) return true
+  return !!d.brief.generated_at && formatter('yyyy-MM-dd').string(new Date(d.brief.generated_at)) === todayKey()
+}
 /** Cached numbers from an earlier month: never label them as this month's room. */
 function fromLastMonth(d) {
   return !!d.__stale && !!d.month && d.month !== formatter('yyyy-MM').string(new Date())
@@ -535,7 +545,7 @@ function medium(w, d, m, inLarge) {
     right.url = coachLink(d)
     right.size = new Size(sw, 0)
     const c = coachFor(d)
-    const line = d.brief && d.brief.fresh && d.brief.title ? d.brief.title : (c ? c.title : STR.spendPace)
+    const line = briefIsToday(d) ? d.brief.title : (c ? c.title : STR.spendPace)
     txt(right, line, 13, C.accent, 'semibold', { lines: 3, msf: 0.85 })
   } else if ((d.daily_spend || []).length) {
     right.url = URLS.transactions
@@ -588,7 +598,9 @@ function large(w, d, m) {
   bills.url = URLS.bills
   txt(bills, STR.comingUp, 13, C.text, 'bold')
   bills.addSpacer(4)
-  const up = (d.upcoming || []).slice(0, 2)
+  // The server filters to today onward when it builds the payload; a cached
+  // payload re-filters so bills already paid never show as "coming up".
+  const up = (d.upcoming || []).filter(u => !d.__stale || String(u.date) >= todayKey()).slice(0, 2)
   if (!up.length) txt(bills, STR.nothingDue, 12, C.faint, 'medium')
   up.forEach((u, i) => {
     const r = bills.addStack()
@@ -612,7 +624,7 @@ function large(w, d, m) {
   foot.centerAlignContent()
   const c = coachFor(d)
   // Last month's advice is no advice; a stale header already carries the stamp.
-  const coach = fromLastMonth(d) ? null : d.brief && d.brief.fresh && d.brief.title ? d.brief.title : (c ? c.title : null)
+  const coach = fromLastMonth(d) ? null : briefIsToday(d) ? d.brief.title : (c ? c.title : null)
   if (coach) {
     const cs = foot.addStack()
     cs.url = coachLink(d)
