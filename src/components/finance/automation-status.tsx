@@ -172,14 +172,19 @@ export interface AutomationStatusProps {
   readOnly?: boolean
   /** Dot only: which edge the popover lines up with (default 'end', for a dot at the right of a header). */
   align?: 'start' | 'end'
+  /**
+   * Dot only: 'beside' portals the desktop popover next to the sidebar
+   * (whose scroll container would clip an absolutely positioned one).
+   */
+  placement?: 'below' | 'beside'
 }
 
-export function AutomationStatus({ variant = 'dot', className, readOnly = false, align = 'end' }: AutomationStatusProps) {
+export function AutomationStatus({ variant = 'dot', className, readOnly = false, align = 'end', placement = 'below' }: AutomationStatusProps) {
   const { data, error, loading, refreshing, refresh } = useFinanceData<HealthResponse>('automation-health', fetchHealth, { minIntervalMs: 120_000 })
   if (variant === 'panel') {
     return <AutomationPanel data={data} error={error} loading={loading} refreshing={refreshing} refresh={refresh} readOnly={readOnly} className={className} />
   }
-  return <AutomationDot data={data} error={error} refresh={refresh} refreshing={refreshing} readOnly={readOnly} className={className} align={align} />
+  return <AutomationDot data={data} error={error} refresh={refresh} refreshing={refreshing} readOnly={readOnly} className={className} align={align} placement={placement} />
 }
 
 interface ViewProps {
@@ -206,7 +211,7 @@ function usePhone(): boolean {
   return phone
 }
 
-function AutomationDot({ data, error, refresh, refreshing, readOnly, className, align }: ViewProps & { align: 'start' | 'end' }) {
+function AutomationDot({ data, error, refresh, refreshing, readOnly, className, align, placement }: ViewProps & { align: 'start' | 'end'; placement: 'below' | 'beside' }) {
   const [open, setOpen] = useState(false)
   const wrapper = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -255,7 +260,13 @@ function AutomationDot({ data, error, refresh, refreshing, readOnly, className, 
         <span aria-hidden="true" className="sm:hidden">{summary.short}</span>
         <span aria-hidden="true" className="hidden min-w-0 max-w-[14rem] truncate sm:inline">{summary.text}</span>
       </button>
-      {open && !phone && (
+      {open && !phone && placement === 'beside' && createPortal(
+        <div id={panelId} ref={popover} role="dialog" aria-label="Automation status" className="fixed bottom-4 left-[15.5rem] z-[111] max-h-[calc(100dvh-2rem)] w-[24rem] overflow-y-auto rounded-xl lg:left-[17.5rem]">
+          {panel}
+        </div>,
+        document.body,
+      )}
+      {open && !phone && placement === 'below' && (
         <div id={panelId} ref={popover} role="dialog" aria-label="Automation status" className={cn('absolute z-50 mt-2 w-[24rem]', align === 'end' ? 'right-0' : 'left-0')}>
           {panel}
         </div>

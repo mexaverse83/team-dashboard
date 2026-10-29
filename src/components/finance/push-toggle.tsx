@@ -80,6 +80,8 @@ export function PushToggle({ className }: { className?: string }) {
   const owner = canonicalOwner(authOwner)
   const [state, setState] = useState<PushState>('checking')
   const [hintOpen, setHintOpen] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<string | null>(null)
   const hintId = useId()
 
   useEffect(() => {
@@ -145,6 +147,21 @@ export function PushToggle({ className }: { className?: string }) {
     }
   }
 
+  const sendTest = async () => {
+    if (testing) return
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const res = await fetch('/api/finance/push/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: true }) })
+      const body = await res.json().catch(() => ({})) as { sent?: number; error?: string }
+      setTestResult(res.ok && (body.sent ?? 0) > 0 ? `Sent to ${body.sent} device${body.sent === 1 ? '' : 's'}` : body.error || 'No device received it')
+    } catch {
+      setTestResult('Couldn’t reach the server')
+    } finally {
+      setTesting(false)
+    }
+  }
+
   if (state === 'unsupported' || state === 'checking') return null
 
   const Icon = state === 'on' ? BellRing : state === 'ios-install' ? Smartphone : state === 'blocked' ? BellOff : Bell
@@ -170,6 +187,13 @@ export function PushToggle({ className }: { className?: string }) {
         <Icon className="h-4 w-4" aria-hidden="true" />
         {LABEL[state]}
       </button>
+      {state === 'on' && (
+        <button type="button" onClick={sendTest} disabled={testing}
+          className="inline-flex min-h-11 items-center rounded-lg px-2.5 text-[0.75rem] font-medium leading-4 text-fg-secondary hover:bg-surface-2 hover:text-fg disabled:opacity-60">
+          {testing ? 'Sending…' : 'Send test'}
+        </button>
+      )}
+      {testResult && <p role="status" className="max-w-[17rem] px-2.5 pb-1 text-right text-micro leading-snug text-fg-tertiary">{testResult}</p>}
       {showHint && <p id={hintId} className="max-w-[17rem] px-2.5 pb-1 text-right text-micro leading-snug text-fg-tertiary">{hint}</p>}
     </div>
   )

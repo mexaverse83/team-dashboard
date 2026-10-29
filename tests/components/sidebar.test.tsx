@@ -69,7 +69,13 @@ describe('Sidebar', () => {
     const { container } = render(<Sidebar />)
     const masthead = container.querySelector('header.mobile-masthead')!
     expect(masthead.textContent).toContain('Home')
-    for (const button of masthead.querySelectorAll('button')) expect(button).toHaveClass('h-11', 'w-11')
+    const buttons = [...masthead.querySelectorAll('button')]
+    // The automation status pill is text-width but keeps the 44px tap height.
+    const status = buttons.find(b => b.closest('[class*="inline-block"]') && b.getAttribute('aria-controls') && !b.getAttribute('aria-label')?.includes('navigation'))
+    for (const button of buttons) {
+      if (button === status) expect(button).toHaveClass('min-h-[var(--tap-min)]')
+      else expect(button).toHaveClass('h-11', 'w-11')
+    }
   })
 
   it('toggles the privacy blur and remembers it', () => {

@@ -319,7 +319,7 @@ export function useTransactionForm({ data, defaultOwner, request }: { data: Quic
         const { error } = await supabase.from('finance_transactions').update(record).eq('id', editingId)
         if (error) { setSaveError(`Could not save: ${error.message}`); return null }
         id = editingId
-        notifyWolff({ kind: 'updated', ...event })
+        notifyWolff({ kind: 'updated', transaction_id: id, ...event })
       } else {
         id = draftId.current ??= crypto.randomUUID()
         const { error } = await supabase.from('finance_transactions').insert({ ...record, id })
@@ -327,7 +327,7 @@ export function useTransactionForm({ data, defaultOwner, request }: { data: Quic
           setSaveError(error.code === '23505' ? 'This transaction may already be saved. Close this form and check your history before adding another.' : `Could not save: ${error.message}`)
           return null
         }
-        notifyWolff({ kind: 'created', ...event })
+        notifyWolff({ kind: 'created', transaction_id: id, ...event })
         if (appliedRuleId) {
           const rule = rules.find(r => r.id === appliedRuleId)
           if (rule) {

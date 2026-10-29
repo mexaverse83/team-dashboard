@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { RefreshCw } from 'lucide-react'
 import { FinanceAuthGuard } from '@/components/finance-auth-guard'
+import { QuickAddHost } from '@/components/finance/quick-add/quick-add-host'
 import { refreshFinanceData } from '@/lib/finance-navigation'
 import { cn } from '@/lib/utils'
 
@@ -94,6 +95,8 @@ function FinanceShell({ children }: { children: React.ReactNode }) {
     <>
       <PullIndicator state={pull} />
       {children}
+      {/* The one global quick-add sheet: dock/sidebar "+", the palette, Mona and ?add=1 links. */}
+      <QuickAddHost />
     </>
   )
 }

@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import type { FinanceTransaction } from '@/lib/finance-types'
 import { type Summary, type TreatmentEvent, fmtMoney } from './command-center/types'
 import { EducationProjectionWithScenarios } from './family-tracker'
+import { WidgetInstallCard } from '@/components/finance/widget-install-card'
 
 function fmtMonthYear(month: string) {
   return formatMonthShort(parseLocalDateKey(month), { withYear: true })
@@ -313,7 +314,7 @@ export function FamilyClient() {
                     <p className={cn('text-sm font-medium', item.state === 'closed' && 'line-through')}>{item.title}</p>
                     <span className={cn(
                       'shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide whitespace-nowrap',
-                      item.state === 'open' && item.severity === 'warning' && 'bg-amber-500/15 text-amber-700',
+                      item.state === 'open' && item.severity === 'warning' && 'bg-amber-500/15 text-warning',
                       item.state === 'open' && item.severity === 'info' && 'bg-sky-500/15 text-sky-700',
                       item.state === 'upcoming' && 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]',
                       item.state === 'closed' && 'bg-[hsl(var(--accent))] text-[hsl(var(--text-tertiary))]',
@@ -342,7 +343,7 @@ export function FamilyClient() {
         {/* ── Protection ── */}
         <GlassCard className="p-4 sm:p-5">
           <div className="flex items-center gap-2 mb-4">
-            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            <ShieldCheck className="h-4 w-4 text-positive" />
             <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">Protection Plan</h3>
           </div>
           <div className="space-y-2 sm:hidden">
@@ -391,11 +392,14 @@ export function FamilyClient() {
           <p className="mt-1.5 text-[11px] leading-relaxed text-[hsl(var(--text-tertiary))]">{PROTECTION_PLAN.estate_note}</p>
         </GlassCard>
 
+        {/* ── Phone widget (WS3): download the per-phone Scriptable loader ── */}
+        <WidgetInstallCard />
+
         {/* ── The engine ── */}
         <GlassCard className="p-4 sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-positive">
                 <TrendingUp className="h-[18px] w-[18px]" />
               </span>
               <div>

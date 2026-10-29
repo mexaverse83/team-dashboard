@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { getOwnerName } from '@/lib/owners'
-import { dispatchFinanceEvent, FINANCE_EVENTS, onFinanceEvent } from '@/lib/finance-events'
+import { dispatchFinanceEvent, FINANCE_EVENTS } from '@/lib/finance-events'
 import { loadQuickAddData, peekQuickAddData, rememberSavedTransaction, type QuickAddData } from './quick-add-data'
 import { QuickAddSheet } from './quick-add-sheet'
 import type { QuickAddRequest, SaveResult } from './use-transaction-form'
@@ -85,9 +85,17 @@ export function QuickAddHost() {
     }
   }, [hostId])
 
-  useEffect(() => onFinanceEvent<QuickAddRequest | undefined>(FINANCE_EVENTS.quickAdd, detail => {
-    if (isActive()) openWith(detail ?? {})
-  }), [isActive, openWith])
+  // preventDefault() tells requestQuickAdd() callers (dock, sidebar, palette)
+  // that a host answered, so they skip their `?add=1` navigation fallback.
+  useEffect(() => {
+    const listener = (event: Event) => {
+      if (!isActive()) return
+      event.preventDefault()
+      openWith((event as CustomEvent<QuickAddRequest | undefined>).detail ?? {})
+    }
+    window.addEventListener(FINANCE_EVENTS.quickAdd, listener)
+    return () => window.removeEventListener(FINANCE_EVENTS.quickAdd, listener)
+  }, [isActive, openWith])
 
   // Deep link: open prefilled, then strip the params so back/refresh doesn't reopen it.
   useEffect(() => {

@@ -17,7 +17,7 @@ import { getOwnerName, ownersEqual } from '@/lib/owners'
 import { localDateKey, relativeLocalDateKey } from '@/lib/transaction-entry'
 import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
 import type { FinanceRule } from '@/lib/finance-rules'
-import { QuickAddHost, openQuickAdd } from '@/components/finance/quick-add/quick-add-host'
+import { openQuickAdd } from '@/components/finance/quick-add/quick-add-host'
 import { loadQuickAddData, primeQuickAddData } from '@/components/finance/quick-add/quick-add-data'
 import { TransactionList } from '@/components/finance/transactions/transaction-list'
 import { TransactionFilters, EMPTY_FILTERS, type TransactionFilterState } from '@/components/finance/transactions/transaction-filters'
@@ -248,8 +248,6 @@ export default function TransactionsClient() {
           </div>
         )}
 
-        {/* Fallback until the finance layout mounts the global host; only one host ever answers. */}
-        <QuickAddHost />
       </Page>
     </PageTransition>
   )

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
-import { SEED_CATEGORIES, SEED_TRANSACTIONS } from '@/lib/seed-finance'
+import { SEED_CATEGORIES, SEED_TRANSACTIONS } from '../fixtures/seed-finance'
 import { localDateKey } from '@/lib/dates'
 import type { FinanceTransaction } from '@/lib/finance-types'
 
@@ -76,7 +76,9 @@ function setupSupabaseMock(transactions: FinanceTransaction[] = [todayTx, ...SEE
 
 async function renderPage() {
   const Comp = (await import('@/components/finance/transactions-client')).default
-  const utils = render(<Comp />)
+  const { QuickAddHost } = await import('@/components/finance/quick-add/quick-add-host')
+  // The finance layout mounts the one global host next to every page.
+  const utils = render(<><Comp /><QuickAddHost /></>)
   await waitFor(() => expect(screen.getByRole('button', { name: /Add transaction/ })).toBeInTheDocument())
   // Flush passive effects so the quick-add host is subscribed before tests click.
   await act(async () => {})

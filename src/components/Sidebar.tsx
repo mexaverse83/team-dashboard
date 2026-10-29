@@ -7,6 +7,7 @@ import { ChevronDown, Eye, EyeOff, LayoutGrid, Menu, MoreHorizontal, Plus, Searc
 import { FinanceAuthBadge } from './finance-auth-badge'
 import { BrandLogo, WolffAvatar } from './brand-logo'
 import { ThemeToggle } from './ui/theme-toggle'
+import { AutomationStatus } from './finance/automation-status'
 import {
   currentFinanceNavItem,
   homeNavItem,
@@ -198,7 +199,8 @@ function SidebarNav() {
             <span className="block text-micro font-medium text-fg-tertiary">Bernardo + Laura</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 min-[360px]:gap-2">
+          <AutomationStatus />
           <PrivacyButton />
           <button
             ref={menuButtonRef}
@@ -309,6 +311,7 @@ function SidebarNav() {
             <span className="text-label text-fg-secondary">Theme</span>
             <ThemeToggle compact />
           </div>
+          <AutomationStatus placement="beside" align="start" className="px-0" />
           <p className="px-2 text-micro text-fg-tertiary">v2.2 · Mona Finance</p>
         </div>
       </aside>
