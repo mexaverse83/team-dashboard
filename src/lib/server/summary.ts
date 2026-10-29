@@ -8,12 +8,13 @@ import { BABY_PLAN, BABY_PLAN_TAG, looksLikeBabySpend } from '@/lib/baby-plan'
 import { deriveIncomeBaseline, expectedMonthIncome } from '@/lib/household-metrics'
 import { fetchCryptoPrices } from '@/lib/crypto-prices'
 import { addMonthsKey, daysInMonth as daysInMonthOf, mexicoCityDateParts, mxNow } from '@/lib/dates'
-import { hasTag, monthlyNetHistory, recentNetRunRate, txAmount, WINDFALL_TAG, type TxRow } from '@/lib/summary/history'
+import { CYCLE_MONTHS } from '@/lib/finance-utils'
+import { householdRunRate, isWestPayment, txAmount, type TxRow } from '@/lib/summary/history'
 import { activeBudgetRows, budgetTypeFor, buildBudgetVsActual, type BudgetRow, type CategoryRow } from '@/lib/summary/budgets'
 import { buildGoals, type GoalRow } from '@/lib/summary/goals'
 import { buildEmergencyFund, deriveMonthlyEssentials, type EmergencyFundRow } from '@/lib/summary/emergency'
 import { buildBabyPlan, buildFertilityPlan, treatmentDueThisMonth, type BabyLedger } from '@/lib/summary/plans'
-import { buildYearEndPlan, plannedSpend, projectMonthSpend } from '@/lib/summary/projection'
+import { buildYearEndPlan, projectMonthSpend } from '@/lib/summary/projection'
 import { buildOwnerSpend, buildRecentTransactions, buildVariable } from '@/lib/summary/activity'
 import { buildUpcoming } from '@/lib/summary/upcoming'
 import { buildCryptoSummary, cryptoQuantities, type CryptoHoldingRow } from '@/lib/summary/crypto'
@@ -131,6 +132,29 @@ export async function buildSummary(
   const savingsCategoryIds = new Set(activeBudgets.filter(b => b.budget_type === 'savings').map(b => b.category_id))
   const isSavingsMove = (t: TxRow) => !!t.category_id && savingsCategoryIds.has(t.category_id)
 
+  // Annual cycles need 12 months of their category but the category history
+  // stops at month − 6: add those categories' older rows (from the main read
+  // where it reaches, one bounded extra read for the rest).
+  const longCycle = activeBudgets
+    .map(b => ({ id: b.category_id, months: CYCLE_MONTHS[(catMap.get(b.category_id)?.billing_cycle || 'monthly') as keyof typeof CYCLE_MONTHS] || 1 }))
+    .filter(c => `${addMonthsKey(month, -(c.months - 1))}-01` < spendHistoryStart)
+  let cycleHistory: TxRow[] = []
+  if (longCycle.length > 0) {
+    const ids = new Set(longCycle.map(c => c.id))
+    const cycleStart = `${addMonthsKey(month, -(Math.max(...longCycle.map(c => c.months)) - 1))}-01`
+    cycleHistory = txRows.filter(t => t.type === 'expense' && t.transaction_date < spendHistoryStart && ids.has(t.category_id || ''))
+    if (cycleStart < readStart) {
+      try {
+        cycleHistory = cycleHistory.concat(await fetchAllRows<TxRow>((from, to) => supabase.from('finance_transactions').select(TX_COLUMNS)
+          .in('category_id', [...ids]).eq('type', 'expense')
+          .gte('transaction_date', cycleStart).lt('transaction_date', readStart)
+          .order('transaction_date').order('id').range(from, to), 1000, 20000, true))
+      } catch {
+        throw new SummaryUnavailableError()
+      }
+    }
+  }
+
   const expenses = txRows.filter(t => t.type === 'expense')
   const incomeRows = txRows.filter(t => t.type === 'income')
   const periodExpenses = expenses.filter(t => t.transaction_date >= startStr)
@@ -215,7 +239,7 @@ export async function buildSummary(
   const budgetVsActual = buildBudgetVsActual({
     budgets: activeBudgets.filter(b => !savingsCategoryIds.has(b.category_id)),
     catMap, currentMonthTxs: monthExpenses, historyTxs: historyExpenses.filter(t => !isSavingsMove(t)),
-    month, dayOfMonth, daysInMonth,
+    cycleHistoryTxs: cycleHistory, month, dayOfMonth, daysInMonth,
   })
 
   const fertilityPaid = fertilityRows.map(t => ({ date: t.transaction_date, amount: txAmount(t) }))
@@ -250,38 +274,50 @@ export async function buildSummary(
   })
   const projectedMonthSavings = monthIncome.expected - spendProjection.projected_spend
 
-  // ── Typical spend, goals, run rate ────────────────────────────────────
+  // ── Free cash, goals ──────────────────────────────────────────────────
   const fixedCommitments = budgetCategories.reduce((s, b) => s + b.budget, 0) + instMonthly + debtItems.reduce((s, d) => s + d.minimum, 0)
-  // Finished-plan and windfall rows aren't part of a typical month.
-  const typical = plannedSpend(historyExpenses, { beforeMonth: month, exclude: t => isSavingsMove(t) || hasTag(t, 'fertility', WINDFALL_TAG) })
-  const plannedMonthlySpend = typical.months_used > 0 ? typical.amount : fixedCommitments
-  const discretionary = totalMonthlyIncome - plannedMonthlySpend
+  // ONE free-cash number (householdRunRate, shared with WEST capacity): the
+  // median clean net of the last 3 complete months — windfalls and one-off
+  // lumps out. Goal funding, the year-end plan and cash_flow all read it.
+  const rr = householdRunRate(txRows, month)
+  const hasHistory = rr.months_used > 0
+  const plannedMonthlySpend = hasHistory ? rr.typical_spend : fixedCommitments
+  const discretionary = hasHistory ? rr.run_rate : totalMonthlyIncome - fixedCommitments
 
   const goalsBuild = buildGoals(goals, mx, cryptoQuantities(holdings))
   const goalGap = goalsBuild.total_monthly_needed - discretionary
 
-  const netHistory = monthlyNetHistory(txRows, { beforeMonth: month, fromMonth: spendHistoryStart.slice(0, 7) })
-  const runRate = recentNetRunRate(netHistory, 3)
   const west = await westP
+  // This month's balloon / aguinaldo count only until they post; once posted
+  // they're already inside projectedSavings.
+  const westLumpPosted = (amount: number) => monthExpensesAll.some(t => isWestPayment(t) && txAmount(t) >= amount * 0.5)
+  const inflowPosted = (name: string, amount: number) => monthIncomeRows.some(t => {
+    const merchant = (t.merchant || '').toLowerCase()
+    return (!!name && merchant.includes(name.toLowerCase())) || merchant.includes('aguinaldo') || Math.abs(txAmount(t) - amount) <= amount * 0.02
+  })
   const babyRoutine = BABY_PLAN.events.length > 0 ? Math.min(...BABY_PLAN.events.map(e => e.amount)) : 0
   const yearEnd = buildYearEndPlan({
     goals: goalsBuild.active,
     targetYear: goalsBuild.target_year,
     month,
     projectedSavings: projectedMonthSavings,
-    runRate,
+    runRate: discretionary,
     futureIncome: futureRISources,
     babyEvents: babyPlan.remaining_events,
     babyRoutine,
     knownLumps: west?.schedule.lump_sum_month && west.schedule.lump_sum_amount > 0
-      ? [{ month: west.schedule.lump_sum_month, amount: west.schedule.lump_sum_amount, label: 'WEST balloon payment' }]
+      ? [{
+          month: west.schedule.lump_sum_month, amount: west.schedule.lump_sum_amount, label: 'WEST balloon payment',
+          posted: west.schedule.lump_sum_month === month && westLumpPosted(west.schedule.lump_sum_amount),
+        }]
       : [],
     knownInflows: incomeSources
       .filter(s => s.frequency === 'yearly' && s.amount > 0)
       .map(s => {
         const payMonth = Math.min(Math.max(Number((s as { pay_month?: number }).pay_month) || 12, 1), 12)
         const year = payMonth >= mx.month ? mx.year : mx.year + 1
-        return { month: `${year}-${String(payMonth).padStart(2, '0')}`, amount: s.amount, label: s.name }
+        const key = `${year}-${String(payMonth).padStart(2, '0')}`
+        return { month: key, amount: s.amount, label: s.name, posted: key === month && inflowPosted(s.name, s.amount) }
       }),
     wantsBudgets,
   })
@@ -364,9 +400,11 @@ export async function buildSummary(
       monthly_income: totalMonthlyIncome,
       // Budgets + MSI + debt minimums: what is budgeted, not what is spent.
       fixed_commitments: fixedCommitments,
+      // Median clean spend of the same 3 months the free-cash run rate uses.
       planned_spend: plannedMonthlySpend,
-      planned_spend_basis: typical.months_used > 0 ? 'median-actual-3mo' : 'budgets',
-      // Income minus typical (actual) spend — the same figure goal funding uses.
+      planned_spend_basis: hasHistory ? 'median-clean-3mo' : 'budgets',
+      // Free cash per month: the run rate (== year_end_goal_plan.monthly_free_cash
+      // == goal_funding.discretionary_available).
       discretionary_available: discretionary,
     },
     current_month: {

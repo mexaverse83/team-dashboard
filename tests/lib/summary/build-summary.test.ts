@@ -147,6 +147,19 @@ describe('buildSummary on the October 2026 fixture', () => {
     expect(s.baby_plan.untagged_candidates).toBe(1) // 'Cita gine'
   })
 
+  it('settles on untagged prenatal rows too — the live case — and documents remaining_amount', async () => {
+    const tables = fixture()
+    for (const t of tables.finance_transactions) if ((t.tags as string[]).includes('baby')) t.tags = []
+    const s = await build(NOW, tables)
+    expect(s.baby_plan.spent_to_date).toBe(0)
+    expect(s.baby_plan.untagged_candidates).toBe(4)
+    expect(s.month_projection.known_upcoming_baby).toBe(0)
+    expect(s.baby_plan.remaining_events.some(e => e.month === '2026-10')).toBe(false)
+    // remaining_amount is budget left vs TAGGED spend; remaining_scheduled is what the schedule still expects.
+    expect(s.baby_plan.remaining_amount).toBe(s.baby_plan.planning_total)
+    expect(s.baby_plan.remaining_scheduled).toBe(s.baby_plan.remaining_events.reduce((sum, e) => sum + e.amount, 0))
+  })
+
   it('derives emergency essentials from needs spend (not the $25k typed in February)', async () => {
     const s = await build()
     // Rent 35k + groceries 13k + transport 6k + health 15k + utilities 1.9k; WEST is savings.
@@ -171,12 +184,16 @@ describe('buildSummary on the October 2026 fixture', () => {
     expect(s.year_end_goal_plan.target_amount).toBe(965000)
   })
 
-  it('typical spend replaces budgets as "planned" and feeds goal funding', async () => {
+  it('one free-cash number: goal funding, cash flow and the year-end plan agree', async () => {
     const s = await build()
-    // Jul/Sep 96,900, Aug 102,900 → median 96,900.
+    // Clean spend Jul 96,900 (75k clinic lump out), Aug 102,900, Sep 96,900 → 96,900.
     expect(s.cash_flow.planned_spend).toBe(96900)
-    expect(s.cash_flow.discretionary_available).toBe(s.income.total_monthly - 96900)
-    expect(s.goal_funding.discretionary_available).toBe(s.cash_flow.discretionary_available)
+    expect(s.cash_flow.planned_spend_basis).toBe('median-clean-3mo')
+    const y = s.year_end_goal_plan as Record<string, number>
+    expect(s.goal_funding.discretionary_available).toBe(y.monthly_free_cash)
+    expect(s.cash_flow.discretionary_available).toBe(y.monthly_free_cash)
+    expect(y.monthly_free_cash).toBe(109900)
+    expect(s.goal_funding.gap).toBe(93618 + 27537 - 109900)
   })
 
   it('the year-end plan starts from this month\'s projected savings and the clean run rate', async () => {
@@ -208,9 +225,57 @@ describe('buildSummary on the October 2026 fixture', () => {
     expect(sep.current_month.budget_vs_actual.find(b => b.category === 'Electricity')).toMatchObject({ cycle_window_spent: 6000, pct_used: 120 })
   })
 
+  it('annual budgets read their full 12-month window, beyond the 6-month history', async () => {
+    const tables = fixture()
+    tables.finance_categories.push({ id: 'ins', name: 'Insurance', icon: '🛡️', billing_cycle: 'annual' } as never)
+    tables.finance_budgets.push({ category_id: 'ins', month: '2026-10-01', amount: 2000 })
+    tables.finance_transactions.push(
+      { ...tables.finance_transactions[3], id: 'ins1', transaction_date: '2026-01-20', category_id: 'ins', merchant: 'GNP', amount_mxn: 20000, amount: 20000, tags: [] },
+      { ...tables.finance_transactions[3], id: 'ins0', transaction_date: '2025-10-20', category_id: 'ins', merchant: 'GNP', amount_mxn: 99999, amount: 99999, tags: [] },
+    )
+    const s = await build(NOW, tables)
+    expect(s.current_month.budget_vs_actual.find(b => b.category === 'Insurance')).toMatchObject({ cycle_window_spent: 20000, budget: 24000, pct_used: 83 })
+  })
+
   it('crypto by owner matches lowercase owners', async () => {
     const s = await build()
     expect(s.crypto?.by_owner?.Bernardo.value_mxn).toBe(Math.round(0.19982936 * 1800000))
+  })
+})
+
+describe('lumps and inflows dated this month', () => {
+  const december = () => {
+    const tables = fixture()
+    // Oct is already in the fixture; add Nov so December has three complete months.
+    tables.finance_transactions.push(...history('2026-11'))
+    tables.finance_income_sources = [{ name: 'Aguinaldo', type: 'bonus', amount: 37400, frequency: 'yearly', is_active: true }] as never
+    return tables
+  }
+  const west = (lumpMonth: string) => ({
+    schedule: { lump_sum_month: lumpMonth, lump_sum_amount: 90000, lump_sum_date: `${lumpMonth}-15` },
+    savings_plan: { months: [] }, behavioral: {}, current_status: {}, staleness: {},
+  }) as never
+  const DEC2 = new Date('2026-12-02T18:00:00Z')
+
+  it('on Dec 2 the unposted balloon and aguinaldo still count', async () => {
+    const s = await buildSummary(fakeSupabase(december()), { now: DEC2, west: west('2026-12') })
+    const y = s.year_end_goal_plan as { known_lumps: unknown[]; known_inflows: unknown[]; projected_free_cash_by_december: number; current_month_savings: number }
+    expect(y.known_lumps).toEqual([{ month: '2026-12', amount: 90000, label: 'WEST balloon payment' }])
+    expect(y.known_inflows).toEqual([{ month: '2026-12', amount: 37400, label: 'Aguinaldo' }])
+    expect(y.projected_free_cash_by_december).toBe(y.current_month_savings + 37400 - 90000)
+  })
+
+  it('once they post they live in projected savings and drop out of the plan', async () => {
+    const tables = december()
+    tables.finance_transactions.push(
+      { ...tables.finance_transactions[0], id: 'bal', transaction_date: '2026-12-01', type: 'expense', amount_mxn: 90000, amount: 90000, category_id: null, merchant: 'WEST', tags: [] },
+      { ...tables.finance_transactions[0], id: 'agui', transaction_date: '2026-12-01', type: 'income', amount_mxn: 37400, amount: 37400, category_id: 'salary', merchant: 'Aguinaldo Bernardo', tags: [] },
+    )
+    const s = await buildSummary(fakeSupabase(tables), { now: DEC2, west: west('2026-12') })
+    const y = s.year_end_goal_plan as { known_lumps: unknown[]; known_inflows: unknown[]; projected_free_cash_by_december: number; current_month_savings: number }
+    expect(y.known_lumps).toEqual([])
+    expect(y.known_inflows).toEqual([])
+    expect(y.projected_free_cash_by_december).toBe(y.current_month_savings)
   })
 })
 

@@ -175,10 +175,14 @@ export interface SummaryResponse {
     monthly_income: number
     /** Budgets + MSI + debt minimums — what is budgeted, not what is spent. */
     fixed_commitments: number
-    /** v2 (WS4): median actual spend of the last 3 complete months (budgeted + unbudgeted). */
+    /** v2 (WS4): median clean spend (one-off lumps out) of the last 3 complete months, budgeted + unbudgeted. */
     planned_spend?: number
-    planned_spend_basis?: 'median-actual-3mo' | 'budgets'
-    /** Income − planned_spend (was income − budgets before v2). */
+    planned_spend_basis?: 'median-clean-3mo' | 'budgets'
+    /**
+     * v2 (WS4): free cash per month = median clean net (income − spend, windfalls
+     * and lumps out) of the last 3 complete months. Equals
+     * goal_funding.discretionary_available and year_end_goal_plan.monthly_free_cash.
+     */
     discretionary_available: number
   }
   current_month: {
@@ -221,7 +225,10 @@ export interface SummaryResponse {
     months_to_birth: number
     planning_total: number
     remaining_events: PlanEvent[]
+    /** planning_total − baby-TAGGED spend; untagged prenatal rows keep it high until tagged. */
     remaining_amount: number
+    /** v2 (WS4): sum of remaining_events — what the schedule still expects to be paid. */
+    remaining_scheduled?: number
     spent_to_date: number
     current_month_commitment: number
     current_month_event: PlanEvent | null

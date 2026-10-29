@@ -2,6 +2,7 @@
 // WEST engine. Pure: callers fetch, these only fold rows.
 import { median } from '@/lib/household-metrics'
 import { lumpThreshold } from '@/lib/spend-projection'
+import { addMonthsKey } from '@/lib/dates'
 
 export interface TxRow {
   id?: string
@@ -52,7 +53,12 @@ export interface MonthNet {
  */
 export function monthlyNetHistory(
   rows: TxRow[],
-  { beforeMonth, fromMonth = '0000-00' }: { beforeMonth: string; fromMonth?: string },
+  { beforeMonth, fromMonth = '0000-00', typicalFrom }: {
+    beforeMonth: string
+    fromMonth?: string
+    /** Months at or after this one set the lump threshold (default: every month read). */
+    typicalFrom?: string
+  },
 ): MonthNet[] {
   const byMonth = new Map<string, { income: number; windfall: number; expenses: number[] }>()
   for (const t of rows) {
@@ -68,7 +74,9 @@ export function monthlyNetHistory(
     byMonth.set(month, bucket)
   }
   const months = [...byMonth.entries()].filter(([, v]) => v.income > 0).sort(([a], [b]) => a.localeCompare(b))
-  const typical = median(months.map(([, v]) => v.expenses.reduce((s, x) => s + x, 0)))
+  const typical = median(months
+    .filter(([m]) => !typicalFrom || m >= typicalFrom)
+    .map(([, v]) => v.expenses.reduce((s, x) => s + x, 0)))
   const threshold = lumpThreshold(typical)
   return months.map(([month, v]) => {
     const total = v.expenses.reduce((s, x) => s + x, 0)
@@ -89,3 +97,30 @@ export function monthlyNetHistory(
 export function recentNetRunRate(history: MonthNet[], n = 3): number {
   return Math.round(median(history.slice(-n).map(m => m.net)))
 }
+
+/** Complete months the run rate and the lump threshold look at. */
+export const RUN_RATE_WINDOW_MONTHS = 6
+
+/**
+ * The household's free cash per month — ONE definition shared by the summary
+ * (goal funding, year-end plan) and the WEST engine (capacity), so the two
+ * can't disagree. Same rows, same 6-month lump threshold, same last-3 median.
+ * `typical_spend` is the median clean spend of those same months.
+ * `history` keeps any earlier months read (the WEST year-to-date tracker).
+ */
+export function householdRunRate(rows: TxRow[], currentMonth: string) {
+  const windowStart = addMonthsKey(currentMonth, -RUN_RATE_WINDOW_MONTHS)
+  const history = monthlyNetHistory(rows, { beforeMonth: currentMonth, typicalFrom: windowStart })
+  const recent = history.filter(m => m.month >= windowStart)
+  const last3 = recent.slice(-3)
+  return {
+    history,
+    recent,
+    run_rate: recentNetRunRate(recent, 3),
+    typical_spend: Math.round(median(last3.map(m => m.expenses))),
+    months_used: last3.length,
+  }
+}
+
+/** Columns every run-rate caller must read (amount is the legacy fallback for amount_mxn). */
+export const RUN_RATE_COLUMNS = 'id,transaction_date,type,amount_mxn,amount,tags'

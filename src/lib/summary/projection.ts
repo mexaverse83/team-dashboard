@@ -1,8 +1,9 @@
-import { median } from '@/lib/household-metrics'
 import { lumpSum } from '@/lib/spend-projection'
 import { buildFertilityCutRecommendations, type CutCandidate } from '@/lib/fertility-plan'
 import { BABY_PLAN_TAG } from '@/lib/baby-plan'
 import { hasTag, txAmount, type TxRow } from '@/lib/summary/history'
+
+type KnownCash = { month: string; amount: number; label: string; posted?: boolean }
 import type { BudgetVsActualRow, PlanEvent } from '@/lib/summary/types'
 import type { SummaryGoal } from '@/lib/summary/goals'
 
@@ -43,30 +44,12 @@ export function projectMonthSpend({
 }
 
 /**
- * Typical monthly spend: the median of the last `months` complete months of
- * ALL spending, budgeted or not. Budgets alone missed ~$20k/mo of unbudgeted
- * Health, Gifts and Shopping, so "free" read $110k beside $83k projected
- * savings. MSI installments are already inside these totals, counted once.
- */
-export function plannedSpend(historyTxs: TxRow[], { beforeMonth, months = 3, exclude }: { beforeMonth: string; months?: number; exclude?: (t: TxRow) => boolean }) {
-  const byMonth = new Map<string, number>()
-  for (const t of historyTxs) {
-    if (t.type && t.type !== 'expense') continue
-    const m = (t.transaction_date || '').slice(0, 7)
-    if (!m || m >= beforeMonth) continue
-    if (exclude?.(t)) continue
-    byMonth.set(m, (byMonth.get(m) ?? 0) + txAmount(t))
-  }
-  const recent = [...byMonth.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-months).map(([, v]) => v)
-  return { amount: Math.round(median(recent)), months_used: recent.length }
-}
-
-/**
  * Can the household reach its goals by the end of their target year? This
  * month contributes its projected savings; each later month the median clean
  * net of the last 3 complete months (plus income that starts later), minus
  * known lumps (WEST balloon) and baby events, plus once-a-year income
- * (aguinaldo) in the window. Goals past their
+ * (aguinaldo) in the window. A lump or inflow dated THIS month counts until
+ * it posts (then it's inside projectedSavings). Goals past their
  * date and crypto goals are out; the finished fertility plan adds nothing.
  */
 export function buildYearEndPlan({
@@ -81,9 +64,9 @@ export function buildYearEndPlan({
   runRate: number
   futureIncome: Array<{ start_date: string; monthly_amount: number }>
   babyEvents: PlanEvent[]
-  knownLumps: Array<{ month: string; amount: number; label: string }>
+  knownLumps: KnownCash[]
   /** Once-a-year income the run rate can't see yet (aguinaldo). */
-  knownInflows?: Array<{ month: string; amount: number; label: string }>
+  knownInflows?: KnownCash[]
   wantsBudgets: CutCandidate[]
 }) {
   const yearEnd = `${targetYear}-12`
@@ -97,8 +80,10 @@ export function buildYearEndPlan({
   const babyRemaining = Math.round(babyEvents
     .filter(e => e.month > month && e.month <= yearEnd)
     .reduce((s, e) => s + Math.max(0, e.amount - babyRoutine), 0))
-  const lumps = knownLumps.filter(l => l.month > month && l.month <= yearEnd)
-  const inflows = knownInflows.filter(l => l.month > month && l.month <= yearEnd)
+  const ahead = (l: KnownCash) => (l.month > month || (l.month === month && !l.posted)) && l.month <= yearEnd
+  const strip = ({ month, amount, label }: KnownCash) => ({ month, amount, label })
+  const lumps = knownLumps.filter(ahead).map(strip)
+  const inflows = knownInflows.filter(ahead).map(strip)
   const [y, m] = month.split('-').map(Number)
   const monthsRemaining = Math.max(1, (targetYear - y) * 12 + (12 - m) + 1)
 

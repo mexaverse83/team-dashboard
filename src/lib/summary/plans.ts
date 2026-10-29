@@ -107,7 +107,11 @@ export function buildBabyPlan(ledger: BabyLedger, { asOf, today }: { asOf: Date;
     end_month: BABY_PLAN.endMonth,
     monthly_events: BABY_PLAN.events,
     remaining_events: remaining,
+    // Budget left against TAGGED spend. remaining_scheduled follows the event
+    // schedule (settled on tagged + look-alike rows), so the two differ until
+    // the untagged candidates are tagged.
     remaining_amount: Math.max(0, BABY_PLAN.planningTotal - spentToDate),
+    remaining_scheduled: Math.round(remaining.reduce((s, e) => s + e.amount, 0)),
     spent_to_date: spentToDate,
     untagged_candidates: ledger.untaggedCandidates,
     current_month_commitment: currentEvent?.amount ?? 0,

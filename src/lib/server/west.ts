@@ -7,7 +7,7 @@ import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { fetchCryptoPrices } from '@/lib/crypto-prices'
 import { BABY_PLAN, EDUCATION_FUND_PLAN } from '@/lib/baby-plan'
 import { addMonthsKey, mexicoCityToday } from '@/lib/dates'
-import { monthlyNetHistory, recentNetRunRate, type TxRow } from '@/lib/summary/history'
+import { householdRunRate, RUN_RATE_COLUMNS, type TxRow } from '@/lib/summary/history'
 import { buildSavingsPlan, monthsBetween, projectWest, type WestSchedule } from '@/lib/west-projection'
 
 /** Furnishing / fit-out budget needed at delivery on top of the purchase price. */
@@ -18,7 +18,7 @@ const DEFAULT_INFONAVIT_MXN = 350_000
 export interface WestProjectionOptions {
   /** Clock override for tests. */
   now?: Date
-  /** Net annual GBM return override (the route's ?rate=). */
+  /** Net annual GBM return override (the route's ?rate=); default is GBM's live net rate. */
   rate?: number | null
   /** Crypto annual growth override (the route's ?cryptoGrowth=). */
   cryptoGrowth?: number | null
@@ -72,14 +72,14 @@ export async function getWestProjection(
     supabase.from('finance_real_estate_targets').select('*').eq('is_active', true).limit(1),
     supabase.from('finance_debts').select('id, balance'),
     supabase.from('finance_fixed_income').select('principal, annual_rate, commission_rate, net_annual_rate, updated_at').eq('institution', 'GBM'),
-    supabase.from('finance_installments').select('name, installment_amount, end_date').eq('is_active', true),
+    supabase.from('finance_installments').select('name, installment_amount, installment_count, payments_made, end_date').eq('is_active', true),
     supabase.from('finance_income_sources').select('name, amount').eq('is_active', true).eq('frequency', 'yearly'),
     fetchAllRows<{ amount_mxn: number; transaction_date: string }>((from, to) => supabase
       .from('finance_transactions').select('amount_mxn, transaction_date')
       .eq('merchant', 'WEST').eq('type', 'expense')
       .order('transaction_date').order('id').range(from, to), 1000, 20000, true),
     fetchAllRows<TxRow>((from, to) => supabase
-      .from('finance_transactions').select('transaction_date, type, amount_mxn, tags')
+      .from('finance_transactions').select(RUN_RATE_COLUMNS)
       .gte('transaction_date', historyStart).lt('transaction_date', `${currentMonth}-01`)
       .order('transaction_date').order('id').range(from, to), 1000, 20000, true),
     cryptoP,
@@ -124,8 +124,23 @@ export async function getWestProjection(
     infonavit: target.laura_infonavit_mxn || DEFAULT_INFONAVIT_MXN,
     current_market_value: target.current_market_value || targetAmount,
   }
-  // 9.5% net = 10.75% gross − 1.25% commission (2023-2025 avg ~10.3% gross)
-  const annualRate = rate != null && Number.isFinite(rate) ? rate : (target.investment_annual_return || 0.095)
+  // Projections compound at the NET rate GBM actually pays (finance_fixed_income
+  // net_annual_rate, principal-weighted: 10.26% gross − 1.25% commission ≈ 9.0%).
+  // target.investment_annual_return (0.103) is a gross historical average and
+  // is only reported, never compounded.
+  const gbmPrincipal = gbmRecords.reduce((s, r) => s + (Number(r.principal) || 0), 0)
+  const gbmNet = gbmPrincipal > 0
+    ? gbmRecords.reduce((s, r) => s + (Number(r.principal) || 0) * (Number(r.net_annual_rate) || 0), 0) / gbmPrincipal
+    : 0
+  const gbmGross = gbmPrincipal > 0
+    ? gbmRecords.reduce((s, r) => s + (Number(r.principal) || 0) * (Number(r.annual_rate) || 0), 0) / gbmPrincipal
+    : null
+  const gbmCommission = gbmPrincipal > 0
+    ? gbmRecords.reduce((s, r) => s + (Number(r.principal) || 0) * (Number(r.commission_rate) || 0), 0) / gbmPrincipal
+    : null
+  const hasOverride = rate != null && Number.isFinite(rate)
+  const returnBasis: 'override' | 'gbm-net' | 'default' = hasOverride ? 'override' : gbmNet > 0 && gbmNet < 0.3 ? 'gbm-net' : 'default'
+  const annualRate = hasOverride ? (rate as number) : returnBasis === 'gbm-net' ? Math.round(gbmNet * 10000) / 10000 : 0.095
   const cryptoAnnualGrowth = cryptoGrowth != null && Number.isFinite(cryptoGrowth) ? cryptoGrowth : 0.15
   const appreciationRate = target.appreciation_rate_annual || 0.125
   const balances = { paid: paidToDate, investments: liveGBM, crypto: crypto.value }
@@ -140,11 +155,13 @@ export async function getWestProjection(
   const baseRun = scenario(annualRate)
 
   // Behaviour: what the household actually nets per month, cleaned of
-  // windfalls and one-off lumps (no add-back of tagged spend).
-  const history = monthlyNetHistory(historyRows, { beforeMonth: currentMonth })
-  const lastSix = history.filter(m => m.month >= sixBack.slice(0, 7))
+  // windfalls and one-off lumps — the same run rate the summary's free cash
+  // uses (householdRunRate), so capacity and goal funding can't disagree.
+  const rr = householdRunRate(historyRows, currentMonth)
+  const history = rr.history
+  const lastSix = rr.recent
   const avgNet = lastSix.length > 0 ? lastSix.reduce((s, m) => s + m.net, 0) / lastSix.length : 0
-  const baseCapacity = Math.max(0, recentNetRunRate(lastSix, 3))
+  const baseCapacity = Math.max(0, rr.run_rate)
   const behavioralRun = scenario(annualRate, baseCapacity)
   const monthsN = Math.max(1, monthsBetween(currentMonth, schedule.delivery_date.slice(0, 7)))
   const mr = Math.pow(1 + annualRate, 1 / 12) - 1
@@ -152,7 +169,9 @@ export async function getWestProjection(
   const ytd = history.filter(m => m.month >= jan1.slice(0, 7))
   const cumulativeVsCapacity = Math.round(ytd.reduce((s, m) => s + (m.net - baseCapacity), 0))
 
-  const installments = must(installmentsRes as Res<Array<{ name: string; installment_amount: number; end_date: string | null }>>)
+  // A plan can stay "active" after its final payment; it's already out of the run rate.
+  const installments = must(installmentsRes as Res<Array<{ name: string; installment_amount: number; installment_count: number | null; payments_made: number | null; end_date: string | null }>>)
+    .filter(i => i.installment_count == null || (i.payments_made || 0) < i.installment_count)
   const yearlyBonus = must(yearlyRes as Res<Array<{ amount: number }>>).reduce((s, i) => s + (i.amount || 0), 0)
   const babyRoutine = BABY_PLAN.events.length > 0 ? Math.min(...BABY_PLAN.events.map(e => e.amount)) : 0
   const plan = buildSavingsPlan({
@@ -276,6 +295,10 @@ export async function getWestProjection(
     ],
     assumptions: {
       investment_return: annualRate,
+      investment_return_basis: returnBasis,
+      gbm_gross_rate: gbmGross != null ? Math.round(gbmGross * 10000) / 10000 : null,
+      gbm_commission_rate: gbmCommission != null ? Math.round(gbmCommission * 10000) / 10000 : null,
+      target_gross_return: target.investment_annual_return ?? null,
       appreciation_rate: appreciationRate,
       debt_payoff_total: debtPayoffTotal,
       crypto_growth: cryptoAnnualGrowth,

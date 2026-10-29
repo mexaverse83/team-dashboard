@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Plus, Pencil, Trash2, MoreHorizontal } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { GlassCard } from '@/components/ui/glass-card'
@@ -19,6 +19,7 @@ import type { FinanceMonthlySavings } from '@/lib/finance-types'
 import { parseLocalDateKey } from '@/lib/transaction-entry'
 import { inputCls } from '@/lib/form-style'
 import { tooltipStyle, CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
+import { CHART } from '@/lib/chart-theme'
 import { isCryptoGoal, isGoalOverdue, monthlyNeeded, monthsRemaining, type CalendarDay } from '@/lib/finance-utils'
 import { diffDaysKey, mexicoCityDateParts } from '@/lib/dates'
 import { formatCompact, formatMoney } from '@/lib/format'
@@ -61,9 +62,60 @@ function paceTarget(g: FinanceGoal, todayKey: string): number | null {
   return g.target_amount * (elapsed / total)
 }
 
-function KpiTile({ label, value, hint, tone = 'neutral' }: { label: string; value: string; hint?: string; tone?: 'neutral' | 'positive' | 'warning' | 'negative' }) {
+/** ⋯ menu: focus moves in on open, Escape / focus leaving / outside press close it and focus returns to the trigger. */
+function GoalActionsMenu({ name, open, onOpenChange, onEdit, onDelete }: {
+  name: string; open: boolean; onOpenChange: (open: boolean) => void; onEdit: () => void; onDelete: () => void
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus()
+    const onPointer = (e: PointerEvent) => {
+      const target = e.target as Node
+      if (!menuRef.current?.contains(target) && !triggerRef.current?.contains(target)) onOpenChange(false)
+    }
+    document.addEventListener('pointerdown', onPointer)
+    return () => document.removeEventListener('pointerdown', onPointer)
+  }, [open, onOpenChange])
+
+  const close = () => onOpenChange(false)
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
+    const index = items.indexOf(document.activeElement as HTMLButtonElement)
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); triggerRef.current?.focus() }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); items[(index + 1) % items.length]?.focus() }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); items[(index - 1 + items.length) % items.length]?.focus() }
+    else if (e.key === 'Tab') close()
+  }
+
   return (
-    <GlassCard className="min-w-0 p-4">
+    <div className="relative">
+      <button ref={triggerRef} type="button" aria-label={`Actions for ${name}`} aria-haspopup="menu" aria-expanded={open}
+        onClick={e => { e.stopPropagation(); onOpenChange(!open) }}
+        className="-mr-2 inline-flex h-9 w-9 items-center justify-center rounded-md text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-elevated))]">
+        <MoreHorizontal className="h-4 w-4" />
+      </button>
+      {open && (
+        <div ref={menuRef} role="menu" onKeyDown={onKeyDown}
+          onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) close() }}
+          className="absolute right-0 top-9 z-20 w-36 overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-surface py-1 shadow-lg" onClick={e => e.stopPropagation()}>
+          <button type="button" role="menuitem" onClick={() => { close(); onEdit() }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[hsl(var(--bg-elevated))] focus:bg-[hsl(var(--bg-elevated))] focus:outline-none">
+            <Pencil className="h-3.5 w-3.5" /> Edit
+          </button>
+          <button type="button" role="menuitem" onClick={() => { close(); triggerRef.current?.focus(); onDelete() }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-negative hover:bg-[hsl(var(--bg-elevated))] focus:bg-[hsl(var(--bg-elevated))] focus:outline-none">
+            <Trash2 className="h-3.5 w-3.5" /> Delete
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function KpiTile({ label, value, hint, tone = 'neutral', wide = false }: { label: string; value: string; hint?: string; tone?: 'neutral' | 'positive' | 'warning' | 'negative'; wide?: boolean }) {
+  return (
+    <GlassCard className={cn('min-w-0 p-4', wide && 'col-span-2 lg:col-span-1')}>
       <span className="block text-label font-medium text-[hsl(var(--text-secondary))]">{label}</span>
       <p className="num-metric mt-1 truncate text-2xl font-semibold tabular-nums" data-money="">{value}</p>
       {hint && (
@@ -91,6 +143,7 @@ export default function GoalsClient() {
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
+  const setMenuOpenFor = useCallback((id: string) => (open: boolean) => setMenuFor(cur => (open ? id : cur === id ? null : cur)), [])
   const [monthlySavings, setMonthlySavings] = useState<FinanceMonthlySavings[]>([])
   const [savingsChart, setSavingsChart] = useState<Record<string, number | string>[]>([])
   const [scopeFilter, setScopeFilter] = useState<'all' | 'shared' | string>('all')
@@ -255,7 +308,7 @@ export default function GoalsClient() {
 
   return (
     <PageTransition>
-    <div className="space-y-6" onClick={() => menuFor && setMenuFor(null)}>
+    <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Goals</h1>
@@ -303,7 +356,8 @@ export default function GoalsClient() {
           <KpiTile label="Vs plan" value={`${lastTotal.variance >= 0 ? '+' : '−'}${compact(Math.abs(lastTotal.variance))}`}
             hint={`plan ${compact(lastTotal.planned_contribution)}`} tone={lastTotal.variance >= 0 ? 'positive' : 'negative'} />
         )}
-        <KpiTile label="Active goals" value={String(activeGoals.length)} hint={overdue.length > 0 ? `${overdue.length} past due` : undefined} tone={overdue.length > 0 ? 'negative' : 'neutral'} />
+        {/* 3 or 6 tiles: a lone last tile spans the 2-column phone grid */}
+        <KpiTile label="Active goals" value={String(activeGoals.length)} hint={overdue.length > 0 ? `${overdue.length} past due` : undefined} tone={overdue.length > 0 ? 'negative' : 'neutral'} wide={!lastTotal} />
       </div>
 
       {/* Goal cards */}
@@ -323,34 +377,26 @@ export default function GoalsClient() {
             <GlassCard key={g.id}
               className={cn("relative cursor-pointer transition-all hover:ring-1 hover:ring-[hsl(var(--border))]", selectedGoal === g.id && "ring-1 ring-[hsl(var(--primary))]/50")}
               onClick={() => setSelectedGoal(g.id === selectedGoal ? null : g.id)}>
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                   {isCrypto ? (
                     <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white", COIN_SOLIDS[g.crypto_symbol!] || 'bg-gray-500')} aria-hidden>{COIN_ICONS[g.crypto_symbol!] || '?'}</span>
                   ) : (
                     <OwnerAvatar owner={g.scope === 'shared' ? null : g.owner} size={24} />
                   )}
-                  <h4 className="truncate text-sm font-semibold">{g.name}</h4>
+                  <h4 className="min-w-0 text-sm font-semibold">
+                    <button type="button" aria-expanded={selectedGoal === g.id} aria-controls={selectedGoal === g.id ? 'goal-detail' : undefined}
+                      onClick={e => { e.stopPropagation(); setSelectedGoal(g.id === selectedGoal ? null : g.id) }}
+                      className="block max-w-full truncate rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--primary))]/60">
+                      {g.name}
+                    </button>
+                  </h4>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   {status && <span className="text-xs"><StatusPill tone={status.tone}>{status.label}</StatusPill></span>}
-                  <div className="relative">
-                    <button type="button" aria-label={`Actions for ${g.name}`} aria-haspopup="menu" aria-expanded={menuFor === g.id}
-                      onClick={e => { e.stopPropagation(); setMenuFor(menuFor === g.id ? null : g.id) }}
-                      className="-mr-2 -mt-1 inline-flex h-9 w-9 items-center justify-center rounded-md text-[hsl(var(--text-tertiary))] hover:bg-[hsl(var(--bg-elevated))]">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
-                    {menuFor === g.id && (
-                      <div role="menu" className="absolute right-0 top-9 z-20 w-36 overflow-hidden rounded-lg border border-[hsl(var(--border))] bg-surface py-1 shadow-lg" onClick={e => e.stopPropagation()}>
-                        <button type="button" role="menuitem" onClick={() => { setMenuFor(null); openEdit(g) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[hsl(var(--bg-elevated))]">
-                          <Pencil className="h-3.5 w-3.5" /> Edit
-                        </button>
-                        <button type="button" role="menuitem" onClick={() => { setMenuFor(null); setDeleteConfirm(g.id) }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-negative hover:bg-[hsl(var(--bg-elevated))]">
-                          <Trash2 className="h-3.5 w-3.5" /> Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  <GoalActionsMenu name={g.name} open={menuFor === g.id}
+                    onOpenChange={setMenuOpenFor(g.id)}
+                    onEdit={() => openEdit(g)} onDelete={() => setDeleteConfirm(g.id)} />
                 </div>
               </div>
 
@@ -420,7 +466,7 @@ export default function GoalsClient() {
       {/* Detail Panel */}
       <AnimatePresence>
         {goal && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
+          <motion.div id="goal-detail" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
             <GlassCard>
               <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
                 <div className="lg:col-span-2">
@@ -434,9 +480,9 @@ export default function GoalsClient() {
                             <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
-                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} />
-                        <YAxis tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} />
+                        <YAxis tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                         <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
                         <Area type="monotone" dataKey="projected" stroke="hsl(var(--chart-3))" fill="url(#goalGrad)" strokeWidth={2} />
                         <ReferenceLine y={goal.target_amount} stroke="hsl(var(--chart-1))" strokeDasharray="5 5" />
@@ -524,9 +570,9 @@ export default function GoalsClient() {
           <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={savingsChart} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 83%)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fill: 'hsl(28, 11%, 45%)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: 'hsl(28, 11%, 45%)', fontSize: 11 }} axisLine={false} tickLine={false}
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: CHART.axis, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: CHART.axis, fontSize: 11 }} axisLine={false} tickLine={false}
                   tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                 <Tooltip
                   contentStyle={CHART_TOOLTIP_STYLE}

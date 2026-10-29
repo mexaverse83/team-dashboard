@@ -51,13 +51,15 @@ export const FIXED_CATEGORIES = new Set(['Rent/Mortgage', 'Utilities', 'Subscrip
  * normalisation the Budgets page uses (finance-utils cycleWindowSpend).
  */
 export function buildBudgetVsActual({
-  budgets, catMap, currentMonthTxs, historyTxs, month, dayOfMonth, daysInMonth,
+  budgets, catMap, currentMonthTxs, historyTxs, cycleHistoryTxs = [], month, dayOfMonth, daysInMonth,
 }: {
   budgets: BudgetRow[]
   catMap: Map<string, CategoryRow>
   currentMonthTxs: TxRow[]
   /** Complete months before `month` (≥ the cycle window), expenses only. */
   historyTxs: TxRow[]
+  /** Older rows of long-cycle (annual) categories, for their cycle window only. */
+  cycleHistoryTxs?: TxRow[]
   month: string
   dayOfMonth: number
   daysInMonth: number
@@ -75,7 +77,7 @@ export function buildBudgetVsActual({
     historyBy[key] = historyBy[key] || {}
     historyBy[key][m] = (historyBy[key][m] || 0) + txAmount(t)
   }
-  const windowRows = [...historyTxs, ...currentMonthTxs]
+  const windowRows = [...cycleHistoryTxs, ...historyTxs, ...currentMonthTxs]
 
   return budgets.map(b => {
     const cat = catMap.get(b.category_id)

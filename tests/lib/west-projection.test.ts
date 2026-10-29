@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { buildSavingsPlan, projectWest, type WestSchedule } from '@/lib/west-projection'
 import { getWestProjection } from '@/lib/server/west'
-import { monthlyNetHistory, recentNetRunRate } from '@/lib/summary/history'
+import { householdRunRate, monthlyNetHistory, recentNetRunRate } from '@/lib/summary/history'
 import { fakeSupabase } from './summary/fake-supabase'
 
 vi.mock('@/lib/crypto-prices', () => ({ fetchCryptoPrices: async () => ({ BTC: { usd: 100000, mxn: 1800000, change24h: 0 } }) }))
@@ -65,6 +65,34 @@ describe('buildSavingsPlan', () => {
   })
 })
 
+describe('buildSavingsPlan freed money', () => {
+  const base = {
+    schedule, today: '2026-10-28', baseCapacity: 85_000, annualReturn: 0.095,
+    purchaseGap: 500_000, furnishingBudget: 1_000_000, yearlyBonus: 0,
+    babyEvents: [], babyRoutine: 0, education: { monthlyContribution: 0, startMonth: '2030-01' },
+  }
+
+  it('adds back only installments that end from now on', () => {
+    const plan = buildSavingsPlan({
+      ...base,
+      installments: [
+        { installment_amount: 3_000, end_date: '2026-08-10' }, // ended: already out of the run rate
+        { installment_amount: 758, end_date: '2026-11-10' },
+      ],
+    })
+    const cap = Object.fromEntries(plan.months.map(m => [m.month, m.capacity]))
+    expect(cap['2026-10']).toBe(85_000)
+    expect(cap['2026-11']).toBe(85_000)
+    expect(cap['2027-01']).toBe(85_000 + 758)
+    expect(plan.months.find(m => m.month === '2026-12')?.notes.join(' ')).toMatch(/\+\$758\/mo freed/)
+  })
+
+  it('does not add back WEST payments that ended before the run-rate window', () => {
+    const plan = buildSavingsPlan({ ...base, schedule: { ...schedule, lump_sum_amount: 0, monthly_payment_end_month: '2026-06' }, installments: [] })
+    expect(plan.months.every(m => m.capacity === 85_000)).toBe(true)
+  })
+})
+
 describe('capacity history', () => {
   it('excludes windfall income and one-off lumps', () => {
     const rows = [
@@ -110,6 +138,36 @@ describe('getWestProjection', () => {
       paid: data.current_status.amount_paid, investments: data.current_status.investment_value, crypto: data.current_status.crypto_value,
     }, { annual_return: data.assumptions.investment_return, crypto_growth: data.assumptions.crypto_growth, appreciation: data.assumptions.appreciation_rate }, '2026-10-28')
     expect(client.gap).toBe(data.projected_at_delivery?.gap)
+  })
+
+  it('compounds at GBM\'s live NET rate, never the stored gross 10.3%', async () => {
+    const t = tables()
+    t.finance_real_estate_targets[0] = { ...t.finance_real_estate_targets[0], investment_annual_return: 0.103 } as never
+    t.finance_fixed_income = [
+      { institution: 'GBM', principal: 5_635_000, annual_rate: 0.1026, commission_rate: 0.0125, net_annual_rate: 0.0901, updated_at: '2026-06-17T00:00:00Z' },
+      { institution: 'GBM', principal: 150_050, annual_rate: 0.1026, commission_rate: 0.0125, net_annual_rate: 0.0901, updated_at: '2026-09-29T00:00:00Z' },
+    ] as never
+    const data = await getWestProjection(fakeSupabase(t), { now: new Date('2026-10-28T18:00:00Z') })
+    expect(data.assumptions).toMatchObject({ investment_return: 0.0901, investment_return_basis: 'gbm-net', gbm_gross_rate: 0.1026, gbm_commission_rate: 0.0125, target_gross_return: 0.103 })
+    const override = await getWestProjection(fakeSupabase(t), { now: new Date('2026-10-28T18:00:00Z'), rate: 0.11 })
+    expect(override.assumptions).toMatchObject({ investment_return: 0.11, investment_return_basis: 'override' })
+  })
+
+  it('capacity is the same run rate the summary uses (legacy amount rows included)', async () => {
+    const t = tables()
+    // A legacy row with only `amount`, and Jan–Mar months outside the 6-month window.
+    t.finance_transactions.push(
+      { id: 'legacy', transaction_date: '2026-09-20', type: 'expense', amount: 6000, merchant: 'Old', tags: [] } as never,
+      ...['2026-01', '2026-02', '2026-03'].flatMap((m, i) => [
+        { id: `oi${i}`, transaction_date: `${m}-01`, type: 'income', amount_mxn: 200000, tags: [] },
+        { id: `oe${i}`, transaction_date: `${m}-05`, type: 'expense', amount_mxn: 20000, tags: [] },
+      ]) as never[],
+    )
+    const data = await getWestProjection(fakeSupabase(t), { now: new Date('2026-10-28T18:00:00Z') })
+    const rr = householdRunRate(t.finance_transactions as never, '2026-10')
+    expect(data.savings_plan.assumptions.base_capacity).toBe(rr.run_rate)
+    expect(rr.run_rate).toBe(85000) // Jul 85k, Aug 85k, Sep 79k → median 85k
+    expect(data.behavioral.ytd_months).toBe(6)
   })
 
   it('reports the live position (paid + GBM + crypto + Infonavit) and staleness', async () => {

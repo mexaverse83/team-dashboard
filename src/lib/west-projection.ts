@@ -178,13 +178,17 @@ export function buildSavingsPlan(input: SavingsPlanInputs) {
     .reduce((s, i) => s + (i.installment_amount || 0), 0)
 
   const months: PlanMonth[] = []
-  let prevFreed = freedBy(current)
+  // Plans that already ended are out of the base run rate; only what frees
+  // up from here on is new capacity.
+  const alreadyFreed = freedBy(current)
+  let prevFreed = 0
   for (let month = current; month <= delivery; month = addMonths(month, 1)) {
     const notes: string[] = []
-    const freed = freedBy(month)
+    const freed = freedBy(month) - alreadyFreed
     if (freed > prevFreed) notes.push(`+${money(freed - prevFreed)}/mo freed (MSI ended)`)
     prevFreed = freed
-    const westPaymentFreed = schedule.monthly_payment > 0 && schedule.monthly_payment_end_month && month > schedule.monthly_payment_end_month
+    const westPaymentFreed = schedule.monthly_payment > 0 && schedule.monthly_payment_end_month
+      && schedule.monthly_payment_end_month >= addMonths(current, -1) && month > schedule.monthly_payment_end_month
       ? schedule.monthly_payment : 0
     if (westPaymentFreed && month === addMonths(schedule.monthly_payment_end_month as string, 1)) notes.push(`+${money(westPaymentFreed)}/mo freed (WEST payments end)`)
     const lump = schedule.lump_sum_month === month ? schedule.lump_sum_amount : 0

@@ -290,4 +290,22 @@ describe('Goals — shared math and layout', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /Delete/ }))
     expect(screen.getByText('Delete this goal?')).toBeInTheDocument()
   })
+
+  it('opens a goal from the keyboard and the ⋯ menu handles focus and Escape', async () => {
+    vi.stubGlobal('fetch', fetchWith({}))
+    const Comp = (await import('@/components/finance/goals-client')).default
+    render(<Comp />)
+    const title = await screen.findByRole('button', { name: 'Laura 2026' })
+    expect(title).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(title) // a native button: Enter/Space activate it
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Laura 2026' })).toHaveAttribute('aria-expanded', 'true'))
+
+    const trigger = screen.getByLabelText('Actions for Laura 2026')
+    fireEvent.click(trigger)
+    const edit = screen.getByRole('menuitem', { name: /Edit/ })
+    await waitFor(() => expect(edit).toHaveFocus())
+    fireEvent.keyDown(edit, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
 })
