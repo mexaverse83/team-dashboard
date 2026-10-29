@@ -168,13 +168,15 @@ describe('Emergency Fund', () => {
     expect(screen.getByText('Fund settings')).toBeInTheDocument()
   })
 
-  it('renders MX account recommendations with an as-of date', async () => {
+  it('renders MX account recommendations without hard-coded yields', async () => {
     const Comp = await load()
     render(<Comp />)
     await waitFor(() => {
       expect(screen.getAllByText(/Nu México|Hey Banco|Mercado Pago|CETES|Supertasas|Kubo/).length).toBeGreaterThanOrEqual(1)
     })
-    expect(screen.getByText(/rates as of Feb 2026/)).toBeInTheDocument()
+    expect(screen.getByText(/compare today's rate in each app/)).toBeInTheDocument()
+    // Stale numeric yields (e.g. "~15.0%") must not come back.
+    expect(screen.queryByText(/~\d+(\.\d)?%/)).not.toBeInTheDocument()
   })
 
   it('renders liquidity tier allocation', async () => {

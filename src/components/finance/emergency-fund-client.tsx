@@ -38,15 +38,16 @@ const QUESTIONS = [
   { id: 'housing', question: 'Housing situation?', options: [{ value: 1, label: 'Own — paid off' }, { value: 2, label: 'Mortgage' }, { value: 3, label: 'Renting' }] },
 ]
 
-// Indicative yields entered Feb 2026 — shown with that date, never as live rates.
-const RATES_AS_OF = 'Feb 2026'
+// No numeric yields: hard-coded rates went stale (2023-era SOFIPO yields shown
+// as current with Banxico near 7%). Tier, liquidity and protection don't move
+// with the policy rate; the household checks today's yield in each app.
 const ACCOUNTS = [
-  { name: 'Nu México', rate: '~15.0%', tier: 1, access: 'Daily', pro: 'Highest yield, daily liquidity', con: 'SOFIPO — insured up to $190K (PROSOFIPO)' },
-  { name: 'Mercado Pago', rate: '~14.0%', tier: 1, access: 'Daily', pro: 'Instant in/out, familiar platform', con: 'Rate fluctuates' },
-  { name: 'Hey Banco', rate: '~13.5%', tier: 2, access: '1-2 days', pro: 'Banregio-backed, solid brand', con: 'Slightly lower rate' },
-  { name: 'Supertasas', rate: '~12.5%', tier: 3, access: '7-30 days', pro: 'SOFIPO, competitive rates', con: 'Less known, $190K PROSOFIPO cap' },
-  { name: 'Kubo Financiero', rate: '~11.0%', tier: 3, access: '7 days', pro: 'Established SOFIPO', con: '$190K insurance cap' },
-  { name: 'CETES Directo', rate: '~10.5%', tier: 3, access: '28 días', pro: 'Government-backed, highest safety', con: 'Min 28-day lock-in' },
+  { name: 'Nu México', tier: 1, access: 'Daily', protection: 'SOFIPO · PROSOFIPO-insured to ~$190K', note: 'Daily liquidity, usually among the higher SOFIPO yields' },
+  { name: 'Mercado Pago', tier: 1, access: 'Daily', protection: 'Bank deposit (IPAB)', note: 'Instant in/out, familiar platform; yield varies with the policy rate' },
+  { name: 'Hey Banco', tier: 2, access: '1-2 days', protection: 'Bank (Banregio) · IPAB-insured', note: 'Solid bank backing; yield usually a bit below SOFIPOs' },
+  { name: 'Supertasas', tier: 3, access: '7-30 days', protection: 'SOFIPO · PROSOFIPO-insured to ~$190K', note: 'Fixed-term SOFIPO; less known brand' },
+  { name: 'Kubo Financiero', tier: 3, access: '7 days', protection: 'SOFIPO · PROSOFIPO-insured to ~$190K', note: 'Established SOFIPO, term deposits' },
+  { name: 'CETES Directo', tier: 3, access: '28 days', protection: 'Federal government', note: 'Highest safety; yield tracks the Banxico rate, 28-day lock-in' },
 ]
 
 const DECISION_STEPS = [
@@ -535,7 +536,7 @@ export default function EmergencyFundClient() {
       <Card>
         <CardHeader
           title={<span className="inline-flex items-center gap-2"><Landmark aria-hidden="true" className="h-4 w-4 text-fg-tertiary" />Recommended Accounts</span>}
-          description={`Mexico-specific options by liquidity tier · indicative rates as of ${RATES_AS_OF}, check before moving money`}
+          description="Mexico-specific options by liquidity tier and protection · yields move with the Banxico rate, so compare today's rate in each app before moving money"
         />
         <ul className="divide-y divide-border">
           {ACCOUNTS.map(acct => (
@@ -545,10 +546,9 @@ export default function EmergencyFundClient() {
                 <StatusPill tone="neutral">Tier {acct.tier}</StatusPill>
               </div>
               <div className="flex shrink-0 items-center gap-4 text-label text-fg-secondary">
-                <span><span className="num font-semibold text-fg">{acct.rate}</span> yield</span>
-                <span>Access: {acct.access}</span>
+                <span>Access: <span className="font-medium text-fg">{acct.access}</span></span>
               </div>
-              <p className="text-label text-fg-tertiary sm:w-72 sm:shrink-0">{acct.pro} · {acct.con}</p>
+              <p className="text-label text-fg-tertiary sm:w-80 sm:shrink-0"><span className="text-fg-secondary">{acct.protection}</span> · {acct.note}</p>
             </li>
           ))}
         </ul>
