@@ -180,3 +180,93 @@ export function enrichRecurring(recs: FinanceRecurring[], cats: FinanceCategory[
 export function monthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
+
+// ── Goals: one definition of "months left" and "monthly needed" ─────────────
+// Summary, the Goals page and the widget used three different divisors
+// (ceil(days/30), calendar-month difference, …), so the same 2026 goals asked
+// $121k/mo on home and $182k/mo on Goals.
+
+export interface CalendarDay {
+  year: number
+  /** 1-12 */
+  month: number
+  day: number
+}
+
+export type GoalLike = {
+  target_amount?: number | null
+  current_amount?: number | null
+  target_date?: string | null
+  goal_type?: string | null
+  crypto_symbol?: string | null
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+export function calendarDayKey(asOf: CalendarDay): string {
+  return `${asOf.year}-${pad2(asOf.month)}-${pad2(asOf.day)}`
+}
+
+/** Funding months left, counting the current one: Oct 28 → Dec 31 is 3. 0 once the target month has passed. */
+export function monthsRemaining(targetDate: string | null | undefined, asOf: CalendarDay): number {
+  const match = /^(\d{4})-(\d{2})/.exec(targetDate || '')
+  if (!match) return 0
+  return Math.max(0, (Number(match[1]) - asOf.year) * 12 + (Number(match[2]) - asOf.month) + 1)
+}
+
+/** Goals counted in coins (1 BTC), never in pesos. */
+export function isCryptoGoal(goal: GoalLike): boolean {
+  return goal.goal_type === 'crypto' || !!goal.crypto_symbol
+}
+
+/** Past its target date: excluded from the monthly need and surfaced for roll-over instead. */
+export function isGoalOverdue(goal: GoalLike, asOf: CalendarDay): boolean {
+  return !!goal.target_date && goal.target_date.slice(0, 10) < calendarDayKey(asOf)
+}
+
+/** Pesos per month still needed to hit the goal by its date. 0 for crypto, undated, funded or overdue goals. */
+export function monthlyNeeded(goal: GoalLike, asOf: CalendarDay): number {
+  if (isCryptoGoal(goal) || isGoalOverdue(goal, asOf)) return 0
+  const months = monthsRemaining(goal.target_date, asOf)
+  const remaining = (goal.target_amount || 0) - (goal.current_amount || 0)
+  if (months <= 0 || remaining <= 0) return 0
+  return Math.round(remaining / months)
+}
+
+// ── Non-monthly budgets: one normalisation for home and the Budgets page ────
+// A bimonthly bill lands once per two calendar months, so it is compared over
+// the calendar window of its cycle ending in the viewed month against
+// budget × cycle. A 30-day-multiple lookback can catch two bills (Electricity
+// read 260% on Budgets and 121% on home).
+
+/** Budget for a full billing cycle: bimonthly $2,500/mo → $5,000. */
+export function cycleBudget(monthlyBudget: number, cycle: string | null | undefined = 'monthly'): number {
+  return (monthlyBudget || 0) * (CYCLE_MONTHS[(cycle || 'monthly') as BillingCycle] || 1)
+}
+
+/** 'YYYY-MM' keys of the cycle window ending at `month`, oldest first. */
+export function cycleWindowMonths(month: string, cycle: string | null | undefined = 'monthly'): string[] {
+  const n = CYCLE_MONTHS[(cycle || 'monthly') as BillingCycle] || 1
+  const [y, m] = month.split('-').map(Number)
+  const keys: string[] = []
+  for (let i = n - 1; i >= 0; i--) {
+    const index = y * 12 + (m - 1) - i
+    keys.push(`${Math.floor(index / 12)}-${pad2((index % 12) + 1)}`)
+  }
+  return keys
+}
+
+/** Cash spent in a category over the cycle window ending at `month`, by transaction date. */
+export function cycleWindowSpend(
+  transactions: Array<{ category_id?: string | null; transaction_date?: string | null; type?: string | null; amount_mxn?: number | null; amount?: number | null }>,
+  categoryId: string,
+  month: string,
+  cycle: string | null | undefined = 'monthly',
+): number {
+  const window = new Set(cycleWindowMonths(month, cycle))
+  return transactions
+    .filter(t => t.category_id === categoryId && (t.type ?? 'expense') === 'expense' && window.has((t.transaction_date || '').slice(0, 7)))
+    .reduce((sum, t) => sum + (t.amount_mxn || t.amount || 0), 0)
+}

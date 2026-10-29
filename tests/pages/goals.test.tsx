@@ -3,7 +3,7 @@
  * Split out of tests/pages/finance-v2.test.tsx (Mona v2 W0, pure move: no assertion changes).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
 import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '@/lib/seed-finance'
@@ -80,6 +80,7 @@ vi.mock('lucide-react', () => {
     CheckCircle2: i('checkcircle2'), ChevronDown: i('chevrondown'), ChevronUp: i('chevronup'),
     Clock: i('clock'), HeartPulse: i('heartpulse'), Info: i('info'), Lightbulb: i('lightbulb'),
     Scissors: i('scissors'), SlidersHorizontal: i('slidershorizontal'), Sparkles: i('sparkles'), Trophy: i('trophy'), Wand2: i('wand2'),
+    MoreHorizontal: i('morehorizontal'),
   }
 })
 
@@ -210,5 +211,101 @@ describe('Savings Goals', () => {
       // What-If section or projection chart should appear
       expect(screen.getAllByText(/What-If|Projection|Monthly/).length).toBeGreaterThanOrEqual(1)
     })
+  })
+})
+
+// ==========================================
+// GOALS MATH (Mona v2 WS4: UX-07, VIS-13, F21)
+// ==========================================
+describe('Goals — shared math and layout', () => {
+  const household = [
+    { id: 'b', name: 'Bernardo 2026', target_amount: 755000, current_amount: 474146, target_date: '2026-12-31', is_completed: false, priority: 1, monthly_contribution: 0, scope: 'personal', owner: 'bernardo', goal_type: 'savings', crypto_symbol: null, investment_vehicle: null, milestones_json: [], created_at: '2026-01-01', updated_at: '2026-01-01' },
+    { id: 'l', name: 'Laura 2026', target_amount: 210000, current_amount: 127388, target_date: '2026-12-31', is_completed: false, priority: 2, monthly_contribution: 0, scope: 'personal', owner: 'Laura', goal_type: 'savings', crypto_symbol: null, investment_vehicle: null, milestones_json: [], created_at: '2026-01-01', updated_at: '2026-01-01' },
+    { id: 'c', name: '1 BTC', target_amount: 1, current_amount: 0.25, target_date: '2027-12-31', is_completed: false, priority: 3, monthly_contribution: 0, scope: 'shared', owner: null, goal_type: 'crypto', crypto_symbol: 'BTC', investment_vehicle: null, milestones_json: [], created_at: '2026-02-18', updated_at: '2026-02-18' },
+  ]
+  const fetchWith = (routes: Record<string, unknown>) => vi.fn((url: string) => {
+    const key = Object.keys(routes).find(k => String(url).includes(k))
+    const body = key ? routes[key] : {}
+    return Promise.resolve({ ok: !!key, status: key ? 200 : 404, json: () => Promise.resolve(body), text: () => Promise.resolve(JSON.stringify(body)) })
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-28T18:00:00Z'))
+    setupSupabaseMock({ finance_goals: { data: household, error: null } })
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('asks the same monthly need as home ($121k, current month counted) and keeps BTC out of pesos', async () => {
+    vi.stubGlobal('fetch', fetchWith({}))
+    const Comp = (await import('@/components/finance/goals-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText('$121.2k')).toBeInTheDocument())
+    // Saved / target are peso-only: 601,534 of 965,000 (no "$965,001").
+    expect(screen.getByText('$601.5k')).toBeInTheDocument()
+    expect(screen.getByText(/62% of \$965k/)).toBeInTheDocument()
+    expect(screen.queryByText('No data yet')).not.toBeInTheDocument()
+    expect(screen.queryByText(/#1/)).not.toBeInTheDocument()
+  })
+
+  it('tracks the BTC goal from summed holdings, falling back to the stored amount', async () => {
+    vi.stubGlobal('fetch', fetchWith({ '/api/finance/crypto': { holdings: [{ symbol: 'BTC', quantity: 0.088, owner: 'Laura' }, { symbol: 'BTC', quantity: 0.19982936, owner: 'bernardo' }], prices: null } }))
+    const Comp = (await import('@/components/finance/goals-client')).default
+    const { unmount } = render(<Comp />)
+    await waitFor(() => expect(screen.getByText('0.28782936')).toBeInTheDocument())
+    unmount()
+
+    vi.stubGlobal('fetch', fetchWith({}))
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText('0.25')).toBeInTheDocument())
+  })
+
+  it('shows monthly-savings tiles only when the server route returns rows', async () => {
+    vi.stubGlobal('fetch', fetchWith({ '/api/finance/monthly-savings': { data: [{ month: '2026-09-01', owner: 'total', gross_income: 206800, total_expenses: 101694, net_savings: 105106, savings_rate: 51, planned_contribution: 120000, variance: -14894 }], chart: [] } }))
+    const Comp = (await import('@/components/finance/goals-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText('Last month net')).toBeInTheDocument())
+    expect(screen.getByText('$105.1k')).toBeInTheDocument()
+    expect(screen.getByText('51%')).toBeInTheDocument()
+  })
+
+  it('flags 2026 goals as past due in January and drops them from the monthly need', async () => {
+    vi.setSystemTime(new Date('2027-01-02T18:00:00Z'))
+    vi.stubGlobal('fetch', fetchWith({}))
+    const Comp = (await import('@/components/finance/goals-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getAllByText('2 past due').length).toBeGreaterThan(0))
+    expect(screen.getAllByText('Overdue — roll over')).toHaveLength(2)
+    expect(screen.getByText('no open peso goals')).toBeInTheDocument()
+  })
+
+  it('moves edit and delete into a ⋯ menu', async () => {
+    vi.stubGlobal('fetch', fetchWith({}))
+    const Comp = (await import('@/components/finance/goals-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByLabelText('Actions for Laura 2026')).toBeInTheDocument())
+    expect(screen.queryByRole('menuitem', { name: /Delete/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Actions for Laura 2026'))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Delete/ }))
+    expect(screen.getByText('Delete this goal?')).toBeInTheDocument()
+  })
+
+  it('opens a goal from the keyboard and the ⋯ menu handles focus and Escape', async () => {
+    vi.stubGlobal('fetch', fetchWith({}))
+    const Comp = (await import('@/components/finance/goals-client')).default
+    render(<Comp />)
+    const title = await screen.findByRole('button', { name: 'Laura 2026' })
+    expect(title).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(title) // a native button: Enter/Space activate it
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Laura 2026' })).toHaveAttribute('aria-expanded', 'true'))
+
+    const trigger = screen.getByLabelText('Actions for Laura 2026')
+    fireEvent.click(trigger)
+    const edit = screen.getByRole('menuitem', { name: /Edit/ })
+    await waitFor(() => expect(edit).toHaveFocus())
+    fireEvent.keyDown(edit, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
   })
 })

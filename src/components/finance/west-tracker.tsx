@@ -8,18 +8,29 @@ import {
   ResponsiveContainer, AreaChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from 'recharts'
 import { CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
+import { CHART } from '@/lib/chart-theme'
 import { OWNERS } from '@/lib/owners'
 import { fetchWestProjection } from '@/lib/west-projection-client'
+import { projectWest, type WestSchedule } from '@/lib/west-projection'
+import { mexicoCityToday } from '@/lib/dates'
+import { formatCompact } from '@/lib/format'
 
 function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' ') }
 function fmt(n: number, d = 0) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n) }
 function fmtMXN(n: number) { return `$${fmt(n)} MXN` }
 function fmtShort(n: number) { return `$${(n / 1e6).toFixed(1)}M` }
+function monthLabel(key: string, year: '2-digit' | 'numeric' = 'numeric') {
+  const [y, m] = key.split('-').map(Number)
+  return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year })
+}
 
 interface WestData {
   target: number
   delivery_date: string
   months_to_delivery: number
+  /** Raw schedule the server projected from; the sliders re-run the same engine on it. */
+  schedule?: WestSchedule
+  as_of?: string
   current_status: {
     amount_paid: number
     pct_paid: number
@@ -28,6 +39,8 @@ interface WestData {
     infonavit_laura: number
     total_available: number
     gap: number
+    funded_pct?: number
+    crypto_value_known?: boolean
   }
   projected_at_delivery: {
     total_paid: number
@@ -48,7 +61,12 @@ interface WestData {
     purchase_price: number; current_market_value: number; appreciation_rate: number
     projected_value_at_delivery: number; equity_at_delivery: number
   }
-  assumptions: { investment_return: number; appreciation_rate: number; debt_payoff_total: number; crypto_growth?: number }
+  assumptions: {
+    investment_return: number; appreciation_rate: number; debt_payoff_total: number; crypto_growth?: number
+    investment_return_basis?: 'override' | 'gbm-net' | 'default'
+    gbm_gross_rate?: number | null
+    gbm_commission_rate?: number | null
+  }
   behavioral?: {
     monthly_net_savings_history: Array<{ month: string; income: number; expenses: number; net: number }>
     avg_monthly_net_savings: number
@@ -58,6 +76,8 @@ interface WestData {
     projected_gap_at_delivery: number
     fully_funded_month: string | null
     required_monthly_contribution: number
+    cumulative_vs_capacity_since_jan?: number
+    ytd_months?: number
   }
   savings_plan?: {
     gap_to_close: number
@@ -67,63 +87,110 @@ interface WestData {
     months: Array<{ month: string; capacity: number; target: number; notes: string[] }>
     total_nominal: number
     stretch_factor: number
+    feasible?: boolean
+    projected_shortfall_at_delivery?: number
+    options?: Array<{ kind: string; amount: number; label: string }>
+    assumptions?: { base_capacity: number; capacity_basis?: string }
   }
 }
 
 // ─── Month-by-month savings plan to full payment at delivery ───
+// Judged against CAPACITY (what the household really nets), not the stretch
+// target: a plan asking 129% of capacity every month can never read "on
+// track", so the stretch is shown as the two gaps it would close instead.
 function WestSavingsPlanCard({ data }: { data: WestData }) {
   const plan = data.savings_plan
   if (!plan || plan.months.length === 0 || plan.gap_to_close <= 0) return null
 
-  const maxTarget = Math.max(...plan.months.map(m => m.target), 1)
-  const stretched = plan.stretch_factor > 1
+  const maxBar = Math.max(...plan.months.map(m => Math.max(m.target, m.capacity)), 1)
+  const feasible = plan.feasible ?? plan.stretch_factor <= 1.05
+  const capacity = plan.assumptions?.base_capacity
+  const cumulative = data.behavioral?.cumulative_vs_capacity_since_jan
+  const shortfall = plan.projected_shortfall_at_delivery ?? 0
 
   return (
     <GlassCard>
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between mb-4">
-        <div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-4">
+        <div className="min-w-0">
           <h3 className="text-base font-semibold">Savings plan — fully paid + furnished at delivery</h3>
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
-            {fmtMXN(plan.gap_to_close)} to build
-            {plan.furnishing_budget ? ` (${fmtMXN(plan.purchase_gap || 0)} purchase gap + ${fmtMXN(plan.furnishing_budget)} furnishing)` : ''} · targets weighted by your real capacity per month
+            {capacity != null ? <>Capacity {fmtMXN(capacity)}/mo (median of the last 3 months) · </> : null}
+            stretch targets close {fmtMXN(plan.gap_to_close)} by delivery
           </p>
         </div>
         <span className={cn(
-          'shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold',
-          stretched ? 'bg-amber-500/15 text-amber-600' : 'bg-emerald-500/15 text-emerald-600'
+          'w-fit shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold',
+          feasible ? 'bg-emerald-500/15 text-emerald-600' : 'bg-amber-500/15 text-amber-600'
         )}>
-          {stretched
-            ? `needs ${Math.round(plan.stretch_factor * 100)}% of your historical capacity`
-            : `${Math.round(plan.stretch_factor * 100)}% of your capacity — achievable`}
+          {feasible
+            ? `${Math.round(plan.stretch_factor * 100)}% of capacity — achievable`
+            : `Stretch asks ${Math.round(plan.stretch_factor * 100)}% of capacity`}
         </span>
       </div>
 
-      <div className="space-y-1.5">
-        {plan.months.map(m => {
-          const [y, mo] = m.month.split('-')
-          const label = new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-          return (
-            <div key={m.month} className="flex items-center gap-3">
-              <span className="w-14 shrink-0 text-xs font-medium text-[hsl(var(--text-secondary))]">{label}</span>
-              <div className="flex-1 h-4 rounded bg-[hsl(var(--bg-elevated))] overflow-hidden">
-                <div
-                  className="h-full rounded bg-gradient-to-r from-violet-500/70 to-purple-500/70"
-                  style={{ width: `${Math.max(2, Math.round((m.target / maxTarget) * 100))}%` }}
-                />
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="rounded-lg border border-[hsl(var(--border))] p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Purchase gap</p>
+          <p className="num-metric text-lg font-bold tabular-nums">{formatCompact(plan.purchase_gap ?? plan.gap_to_close)}</p>
+          <p className="text-[11px] text-[hsl(var(--text-tertiary))]">financing if nothing extra is saved</p>
+        </div>
+        <div className="rounded-lg border border-[hsl(var(--border))] p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Furnishing</p>
+          <p className="num-metric text-lg font-bold tabular-nums">{formatCompact(plan.furnishing_budget ?? 0)}</p>
+          <p className="text-[11px] text-[hsl(var(--text-tertiary))]">budget on top of the purchase</p>
+        </div>
+      </div>
+
+      {!feasible && shortfall > 0 && (
+        <div className="mb-4 rounded-lg bg-amber-500/10 px-3 py-2.5 text-xs text-[hsl(var(--text-secondary))]">
+          <p className="font-semibold text-amber-600">Saving at capacity, delivery arrives {formatCompact(shortfall)} short of purchase + furnishing.</p>
+          {plan.options && plan.options.length > 0 && (
+            <p className="mt-1">Options: {plan.options.map(o => o.label).join(' · ')}</p>
+          )}
+        </div>
+      )}
+
+      {typeof cumulative === 'number' && (data.behavioral?.ytd_months ?? 0) > 0 && (
+        <p className="mb-3 text-xs text-[hsl(var(--text-secondary))]">
+          Since January: <span className={cn('font-semibold tabular-nums', cumulative >= 0 ? 'text-emerald-600' : 'text-amber-600')}>
+            {fmtMXN(Math.abs(cumulative))} {cumulative >= 0 ? 'ahead of' : 'behind'}
+          </span> capacity over {data.behavioral?.ytd_months} months
+        </p>
+      )}
+
+      <div className="flex items-center gap-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">
+        <span className="w-14 shrink-0">Month</span>
+        <span className="flex-1" />
+        <span className="w-14 sm:w-20 shrink-0 text-right">Capacity</span>
+        <span className="w-14 sm:w-20 shrink-0 text-right">Stretch</span>
+      </div>
+      <div className="space-y-2">
+        {plan.months.map(m => (
+          <div key={m.month}>
+            <div className="flex items-center gap-3">
+              <span className="w-14 shrink-0 text-xs font-medium text-[hsl(var(--text-secondary))]">{monthLabel(m.month, '2-digit')}</span>
+              <div className="relative flex-1 h-4 rounded bg-[hsl(var(--bg-elevated))] overflow-hidden" title={`Capacity ${fmtMXN(m.capacity)} · stretch ${fmtMXN(m.target)}`}>
+                <div className="absolute inset-y-0 left-0 rounded bg-violet-500/25" style={{ width: `${Math.max(2, Math.round((m.target / maxBar) * 100))}%` }} />
+                <div className="absolute inset-y-0 left-0 rounded bg-gradient-to-r from-violet-500/80 to-purple-500/80" style={{ width: `${Math.max(2, Math.round((m.capacity / maxBar) * 100))}%` }} />
               </div>
-              <span className="w-20 shrink-0 text-right num-metric text-xs font-bold tabular-nums">
-                ${m.target.toLocaleString()}
+              <span className="w-14 sm:w-20 shrink-0 text-right num-metric text-xs font-bold tabular-nums">
+                <span className="sm:hidden">{formatCompact(m.capacity)}</span>
+                <span className="hidden sm:inline">${m.capacity.toLocaleString()}</span>
               </span>
-              <span className="hidden sm:block w-56 shrink-0 text-[10px] text-[hsl(var(--text-tertiary))] truncate">
-                {m.notes.join(' · ')}
+              <span className="w-14 sm:w-20 shrink-0 text-right text-xs tabular-nums text-[hsl(var(--text-tertiary))]">
+                <span className="sm:hidden">{formatCompact(m.target)}</span>
+                <span className="hidden sm:inline">${m.target.toLocaleString()}</span>
               </span>
             </div>
-          )
-        })}
+            {m.notes.length > 0 && (
+              <p className="mt-0.5 pl-[68px] text-[11px] leading-snug text-[hsl(var(--text-tertiary))]">{m.notes.join(' · ')}</p>
+            )}
+          </div>
+        ))}
       </div>
 
       <p className="mt-3 pt-2 border-t border-[hsl(var(--border))] text-[11px] text-[hsl(var(--text-tertiary))]">
-        Total {fmtMXN(plan.total_nominal)} saved over {plan.months.length} months — grows to close the {fmtMXN(plan.gap_to_close)} gap at the base GBM return. Recomputed from live balances on every load.
+        Solid bar = capacity, faint bar = stretch target. Stretch totals {fmtMXN(plan.total_nominal)} over {plan.months.length} months and grows to {fmtMXN(plan.gap_to_close)} at the base GBM return. Recomputed from live balances on every load.
       </p>
     </GlassCard>
   )
@@ -146,7 +213,12 @@ function WestReadinessCard({ data }: { data: WestData }) {
   const b = data.behavioral
   if (!b) return null
   const planGap = data.projected_at_delivery?.gap ?? 0
-  const behaviorCloses = b.projected_gap_at_delivery <= 0
+  const plan = data.savings_plan
+  const furnishing = plan?.furnishing_budget ?? 0
+  // Purchase + furnishing at capacity — the same verdict as the savings-plan card.
+  const shortfall = plan?.projected_shortfall_at_delivery ?? Math.max(0, b.projected_gap_at_delivery + furnishing)
+  const behaviorCloses = shortfall <= 0
+  const needed = plan?.flat_monthly_equivalent ?? b.required_monthly_contribution
 
   return (
     <GlassCard>
@@ -154,7 +226,7 @@ function WestReadinessCard({ data }: { data: WestData }) {
         <div>
           <h3 className="text-base font-semibold">Readiness — plan vs actual behavior</h3>
           <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
-            What happens if your real monthly surplus ({fmtMXN(b.avg_monthly_net_savings)}/mo avg over {b.monthly_net_savings_history.length} months) flows into GBM
+            What happens if your real capacity ({fmtMXN(b.recent_3mo_net_savings)}/mo, median of the last 3 months) flows into GBM{furnishing > 0 ? <> — purchase + {formatCompact(furnishing)} furnishing</> : null}
           </p>
         </div>
       </div>
@@ -170,21 +242,22 @@ function WestReadinessCard({ data }: { data: WestData }) {
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">At current behavior</p>
           <p className={cn('num-metric text-xl font-bold', behaviorCloses ? 'text-emerald-600' : 'text-amber-600')}>
-            {behaviorCloses ? 'Funded' : fmtShort(b.projected_gap_at_delivery)}
+            {behaviorCloses ? 'Funded' : `${formatCompact(shortfall)} short`}
           </p>
           <p className="text-[10px] text-[hsl(var(--text-tertiary))]">
-            {b.fully_funded_month ? `fully funded by ${b.fully_funded_month}` : 'gap remaining at delivery'}
+            {furnishing > 0 ? 'purchase + furnishing at delivery' : 'at delivery'}
+            {b.fully_funded_month ? ` · purchase alone funded by ${monthLabel(b.fully_funded_month)}` : ''}
           </p>
         </div>
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Real savings run-rate</p>
           <p className="num-metric text-xl font-bold">{fmtMXN(b.recent_3mo_net_savings)}</p>
-          <p className="text-[10px] text-[hsl(var(--text-tertiary))]">/mo, last 3 months</p>
+          <p className="text-[10px] text-[hsl(var(--text-tertiary))]">/mo, median of the last 3 months</p>
         </div>
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Needed to close gap</p>
-          <p className="num-metric text-xl font-bold text-blue-600">{fmtMXN(b.required_monthly_contribution)}</p>
-          <p className="text-[10px] text-[hsl(var(--text-tertiary))]">/mo into GBM until delivery</p>
+          <p className="num-metric text-xl font-bold text-blue-600">{fmtMXN(needed)}</p>
+          <p className="text-[10px] text-[hsl(var(--text-tertiary))]">/mo into GBM until delivery{plan?.flat_monthly_equivalent != null && furnishing > 0 ? ', incl. furnishing' : ''}</p>
         </div>
       </div>
 
@@ -227,64 +300,40 @@ function StatusPill({ status }: { status: string }) {
     static: { label: 'Static', cls: 'bg-amber-500/10 text-amber-600' },
     not_set: { label: 'Not set', cls: 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]' },
     gap: { label: 'Needs plan', cls: 'bg-red-500/10 text-red-600' },
+    covered: { label: 'Covered by plan', cls: 'bg-emerald-500/10 text-emerald-600' },
+    financing: { label: 'Needs financing', cls: 'bg-amber-500/10 text-amber-600' },
   }
   const c = config[status] || config.not_set
   return <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full", c.cls)}>{c.label}</span>
 }
 
 // ─── Client-side projection recalculation ───
+// Same engine and schedule as the server, so slider moves and the API
+// headline can't disagree.
 function recalcProjection(data: WestData, rate: number, appreciationPct: number, cryptoGrowthPct: number) {
-  const monthlyRate = Math.pow(1 + rate / 100, 1 / 12) - 1
-  const monthlyAppreciation = Math.pow(1 + appreciationPct / 100, 1 / 12) - 1
-  const monthlyCryptoGrowth = Math.pow(1 + cryptoGrowthPct / 100, 1 / 12) - 1
-  const saleDate = '2026-04'
-  const lumpDate = '2026-12'
-  const paymentEnd = '2027-03'
-
-  let paid = data.current_status.amount_paid
-  let inv = data.current_status.investment_value
-  let crypto = data.current_status.crypto_value
-  const infonavit = data.current_status.infonavit_laura || 350000 // ${OWNERS[1]}'s Infonavit — fixed, no compounding
-  const debtPayoff = data.assumptions.debt_payoff_total
-  const saleRemaining = 7200000 - 750000
-  let propVal = data.property?.current_market_value || data.target
-
-  const months: Array<{ month: string; paid: number; investments: number; crypto: number; infonavit: number; total: number; gap: number; property_value: number }> = []
-
-  for (const mp of data.monthly_projection) {
-    const isFirst = mp.month === data.monthly_projection[0].month
-
-    // Sale proceeds: apply even in current month — guaranteed event still 10 days out
-    if (mp.month === saleDate) inv += Math.max(0, saleRemaining - debtPayoff)
-    if (!isFirst) {
-      if (mp.month <= paymentEnd) paid += 10000
-      if (mp.month === lumpDate) paid += 100000
-      inv *= (1 + monthlyRate)
-      crypto *= (1 + monthlyCryptoGrowth)
-      propVal *= (1 + monthlyAppreciation)
-    }
-
-    const total = paid + inv + crypto + infonavit
-    months.push({
-      month: mp.month,
-      paid: Math.round(paid),
-      investments: Math.round(inv),
-      crypto: Math.round(crypto),
-      infonavit: Math.round(infonavit),
-      total: Math.round(total),
-      gap: Math.round(data.target - total),
-      property_value: Math.round(propVal),
-    })
+  if (!data.schedule) {
+    const last = data.monthly_projection[data.monthly_projection.length - 1]
+    const value = last?.property_value || data.target
+    return { months: data.monthly_projection, projectedTotal: last?.total || 0, gap: last?.gap || 0, projectedPropertyValue: value, equityAtDelivery: value - data.target }
   }
-
-  const last = months[months.length - 1]
+  const run = projectWest(
+    data.schedule,
+    { paid: data.current_status.amount_paid, investments: data.current_status.investment_value, crypto: data.current_status.crypto_value },
+    { annual_return: rate / 100, appreciation: appreciationPct / 100, crypto_growth: cryptoGrowthPct / 100 },
+    data.as_of || mexicoCityToday(),
+  )
   return {
-    months,
-    projectedTotal: last?.total || 0,
-    gap: last?.gap || 0,
-    projectedPropertyValue: last?.property_value || propVal,
-    equityAtDelivery: (last?.property_value || propVal) - data.target,
+    months: run.months,
+    projectedTotal: run.total,
+    gap: run.gap,
+    projectedPropertyValue: run.property_value,
+    equityAtDelivery: run.property_value - data.target,
   }
+}
+
+function saleMonthIn(data: WestData, months: Array<{ month: string }>): string | null {
+  const m = data.schedule?.sale_remaining_date?.slice(0, 7)
+  return m && months.some(x => x.month === m) ? m : null
 }
 
 // ═══════════════════════════════════════════
@@ -293,7 +342,7 @@ function recalcProjection(data: WestData, rate: number, appreciationPct: number,
 export function WestTracker() {
   const [data, setData] = useState<WestData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [returnRate, setReturnRate] = useState(9.5) // net after 1.25% commission
+  const [returnRate, setReturnRate] = useState(9.5) // net of GBM commission; replaced by the server's rate
   const [appreciationRate, setAppreciationRate] = useState(12.5)
   const [cryptoGrowth, setCryptoGrowth] = useState(15)
 
@@ -326,7 +375,25 @@ export function WestTracker() {
   const cryptoValue = data.current_status.crypto_value
   const projectedTotal = projection.projectedTotal
   const gap = Math.max(0, projection.gap)
-  const subMillionGap = gap > 0 && gap < 1_000_000
+  const plan = data.savings_plan
+  // The verdict comes from the savings plan (purchase + furnishing at real
+  // capacity), never from "gap < $1M" alone.
+  const planKnown = !!plan && plan.gap_to_close > 0
+  const planFeasible = planKnown && (plan.feasible ?? plan.stretch_factor <= 1.05)
+  const planShortfall = plan?.projected_shortfall_at_delivery ?? 0
+  const gapTone = !planKnown ? 'text-red-600' : planFeasible ? 'text-emerald-600' : 'text-amber-600'
+  const gapStatus = !planKnown ? 'gap' : planFeasible ? 'covered' : 'financing'
+  const serverRate = data.assumptions.investment_return * 100
+  const ratePresets = [
+    { label: 'Conservative', rate: 8.0 },
+    { label: data.assumptions.investment_return_basis === 'gbm-net' ? 'GBM net' : 'Base', rate: Math.round(serverRate * 10) / 10 },
+    { label: 'Optimistic', rate: 11.0 },
+  ]
+  const gross = data.assumptions.gbm_gross_rate
+  const commission = data.assumptions.gbm_commission_rate
+  const rateCaption = data.assumptions.investment_return_basis === 'gbm-net' && gross != null && commission != null
+    ? `GBM today: ${(gross * 100).toFixed(2)}% gross − ${(commission * 100).toFixed(2)}% commission = ${serverRate.toFixed(2)}% net`
+    : `Base case ${serverRate.toFixed(1)}% net of commission`
   const projectedGrowth = Math.max(0, projectedTotal - amountPaid - investmentValue - cryptoValue - (data.current_status.infonavit_laura || 350000))
 
   const paidPct = (amountPaid / target) * 100
@@ -404,16 +471,22 @@ export function WestTracker() {
         </div>
       </GlassCard>
 
-      {/* ── SUB-$1M GAP CALLOUT ── */}
-      {subMillionGap && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-          <span className="text-2xl">🎯</span>
-          <div>
-            <p className="text-sm font-bold text-emerald-600">Gap is under $1M!</p>
-            <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
-              Only <span className="font-semibold text-emerald-600">{fmtMXN(gap)}</span> remaining — within mortgage financing range.
-            </p>
-          </div>
+      {/* ── VERDICT: purchase + furnishing at real capacity ── */}
+      {planKnown && plan && (
+        <div className={cn(
+          'rounded-xl border px-4 py-3',
+          planFeasible ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'
+        )}>
+          <p className={cn('text-sm font-bold', planFeasible ? 'text-emerald-600' : 'text-amber-600')}>
+            {planFeasible
+              ? 'On course: purchase + furnishing funded at your real savings pace'
+              : `Saving at your real pace, delivery arrives ${formatCompact(planShortfall)} short`}
+          </p>
+          <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">
+            Purchase gap {formatCompact(plan.purchase_gap ?? gap)} + furnishing {formatCompact(plan.furnishing_budget ?? 0)}
+            {plan.assumptions?.base_capacity != null ? <>, against capacity of {formatCompact(plan.assumptions.base_capacity)}/mo</> : null}.
+            {!planFeasible && plan.options && plan.options.length > 0 ? <> Options: {plan.options.map(o => o.label).join(' · ')}.</> : null}
+          </p>
         </div>
       )}
 
@@ -459,12 +532,12 @@ export function WestTracker() {
           </div>
           {gap > 0 && (
             <div className="grid grid-cols-12 gap-3 py-3 items-center text-sm font-bold px-2">
-              <div className={cn("col-span-4", subMillionGap ? "text-emerald-600" : "text-red-600")}>
-                Gap (Financing Needed) {subMillionGap && '🎯'}
+              <div className={cn("col-span-4", gapTone)}>
+                Purchase gap <span className="font-normal text-xs text-[hsl(var(--text-tertiary))]">if nothing extra is saved</span>
               </div>
               <div className="col-span-2" />
-              <div className={cn("col-span-3 text-right tabular-nums", subMillionGap ? "text-emerald-600" : "text-red-600")}>{fmtMXN(gap)}</div>
-              <div className="col-span-3 text-center"><StatusPill status={subMillionGap ? 'on_track' : 'gap'} /></div>
+              <div className={cn("col-span-3 text-right tabular-nums", gapTone)}>{fmtMXN(gap)}</div>
+              <div className="col-span-3 text-center"><StatusPill status={gapStatus} /></div>
             </div>
           )}
         </div>
@@ -494,9 +567,18 @@ export function WestTracker() {
             </div>
           ))}
           {gap > 0 && (
-            <div className="flex items-center justify-between p-3 rounded-lg bg-red-500/5 border border-red-500/20">
-              <span className="text-sm font-bold text-red-600">Gap</span>
-              <span className="text-sm font-bold tabular-nums text-red-600">{fmtMXN(gap)}</span>
+            <div className={cn(
+              'flex items-center justify-between p-3 rounded-lg border',
+              !planKnown ? 'bg-red-500/5 border-red-500/20' : planFeasible ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-amber-500/5 border-amber-500/20'
+            )}>
+              <div>
+                <p className={cn('text-sm font-bold', gapTone)}>Purchase gap</p>
+                <p className="text-[11px] text-[hsl(var(--text-tertiary))]">if nothing extra is saved</p>
+              </div>
+              <div className="text-right">
+                <p className={cn('text-sm font-bold tabular-nums', gapTone)}>{fmtMXN(gap)}</p>
+                <StatusPill status={gapStatus} />
+              </div>
             </div>
           )}
         </div>
@@ -528,9 +610,9 @@ export function WestTracker() {
                   <stop offset="100%" stopColor="hsl(var(--chart-5))" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={m => m.slice(5)} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={m => m.slice(5)} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
 
@@ -542,9 +624,11 @@ export function WestTracker() {
               <Area type="monotone" dataKey="crypto" stackId="1" stroke="hsl(var(--chart-5))" strokeWidth={1} fill="url(#westCryptoGrad)" name="Crypto" />
               <Line type="monotone" dataKey="property_value" stroke="hsl(var(--chart-1))" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" />
               <ReferenceLine y={target} stroke="hsl(var(--chart-6))" strokeDasharray="6 4" strokeWidth={1.5}
-                label={{ value: 'Target $11.2M', position: 'right', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
-              <ReferenceLine x="2026-04" stroke="hsl(30, 13%, 58%)" strokeDasharray="3 3"
-                label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(28, 11%, 42%)', fontSize: 10 }} />
+                label={{ value: `Target ${fmtShort(target)}`, position: 'right', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
+              {saleMonthIn(data, projection.months) && (
+                <ReferenceLine x={saleMonthIn(data, projection.months) as string} stroke={CHART.cursor} strokeDasharray="3 3"
+                  label={{ value: '📍 Apt. sale', position: 'top', fill: CHART.axis, fontSize: 10 }} />
+              )}
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -567,11 +651,7 @@ export function WestTracker() {
       <GlassCard className="p-4 sm:p-5">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-4">Scenarios</h3>
         <div className="flex gap-2 mb-4">
-          {[
-            { label: 'Conservative', rate: 8.0 },
-            { label: 'Base', rate: 9.5 },
-            { label: 'Optimistic', rate: 11.0 },
-          ].map(preset => (
+          {ratePresets.map(preset => (
             <button key={preset.label} onClick={() => setReturnRate(preset.rate)}
               className={cn(
                 "flex-1 px-1 py-2 rounded-lg text-xs font-medium leading-tight sm:leading-normal transition-all border",
@@ -596,7 +676,7 @@ export function WestTracker() {
               [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
           <div className="flex justify-between gap-2 text-[10px] text-[hsl(var(--text-tertiary))]">
             <span className="shrink-0">5%</span>
-            <span className="text-center">Based on 2023–25 avg ~10.3% gross − 1.25% commission</span>
+            <span className="text-center">{rateCaption}</span>
             <span className="shrink-0">13%</span>
           </div>
         </div>
@@ -829,9 +909,9 @@ export function WestProjectionWithScenarios() {
                   <stop offset="0%" stopColor="hsl(var(--chart-5))" stopOpacity={0.3} /><stop offset="100%" stopColor="hsl(var(--chart-5))" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(34, 22%, 85%)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={(m: string) => m.slice(5)} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10, fill: 'hsl(28, 11%, 42%)' }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(m: string) => m.slice(5)} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
 
@@ -844,9 +924,11 @@ export function WestProjectionWithScenarios() {
               <Area type="monotone" dataKey="crypto" stackId="1" stroke="hsl(var(--chart-5))" strokeWidth={1} fill="url(#pcCryptoGrad)" name="Crypto" />
               <Line type="monotone" dataKey="property_value" stroke="hsl(var(--chart-1))" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" />
               <ReferenceLine y={target} stroke="hsl(var(--chart-6))" strokeDasharray="6 4" strokeWidth={1.5}
-                label={{ value: 'Target $11.2M', position: 'right', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
-              <ReferenceLine x="2026-04" stroke="hsl(30, 13%, 58%)" strokeDasharray="3 3"
-                label={{ value: '📍 Apt. sale', position: 'top', fill: 'hsl(28, 11%, 42%)', fontSize: 10 }} />
+                label={{ value: `Target ${fmtShort(target)}`, position: 'right', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
+              {saleMonthIn(data, projection.months) && (
+                <ReferenceLine x={saleMonthIn(data, projection.months) as string} stroke={CHART.cursor} strokeDasharray="3 3"
+                  label={{ value: '📍 Apt. sale', position: 'top', fill: CHART.axis, fontSize: 10 }} />
+              )}
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -931,57 +1013,10 @@ export function WestProjectionWithScenarios() {
   )
 }
 
+/**
+ * @deprecated Rendered nowhere (F19) and its growth bar summed past 100%.
+ * Kept as an empty export only until investments-client drops the import (WS7).
+ */
 export function WestCompactWidget() {
-  const [data, setData] = useState<WestData | null>(null)
-
-  useEffect(() => {
-    fetchWestProjection<WestData>()
-      .then(setData)
-      .catch(() => null)
-  }, [])
-
-  if (!data || !data.projected_at_delivery) return null
-
-  const target = data.target
-  const proj = data.projected_at_delivery
-  const paidPct = (data.current_status.amount_paid / target) * 100
-  const investPct = (data.current_status.investment_value / target) * 100
-  const growthPct = Math.max(0, ((proj.total_projected - data.current_status.total_available) / target) * 100)
-  const fundedPct = (proj.total_projected / target) * 100
-  const gap = Math.max(0, proj.gap)
-
-  return (
-    <GlassCard className="p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-base">🏗️</span>
-          <span className="text-sm font-semibold">WEST Apartment</span>
-        </div>
-        <Link href="/finance/investments" className="text-xs text-blue-600 hover:underline">Details →</Link>
-      </div>
-      <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))]">
-        <div className="h-full bg-emerald-500" style={{ width: `${paidPct}%` }} />
-        <div className="h-full bg-blue-500" style={{ width: `${investPct}%` }} />
-        <div className="h-full bg-amber-500/60" style={{ width: `${growthPct}%` }} />
-      </div>
-      <div className="flex items-center justify-between mt-2">
-        <span className="text-xs text-[hsl(var(--text-secondary))]">
-          Projected: <span className="font-semibold text-[hsl(var(--foreground))] tabular-nums">{fmtMXN(proj.total_projected)}</span>
-          <span className="text-[hsl(var(--text-tertiary))]"> / {fmtMXN(target)}</span>
-        </span>
-        <span className="text-xs font-semibold tabular-nums text-emerald-600">{fundedPct.toFixed(0)}%</span>
-      </div>
-      <div className="flex items-center justify-between mt-1">
-        <span className="text-xs text-red-600 tabular-nums">Gap: {fmtMXN(gap)}</span>
-        <span className="text-xs text-[hsl(var(--text-secondary))]">{data.months_to_delivery}mo to delivery</span>
-      </div>
-      {data.property && (
-        <div className="flex items-center justify-between mt-1">
-          <span className="text-xs text-emerald-600 tabular-nums">
-            Est. value: {fmtMXN(data.property.projected_value_at_delivery)} (+{fmtMXN(data.property.equity_at_delivery)} equity)
-          </span>
-        </div>
-      )}
-    </GlassCard>
-  )
+  return null
 }

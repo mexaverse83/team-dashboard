@@ -1,33 +1,38 @@
-// Summary engine, callable in-process (no HTTP self-fetch). W0 moved the body
-// of GET /api/finance/summary here unchanged so the widget and insights
-// routes can import it; WS4 owns the refactor behind this signature.
+// Summary engine, callable in-process (no HTTP self-fetch). This file only
+// fetches and composes; every number comes from a pure builder in
+// src/lib/summary/* so it can be tested on fixture rows.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
-import { buildFertilityCutRecommendations, FERTILITY_TREATMENT_PLAN, getRemainingTreatmentEvents, getTreatmentEventForMonth, getUnpaidTreatmentEventsForMonth } from '@/lib/fertility-plan'
-import { BABY_PLAN, BABY_PLAN_TAG, EDUCATION_FUND_PLAN, getActiveChecklistItems, getBabyEventForMonth, getRemainingBabyEvents, monthsUntilDue, projectEducationFund } from '@/lib/baby-plan'
-import { defaultBudgetType } from '@/lib/finance-utils'
-import { deriveIncomeBaseline, emergencyFundCoverage, expectedMonthIncome } from '@/lib/household-metrics'
-import { lumpSum, MIN_HISTORY_MONTHS, projectCategoryMonthEnd, summarizeCategoryHistory } from '@/lib/spend-projection'
-import { mexicoCityDateParts } from '@/lib/insights-prompt.mjs'
-import { OWNERS } from '@/lib/owners'
+import { FERTILITY_TREATMENT_PLAN } from '@/lib/fertility-plan'
+import { BABY_PLAN, BABY_PLAN_TAG, looksLikeBabySpend } from '@/lib/baby-plan'
+import { deriveIncomeBaseline, expectedMonthIncome } from '@/lib/household-metrics'
 import { fetchCryptoPrices } from '@/lib/crypto-prices'
+import { addMonthsKey, daysInMonth as daysInMonthOf, mexicoCityDateParts, mxNow } from '@/lib/dates'
+import { CYCLE_MONTHS } from '@/lib/finance-utils'
+import { householdRunRate, isWestPayment, txAmount, type TxRow } from '@/lib/summary/history'
+import { activeBudgetRows, budgetTypeFor, buildBudgetVsActual, type BudgetRow, type CategoryRow } from '@/lib/summary/budgets'
+import { buildGoals, type GoalRow } from '@/lib/summary/goals'
+import { buildEmergencyFund, deriveMonthlyEssentials, type EmergencyFundRow } from '@/lib/summary/emergency'
+import { buildBabyPlan, buildFertilityPlan, treatmentDueThisMonth, type BabyLedger } from '@/lib/summary/plans'
+import { buildYearEndPlan, projectMonthSpend } from '@/lib/summary/projection'
+import { buildOwnerSpend, buildRecentTransactions, buildVariable } from '@/lib/summary/activity'
+import { buildUpcoming } from '@/lib/summary/upcoming'
+import { buildCryptoSummary, cryptoQuantities, type CryptoHoldingRow } from '@/lib/summary/crypto'
+import { getWestProjection, type WestProjection } from '@/lib/server/west'
 
-import type { BudgetVsActualRow, SummaryResponse } from '@/lib/summary/types'
+import type { SummaryResponse, SummaryWestPlan } from '@/lib/summary/types'
 
 const FREQ_DIVISOR: Record<string, number> = { weekly: 0.25, biweekly: 0.5, monthly: 1, quarterly: 3, yearly: 12 }
-
-type SummaryBudgetRow = {
-  category_id: string
-  month?: string | null
-  amount: number
-  budget_type?: string | null
-}
+const RI_DIVISOR: Record<string, number> = { monthly: 1, bimonthly: 2, annual: 12 }
+const TX_COLUMNS = 'id,transaction_date,type,amount_mxn,amount,category_id,merchant,tags,owner,coverage_start,coverage_end,created_at'
 
 export interface BuildSummaryOptions {
   /** Lookback for the spending averages, clamped to 1–12 (default 3). */
   months?: number
   /** Clock override for tests; dates are anchored to the Mexico City calendar. */
   now?: Date
+  /** Skip the WEST engine (callers that already have it, or tests). */
+  west?: WestProjection | null | false
 }
 
 /** Thrown when any underlying Supabase read fails; routes answer 503. */
@@ -38,563 +43,338 @@ export class SummaryUnavailableError extends Error {
   }
 }
 
+type Res<T> = { data: T[] | null; error: unknown }
+const rowsOf = <T>(res: Res<T>): T[] => {
+  if (res.error) throw new SummaryUnavailableError()
+  return res.data || []
+}
+
 export async function buildSummary(
   supabase: SupabaseClient,
-  { months: requestedMonths = 3, now = new Date() }: BuildSummaryOptions = {},
+  { months: requestedMonths = 3, now = new Date(), west: westOverride }: BuildSummaryOptions = {},
 ): Promise<SummaryResponse> {
   const months = Number.isFinite(requestedMonths) ? Math.min(Math.max(Math.trunc(requestedMonths), 1), 12) : 3
-  // Anchor every date on the household's Mexico City calendar. Vercel runs in
-  // UTC, which is already the next day after ~6pm local — that shifted
-  // day_of_month by one for six hours daily (the hero read "Day 26 of 31" on
-  // July 25) and skewed every pace divisor and remaining-days window with it.
+  // Every date sits on the household's Mexico City calendar: Vercel runs in
+  // UTC, which is already tomorrow after ~6pm local.
   const mx = mexicoCityDateParts(now)
-  /** Local calendar date `n` months from the current month, day `d`. */
-  const mxDate = (monthOffset: number, day: number) =>
-    new Date(Date.UTC(mx.year, mx.month - 1 + monthOffset, day)).toISOString().slice(0, 10)
-  const startStr = mxDate(-(months - 1), 1)
-  const endStr = mxDate(0, mx.day)
-  const currentMonthStr = `${mx.year}-${String(mx.month).padStart(2, '0')}`
-  // Income needs a longer lookback than spending. Six months is enough to
-  // distinguish normal salary cadence from a bonus-heavy month while keeping
-  // the baseline responsive to a real compensation change.
-  const incomeHistoryStart = mxDate(-5, 1)
-  // Per-category spend history needs its own lookback too: the widget calls
-  // this endpoint with months=1, which would leave the projection with no
-  // history at all and silently fall back to trusting stale budgets.
-  const spendHistoryStart = mxDate(-6, 1)
+  const asOf = mxNow(now)
+  const month = `${mx.year}-${String(mx.month).padStart(2, '0')}`
+  const today = `${month}-${String(mx.day).padStart(2, '0')}`
+  const monthStart = `${month}-01`
+  const startStr = `${addMonthsKey(month, -(months - 1))}-01`
+  // Income needs six months to tell salary cadence from a bonus month; the
+  // per-category spend history needs six complete months for its medians.
+  const incomeHistoryStart = `${addMonthsKey(month, -5)}-01`
+  const spendHistoryStart = `${addMonthsKey(month, -6)}-01`
+  const readStart = startStr < spendHistoryStart ? startStr : spendHistoryStart
 
-  const currentMonthStart = `${currentMonthStr}-01`
-  // Day 0 of next month = last day of this one.
+  const holdingsP = Promise.resolve(supabase.from('finance_crypto_holdings').select('*')) as Promise<Res<CryptoHoldingRow>>
+  // Prices start as soon as holdings resolve, alongside the main batch.
+  const pricesP = holdingsP
+    .then(res => {
+      const symbols = (res.data || []).filter(h => Number(h.quantity) > 0).map(h => h.symbol)
+      return symbols.length > 0 ? fetchCryptoPrices(symbols) : null
+    })
+    .catch(() => null)
+  const westP: Promise<WestProjection | null> = westOverride !== undefined
+    ? Promise.resolve(westOverride || null)
+    : getWestProjection(supabase, { now }).catch(() => null)
 
-  const queryResults = await Promise.all([
-    fetchAllRows((from, to) => supabase.from('finance_transactions').select('*').gte('transaction_date', startStr).lte('transaction_date', endStr).eq('type', 'expense').order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20000, true).then(rows => ({ data: rows })),
-    supabase.from('finance_categories').select('*'),
-    supabase.from('finance_budgets').select('*'),
-    supabase.from('finance_recurring').select('*').eq('is_active', true),
-    supabase.from('finance_installments').select('*').eq('is_active', true),
-    supabase.from('finance_debts').select('*').eq('is_active', true),
-    supabase.from('finance_emergency_fund').select('*').order('created_at', { ascending: false }).limit(1),
-    supabase.from('finance_goals').select('*').eq('is_completed', false),
-    supabase.from('finance_income_sources').select('*').eq('is_active', true),
-    supabase.from('finance_recurring_income').select('*').eq('active', true),
-    supabase.from('finance_crypto_holdings').select('*'),
-    fetchAllRows((from, to) => supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').gte('transaction_date', incomeHistoryStart).lte('transaction_date', endStr).eq('type', 'income').order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20000, true).then(rows => ({ data: rows })),
-    // merchant is needed to tell which recurring-income rows have already
-    // landed this month — the processor posts one transaction per row name.
-    supabase.from('finance_transactions').select('amount_mxn,amount,merchant').gte('transaction_date', currentMonthStart).lte('transaction_date', endStr).eq('type', 'income'),
-    supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').contains('tags', ['fertility']).eq('type', 'expense'),
-    supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount').contains('tags', [BABY_PLAN_TAG]).eq('type', 'expense'),
-    // Complete months only — `lt currentMonthStart` keeps the partial current
-    // month out of the medians it feeds.
-    fetchAllRows((from, to) => supabase.from('finance_transactions').select('transaction_date,amount_mxn,amount,category_id').gte('transaction_date', spendHistoryStart).lt('transaction_date', currentMonthStart).eq('type', 'expense').order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20000, true).then(rows => ({ data: rows })),
-  ])
-
-  if (queryResults.some(result => 'error' in result && result.error)) {
+  let batch
+  try {
+    batch = await Promise.all([
+      // One narrow read covers the spending period, the income lookback, the
+      // category history and this month — split in memory below.
+      fetchAllRows<TxRow>((from, to) => supabase.from('finance_transactions').select(TX_COLUMNS)
+        .gte('transaction_date', readStart).lte('transaction_date', today)
+        .order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20000, true),
+      supabase.from('finance_categories').select('*'),
+      supabase.from('finance_budgets').select('*'),
+      supabase.from('finance_recurring').select('*').eq('is_active', true),
+      supabase.from('finance_installments').select('*').eq('is_active', true),
+      supabase.from('finance_debts').select('*').eq('is_active', true),
+      supabase.from('finance_emergency_fund').select('*').order('created_at', { ascending: false }).limit(1),
+      supabase.from('finance_goals').select('*').eq('is_completed', false),
+      supabase.from('finance_income_sources').select('*').eq('is_active', true),
+      supabase.from('finance_recurring_income').select('*').eq('active', true),
+      // Plan ledgers, bounded to each plan's lifetime.
+      fetchAllRows<TxRow>((from, to) => supabase.from('finance_transactions').select('id,transaction_date,amount_mxn,amount')
+        .contains('tags', ['fertility']).eq('type', 'expense')
+        .gte('transaction_date', `${addMonthsKey(FERTILITY_TREATMENT_PLAN.startMonth, -6)}-01`)
+        .order('transaction_date').order('id').range(from, to), 1000, 20000, true),
+      fetchAllRows<TxRow>((from, to) => supabase.from('finance_transactions').select('id,transaction_date,amount_mxn,amount')
+        .contains('tags', [BABY_PLAN_TAG]).eq('type', 'expense')
+        .gte('transaction_date', `${addMonthsKey(BABY_PLAN.startMonth, -3)}-01`)
+        .order('transaction_date').order('id').range(from, to), 1000, 20000, true),
+      holdingsP,
+    ])
+  } catch {
     throw new SummaryUnavailableError()
   }
-  const [
-    { data: transactions },
-    { data: categories },
-    { data: budgets },
-    { data: recurring },
-    { data: installments },
-    { data: debts },
-    { data: emergencyFund },
-    { data: goals },
-    { data: incomeSources },
-    { data: recurringIncome },
-    { data: cryptoHoldings },
-    { data: incomeTransactions },
-    { data: currentMonthIncomeTxs },
-    { data: fertilityPaidTxs },
-    { data: babyPaidTxs },
-    { data: categoryHistoryTxs },
-  ] = queryResults
+  const [txRows, categoriesRes, budgetsRes, recurringRes, installmentsRes, debtsRes, efRes, goalsRes, incomeSourcesRes, recurringIncomeRes, fertilityRows, babyRows, holdingsRes] = batch
+  const categories = rowsOf(categoriesRes as Res<CategoryRow>)
+  const budgets = rowsOf(budgetsRes as Res<BudgetRow>)
+  const recurring = rowsOf(recurringRes as Res<{ name: string; amount: number; frequency: string; next_due_date: string | null }>)
+  const installments = rowsOf(installmentsRes as Res<{ name: string; merchant: string; installment_amount: number; installment_count: number; payments_made: number | null; start_date: string | null; end_date: string }>)
+  const debts = rowsOf(debtsRes as Res<{ name: string; balance: number; interest_rate: number; minimum_payment: number }>)
+  const efRows = rowsOf(efRes as Res<EmergencyFundRow>)
+  const goals = rowsOf(goalsRes as Res<GoalRow>)
+  const incomeSources = rowsOf(incomeSourcesRes as Res<{ name: string; type: string; amount: number; frequency: string }>)
+  const recurringIncome = rowsOf(recurringIncomeRes as Res<{ name: string; amount: number; recurrence: string; owner: string; category?: string; start_date?: string | null; day_of_month?: number | null }>)
+  const holdings = rowsOf(holdingsRes as Res<CryptoHoldingRow>)
 
-  const catMap = new Map((categories || []).map(c => [c.id, c]))
-  const budgetRows = (budgets || []) as SummaryBudgetRow[]
-  const activeBudgetRows = Object.values(
-    budgetRows.reduce((acc: Record<string, SummaryBudgetRow>, budget) => {
-      const categoryId = budget.category_id
-      if (!categoryId) return acc
+  const catMap = new Map(categories.map(c => [c.id, c]))
+  const activeBudgets = activeBudgetRows(budgets, month)
+  const budgetByCategory = new Map(activeBudgets.map(b => [b.category_id, b]))
+  const typeOfCategory = (id: string | null | undefined) => id ? budgetTypeFor(budgetByCategory.get(id), catMap.get(id)) : null
+  // Savings-type categories (e.g. a future "WEST payments" budget) are money
+  // moved, not spent: out of Spent and budgets, reported as moved_to_savings.
+  const savingsCategoryIds = new Set(activeBudgets.filter(b => b.budget_type === 'savings').map(b => b.category_id))
+  const isSavingsMove = (t: TxRow) => !!t.category_id && savingsCategoryIds.has(t.category_id)
 
-      const budgetMonth = String(budget.month || '').slice(0, 7)
-      const current = acc[categoryId]
-      const currentBudgetMonth = current ? String(current.month || '').slice(0, 7) : ''
+  // Annual cycles need 12 months of their category but the category history
+  // stops at month − 6: add those categories' older rows (from the main read
+  // where it reaches, one bounded extra read for the rest).
+  const longCycle = activeBudgets
+    .map(b => ({ id: b.category_id, months: CYCLE_MONTHS[(catMap.get(b.category_id)?.billing_cycle || 'monthly') as keyof typeof CYCLE_MONTHS] || 1 }))
+    .filter(c => `${addMonthsKey(month, -(c.months - 1))}-01` < spendHistoryStart)
+  let cycleHistory: TxRow[] = []
+  if (longCycle.length > 0) {
+    const ids = new Set(longCycle.map(c => c.id))
+    const cycleStart = `${addMonthsKey(month, -(Math.max(...longCycle.map(c => c.months)) - 1))}-01`
+    cycleHistory = txRows.filter(t => t.type === 'expense' && t.transaction_date < spendHistoryStart && ids.has(t.category_id || ''))
+    if (cycleStart < readStart) {
+      try {
+        cycleHistory = cycleHistory.concat(await fetchAllRows<TxRow>((from, to) => supabase.from('finance_transactions').select(TX_COLUMNS)
+          .in('category_id', [...ids]).eq('type', 'expense')
+          .gte('transaction_date', cycleStart).lt('transaction_date', readStart)
+          .order('transaction_date').order('id').range(from, to), 1000, 20000, true))
+      } catch {
+        throw new SummaryUnavailableError()
+      }
+    }
+  }
 
-      // Use one active budget per category: prefer the latest budget at or before
-      // the current month; if only future budgets exist, use the latest of those.
-      const budgetRank = `${budgetMonth <= currentMonthStr ? '1' : '0'}-${budgetMonth}`
-      const currentRank = current ? `${currentBudgetMonth <= currentMonthStr ? '1' : '0'}-${currentBudgetMonth}` : ''
-      if (!current || budgetRank > currentRank) acc[categoryId] = budget
-      return acc
-    }, {})
-  )
+  const expenses = txRows.filter(t => t.type === 'expense')
+  const incomeRows = txRows.filter(t => t.type === 'income')
+  const periodExpenses = expenses.filter(t => t.transaction_date >= startStr)
+  const historyExpenses = expenses.filter(t => t.transaction_date >= spendHistoryStart && t.transaction_date < monthStart)
+  const monthExpensesAll = expenses.filter(t => t.transaction_date >= monthStart)
+  const monthExpenses = monthExpensesAll.filter(t => !isSavingsMove(t))
+  const movedToSavings = Math.round(monthExpensesAll.filter(isSavingsMove).reduce((s, t) => s + txAmount(t), 0))
+  const monthIncomeRows = incomeRows.filter(t => t.transaction_date >= monthStart)
 
-  // Income — combine finance_income_sources (typed) and finance_recurring_income (per-owner)
-  const incSources = (incomeSources || []).map(s => ({
-    name: s.name,
-    type: s.type,
-    monthly_amount: Math.round(s.amount / (FREQ_DIVISOR[s.frequency] || 1)),
-  }))
-  // Recurring income: monthly = amount, bimonthly = amount/2, annual = amount/12
-  const RI_DIVISOR: Record<string, number> = { monthly: 1, bimonthly: 2, annual: 12 }
-  const todayStr = endStr
-  // Split: current (started already) vs future (start_date in the future)
-  const currentRI = (recurringIncome || []).filter(r => !r.start_date || r.start_date <= todayStr)
-  const futureRI = (recurringIncome || []).filter(r => r.start_date && r.start_date > todayStr)
-  const riSources = currentRI.map(r => ({
-    name: r.name,
-    type: r.category || 'recurring_income',
-    owner: r.owner,
-    monthly_amount: Math.round(r.amount / (RI_DIVISOR[r.recurrence] || 1)),
-    start_date: r.start_date ?? null,
-  }))
-  const futureRISources = futureRI.map(r => ({
-    name: r.name,
-    type: r.category || 'recurring_income',
-    owner: r.owner,
-    monthly_amount: Math.round(r.amount / (RI_DIVISOR[r.recurrence] || 1)),
-    start_date: r.start_date as string,
-  }))
-  const configuredMonthlyIncome =
-    incSources.reduce((s, i) => s + i.monthly_amount, 0) +
-    riSources.reduce((s, i) => s + i.monthly_amount, 0)
-  const incomeBaseline = deriveIncomeBaseline(configuredMonthlyIncome, incomeTransactions || [], currentMonthStr)
+  // ── Income ────────────────────────────────────────────────────────────
+  const incSources = incomeSources.map(s => ({ name: s.name, type: s.type, monthly_amount: Math.round(s.amount / (FREQ_DIVISOR[s.frequency] || 1)) }))
+  const currentRI = recurringIncome.filter(r => !r.start_date || r.start_date <= today)
+  const futureRI = recurringIncome.filter(r => r.start_date && r.start_date > today)
+  const riShape = (r: typeof recurringIncome[number]) => ({
+    name: r.name, type: r.category || 'recurring_income', owner: r.owner,
+    monthly_amount: Math.round(r.amount / (RI_DIVISOR[r.recurrence] || 1)), start_date: r.start_date ?? null,
+  })
+  const riSources = currentRI.map(riShape)
+  const futureRISources = futureRI.map(r => ({ ...riShape(r), start_date: r.start_date as string }))
+  const configuredMonthlyIncome = incSources.reduce((s, i) => s + i.monthly_amount, 0) + riSources.reduce((s, i) => s + i.monthly_amount, 0)
+  const incomeBaseline = deriveIncomeBaseline(configuredMonthlyIncome, incomeRows.filter(t => t.transaction_date >= incomeHistoryStart), month)
   const totalMonthlyIncome = incomeBaseline.effectiveMonthly
 
-  // Spending by category
-  const txs = transactions || []
+  // ── Spending over the requested period ────────────────────────────────
   const catSpend: Record<string, number> = {}
-  txs.forEach(t => {
-    const key = t.category_id || 'uncategorized'
-    catSpend[key] = (catSpend[key] || 0) + (t.amount_mxn || t.amount || 0)
-  })
-  const totalSpend = txs.reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
+  for (const t of periodExpenses) catSpend[t.category_id || 'uncategorized'] = (catSpend[t.category_id || 'uncategorized'] || 0) + txAmount(t)
+  const totalSpend = periodExpenses.reduce((s, t) => s + txAmount(t), 0)
   const monthlyAvgSpend = Math.round(totalSpend / months)
-
   const spendByCategory = Object.entries(catSpend).map(([catId, total]) => {
     const cat = catMap.get(catId)
-    const bgt = activeBudgetRows.find(b => b.category_id === catId)
     return {
       category: cat?.name || 'Uncategorized',
       icon: cat?.icon || '📦',
       total: Math.round(total),
       monthly_avg: Math.round(total / months),
-      budget: bgt?.amount || 0,
+      budget: budgetByCategory.get(catId)?.amount || 0,
       pct_of_income: totalMonthlyIncome > 0 ? Math.round((total / months) / totalMonthlyIncome * 100) : 0,
     }
   }).sort((a, b) => b.total - a.total)
-
-  // Spending by month
   const byMonth: Record<string, number> = {}
-  txs.forEach(t => {
-    const m = (t.transaction_date || '').slice(0, 7)
-    if (m) byMonth[m] = (byMonth[m] || 0) + (t.amount_mxn || t.amount || 0)
-  })
-  const spendByMonth = Object.entries(byMonth).sort().map(([month, total]) => ({ month, total: Math.round(total) }))
+  for (const t of periodExpenses) byMonth[t.transaction_date.slice(0, 7)] = (byMonth[t.transaction_date.slice(0, 7)] || 0) + txAmount(t)
+  const spendByMonth = Object.entries(byMonth).sort().map(([m, total]) => ({ month: m, total: Math.round(total) }))
 
-  // Budgets
-  const budgetCategories = activeBudgetRows.map(b => {
+  const budgetCategories = activeBudgets.map(b => {
     const cat = catMap.get(b.category_id)
     const spent = catSpend[b.category_id] || 0
-    const budgetType = b.budget_type || defaultBudgetType(cat?.name || '')
     return {
       category: cat?.name || 'Unknown',
       icon: cat?.icon || '📦',
       budget: b.amount,
       spent: Math.round(spent / months),
       pct_used: b.amount > 0 ? Math.round((spent / months) / b.amount * 100) : 0,
-      budget_type: budgetType,
+      budget_type: budgetTypeFor(b, cat),
     }
   })
+  const wantsBudgets = budgetCategories.filter(b => b.budget_type === 'wants').map(b => ({ category: b.category, icon: b.icon, budget: b.budget }))
 
-  // Subscriptions
-  const subs = (recurring || []).map(r => ({
-    name: r.name,
-    amount: r.amount,
-    frequency: r.frequency,
+  // ── Commitments ───────────────────────────────────────────────────────
+  const subs = recurring.map(r => ({
+    name: r.name, amount: r.amount, frequency: r.frequency,
     monthly_equivalent: Math.round(r.amount / (FREQ_DIVISOR[r.frequency] || 1)),
     last_charge: r.next_due_date,
+    next_charge: r.next_due_date,
   }))
   const subsMonthly = subs.reduce((s, r) => s + r.monthly_equivalent, 0)
-
-  // Installments
-  const inst = (installments || [])
+  const inst = installments
     .map(i => {
       const paymentsRemaining = Math.max(0, i.installment_count - (i.payments_made || 0))
       return {
-        name: i.name,
-        merchant: i.merchant,
-        monthly_payment: i.installment_amount,
-        payments_remaining: paymentsRemaining,
-        total_remaining: paymentsRemaining * i.installment_amount,
-        end_date: i.end_date,
+        name: i.name, merchant: i.merchant, monthly_payment: i.installment_amount,
+        payments_remaining: paymentsRemaining, total_remaining: paymentsRemaining * i.installment_amount, end_date: i.end_date,
       }
     })
-    // A plan can remain marked active after its final scheduled payment. It
-    // belongs in history, not in the household's forward commitments.
+    // A plan can stay "active" after its final payment; that's history.
     .filter(i => i.payments_remaining > 0)
   const instMonthly = inst.reduce((s, i) => s + i.monthly_payment, 0)
+  const debtItems = debts.map(d => ({ name: d.name, balance: d.balance, rate: d.interest_rate, minimum: d.minimum_payment }))
 
-  // Debts
-  const debtItems = (debts || []).map(d => ({
-    name: d.name,
-    balance: d.balance,
-    rate: d.interest_rate,
-    minimum: d.minimum_payment,
-  }))
-
-  // Emergency fund
-  const ef = (emergencyFund || [])[0]
-  const emergencyCoverage = emergencyFundCoverage({
-    current: ef?.current_amount || 0,
-    target: ef?.target_amount || 0,
-    targetMonths: ef?.target_months,
-    monthlyEssentials: ef?.account_allocation_json?.monthly_essentials,
-  })
-
-  // Goals
-  const activeGoals = (goals || []).map(g => {
-    const remaining = (g.target_amount || 0) - (g.current_amount || 0)
-    const monthlyNeeded = g.target_date ? Math.round(remaining / Math.max(1, Math.ceil((new Date(g.target_date).getTime() - now.getTime()) / (30 * 86400000)))) : 0
-    return {
-      name: g.name,
-      target: g.target_amount,
-      current: g.current_amount,
-      pct: g.target_amount > 0 ? Math.round(g.current_amount / g.target_amount * 100) : 0,
-      monthly_needed: monthlyNeeded,
-      on_track: g.monthly_contribution >= monthlyNeeded,
-    }
-  })
-
-  // Cash flow — subscriptions are already inside budget categories, don't double-count
-  const totalBudgeted = budgetCategories.reduce((s, b) => s + b.budget, 0)
-  const fixedCommitments = totalBudgeted + instMonthly + debtItems.reduce((s, d) => s + d.minimum, 0)
-
-  // Current month budget vs actual with pace
+  // ── Current month ─────────────────────────────────────────────────────
   const dayOfMonth = mx.day
-  const daysInMonth = Number(mxDate(1, 0).slice(8, 10))
-  const monthProgress = dayOfMonth / daysInMonth
-
-  // Billing cycle multipliers: how many months one payment covers
-  const CYCLE_MONTHS: Record<string, number> = {
-    monthly: 1, bimonthly: 2, quarterly: 3, 'semi-annual': 6, annual: 12,
-  }
-
-  // Current month spending by category — raw amounts in payment month (no amortization)
-  const currentMonthTxs = txs.filter(t => (t.transaction_date || '').startsWith(currentMonthStr))
-  const currentMonthCatSpend: Record<string, number> = {}
-  currentMonthTxs.forEach(t => {
-    const k = t.category_id || 'uncategorized'
-    currentMonthCatSpend[k] = (currentMonthCatSpend[k] || 0) + (t.amount_mxn || t.amount || 0)
+  const daysInMonth = daysInMonthOf(mx.year, mx.month)
+  const budgetVsActual = buildBudgetVsActual({
+    budgets: activeBudgets.filter(b => !savingsCategoryIds.has(b.category_id)),
+    catMap, currentMonthTxs: monthExpenses, historyTxs: historyExpenses.filter(t => !isSavingsMove(t)),
+    cycleHistoryTxs: cycleHistory, month, dayOfMonth, daysInMonth,
   })
 
-  // Fixed categories: known scheduled charges (rent + WEST on day 1; utility
-  // bills early-month; subscriptions on their billing dates) whose month
-  // total cannot exceed the budget by design. High %-used is the NORMAL
-  // state — pace math and alerts are meaningless; only spending BEYOND the
-  // budget (duplicate charge or price increase) matters.
-  const FIXED_CATEGORIES = new Set(['Rent/Mortgage', 'Utilities', 'Subscriptions'])
-
-  // Per-category totals for the six complete months before this one. This is
-  // what lets the projection prefer observed reality over a stale budget —
-  // Subscriptions carried an $1,800 budget after two of three services were
-  // cancelled in March, and the forecast kept adding the untouched $1,500.
-  const historyByCategoryMonth: Record<string, Record<string, number>> = {}
-  for (const t of categoryHistoryTxs || []) {
-    const historyMonth = (t.transaction_date || '').slice(0, 7)
-    if (!historyMonth) continue
-    const key = t.category_id || 'uncategorized'
-    historyByCategoryMonth[key] = historyByCategoryMonth[key] || {}
-    historyByCategoryMonth[key][historyMonth] =
-      (historyByCategoryMonth[key][historyMonth] || 0) + (t.amount_mxn || t.amount || 0)
+  const fertilityPaid = fertilityRows.map(t => ({ date: t.transaction_date, amount: txAmount(t) }))
+  const taggedBabyIds = new Set(babyRows.map(t => t.id))
+  const babyCandidates = expenses.filter(t =>
+    t.transaction_date >= `${addMonthsKey(BABY_PLAN.startMonth, -1)}-01`
+    && !taggedBabyIds.has(t.id)
+    && !(t.tags || []).includes(BABY_PLAN_TAG)
+    && looksLikeBabySpend(t.merchant, t.category_id ? catMap.get(t.category_id)?.name : null))
+  const babyLedger: BabyLedger = {
+    taggedPaid: babyRows.map(t => ({ date: t.transaction_date, amount: txAmount(t) })),
+    settlementPaid: [...babyRows, ...babyCandidates].map(t => ({ date: t.transaction_date, amount: txAmount(t) })),
+    untaggedCandidates: babyCandidates.length,
   }
-  const categoryHistoryFor = (categoryId: string, budget: number) => summarizeCategoryHistory(
-    Object.entries(historyByCategoryMonth[categoryId] || {})
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([, total]) => Math.round(total)),
-    budget,
-  )
+  const babyPlan = buildBabyPlan(babyLedger, { asOf, today })
+  const treatmentDue = treatmentDueThisMonth(month, fertilityPaid)
+  const babyDue = babyPlan.remaining_events.filter(e => e.month === month).reduce((s, e) => s + e.amount, 0)
 
-  const budgetVsActual = activeBudgetRows.map(b => {
-    const cat = catMap.get(b.category_id)
-    const billingCycle = cat?.billing_cycle || 'monthly'
-    const cycleMonths = CYCLE_MONTHS[billingCycle] || 1
-    const isNonMonthly = cycleMonths > 1
-    const isFixed = FIXED_CATEGORIES.has(cat?.name || '')
-
-    const spent = currentMonthCatSpend[b.category_id] || 0
-    const monthlyBudget = b.amount || 0
-    // For non-monthly: scale budget up by cycle (bimonthly = 2× budget)
-    const effectiveBudget = isNonMonthly ? monthlyBudget * cycleMonths : monthlyBudget
-    const pctUsed = effectiveBudget > 0 ? Math.round(spent / effectiveBudget * 100) : 0
-
-    // Pace reporting: skip for non-monthly (bimonthly bills aren't linear
-    // spending) and for fixed (the charge lands whole; nothing accrues)
-    let dailyPace = 0
-    let budgetDailyPace = 0
-    let paceVsBudget = 0
-
-    if (!isNonMonthly && !isFixed) {
-      dailyPace = dayOfMonth > 0 ? spent / dayOfMonth : 0
-      budgetDailyPace = daysInMonth > 0 ? effectiveBudget / daysInMonth : 0
-      paceVsBudget = budgetDailyPace > 0 ? Math.round((dailyPace / budgetDailyPace - 1) * 100) : 0
-    }
-
-    // One place decides every category's month-end estimate, so the forecast
-    // total can't drift from the per-category numbers shown alongside it.
-    const history = categoryHistoryFor(b.category_id, effectiveBudget)
-    const typicalMonth = history.monthsObserved >= MIN_HISTORY_MONTHS ? history.median : effectiveBudget
-    const lumpSpent = lumpSum(
-      currentMonthTxs.filter(t => t.category_id === b.category_id).map(t => t.amount_mxn || t.amount || 0),
-      typicalMonth,
-    )
-    const projection = projectCategoryMonthEnd({
-      spent,
-      budget: effectiveBudget,
-      isFixed,
-      isNonMonthly,
-      dayOfMonth,
-      daysInMonth,
-      history,
-      lumpSpent,
-    })
-
-    return {
-      category: cat?.name || 'Unknown',
-      icon: cat?.icon || '📦',
-      billing_cycle: billingCycle,
-      spent: Math.round(spent),
-      budget: effectiveBudget,
-      monthly_budget: monthlyBudget,
-      pct_used: pctUsed,
-      over_under: Math.round(spent - effectiveBudget),
-      status: (isFixed
-        ? (spent > effectiveBudget ? 'over' : 'ok')
-        : pctUsed < 80 ? 'ok' : pctUsed <= (isNonMonthly ? 150 : 100) ? 'warning' : 'over') as BudgetVsActualRow['status'],
-      daily_pace: Math.round(dailyPace),
-      budget_daily_pace: Math.round(budgetDailyPace),
-      pace_vs_budget_pct: paceVsBudget,
-      projected_month_total: projection.projected,
-      expected_remaining: projection.expectedRemaining,
-      projection_basis: projection.basis,
-      history_median: history.median,
-      history_months: history.monthsObserved,
-      history_month_totals: history.monthTotals,
-      times_over_budget: history.timesOverBudget,
-      is_non_monthly: isNonMonthly,
-      is_fixed: isFixed,
-      cycle_months: cycleMonths,
-    }
-  }).sort((a, b) => b.pct_used - a.pct_used)
-
-  const totalCurrentMonthSpend = currentMonthTxs.reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
-
-  // ── Month-end savings projection ──────────────────────────────────
-  // Per-category expected month totals: fixed categories land their full
-  // scheduled amount; bimonthly counts only what posted; variable categories
-  // use budget until day 7 (pace is noise early), then daily pace.
-  const pastDay7 = dayOfMonth >= 7
-  // Every per-category rule now lives in projectCategoryMonthEnd(), so the
-  // total is a plain sum — it cannot disagree with the numbers shown per row.
-  const projectedBudgetedSpend = budgetVsActual.reduce((s, b) => s + b.projected_month_total, 0)
-  const budgetedSpentSoFar = budgetVsActual.reduce((s, b) => s + b.spent, 0)
-  const unbudgetedSpent = Math.max(0, Math.round(totalCurrentMonthSpend) - budgetedSpentSoFar)
-  // Scheduled treatment milestones stay in the forecast until a matching
-  // fertility-tagged payment actually posts — a milestone due today (or
-  // overdue) is still money leaving this month.
-  const treatmentRemainingThisMonth = getUnpaidTreatmentEventsForMonth(
-    currentMonthStr,
-    (fertilityPaidTxs || []).map(t => ({ date: t.transaction_date, amount: t.amount_mxn || t.amount || 0 })),
-  ).reduce((s, e) => s + e.amount, 0)
-  // Baby-plan milestones use the same unpaid-until-posted logic, keyed on the
-  // 'baby' tag.
-  const babyRemainingThisMonth = getUnpaidTreatmentEventsForMonth(
-    currentMonthStr,
-    (babyPaidTxs || []).map(t => ({ date: t.transaction_date, amount: t.amount_mxn || t.amount || 0 })),
-    BABY_PLAN.events,
-  ).reduce((s, e) => s + e.amount, 0)
-  // Carried at actuals, never trended: fertility spend is plan-driven
-  // one-offs, and the processor posts auto-recurring/auto-msi rows exactly
-  // once per month — a days-elapsed multiplier invents repeats that cannot
-  // happen (on day 7, $1,960 of posted MSI installments projected as $8,700).
-  // The rest of unbudgeted spending doesn't stop today: past day 7, project
-  // it at its daily pace like any variable category.
-  const UNTRENDED_TAGS = ['fertility', BABY_PLAN_TAG, 'auto-recurring', 'auto-msi']
-  const budgetedCategoryIds = new Set(activeBudgetRows.map(b => b.category_id))
-  const unbudgetedAtActuals = Math.round(currentMonthTxs
-    .filter(t => !budgetedCategoryIds.has(t.category_id)
-      && Array.isArray(t.tags) && t.tags.some((tag: string) => UNTRENDED_TAGS.includes(tag)))
-    .reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0))
-  // One-off charges (e.g. a $2,800 baby purchase) land once; only routine
-  // unbudgeted spending runs at its daily pace.
-  const unbudgetedLumps = lumpSum(
-    currentMonthTxs
-      .filter(t => !budgetedCategoryIds.has(t.category_id)
-        && !(Array.isArray(t.tags) && t.tags.some((tag: string) => UNTRENDED_TAGS.includes(tag))))
-      .map(t => t.amount_mxn || t.amount || 0),
-    0,
-  )
-  const trendedUnbudgeted = Math.max(0, unbudgetedSpent - unbudgetedAtActuals - unbudgetedLumps)
-  const projectedUnbudgeted = (pastDay7 && dayOfMonth > 0
-    ? Math.round(trendedUnbudgeted / dayOfMonth * daysInMonth)
-    : trendedUnbudgeted) + unbudgetedLumps
-  const projectedMonthSpend = Math.round(projectedBudgetedSpend + projectedUnbudgeted + unbudgetedAtActuals + treatmentRemainingThisMonth + babyRemainingThisMonth)
-  const actualIncomeThisMonth = (currentMonthIncomeTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
-  // What has posted + recurring income still due to land. The old
-  // `max(actual, totalMonthlyIncome)` floor never released, so after payroll
-  // posted in full the projection kept expecting income that could no longer
-  // arrive — month-end savings read higher than money already banked
-  // ($75,532 projected vs $74,500 net on 2026-07-25, spend still to come).
+  const spendProjection = projectMonthSpend({
+    budgetVsActual,
+    currentMonthTxs: monthExpenses,
+    budgetedCategoryIds: new Set(activeBudgets.map(b => b.category_id)),
+    dayOfMonth, daysInMonth, treatmentDue, babyDue,
+  })
+  // Posted income plus recurring income still due; never a baseline floor
+  // that keeps expecting payroll after it landed.
   const monthIncome = expectedMonthIncome({
-    actualIncome: actualIncomeThisMonth,
+    actualIncome: monthIncomeRows.reduce((s, t) => s + txAmount(t), 0),
     recurringIncome: currentRI,
-    postedMerchants: (currentMonthIncomeTxs || []).map(t => t.merchant),
+    postedMerchants: monthIncomeRows.map(t => t.merchant),
     monthlyBaseline: totalMonthlyIncome,
   })
-  const expectedIncomeThisMonth = monthIncome.expected
-  const projectedMonthSavings = expectedIncomeThisMonth - projectedMonthSpend
+  const projectedMonthSavings = monthIncome.expected - spendProjection.projected_spend
 
-  // Goal funding gap
-  const totalGoalMonthlyNeeded = activeGoals.reduce((s, g) => s + g.monthly_needed, 0)
-  const discretionary = totalMonthlyIncome - fixedCommitments
-  const goalFundingGap = totalGoalMonthlyNeeded - discretionary
+  // ── Free cash, goals ──────────────────────────────────────────────────
+  const fixedCommitments = budgetCategories.reduce((s, b) => s + b.budget, 0) + instMonthly + debtItems.reduce((s, d) => s + d.minimum, 0)
+  // ONE free-cash number (householdRunRate, shared with WEST capacity): the
+  // median clean net of the last 3 complete months — windfalls and one-off
+  // lumps out. Goal funding, the year-end plan and cash_flow all read it.
+  const rr = householdRunRate(txRows, month)
+  const hasHistory = rr.months_used > 0
+  const plannedMonthlySpend = hasHistory ? rr.typical_spend : fixedCommitments
+  const discretionary = hasHistory ? rr.run_rate : totalMonthlyIncome - fixedCommitments
 
-  // Fertility treatment plan: 260k MXN all-in (clinic + meds + tests), May-Jul 2026.
-  // Remaining = total budget minus everything already spent (fertility-tagged txs).
-  const remainingTreatmentEvents = getRemainingTreatmentEvents(now)
-  const alreadyPaidFertility = (fertilityPaidTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
-  const remainingTreatmentAmount = Math.max(0, FERTILITY_TREATMENT_PLAN.planningTotal - alreadyPaidFertility)
-  const currentTreatmentEvent = getTreatmentEventForMonth(currentMonthStr) ?? remainingTreatmentEvents[0] ?? null
-  const treatmentMonthlyCommitment = currentTreatmentEvent?.amount ?? 0
-  const treatmentMonthlyGap = Math.max(0, totalGoalMonthlyNeeded + treatmentMonthlyCommitment - discretionary)
-  const monthsAfterTreatment = 5 // Aug-Dec 2026
-  const deferredCatchUpMonthly = Math.ceil((treatmentMonthlyGap * remainingTreatmentEvents.length) / monthsAfterTreatment)
-  // Baby plan: remaining = envelope minus everything already spent (baby-tagged txs).
-  const remainingBabyEvents = getRemainingBabyEvents(now)
-  const alreadyPaidBaby = (babyPaidTxs || []).reduce((s, t) => s + (t.amount_mxn || t.amount || 0), 0)
-  const remainingBabyAmount = Math.max(0, BABY_PLAN.planningTotal - alreadyPaidBaby)
-  const currentBabyEvent = getBabyEventForMonth(currentMonthStr) ?? remainingBabyEvents[0] ?? null
-  const babyMonthlyCommitment = getBabyEventForMonth(currentMonthStr)?.amount ?? 0
-  // Baby milestones landing before January compete with the December goal
-  // target the same way treatment payments did.
-  const babyRemainingThisYear = remainingBabyEvents
-    .filter(e => e.month.slice(0, 4) === String(now.getFullYear()))
-    .reduce((s, e) => s + e.amount, 0)
-  const educationProjection = projectEducationFund()
+  const goalsBuild = buildGoals(goals, mx, cryptoQuantities(holdings))
+  const goalGap = goalsBuild.total_monthly_needed - discretionary
 
-  const monthsToDecember = Math.max(1, 11 - now.getMonth()) // next month through December
-  const totalGoalTarget = activeGoals.reduce((s, g) => s + (g.target || 0), 0)
-  const totalGoalSaved = activeGoals.reduce((s, g) => s + (g.current || 0), 0)
-  const totalGoalRemaining = Math.max(0, totalGoalTarget - totalGoalSaved)
-  const totalNeededByDecember = totalGoalRemaining + remainingTreatmentAmount + babyRemainingThisYear
-  // Extra income already received this month beyond what's in the recurring base
-  const currentMonthActualIncome = incomeBaseline.currentMonthActual
-  const currentMonthExtraIncome = Math.max(0, currentMonthActualIncome - totalMonthlyIncome)
-  // Month-by-month projection: starts with current month extra, then adds future months
-  let projectedFreeCashByDecember = currentMonthExtraIncome
-  for (let m = 1; m <= monthsToDecember; m++) {
-    const projDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + m, 1))
-    const projDateStr = projDate.toISOString().slice(0, 10)
-    const additionalIncome = futureRISources
-      .filter(r => r.start_date <= projDateStr)
-      .reduce((s, r) => s + r.monthly_amount, 0)
-    projectedFreeCashByDecember += discretionary + additionalIncome
-  }
-  const yearEndShortfall = Math.max(0, totalNeededByDecember - projectedFreeCashByDecember)
-  const yearEndSurplus = Math.max(0, projectedFreeCashByDecember - totalNeededByDecember)
-  const monthlyAllInNeeded = Math.ceil(totalNeededByDecember / monthsToDecember)
-  const monthlyExtraNeeded = Math.ceil(yearEndShortfall / monthsToDecember)
-  const cutRecommendations = buildFertilityCutRecommendations(
-    budgetCategories
-      .filter(b => b.budget_type === 'wants')
-      .map(b => ({ category: b.category, icon: b.icon, budget: b.budget })),
-    treatmentMonthlyGap,
-  )
+  const west = await westP
+  // This month's balloon / aguinaldo count only until they post; once posted
+  // they're already inside projectedSavings.
+  const westLumpPosted = (amount: number) => monthExpensesAll.some(t => isWestPayment(t) && txAmount(t) >= amount * 0.5)
+  const inflowPosted = (name: string, amount: number) => monthIncomeRows.some(t => {
+    const merchant = (t.merchant || '').toLowerCase()
+    return (!!name && merchant.includes(name.toLowerCase())) || merchant.includes('aguinaldo') || Math.abs(txAmount(t) - amount) <= amount * 0.02
+  })
+  const babyRoutine = BABY_PLAN.events.length > 0 ? Math.min(...BABY_PLAN.events.map(e => e.amount)) : 0
+  const yearEnd = buildYearEndPlan({
+    goals: goalsBuild.active,
+    targetYear: goalsBuild.target_year,
+    month,
+    projectedSavings: projectedMonthSavings,
+    runRate: discretionary,
+    futureIncome: futureRISources,
+    babyEvents: babyPlan.remaining_events,
+    babyRoutine,
+    knownLumps: west?.schedule.lump_sum_month && west.schedule.lump_sum_amount > 0
+      ? [{
+          month: west.schedule.lump_sum_month, amount: west.schedule.lump_sum_amount, label: 'WEST balloon payment',
+          posted: west.schedule.lump_sum_month === month && westLumpPosted(west.schedule.lump_sum_amount),
+        }]
+      : [],
+    knownInflows: incomeSources
+      .filter(s => s.frequency === 'yearly' && s.amount > 0)
+      .map(s => {
+        const payMonth = Math.min(Math.max(Number((s as { pay_month?: number }).pay_month) || 12, 1), 12)
+        const year = payMonth >= mx.month ? mx.year : mx.year + 1
+        const key = `${year}-${String(payMonth).padStart(2, '0')}`
+        return { month: key, amount: s.amount, label: s.name, posted: key === month && inflowPosted(s.name, s.amount) }
+      }),
+    wantsBudgets,
+  })
 
-  // MSI payoff timeline
-  const msiTimeline = inst.map(i => ({
-    name: i.name,
-    merchant: i.merchant,
-    monthly_payment: i.monthly_payment,
-    payments_remaining: i.payments_remaining,
-    end_date: i.end_date,
-    total_remaining: i.total_remaining,
-  })).sort((a, b) => (a.end_date || '').localeCompare(b.end_date || ''))
+  // ── Emergency fund ────────────────────────────────────────────────────
+  const essentials = deriveMonthlyEssentials(historyExpenses, { isNeedsCategory: id => typeOfCategory(id) === 'needs', beforeMonth: month })
+  const ef = efRows[0]
+  const emergency = buildEmergencyFund(ef, essentials.monthly, today)
 
-  // Crypto portfolio
-  let cryptoSummary = null
+  // ── Crypto ────────────────────────────────────────────────────────────
+  let cryptoSummary: SummaryResponse['crypto'] = null
   try {
-    const holdings = (cryptoHoldings || []).filter((h: Record<string, unknown>) => (h.quantity as number) > 0)
-    if (holdings.length > 0) {
-      const prices = await fetchCryptoPrices(holdings.map((h: Record<string, unknown>) => h.symbol as string)) ?? {}
-
-      const usdToMxn = Object.values(prices).find(p => p.usd > 0 && p.mxn > 0)
-        ? Object.values(prices).find(p => p.usd > 0)!.mxn / Object.values(prices).find(p => p.usd > 0)!.usd
-        : 17
-
-      let totalValueMXN = 0, totalValueUSD = 0, totalCostMXN = 0
-      const holdingSummaries = holdings.map((h: Record<string, unknown>) => {
-        const sym = h.symbol as string
-        const qty = h.quantity as number
-        const costBasis = h.avg_cost_basis_usd as number | null
-        const costCurrency = (h.cost_currency as string) || 'MXN'
-        const priceMXN = prices[sym]?.mxn ?? 0
-        const priceUSD = prices[sym]?.usd ?? 0
-        const valueMXN = qty * priceMXN
-        const valueUSD = qty * priceUSD
-        const costMXN = costBasis ? qty * (costCurrency === 'USD' ? costBasis * usdToMxn : costBasis) : 0
-
-        totalValueMXN += valueMXN
-        totalValueUSD += valueUSD
-        totalCostMXN += costMXN
-
-        return { symbol: sym, qty, value_mxn: Math.round(valueMXN), value_usd: Math.round(valueUSD * 100) / 100, cost_mxn: Math.round(costMXN), owner: h.owner as string }
-      })
-
-      // Aggregate by symbol
-      const bySymbol: Record<string, { qty: number; value_mxn: number; allocation_pct: number }> = {}
-      for (const h of holdingSummaries) {
-        if (!bySymbol[h.symbol]) bySymbol[h.symbol] = { qty: 0, value_mxn: 0, allocation_pct: 0 }
-        bySymbol[h.symbol].qty += h.qty
-        bySymbol[h.symbol].value_mxn += h.value_mxn
-      }
-      const holdingsAgg = Object.entries(bySymbol).map(([sym, d]) => ({
-        symbol: sym, qty: d.qty, value_mxn: d.value_mxn,
-        allocation_pct: totalValueMXN > 0 ? Math.round(d.value_mxn / totalValueMXN * 100) : 0,
-      })).sort((a, b) => b.value_mxn - a.value_mxn)
-
-      const pnlMXN = totalCostMXN > 0 ? totalValueMXN - totalCostMXN : 0
-      const pnlPct = totalCostMXN > 0 ? Math.round(pnlMXN / totalCostMXN * 1000) / 10 : 0
-
-      // Risk flags
-      const concentrationRisk = holdingsAgg.find(h => h.allocation_pct > 80)
-      const largeLoss = pnlPct < -20
-
-      cryptoSummary = {
-        total_value_mxn: Math.round(totalValueMXN),
-        total_value_usd: Math.round(totalValueUSD * 100) / 100,
-        total_cost_mxn: Math.round(totalCostMXN),
-        pnl_mxn: Math.round(pnlMXN),
-        pnl_pct: pnlPct,
-        holdings: holdingsAgg,
-        by_owner: {
-          Bernardo: { value_mxn: holdingSummaries.filter(h => h.owner === OWNERS[0]).reduce((s, h) => s + h.value_mxn, 0) },
-          Laura: { value_mxn: holdingSummaries.filter(h => h.owner === OWNERS[1]).reduce((s, h) => s + h.value_mxn, 0) },
-        },
-        risks: {
-          concentration: concentrationRisk ? { symbol: concentrationRisk.symbol, pct: concentrationRisk.allocation_pct } : null,
-          large_loss: largeLoss ? { pnl_pct: pnlPct } : null,
-        },
-      }
-    }
+    cryptoSummary = buildCryptoSummary(holdings, await pricesP)
   } catch (e) {
     console.error('Crypto summary error:', e)
   }
 
+  // ── WEST plan for this month (never added to the goal need) ───────────
+  let westPlan: SummaryWestPlan | null = null
+  const planMonth = west?.savings_plan.months.find(m => m.month === month)
+  if (west && planMonth) {
+    westPlan = {
+      month_target: planMonth.target,
+      capacity_target: planMonth.capacity,
+      projected_savings: projectedMonthSavings,
+      pct_of_capacity: planMonth.capacity > 0 ? Math.round(projectedMonthSavings / planMonth.capacity * 100) : 0,
+      pct_of_target: planMonth.target > 0 ? Math.round(projectedMonthSavings / planMonth.target * 100) : 0,
+      purchase_gap: west.savings_plan.purchase_gap,
+      furnishing_budget: west.savings_plan.furnishing_budget,
+      cumulative_vs_capacity_since_jan: west.behavioral.cumulative_vs_capacity_since_jan,
+      months_to_delivery: west.months_to_delivery,
+      funded_pct: west.current_status.funded_pct,
+      feasible: west.savings_plan.feasible,
+      projected_shortfall_at_delivery: west.savings_plan.projected_shortfall_at_delivery,
+      stretch_factor: west.savings_plan.stretch_factor,
+    }
+  }
+
+  const upcoming = buildUpcoming({
+    today,
+    recurring,
+    installments,
+    recurringIncome: currentRI.concat(futureRI),
+    postedIncomeMerchants: monthIncomeRows.map(t => t.merchant || ''),
+    babyEvents: babyPlan.remaining_events,
+    westLump: west?.schedule.lump_sum_month && west.schedule.lump_sum_amount > 0
+      ? { date: west.schedule.lump_sum_date || `${west.schedule.lump_sum_month}-01`, amount: west.schedule.lump_sum_amount }
+      : null,
+  })
+
+  const fertilityPlan = buildFertilityPlan({
+    paidTxs: fertilityPaid, asOf, month,
+    goalMonthlyNeeded: goalsBuild.total_monthly_needed, discretionary, wantsBudgets,
+  })
+
   return {
-    period: { start: startStr, end: endStr },
+    period: { start: startStr, end: today },
     income: {
       sources: incSources,
       recurring: riSources,
@@ -614,126 +394,68 @@ export async function buildSummary(
     subscriptions: { active: subs, total_monthly: subsMonthly, total_annual: subsMonthly * 12 },
     installments: { active: inst, total_monthly_commitment: instMonthly },
     debts: { items: debtItems, total_balance: debtItems.reduce((s, d) => s + d.balance, 0), total_minimums: debtItems.reduce((s, d) => s + d.minimum, 0) },
-    emergency_fund: {
-      target: ef?.target_amount || 0,
-      current: ef?.current_amount || 0,
-      target_months: ef?.target_months || 6,
-      monthly_essentials: emergencyCoverage.monthlyEssentials,
-      months_covered: emergencyCoverage.monthsCovered,
-      funded_pct: emergencyCoverage.fundedPct,
-      gap: emergencyCoverage.gap,
-      risk_score: ef?.risk_score || 0,
-    },
-    goals: { active: activeGoals },
+    emergency_fund: emergency,
+    goals: { active: goalsBuild.active },
     cash_flow: {
       monthly_income: totalMonthlyIncome,
+      // Budgets + MSI + debt minimums: what is budgeted, not what is spent.
       fixed_commitments: fixedCommitments,
+      // Median clean spend of the same 3 months the free-cash run rate uses.
+      planned_spend: plannedMonthlySpend,
+      planned_spend_basis: hasHistory ? 'median-clean-3mo' : 'budgets',
+      // Free cash per month: the run rate (== year_end_goal_plan.monthly_free_cash
+      // == goal_funding.discretionary_available).
       discretionary_available: discretionary,
     },
     current_month: {
-      month: currentMonthStr,
+      month,
       day_of_month: dayOfMonth,
       days_in_month: daysInMonth,
-      month_progress_pct: Math.round(monthProgress * 100),
-      total_spent: Math.round(totalCurrentMonthSpend),
+      month_progress_pct: Math.round(dayOfMonth / daysInMonth * 100),
+      total_spent: spendProjection.total_spent,
+      moved_to_savings: movedToSavings,
+      budget_basis: 'cash',
       budget_vs_actual: budgetVsActual,
     },
     month_projection: {
-      expected_income: expectedIncomeThisMonth,
-      // Split out so the hero's actual-to-date net and this month-end forecast
-      // can be reconciled on sight instead of looking like a contradiction.
+      expected_income: monthIncome.expected,
       income_received: monthIncome.received,
       income_still_scheduled: monthIncome.stillScheduled,
-      spent_so_far: Math.round(totalCurrentMonthSpend),
-      projected_spend: projectedMonthSpend,
-      known_upcoming_treatment: Math.round(treatmentRemainingThisMonth),
-      known_upcoming_baby: Math.round(babyRemainingThisMonth),
+      spent_so_far: spendProjection.total_spent,
+      projected_spend: spendProjection.projected_spend,
+      known_upcoming_treatment: Math.round(treatmentDue),
+      known_upcoming_baby: Math.round(babyDue),
+      moved_to_savings: movedToSavings,
       projected_savings: projectedMonthSavings,
-      method: pastDay7
+      method: spendProjection.past_day_7
         ? 'per-category pace blended with recent-month medians'
         : 'history-anchored (pace stabilizes after day 7)',
     },
     goal_funding: {
-      total_monthly_needed: totalGoalMonthlyNeeded,
+      total_monthly_needed: goalsBuild.total_monthly_needed,
       discretionary_available: discretionary,
-      gap: goalFundingGap > 0 ? goalFundingGap : 0,
-      fully_funded: goalFundingGap <= 0,
+      gap: goalGap > 0 ? goalGap : 0,
+      fully_funded: goalGap <= 0,
+      overdue_goals: goalsBuild.overdue_goals,
     },
-    year_end_goal_plan: {
-      target_amount: totalGoalTarget,
-      current_saved: totalGoalSaved,
-      goal_remaining: totalGoalRemaining,
-      treatment_remaining: remainingTreatmentAmount,
-      baby_remaining_this_year: babyRemainingThisYear,
-      total_needed_by_december: totalNeededByDecember,
-      months_remaining: monthsToDecember,
-      monthly_free_cash: discretionary,
-      projected_free_cash_by_december: projectedFreeCashByDecember,
-      monthly_all_in_needed: monthlyAllInNeeded,
-      shortfall_by_december: yearEndShortfall,
-      surplus_by_december: yearEndSurplus,
-      monthly_extra_needed: monthlyExtraNeeded,
-      on_track: yearEndShortfall <= 0,
-      recommended_cuts: buildFertilityCutRecommendations(
-        budgetCategories
-          .filter(b => b.budget_type === 'wants')
-          .map(b => ({ category: b.category, icon: b.icon, budget: b.budget })),
-        monthlyExtraNeeded,
-      ),
-    },
-    fertility_plan: {
-      name: FERTILITY_TREATMENT_PLAN.name,
-      range_min: FERTILITY_TREATMENT_PLAN.minTotal,
-      range_max: FERTILITY_TREATMENT_PLAN.maxTotal,
-      planning_total: FERTILITY_TREATMENT_PLAN.planningTotal,
-      start_month: FERTILITY_TREATMENT_PLAN.startMonth,
-      end_month: FERTILITY_TREATMENT_PLAN.endMonth,
-      monthly_events: FERTILITY_TREATMENT_PLAN.events,
-      remaining_events: remainingTreatmentEvents,
-      remaining_amount: remainingTreatmentAmount,
-      current_month_commitment: treatmentMonthlyCommitment,
-      current_month_event: currentTreatmentEvent,
-      total_goal_monthly_needed: totalGoalMonthlyNeeded,
-      monthly_free_cash: discretionary,
-      discretionary_after_treatment: discretionary - treatmentMonthlyCommitment,
-      monthly_gap_to_keep_goals: treatmentMonthlyGap,
-      fully_funded_with_goals: treatmentMonthlyGap <= 0,
-      deferred_catch_up_monthly: deferredCatchUpMonthly,
-      recommended_cuts: cutRecommendations,
-    },
-    baby_plan: {
-      name: BABY_PLAN.name,
-      due_month: BABY_PLAN.dueMonth,
-      months_to_birth: Math.max(0, monthsUntilDue(now)),
-      range_min: BABY_PLAN.minTotal,
-      range_max: BABY_PLAN.maxTotal,
-      planning_total: BABY_PLAN.planningTotal,
-      start_month: BABY_PLAN.startMonth,
-      end_month: BABY_PLAN.endMonth,
-      monthly_events: BABY_PLAN.events,
-      remaining_events: remainingBabyEvents,
-      remaining_amount: remainingBabyAmount,
-      spent_to_date: Math.round(alreadyPaidBaby),
-      current_month_commitment: babyMonthlyCommitment,
-      current_month_event: currentBabyEvent,
-      education: {
-        name: EDUCATION_FUND_PLAN.name,
-        monthly_contribution: EDUCATION_FUND_PLAN.monthlyContribution,
-        start_month: EDUCATION_FUND_PLAN.startMonth,
-        target_month: EDUCATION_FUND_PLAN.targetMonth,
-        annual_return_rate: EDUCATION_FUND_PLAN.annualReturnRate,
-        education_inflation_rate: EDUCATION_FUND_PLAN.educationInflationRate,
-        ...educationProjection,
-      },
-      checklist: getActiveChecklistItems(now).map(item => ({
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        severity: item.severity,
-        window_end: item.windowEnd,
-      })),
-    },
-    msi_timeline: msiTimeline,
+    year_end_goal_plan: yearEnd,
+    fertility_plan: fertilityPlan,
+    baby_plan: babyPlan,
+    msi_timeline: inst.map(i => ({
+      name: i.name, merchant: i.merchant, monthly_payment: i.monthly_payment,
+      payments_remaining: i.payments_remaining, end_date: i.end_date, total_remaining: i.total_remaining,
+    })).sort((a, b) => (a.end_date || '').localeCompare(b.end_date || '')),
     crypto: cryptoSummary,
+    variable: buildVariable(budgetVsActual, { today, dayOfWeek: mx.dayOfWeek, daysInMonth, dayOfMonth }),
+    owner_spend: buildOwnerSpend(monthExpenses, today),
+    recent_transactions: buildRecentTransactions(txRows.filter(t => !isSavingsMove(t)), catMap, today),
+    upcoming,
+    west_plan: westPlan,
+    staleness: {
+      gbm_confirmed_at: west?.staleness.gbm_confirmed_at ?? null,
+      ef_confirmed_at: emergency.confirmed_at,
+      real_estate_confirmed_at: west?.staleness.real_estate_confirmed_at ?? null,
+    },
   }
 }
+

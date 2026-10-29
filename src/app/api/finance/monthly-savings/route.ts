@@ -1,18 +1,12 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  )
-}
+import { ConfigError, configErrorResponse, getAdminClientInfo, withDegradedHeader } from '@/lib/supabase-admin'
 
 /**
  * GET /api/finance/monthly-savings?months=6&owner=all
  *
- * Returns monthly savings snapshots.
+ * Monthly savings snapshots, read with the service role (the anon key can't
+ * see finance_monthly_savings, so the browser must come through here).
  * owner param: 'bernardo' | 'laura' | 'total' | 'all' (default)
  * 'all' returns all rows; client pivots for charts.
  */
@@ -20,18 +14,25 @@ export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
 
-  const months = Math.min(parseInt(req.nextUrl.searchParams.get('months') || '6', 10), 24)
-  const owner = req.nextUrl.searchParams.get('owner') || 'all'
+  const requested = parseInt(req.nextUrl.searchParams.get('months') || '6', 10)
+  const months = Math.min(Math.max(Number.isFinite(requested) ? requested : 6, 1), 24)
+  const owner = (req.nextUrl.searchParams.get('owner') || 'all').toLowerCase()
 
-  // Fetch distinct months first to enforce limit
-  let query = getSupabase()
+  let client, degraded
+  try {
+    ({ client, degraded } = getAdminClientInfo())
+  } catch (e) {
+    if (e instanceof ConfigError) return configErrorResponse(e)
+    throw e
+  }
+
+  let query = client
     .from('finance_monthly_savings')
     .select('month, owner, gross_income, total_expenses, net_savings, savings_rate, planned_contribution, variance, notes')
     .order('month', { ascending: false })
 
   if (owner !== 'all') {
-    query = query.eq('owner', owner)
-    query = query.limit(months)
+    query = query.eq('owner', owner).limit(months)
   } else {
     // For 'all', fetch last N months × 3 owners
     query = query.limit(months * 3)
@@ -40,13 +41,13 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query
 
   if (error) {
-    if (error.code === '42P01') return NextResponse.json({ data: [] }) // table not yet created
+    if (error.code === '42P01') return NextResponse.json({ data: [], chart: [] }) // table not yet created
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   const rows = (data || []).reverse() // chronological
 
-  // Build pivoted chart data: [{ month, bernardo, laura, total, planned }]
+  // Pivoted chart data: [{ month, bernardo, laura, total, planned }]
   const monthMap: Record<string, Record<string, number>> = {}
   for (const row of rows) {
     const m = row.month
@@ -60,9 +61,9 @@ export async function GET(req: NextRequest) {
   }
   const chart = Object.entries(monthMap).map(([month, vals]) => ({
     month,
-    label: new Date(month).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
+    label: new Date(`${String(month).slice(0, 7)}-01T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
     ...vals,
   }))
 
-  return NextResponse.json({ data: rows, chart })
+  return withDegradedHeader(NextResponse.json({ data: rows, chart }, { headers: { 'Cache-Control': 'private, no-store' } }), degraded)
 }

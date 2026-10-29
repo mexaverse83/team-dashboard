@@ -1,8 +1,8 @@
 // Response contract for GET /api/finance/summary (and buildSummary()).
 //
-// W0 stub: the existing sections mirror what the route returns today; every
-// field added by the Mona v2 plan (§3) is OPTIONAL, so consumers (home, widget,
-// insights) must keep working while WS4 fills them in. WS4 owns this file.
+// Every field added by the Mona v2 plan (§3) stays OPTIONAL in the type so
+// consumers keep a graceful fallback, but buildSummary() always fills them.
+// WS4 owns this file.
 
 export interface PlanEvent {
   month: string
@@ -38,6 +38,8 @@ export interface BudgetVsActualRow {
   basis?: 'cash' | 'allocated'
   /** v2 (WS4): lets cards link to /finance/transactions?category=<id>. */
   category_id?: string
+  /** v2 (WS4): non-monthly rows rate this calendar-cycle spend against `budget`. */
+  cycle_window_spent?: number
 }
 
 // ── §3 additions (all optional until WS4 lands) ─────────────────────────────
@@ -52,6 +54,11 @@ export interface SummaryVariable {
   /** e.g. "Sat Oct 31" */
   through_label: string
   status: 'ok' | 'tight' | 'over'
+  /** Days in the week window (through Sunday or month end), incl. today. */
+  week_days_left?: number
+  /** `left` pro-rated to the week window; equals `left` when negative. */
+  week_left?: number
+  categories?: number
 }
 
 export interface SummaryRecentTransaction {
@@ -62,6 +69,7 @@ export interface SummaryRecentTransaction {
   owner: string | null
   category_name: string | null
   category_icon: string | null
+  type?: 'expense' | 'income' | string
 }
 
 export type UpcomingKind = 'bill' | 'msi' | 'income' | 'baby' | 'west'
@@ -71,6 +79,9 @@ export interface SummaryUpcomingItem {
   label: string
   amount: number
   kind: UpcomingKind
+  /** Grouped bills: how many share the date, and their names. */
+  count?: number
+  items?: string[]
 }
 
 export interface SummaryWestPlan {
@@ -84,6 +95,10 @@ export interface SummaryWestPlan {
   cumulative_vs_capacity_since_jan: number
   months_to_delivery: number
   funded_pct: number
+  /** The stretch target fits capacity (stretch ≤ 1.05). */
+  feasible?: boolean
+  projected_shortfall_at_delivery?: number
+  stretch_factor?: number
 }
 
 export interface SummaryStaleness {
@@ -117,7 +132,8 @@ export interface SummaryResponse {
     categories: Array<{ category: string; icon?: string; budget: number; budget_type?: string; [key: string]: unknown }>
   }
   subscriptions: {
-    active: Array<{ name: string; amount: number; frequency: string; monthly_equivalent: number; last_charge: string | null }>
+    /** `last_charge` holds the NEXT charge date (legacy name); `next_charge` is the same value. */
+    active: Array<{ name: string; amount: number; frequency: string; monthly_equivalent: number; last_charge: string | null; next_charge?: string | null }>
     total_monthly: number
     total_annual: number
   }
@@ -139,20 +155,45 @@ export interface SummaryResponse {
     funded_pct: number
     gap: number
     risk_score: number
-    /** v2 (WS4) */
+    /** v2 (WS4): 'derived' = median of 3 months of needs spend; 'manual' = explicit override. */
     essentials_basis?: 'derived' | 'manual'
     confirmed_at?: string | null
+    derived_essentials?: number
+    manual_essentials?: number | null
+    stored_target?: number
+    days_since_confirmed?: number | null
   }
   goals: {
-    active: Array<{ name: string; target: number; current: number; pct: number; monthly_needed: number; on_track: boolean }>
+    active: Array<{
+      name: string; target: number; current: number; pct: number; monthly_needed: number; on_track: boolean
+      id?: string; target_date?: string | null; months_remaining?: number; overdue?: boolean
+      /** Crypto goals count coins (`unit` = symbol) and never enter peso totals. */
+      is_crypto?: boolean; unit?: string; owner?: string | null; scope?: string | null
+    }>
   }
-  cash_flow: { monthly_income: number; fixed_commitments: number; discretionary_available: number }
+  cash_flow: {
+    monthly_income: number
+    /** Budgets + MSI + debt minimums — what is budgeted, not what is spent. */
+    fixed_commitments: number
+    /** v2 (WS4): median clean spend (one-off lumps out) of the last 3 complete months, budgeted + unbudgeted. */
+    planned_spend?: number
+    planned_spend_basis?: 'median-clean-3mo' | 'budgets'
+    /**
+     * v2 (WS4): free cash per month = median clean net (income − spend, windfalls
+     * and lumps out) of the last 3 complete months. Equals
+     * goal_funding.discretionary_available and year_end_goal_plan.monthly_free_cash.
+     */
+    discretionary_available: number
+  }
   current_month: {
     month: string
     day_of_month: number
     days_in_month: number
     month_progress_pct: number
     total_spent: number
+    /** v2 (WS4): spend in savings-type categories, excluded from total_spent and budgets. */
+    moved_to_savings?: number
+    budget_basis?: 'cash'
     budget_vs_actual: BudgetVsActualRow[]
   }
   month_projection: {
@@ -163,6 +204,7 @@ export interface SummaryResponse {
     projected_spend: number
     known_upcoming_treatment: number
     known_upcoming_baby?: number
+    moved_to_savings?: number
     projected_savings: number
     method: string
   }
@@ -183,7 +225,10 @@ export interface SummaryResponse {
     months_to_birth: number
     planning_total: number
     remaining_events: PlanEvent[]
+    /** planning_total − baby-TAGGED spend; untagged prenatal rows keep it high until tagged. */
     remaining_amount: number
+    /** v2 (WS4): sum of remaining_events — what the schedule still expects to be paid. */
+    remaining_scheduled?: number
     spent_to_date: number
     current_month_commitment: number
     current_month_event: PlanEvent | null
