@@ -105,7 +105,7 @@ interface SubForm {
 interface Debt { id: string; name: string; balance: number }
 
 const emptyForm: SubForm = { name: '', amount: '', currency: 'MXN', category_id: '', frequency: 'monthly', next_due_date: '', merchant: '', notes: '', owner: '', debt_id: '', payment_method: '' }
-const label = 'mb-1 block text-label font-medium text-fg-secondary'
+const label = 'mb-1 block text-xs font-medium text-fg-secondary'
 
 export default function SubscriptionsClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
@@ -317,7 +317,7 @@ export default function SubscriptionsClient() {
             processResult.tone === 'positive' ? 'border-positive/30 bg-positive-bg' : processResult.tone === 'warning' ? 'border-warning/40 bg-warning-bg' : 'border-negative/40 bg-negative-bg')}>
             <div className="flex items-start justify-between gap-3">
               <p className="font-medium">{processResult.title}</p>
-              <button type="button" onClick={() => setProcessResult(null)} className="-my-2 h-10 shrink-0 rounded-lg px-2 text-label font-semibold text-fg-secondary hover:text-fg">Dismiss</button>
+              <button type="button" onClick={() => setProcessResult(null)} className="-my-2 h-10 shrink-0 rounded-lg px-2 text-xs font-semibold text-fg-secondary hover:text-fg">Dismiss</button>
             </div>
             {processResult.details.length > 0 && (
               <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-fg-secondary">
@@ -331,8 +331,8 @@ export default function SubscriptionsClient() {
         <section className="grid grid-cols-3 divide-x divide-border overflow-hidden rounded-2xl border border-border bg-surface">
           {kpis.map(([name, value]) => (
             <div key={name} className="min-w-0 px-3 py-3 sm:px-5 sm:py-4">
-              <p className="truncate text-label font-medium text-fg-tertiary">{name}</p>
-              <MoneyText value={value} className="num-metric mt-1 block text-left text-base font-semibold text-fg sm:text-2xl" />
+              <p className="truncate text-xs font-medium text-fg-tertiary">{name}</p>
+              <MoneyText value={value} className="num-metric mt-1 block !text-left text-base font-semibold text-fg sm:text-2xl" />
             </div>
           ))}
         </section>
@@ -341,7 +341,7 @@ export default function SubscriptionsClient() {
           <section className="overflow-hidden rounded-2xl border border-border bg-surface" aria-labelledby="subs-heading">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <h2 id="subs-heading" className="text-base font-semibold text-fg">All subscriptions</h2>
-              <span className="text-label text-fg-tertiary">{active.length} active</span>
+              <span className="text-xs text-fg-tertiary">{active.length} active</span>
             </div>
             {recurring.length === 0 ? (
               <EmptyState icon="radio" title="No subscriptions" description="Track recurring charges to see your monthly burn" action={<Button onClick={openAdd}>Add subscription</Button>} />
@@ -361,21 +361,22 @@ export default function SubscriptionsClient() {
                           <span className="flex min-w-0 flex-wrap items-center gap-1.5">
                             <span className="truncate text-[0.9375rem] font-medium text-fg">{sub.name}</span>
                             <OwnerAvatar owner={sub.owner} size={18} />
-                            {!sub.is_active && <StatusPill tone="neutral">Paused</StatusPill>}
+                            {!sub.is_active && <StatusPill className="text-xs" tone="neutral">Paused</StatusPill>}
                             {change && (
-                              <StatusPill tone="warning" title={`Price changed on ${formatDateShort(change.date)}`}>
+                              <StatusPill className="text-xs" tone="warning" title={`Price changed on ${formatDateShort(change.date)}`}>
                                 <TrendingUp className="h-3 w-3" aria-hidden="true" />{formatMoney(change.from)} → {formatMoney(change.to)}
                               </StatusPill>
                             )}
                           </span>
-                          <span className="mt-0.5 block truncate text-label text-fg-tertiary">
+                          <span className="mt-0.5 block truncate text-xs text-fg-tertiary">
+                            {/* Date first: it's what matters on a phone where the line truncates. */}
+                            {due && sub.is_active && <span className={cn(due < today && 'font-medium text-warning')}>{formatDateShort(due)} · {formatRelativeDue(due)} · </span>}
                             {FREQUENCY_LABEL[sub.frequency] ?? sub.frequency}{method ? ` · ${method.short}` : ''}
-                            {due && sub.is_active && <> · <span className={cn(due < today && 'font-medium text-warning')}>{formatDateShort(due)} · {formatRelativeDue(due)}</span></>}
                           </span>
                         </span>
                         <span className="shrink-0 text-right">
                           <MoneyText value={sub.amount} className="num-metric text-[0.9375rem] font-semibold text-fg" />
-                          {sub.currency !== 'MXN' && <span className="block text-micro text-fg-tertiary">{sub.currency}</span>}
+                          {sub.currency !== 'MXN' && <span className="block text-[0.6875rem] text-fg-tertiary">{sub.currency}</span>}
                         </span>
                       </button>
                       {loggedId === sub.id ? (

@@ -89,7 +89,7 @@ function TransactionRow({ tx, open, onOpenChange, onEdit, onDelete }: RowProps) 
               <span className="truncate text-[0.9375rem] font-medium text-fg">{name}</span>
               {isAutomatic(tx) && <RefreshCw className="h-3.5 w-3.5 shrink-0 text-fg-tertiary" aria-label="Automatic" />}
             </span>
-            <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-label text-fg-tertiary">
+            <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-fg-tertiary">
               <span className="truncate">{tx.category?.name || 'Uncategorized'}</span>
               {method && <><span aria-hidden="true">·</span><span className="shrink-0">{method.short}</span></>}
               {tx.description && <span className="hidden min-w-0 truncate lg:inline"><span aria-hidden="true">· </span>{tx.description}</span>}
@@ -148,10 +148,10 @@ export function TransactionList({ transactions, resetKey, onEdit, onDelete }: Tr
       {groups.map(group => (
         <section key={group.date} aria-labelledby={`day-${group.date}`}>
           <header className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-[5] flex items-baseline justify-between gap-3 border-b border-border bg-surface/95 px-3 py-2 backdrop-blur sm:px-4 md:top-0">
-            <h3 id={`day-${group.date}`} className="text-label font-semibold text-fg">
+            <h3 id={`day-${group.date}`} className="text-xs font-semibold text-fg">
               {group.label}{group.sublabel && <span className="font-normal text-fg-tertiary"> · {group.sublabel}</span>}
             </h3>
-            <span className="text-label text-fg-tertiary">
+            <span className="text-xs text-fg-tertiary">
               {group.spent > 0 && <MoneyText value={group.spent} className="text-fg-secondary" />}
               {group.spent > 0 && group.received > 0 && ' · '}
               {group.received > 0 && <MoneyText value={group.received} sign="always" className="text-positive" />}
@@ -166,7 +166,7 @@ export function TransactionList({ transactions, resetKey, onEdit, onDelete }: Tr
           </ul>
         </section>
       ))}
-      <div ref={sentinel} className="flex items-center justify-between gap-3 border-t border-border px-3 py-3 text-label text-fg-tertiary sm:px-4">
+      <div ref={sentinel} className="flex items-center justify-between gap-3 border-t border-border px-3 py-3 text-xs text-fg-tertiary sm:px-4">
         <span>{hasMore ? `Showing ${shown.length} of ${transactions.length}` : `${transactions.length} transaction${transactions.length === 1 ? '' : 's'}`}</span>
         {hasMore && (
           <button type="button" onClick={() => setVisible(v => v + PAGE_CHUNK)} className="h-11 rounded-xl px-3 text-sm font-semibold text-fg-secondary hover:bg-surface-2 hover:text-fg">

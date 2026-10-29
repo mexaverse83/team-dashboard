@@ -184,7 +184,7 @@ export function ImportDialog({ open, onClose, categories, rules, existing, owner
           <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-border p-8 text-center transition-colors hover:border-primary">
             <Upload className="h-7 w-7 text-fg-secondary" aria-hidden="true" />
             <span className="text-sm font-semibold text-fg">Choose PDF or CSV</span>
-            <span className="text-label text-fg-tertiary">BBVA, Banorte and more</span>
+            <span className="text-xs text-fg-tertiary">BBVA, Banorte and more</span>
             <input type="file" accept=".csv,.pdf" className="sr-only" onChange={handleFile} />
           </label>
           {parseError && <p role="alert" className="text-sm text-negative">{parseError}</p>}

@@ -194,12 +194,12 @@ export default function BudgetsClient() {
           title="Budgets"
           description="Monthly spending limits by category"
           actions={<>
-            <div className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-xl border border-border bg-surface-2 p-1 sm:flex-none">
+            <div className="flex w-full min-w-0 items-center justify-between gap-1 rounded-xl border border-border bg-surface-2 p-1 sm:w-auto">
               <Button variant="ghost" size="icon" aria-label="Previous month" onClick={() => changeMonth(-1)}><ChevronLeft className="h-4 w-4" aria-hidden="true" /></Button>
-              <span className="min-w-[8.5rem] text-center text-sm font-semibold text-fg" aria-live="polite">{monthLabel}</span>
+              <span className="min-w-0 flex-1 text-center text-sm font-semibold text-fg sm:min-w-[8.5rem]" aria-live="polite">{monthLabel}</span>
               <Button variant="ghost" size="icon" aria-label="Next month" onClick={() => changeMonth(1)}><ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
             </div>
-            <Button onClick={openAdd}><Plus className="h-4 w-4" aria-hidden="true" /> Add budget</Button>
+            <Button onClick={openAdd} className="w-full sm:w-auto"><Plus className="h-4 w-4" aria-hidden="true" /> Add budget</Button>
           </>}
         />
 
@@ -210,33 +210,33 @@ export default function BudgetsClient() {
             <div className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-label font-medium text-fg-tertiary">Spent in budgeted categories</p>
+                  <p className="text-xs font-medium text-fg-tertiary">Spent in budgeted categories</p>
                   <p className="mt-1 text-[1.75rem] font-semibold leading-tight text-fg">
-                    <MoneyText value={budgetedSpent} className="num-metric text-left" />
+                    <MoneyText value={budgetedSpent} className="num-metric !text-left" />
                     <span className="text-base font-normal text-fg-tertiary"> of <MoneyText value={totalBudgeted} /></span>
                   </p>
                 </div>
-                {totalBudgeted > 0 && <StatusPill tone={overall.tone}>{overall.pct}%</StatusPill>}
+                {totalBudgeted > 0 && <StatusPill className="text-xs" tone={overall.tone}>{overall.pct}%</StatusPill>}
               </div>
               <ProgressBar className="mt-4" value={budgetedSpent} max={totalBudgeted} label={`${monthLabel} budget`}
                 marker={isCurrentMonth ? totalBudgeted * elapsed : null}
                 valueText={`${overall.pct}% of budget used`} />
-              {isCurrentMonth && <p className="mt-2 text-label text-fg-tertiary">Marker shows where spending would be at an even pace (day {todayKey.slice(8, 10).replace(/^0/, '')} of {dim}).</p>}
+              {isCurrentMonth && <p className="mt-2 text-xs text-fg-tertiary">Marker shows where spending would be at an even pace (day {todayKey.slice(8, 10).replace(/^0/, '')} of {dim}).</p>}
             </div>
             <div className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
-              <p className="text-label font-medium text-fg-tertiary">Outside any budget</p>
-              <p className="mt-1 text-[1.75rem] font-semibold leading-tight text-fg"><MoneyText value={outsideTotal} className="num-metric text-left" /></p>
+              <p className="text-xs font-medium text-fg-tertiary">Outside any budget</p>
+              <p className="mt-1 text-[1.75rem] font-semibold leading-tight text-fg"><MoneyText value={outsideTotal} className="num-metric !text-left" /></p>
               {unbudgetedSpend.length > 0 || uncategorized > 0 ? (
                 <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Categories without a budget">
                   {unbudgetedSpend.slice(0, 6).map(row => (
                     <li key={row.cat.id}>
                       <Link href={`/finance/transactions?category=${row.cat.id}&month=${monthStr}`}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 text-label font-medium text-fg-secondary hover:text-fg">
+                        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 text-xs font-medium text-fg-secondary hover:text-fg">
                         {row.cat.name} <MoneyText value={row.spent} mode="compact" className="text-fg" />
                       </Link>
                     </li>
                   ))}
-                  {uncategorized > 0 && <li className="inline-flex h-8 items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 text-label text-fg-secondary">Uncategorized <MoneyText value={uncategorized} mode="compact" className="text-fg" /></li>}
+                  {uncategorized > 0 && <li className="inline-flex h-8 items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 text-xs text-fg-secondary">Uncategorized <MoneyText value={uncategorized} mode="compact" className="text-fg" /></li>}
                 </ul>
               ) : <p className="mt-2 text-sm text-fg-secondary">Every peso this month landed in a budgeted category.</p>}
             </div>
@@ -267,19 +267,19 @@ export default function BudgetsClient() {
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-1.5">
                         <h3 className="truncate text-sm font-semibold text-fg">{name}</h3>
-                        {nonMonthly && <span className="shrink-0 rounded-full bg-surface-3 px-1.5 py-0.5 text-micro font-medium text-fg-secondary">{CYCLE_LABELS[b.cycle as keyof typeof CYCLE_LABELS]}</span>}
+                        {nonMonthly && <span className="shrink-0 rounded-full bg-surface-3 px-1.5 py-0.5 text-[0.6875rem] font-medium text-fg-secondary">{CYCLE_LABELS[b.cycle as keyof typeof CYCLE_LABELS]}</span>}
                       </div>
-                      <p className="text-label text-fg-tertiary">
+                      <p className="text-xs text-fg-tertiary">
                         {nonMonthly ? <>~<MoneyText value={b.spent} />/mo avg of <MoneyText value={b.amount} /></> : <><MoneyText value={b.spent} /> of <MoneyText value={b.amount} /></>}
                       </p>
                     </div>
-                    <StatusPill tone={status.tone}>{status.label === 'Paid' ? 'Paid' : `${status.pct}%`}</StatusPill>
+                    <StatusPill className="text-xs" tone={status.tone}>{status.label === 'Paid' ? 'Paid' : `${status.pct}%`}</StatusPill>
                   </div>
                   <ProgressBar className="pointer-events-none mt-3" value={b.spent} max={b.amount} projected={b.projected} isFixed={b.isFixed}
                     marker={isCurrentMonth && !nonMonthly && !b.isFixed ? b.amount * elapsed : null}
                     label={`${name} budget`} valueText={`${status.pct}% — ${detail}`} />
                   <div className="mt-2 flex items-center justify-between gap-2">
-                    <p className={cn('pointer-events-none text-label', status.tone === 'negative' ? 'font-medium text-negative' : 'text-fg-secondary')}>
+                    <p className={cn('pointer-events-none text-xs', status.tone === 'negative' ? 'font-medium text-negative' : 'text-fg-secondary')}>
                       {detail}{b.projected != null && status.tone !== 'negative' && b.projected > b.amount && <span className="text-warning"> · on pace for {formatMoney(b.projected)}</span>}
                     </p>
                     <div className="relative z-10 -my-1.5 -mr-1.5 flex shrink-0 items-center opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
@@ -303,14 +303,14 @@ export default function BudgetsClient() {
         <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit budget' : 'Add budget'}>
           <form onSubmit={e => { e.preventDefault(); void handleSave() }} className="space-y-4">
             <div>
-              <label htmlFor="budget-category" className="mb-1 block text-label font-medium text-fg-secondary">Category</label>
+              <label htmlFor="budget-category" className="mb-1 block text-xs font-medium text-fg-secondary">Category</label>
               <select id="budget-category" value={formCat} onChange={e => setFormCat(e.target.value)} className={inputCls} required>
                 <option value="">Select category</option>
                 {(editingId ? expenseCats : unbudgetedCats).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label htmlFor="budget-amount" className="mb-1 block text-label font-medium text-fg-secondary">Monthly limit (MXN)</label>
+              <label htmlFor="budget-amount" className="mb-1 block text-xs font-medium text-fg-secondary">Monthly limit (MXN)</label>
               <input id="budget-amount" type="number" inputMode="decimal" step="100" min="0" required placeholder="5000" value={formAmount}
                 onChange={e => setFormAmount(e.target.value)} className={cn(inputCls, 'text-lg font-semibold')} />
             </div>

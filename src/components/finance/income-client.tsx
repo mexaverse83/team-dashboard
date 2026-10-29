@@ -187,14 +187,14 @@ export function IncomeClient() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <GlassCard className="col-span-2 p-4 sm:col-span-1">
-          <p className="mb-1 text-label font-medium text-fg-tertiary">Total monthly</p>
-          <MoneyText value={totalActive} className="num-metric block text-left text-2xl font-semibold text-fg" />
+          <p className="mb-1 text-xs font-medium text-fg-tertiary">Total monthly</p>
+          <MoneyText value={totalActive} className="num-metric block !text-left text-2xl font-semibold text-fg" />
           <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">Active sources only</p>
         </GlassCard>
         {Object.entries(byOwner).map(([owner, amt]) => (
           <GlassCard key={owner} className="p-4">
-            <p className="mb-1 truncate text-label font-medium text-fg-tertiary">{OWNER_LABELS[owner] || owner}</p>
-            <MoneyText value={amt} className="num-metric block text-left text-2xl font-semibold text-fg" />
+            <p className="mb-1 truncate text-xs font-medium text-fg-tertiary">{OWNER_LABELS[owner] || owner}</p>
+            <MoneyText value={amt} className="num-metric block !text-left text-2xl font-semibold text-fg" />
             <p className="text-xs text-[hsl(var(--text-tertiary))] mt-1">{Math.round((amt / totalActive) * 100)}% of household</p>
           </GlassCard>
         ))}
@@ -218,10 +218,10 @@ export function IncomeClient() {
                 <div className="row-span-2 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-[hsl(var(--foreground))] truncate">{item.name}</span>
-                    {item.active && !hasStarted(item) && <StatusPill tone="neutral">Starts {formatDateShort(item.start_date!)}</StatusPill>}
-                    {item.active && hasStarted(item) && item.end_date && !hasEnded(item) && <StatusPill tone="neutral">Ends {formatDateShort(item.end_date)}</StatusPill>}
-                    {item.active && hasEnded(item) && <StatusPill tone="neutral">Ended {formatDateShort(item.end_date!)}</StatusPill>}
-                    {!item.active && <StatusPill tone="neutral">Inactive</StatusPill>}
+                    {item.active && !hasStarted(item) && <StatusPill className="text-xs" tone="neutral">Starts {formatDateShort(item.start_date!)}</StatusPill>}
+                    {item.active && hasStarted(item) && item.end_date && !hasEnded(item) && <StatusPill className="text-xs" tone="neutral">Ends {formatDateShort(item.end_date)}</StatusPill>}
+                    {item.active && hasEnded(item) && <StatusPill className="text-xs" tone="neutral">Ended {formatDateShort(item.end_date!)}</StatusPill>}
+                    {!item.active && <StatusPill className="text-xs" tone="neutral">Inactive</StatusPill>}
                   </div>
                   <p className="flex items-center gap-1.5 flex-wrap text-sm text-[hsl(var(--text-secondary))] mt-0.5">
                     <span>{OWNER_LABELS[item.owner] || item.owner}</span>
@@ -413,7 +413,7 @@ export function IncomeClient() {
         </div>
       )}
 
-      <p className="flex items-center gap-2 text-label text-fg-tertiary">
+      <p className="flex items-center gap-2 text-xs text-fg-tertiary">
         <RefreshCw className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         Auto-registered entries show the repeat icon in Transactions. The daily automation posts them on their day.
       </p>

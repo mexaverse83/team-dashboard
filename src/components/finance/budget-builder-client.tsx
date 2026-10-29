@@ -269,17 +269,17 @@ export default function BudgetBuilderClient() {
 
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           <div className={card}>
-            <p className="text-label font-medium text-fg-tertiary">Monthly income</p>
-            <MoneyText value={totalIncome} className="num-metric mt-1 block text-left text-xl font-semibold text-fg sm:text-2xl" />
-            <p className="mt-1 text-label text-fg-tertiary">{incomeIsActual ? '3-month average, actual' : `${incomeSources.filter(s => s.is_active).length} configured`}</p>
+            <p className="text-xs font-medium text-fg-tertiary">Monthly income</p>
+            <MoneyText value={totalIncome} className="num-metric mt-1 block !text-left text-xl font-semibold text-fg sm:text-2xl" />
+            <p className="mt-1 text-xs text-fg-tertiary">{incomeIsActual ? '3-month average, actual' : `${incomeSources.filter(s => s.is_active).length} configured`}</p>
           </div>
           {split.map(item => (
             <div key={item.key} className={card}>
-              <p className="flex items-center gap-1.5 text-label font-medium text-fg-tertiary">
+              <p className="flex items-center gap-1.5 text-xs font-medium text-fg-tertiary">
                 <span className={cn('h-2 w-2 rounded-full', item.bar)} aria-hidden="true" />{item.label} · {item.pct}%
               </p>
-              <MoneyText value={item.total} className="num-metric mt-1 block text-left text-xl font-semibold text-fg sm:text-2xl" />
-              <p className={cn('mt-1 flex items-center gap-1 text-label', item.over ? 'text-warning' : 'text-fg-secondary')}>
+              <MoneyText value={item.total} className="num-metric mt-1 block !text-left text-xl font-semibold text-fg sm:text-2xl" />
+              <p className={cn('mt-1 flex items-center gap-1 text-xs', item.over ? 'text-warning' : 'text-fg-secondary')}>
                 {!item.over && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-positive" aria-hidden="true" />}
                 {targetGap(item.pct, item.target)}
               </p>
@@ -291,7 +291,7 @@ export default function BudgetBuilderClient() {
           <h2 className="mb-4 text-base font-semibold text-fg">50/30/20 Analysis</h2>
           <div className="space-y-4">
             <div>
-              <div className="mb-1.5 flex items-center justify-between text-label">
+              <div className="mb-1.5 flex items-center justify-between text-xs">
                 <span className="font-medium text-fg">Your month</span>
                 <span className="text-fg-tertiary">{needsPct} / {wantsPct} / {savingsPct}</span>
               </div>
@@ -299,13 +299,13 @@ export default function BudgetBuilderClient() {
                 aria-label={`Needs ${needsPct}%, wants ${wantsPct}%, savings ${savingsPct}% of income`}>
                 {totalIncome > 0 && split.map((item, i) => (
                   <motion.div key={item.key} className={cn('flex items-center justify-center', item.bar)} initial={{ width: 0 }} animate={{ width: `${Math.min(100, item.pct)}%` }} transition={{ duration: 0.8, delay: i * 0.1 }}>
-                    {item.pct > 10 && <span className="truncate whitespace-nowrap px-1 text-label font-semibold text-[hsl(var(--background))]">{item.pct >= 20 ? `${item.label} ` : ''}{item.pct}%</span>}
+                    {item.pct > 10 && <span className="truncate whitespace-nowrap px-1 text-xs font-semibold text-[hsl(var(--background))]">{item.pct >= 20 ? `${item.label} ` : ''}{item.pct}%</span>}
                   </motion.div>
                 ))}
               </div>
             </div>
             <div>
-              <div className="mb-1.5 flex items-center justify-between text-label text-fg-tertiary">
+              <div className="mb-1.5 flex items-center justify-between text-xs text-fg-tertiary">
                 <span className="font-medium">Ideal</span><span>50 / 30 / 20</span>
               </div>
               <div className="flex h-3 overflow-hidden rounded-lg opacity-40" aria-hidden="true">
@@ -343,7 +343,7 @@ export default function BudgetBuilderClient() {
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-3 text-fg-secondary"><Icon className="h-4 w-4" aria-hidden="true" /></span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-fg">{src.name}</p>
-                        <p className="text-label capitalize text-fg-tertiary">{src.frequency} · <MoneyText value={toMonthly(src.amount, src.frequency)} className="normal-case text-fg-secondary" />/mo</p>
+                        <p className="text-xs capitalize text-fg-tertiary">{src.frequency} · <MoneyText value={toMonthly(src.amount, src.frequency)} className="normal-case text-fg-secondary" />/mo</p>
                       </div>
                       <div className="flex shrink-0 items-center opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
                         <Button variant="ghost" size="icon" aria-label={`Edit ${src.name}`} onClick={() => openEditIncome(src)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></Button>
@@ -374,7 +374,7 @@ export default function BudgetBuilderClient() {
                     <thead>
                       <tr className="border-b border-border">
                         {['Category', 'Type', 'Budget', 'Actual', '% Income', 'Variance'].map(h => (
-                          <th key={h} scope="col" className={cn('px-3 py-2.5 text-label font-medium text-fg-secondary', h === 'Category' || h === 'Type' ? 'text-left' : 'text-right')}>{h}</th>
+                          <th key={h} scope="col" className={cn('px-3 py-2.5 text-xs font-medium text-fg-secondary', h === 'Category' || h === 'Type' ? 'text-left' : 'text-right')}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -382,7 +382,7 @@ export default function BudgetBuilderClient() {
                       {budgetRows.map(row => (
                         <tr key={row.categoryId} className="border-b border-border last:border-0">
                           <td className="px-3 py-2.5"><div className="flex items-center gap-2"><CategoryIcon name={row.name} emoji={row.icon} colorIndex={row.sortOrder} size={24} /><span className="text-sm font-medium text-fg">{row.name}</span></div></td>
-                          <td className="px-3 py-2.5"><StatusPill tone={TYPE_TONE[row.budgetType]} className="capitalize">{row.budgetType}</StatusPill></td>
+                          <td className="px-3 py-2.5"><StatusPill tone={TYPE_TONE[row.budgetType]} className="text-xs capitalize">{row.budgetType}</StatusPill></td>
                           <td className="num px-3 py-2.5 text-sm text-fg-secondary">{row.budget ? formatMoney(row.budget) : '—'}</td>
                           <td className="num px-3 py-2.5 text-sm text-fg">{formatMoney(row.actual)}</td>
                           <td className="num px-3 py-2.5 text-sm text-fg-secondary">{row.pctOfIncome}%</td>
@@ -403,7 +403,7 @@ export default function BudgetBuilderClient() {
                           <span className="truncate text-sm font-medium text-fg">{row.name}</span>
                           <MoneyText value={row.actual} className="shrink-0 text-sm font-semibold text-fg" />
                         </div>
-                        <div className="mt-0.5 flex items-center justify-between gap-2 text-label text-fg-tertiary">
+                        <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-fg-tertiary">
                           <span className="capitalize">{row.budgetType} · budget {row.budget ? formatMoney(row.budget) : '—'}</span>
                           {row.budget > 0 && <span className={row.variance > 0 ? 'font-medium text-negative' : ''}>{formatDelta(row.variance, { mode: 'full' })}</span>}
                         </div>
@@ -421,10 +421,10 @@ export default function BudgetBuilderClient() {
           <ul className="space-y-2">
             {actions.map((action, i) => (
               <li key={i} className="flex items-start gap-3 rounded-xl border border-border bg-surface-2 p-3">
-                <StatusPill tone={priorityTone[action.priority]} className="mt-0.5 shrink-0">{priorityWord[action.priority]}</StatusPill>
+                <StatusPill tone={priorityTone[action.priority]} className="text-xs mt-0.5 shrink-0">{priorityWord[action.priority]}</StatusPill>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-fg">{action.title}</p>
-                  <p className="mt-0.5 text-label text-fg-tertiary">{action.description}</p>
+                  <p className="mt-0.5 text-xs text-fg-tertiary">{action.description}</p>
                 </div>
                 {action.monthlySavings > 0 && <span className="shrink-0 text-sm font-semibold text-fg"><MoneyText value={action.monthlySavings} sign="always" />/mo</span>}
               </li>
@@ -435,12 +435,12 @@ export default function BudgetBuilderClient() {
         <Modal open={incomeModal} onClose={() => setIncomeModal(false)} title={editingIncome ? 'Edit income source' : 'Add income source'}>
           <form onSubmit={e => { e.preventDefault(); void handleSaveIncome() }} className="space-y-4">
             <div>
-              <label htmlFor="income-name" className="mb-1 block text-label font-medium text-fg-secondary">Source name</label>
+              <label htmlFor="income-name" className="mb-1 block text-xs font-medium text-fg-secondary">Source name</label>
               <input id="income-name" type="text" required placeholder="e.g., Nexaminds Salary" value={incomeForm.name}
                 onChange={e => setIncomeForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <span className="mb-1 block text-label font-medium text-fg-secondary">Type</span>
+              <span className="mb-1 block text-xs font-medium text-fg-secondary">Type</span>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="group" aria-label="Income type">
                 {(['salary', 'freelance', 'investment', 'side_hustle', 'passive', 'other'] as const).map(t => {
                   const Icon = INCOME_ICONS[t]
@@ -456,12 +456,12 @@ export default function BudgetBuilderClient() {
             </div>
             <div className="flex gap-2">
               <div className="flex-1">
-                <label htmlFor="income-amount" className="mb-1 block text-label font-medium text-fg-secondary">Amount</label>
+                <label htmlFor="income-amount" className="mb-1 block text-xs font-medium text-fg-secondary">Amount</label>
                 <input id="income-amount" type="number" inputMode="decimal" step="100" min="0" required placeholder="55000" value={incomeForm.amount}
                   onChange={e => setIncomeForm(f => ({ ...f, amount: e.target.value }))} className={cn(inputCls, 'font-semibold')} />
               </div>
               <div className="w-32">
-                <label htmlFor="income-frequency" className="mb-1 block text-label font-medium text-fg-secondary">Frequency</label>
+                <label htmlFor="income-frequency" className="mb-1 block text-xs font-medium text-fg-secondary">Frequency</label>
                 <select id="income-frequency" value={incomeForm.frequency} onChange={e => setIncomeForm(f => ({ ...f, frequency: e.target.value }))} className={inputCls}>
                   {['monthly', 'biweekly', 'weekly', 'quarterly', 'yearly'].map(f => (
                     <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>

@@ -212,8 +212,8 @@ export default function TransactionsClient() {
         <section aria-label="Spending so far" className="grid grid-cols-3 divide-x divide-border overflow-hidden rounded-2xl border border-border bg-surface">
           {periodSummary.map(([label, amount]) => (
             <div key={label} className="min-w-0 px-3 py-3 sm:px-5 sm:py-4">
-              <p className="truncate text-label font-medium text-fg-tertiary">{label}</p>
-              <MoneyText value={amount} className="num-metric mt-1 block text-left text-base font-semibold text-fg sm:text-xl" />
+              <p className="truncate text-xs font-medium text-fg-tertiary">{label}</p>
+              <MoneyText value={amount} className="num-metric mt-1 block !text-left text-base font-semibold text-fg sm:text-xl" />
             </div>
           ))}
         </section>
@@ -222,7 +222,7 @@ export default function TransactionsClient() {
 
         <TransactionFilters value={filters} onChange={updateFilters} categories={categories} />
 
-        <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+        <div className="rounded-2xl border border-border bg-surface [&>div>section:first-child>header]:rounded-t-2xl">
           {filtered.length === 0 ? (
             <EmptyState icon="inbox" title="No transactions" description={transactions.length ? 'Nothing matches these filters.' : 'Add your first expense to get started.'} />
           ) : (

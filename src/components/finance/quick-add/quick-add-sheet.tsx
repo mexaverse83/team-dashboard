@@ -18,7 +18,7 @@ import { QUICK_TAGS, useTransactionForm, type QuickAddRequest, type SaveResult }
 const chip = 'inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition-colors'
 const chipIdle = 'border-border bg-surface-2 text-fg-secondary hover:border-border-strong hover:text-fg'
 const chipOn = 'border-primary bg-primary/15 text-fg'
-const label = 'mb-1.5 block text-label font-medium text-fg-secondary'
+const label = 'mb-1.5 block text-xs font-medium text-fg-secondary'
 const field = 'h-11 w-full rounded-xl border border-border bg-surface-2 px-3 text-base text-fg outline-none transition-colors placeholder:text-fg-tertiary focus:border-primary sm:text-sm'
 
 const MOBILE_CATEGORY_SLOTS = 8
@@ -126,7 +126,7 @@ export function QuickAddSheet({ open, request, data, defaultOwner, onClose, onSa
               autoFocus={!f.editingId}
               onChange={e => { f.updateForm({ amount: e.target.value, amount_mxn: form.currency === 'MXN' ? e.target.value : form.amount_mxn }); f.setSaveError('') }}
               className="num-metric h-16 w-full rounded-2xl border border-border bg-surface-2 pl-10 pr-16 text-3xl font-semibold tracking-tight text-fg outline-none transition-colors placeholder:text-fg-tertiary focus:border-primary" />
-            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-label font-semibold text-fg-tertiary">{form.currency}</span>
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-fg-tertiary">{form.currency}</span>
           </div>
         </div>
 
@@ -149,7 +149,7 @@ export function QuickAddSheet({ open, request, data, defaultOwner, onClose, onSa
                     onClick={() => f.chooseSuggestion(s.merchant, s.categoryId, s.typicalAmount)}
                     className={cn(chip, 'max-w-[11rem] shrink-0 font-medium', on ? chipOn : chipIdle)}>
                     <span className="truncate">{s.merchant}</span>
-                    {hint && <span className="shrink-0 text-label font-normal text-fg-tertiary" data-money="">{hint}</span>}
+                    {hint && <span className="shrink-0 text-xs font-normal text-fg-tertiary" data-money="">{hint}</span>}
                   </button>
                 )
               })}
@@ -179,21 +179,21 @@ export function QuickAddSheet({ open, request, data, defaultOwner, onClose, onSa
         <div>
           <div className="flex items-center justify-between">
             <span id="transaction-category-label" className={label}>Category</span>
-            <span className="mb-1.5 text-label text-fg-tertiary">Frequent first</span>
+            <span className="mb-1.5 text-xs text-fg-tertiary">Frequent first</span>
           </div>
-          <div role="group" aria-labelledby="transaction-category-label" className="grid grid-cols-3 gap-2 sm:max-h-56 sm:grid-cols-4 sm:overflow-y-auto sm:overscroll-contain sm:pr-1">
+          <div role="group" aria-labelledby="transaction-category-label" className="grid grid-cols-3 gap-2 sm:max-h-[16.5rem] sm:grid-cols-4 sm:overflow-y-auto sm:overscroll-contain sm:pr-1">
             {cats.map((cat, index) => {
               const on = form.category_id === cat.id
               return (
                 <button key={cat.id} type="button" aria-pressed={on} onClick={() => f.updateForm({ category_id: cat.id })}
-                  className={cn(chip, 'h-12 justify-start gap-2 px-2 text-[0.8125rem] font-medium', on ? chipOn : chipIdle, index >= MOBILE_CATEGORY_SLOTS && 'hidden sm:inline-flex')}>
-                  <CategoryIcon name={cat.name} emoji={cat.icon} colorIndex={cat.sort_order} size={24} />
-                  <span className="min-w-0 truncate">{cat.name}</span>
+                  className={cn(chip, 'h-[3.75rem] flex-col gap-1 px-1 text-[0.75rem] font-medium leading-tight', on ? chipOn : chipIdle, index >= MOBILE_CATEGORY_SLOTS && 'hidden sm:inline-flex')}>
+                  <CategoryIcon name={cat.name} emoji={cat.icon} colorIndex={cat.sort_order} size={22} />
+                  <span className="w-full min-w-0 truncate text-center">{cat.name}</span>
                 </button>
               )
             })}
             {cats.length > MOBILE_CATEGORY_SLOTS && (
-              <div className={cn(chip, 'relative h-12 px-2 text-[0.8125rem] font-medium sm:hidden', offGridSelection ? chipOn : chipIdle)}>
+              <div className={cn(chip, 'relative h-[3.75rem] px-2 text-[0.75rem] font-medium sm:hidden', offGridSelection ? chipOn : chipIdle)}>
                 <span className="min-w-0 truncate">{offGridSelection ? offGridSelection.name : 'More…'}</span>
                 <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" />
                 {/* Native picker stretched over the chip so one tap opens it (iOS won't open a select programmatically). */}
@@ -235,7 +235,7 @@ export function QuickAddSheet({ open, request, data, defaultOwner, onClose, onSa
               <input id="transaction-date" type="date" value={form.transaction_date} max={today}
                 aria-label="Choose transaction date" title="Choose another date"
                 onChange={e => { if (e.target.value) f.updateForm({ transaction_date: e.target.value }) }}
-                className="absolute inset-0 h-full w-full cursor-pointer appearance-none text-base opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full" />
+                className="absolute -inset-px cursor-pointer appearance-none text-base opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:w-full" />
             </div>
           </div>
         </div>
@@ -300,15 +300,15 @@ export function QuickAddSheet({ open, request, data, defaultOwner, onClose, onSa
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label htmlFor="coverage-start" className="mb-1 block text-label text-fg-secondary">Starts</label>
+                <label htmlFor="coverage-start" className="mb-1 block text-xs text-fg-secondary">Starts</label>
                 <input id="coverage-start" type="date" value={form.coverage_start} onChange={e => f.updateForm({ coverage_start: e.target.value })} className={field} />
               </div>
               <div>
-                <label htmlFor="coverage-end" className="mb-1 block text-label text-fg-secondary">Ends</label>
+                <label htmlFor="coverage-end" className="mb-1 block text-xs text-fg-secondary">Ends</label>
                 <input id="coverage-end" type="date" value={form.coverage_end} onChange={e => f.updateForm({ coverage_end: e.target.value })} className={field} />
               </div>
             </div>
-            {perMonth > 0 && <p className="text-label text-fg-secondary"><span data-money="">{formatMoney(perMonth)}</span>/mo · {coverageMonths} months</p>}
+            {perMonth > 0 && <p className="text-xs text-fg-secondary"><span data-money="">{formatMoney(perMonth)}</span>/mo · {coverageMonths} months</p>}
           </div>
         )}
 
