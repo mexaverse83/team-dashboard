@@ -12,7 +12,7 @@ import { buildDeterministicBrief, type BriefSummary } from '@/lib/deterministic-
 import { insightFreshnessLevel, isInsightUsable } from '@/lib/insight-freshness'
 import { mexicoCityToday, parseLocalDateKey } from '@/lib/dates'
 import { formatDateShort } from '@/lib/format'
-import { MiniMarkdown } from '@/lib/mini-markdown'
+import { MiniMarkdown, withMoneySpans } from '@/lib/mini-markdown'
 import { fetchLatestNetWorth, netWorthRows, type NetWorthSnapshotRow } from '@/lib/net-worth-rows'
 import Link from 'next/link'
 
@@ -291,6 +291,8 @@ export default function InsightsClient() {
 
   return (
     <PageTransition>
+      {/* Privacy mode: every tabular figure on this page is money (globals.css). */}
+      <div data-privacy-scope>
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 mb-8">
@@ -365,11 +367,11 @@ export default function InsightsClient() {
                   <StatusPill tone="positive" className="text-[0.75rem]">Live plan</StatusPill>
                   <span className="text-label text-fg-tertiary">Today’s move</span>
                 </div>
-                <h2 id="live-move-title" className="text-lg font-semibold leading-snug text-fg">{live.directive.title}</h2>
-                <p className="mt-1.5 text-sm leading-relaxed text-fg-secondary">{live.directive.detail}</p>
+                <h2 id="live-move-title" className="text-lg font-semibold leading-snug text-fg">{withMoneySpans(live.directive.title)}</h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-fg-secondary">{withMoneySpans(live.directive.detail)}</p>
                 <dl className="mt-4 grid gap-3 border-t border-border pt-3 text-sm sm:grid-cols-2">
-                  <div><dt className="text-label text-fg-tertiary">This week</dt><dd className="mt-0.5 font-medium text-fg">{live.week.title}</dd><dd className="text-label text-fg-tertiary">{live.week.detail}</dd></div>
-                  <div><dt className="text-label text-fg-tertiary">This month</dt><dd className="mt-0.5 font-medium text-fg">{live.household.title}</dd><dd className="text-label text-fg-tertiary">{live.household.detail}</dd></div>
+                  <div><dt className="text-label text-fg-tertiary">{live.week.left < 0 ? 'Overspend' : 'This week'}</dt><dd className="mt-0.5 font-medium text-fg">{withMoneySpans(live.week.title)}</dd><dd className="text-label text-fg-tertiary">{withMoneySpans(live.week.detail)}</dd></div>
+                  <div><dt className="text-label text-fg-tertiary">This month</dt><dd className="mt-0.5 font-medium text-fg">{withMoneySpans(live.household.title)}</dd><dd className="text-label text-fg-tertiary">{withMoneySpans(live.household.detail)}</dd></div>
                 </dl>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Link href={live.directive.url} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-border px-3 text-label font-semibold text-fg hover:bg-surface-2">Open</Link>
@@ -437,10 +439,10 @@ export default function InsightsClient() {
                   {/* Header */}
                   <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-[hsl(var(--bg-elevated))] text-xs font-medium text-[hsl(var(--text-secondary))] border-b border-[hsl(var(--border))]">
                     <div className="col-span-3">Category</div>
-                    <div className="col-span-2 text-right tabular-nums">Spent</div>
-                    <div className="col-span-2 text-right tabular-nums">Budget</div>
+                    <div className="col-span-2 text-right">Spent</div>
+                    <div className="col-span-2 text-right">Budget</div>
                     <div className="col-span-1 text-center">Status</div>
-                    <div className="col-span-2 text-right tabular-nums">Projected</div>
+                    <div className="col-span-2 text-right">Projected</div>
                     <div className="col-span-2 text-right">Pace</div>
                   </div>
                   {/* Rows */}
@@ -843,6 +845,7 @@ export default function InsightsClient() {
             )}
           </div>
         )}
+      </div>
       </div>
     </PageTransition>
   )

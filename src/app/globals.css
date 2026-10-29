@@ -592,6 +592,7 @@ input, textarea, select {
    metrics (<Stat money={false}>: '4 days', '55%') opt out via data-privacy-exempt. */
 .privacy-on .num-metric:not([data-privacy-exempt]),
 .privacy-on [data-money],
+.privacy-on [data-privacy-scope] .tabular-nums,
 .privacy-on .money-axis .recharts-cartesian-axis-tick-value {
   filter: blur(6px);
   transition: filter 0.15s ease;
