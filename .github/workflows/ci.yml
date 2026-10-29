@@ -34,9 +34,9 @@ jobs:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -65,8 +65,8 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
