@@ -1,28 +1,24 @@
 /**
  * POST /api/finance/migrate
  *
- * Secure migration runner. Executes arbitrary SQL against the Supabase
- * database via the Management API (SUPABASE_MANAGEMENT_TOKEN PAT).
+ * Runs one NAMED migration (below) via the Supabase Management API. Raw SQL
+ * is not accepted (CH-04). Disabled unless ENABLE_MIGRATE_ROUTE=1, and then
+ * requires BOTH a finance credential (authorizeFinanceRequest) and the
+ * `x-migration-secret` header (compared in constant time). Prefer the SQL
+ * editor or `supabase db push`; revoke SUPABASE_MANAGEMENT_TOKEN when unused.
  *
- * Auth: requires `x-migration-secret` header matching MIGRATION_SECRET env var.
- * NEVER expose this endpoint publicly. Keep MIGRATION_SECRET strong and secret.
- *
- * Usage:
  *   curl -X POST https://finance.autonomis.co/api/finance/migrate \
- *     -H "x-migration-secret: {MIGRATION_SECRET}" \
- *     -H "Content-Type: application/json" \
- *     -d '{"sql": "SELECT 1;"}'
- *
- * Or run named migrations:
- *   -d '{"migration": "recurring-income"}'
+ *     -H "x-api-key: $FINANCE_API_KEY" -H "x-migration-secret: $MIGRATION_SECRET" \
+ *     -H "Content-Type: application/json" -d '{"migration": "recurring-income"}'
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { authorizeFinanceRequest, safeEqual } from '@/lib/finance-api-auth'
 
 const PROJECT_REF = 'ebzvuszpqqtcvwewxcli'
 
 /**
- * Runs arbitrary SQL via the Supabase Management API.
+ * Runs a named migration's SQL via the Supabase Management API.
  * Requires SUPABASE_MANAGEMENT_TOKEN env var (Personal Access Token from
  * app.supabase.com/account/tokens). No TCP connection needed — pure HTTPS.
  */
@@ -316,13 +312,21 @@ const MIGRATIONS: Record<string, string> = {
   `,
 }
 
-export async function POST(req: NextRequest) {
-  // Auth check
-  const secret = req.headers.get('x-migration-secret')
-  const expected = process.env.MIGRATION_SECRET
-  if (!expected || !secret || secret !== expected) {
+async function guard(req: NextRequest): Promise<NextResponse | null> {
+  if (process.env.ENABLE_MIGRATE_ROUTE !== '1') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+  const auth = await authorizeFinanceRequest(req)
+  if (!auth.ok) return auth.response
+  if (!safeEqual(req.headers.get('x-migration-secret'), process.env.MIGRATION_SECRET)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  return null
+}
+
+export async function POST(req: NextRequest) {
+  const denied = await guard(req)
+  if (denied) return denied
 
   let body: { sql?: string; migration?: string }
   try {
@@ -331,26 +335,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { sql, migration } = body
-
-  // Resolve SQL
-  let query: string
-  if (migration) {
-    if (!MIGRATIONS[migration]) {
-      return NextResponse.json({
-        error: `Unknown migration: ${migration}`,
-        available: Object.keys(MIGRATIONS),
-      }, { status: 400 })
-    }
-    query = MIGRATIONS[migration]
-  } else if (sql) {
-    query = sql
-  } else {
+  const { migration } = body
+  if (body.sql) {
+    return NextResponse.json({ error: 'Raw SQL is not accepted; run a named migration', available: Object.keys(MIGRATIONS) }, { status: 400 })
+  }
+  if (!migration || !Object.prototype.hasOwnProperty.call(MIGRATIONS, migration)) {
     return NextResponse.json({
-      error: 'Provide either "sql" (raw SQL string) or "migration" (named migration key)',
+      error: migration ? `Unknown migration: ${migration}` : 'Provide "migration" (named migration key)',
       available: Object.keys(MIGRATIONS),
     }, { status: 400 })
   }
+  const query = MIGRATIONS[migration]
 
   const start = Date.now()
   try {
@@ -359,7 +354,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       elapsed_ms: elapsed,
-      migration: migration || null,
+      migration,
       rows: result.rows,
       rowCount: result.rowCount,
       command: result.command,
@@ -374,12 +369,9 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET — list available named migrations (auth required)
+// GET — list available named migrations (same guard)
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get('x-migration-secret')
-  const expected = process.env.MIGRATION_SECRET
-  if (!expected || !secret || secret !== expected) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = await guard(req)
+  if (denied) return denied
   return NextResponse.json({ available: Object.keys(MIGRATIONS) })
 }

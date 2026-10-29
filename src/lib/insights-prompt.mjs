@@ -33,7 +33,33 @@ export function mexicoCityDateParts(now = new Date()) {
   return { year, month, day, dayOfWeek: anchor.getUTCDay() }
 }
 
-export function buildInsightsPrompt(data, west) {
+// Mona's output language (W11, VIS-06, NU-2). One explicit rule in the
+// prompt so WIDGET / WEEK / HOUSEHOLD never drift between languages.
+export function insightsLanguage(lang = typeof process !== 'undefined' ? process.env?.FINANCE_LOCALE : undefined) {
+  return String(lang || 'es').toLowerCase().startsWith('en') ? 'en' : 'es'
+}
+
+const LANGUAGE_RULES = {
+  es: 'LANGUAGE: Write every title and detail in natural Mexican Spanish (es-MX), including WIDGET, WEEK, HOUSEHOLD, PROJECTION and WEST items. Keep category names, merchant names and "WEST"/"GBM"/"MSI" exactly as they appear in the data. Format money as $12,345.',
+  en: 'LANGUAGE: Write every title and detail in English, including WIDGET, WEEK, HOUSEHOLD, PROJECTION and WEST items. Keep category names, merchant names and "WEST"/"GBM"/"MSI" exactly as they appear in the data. Format money as $12,345.',
+}
+
+// Fields of the summary that must never reach the model: the fertility plan
+// is complete (F14) and its leftover goal-gap math reads as a live shortfall.
+const OMITTED_SUMMARY_FIELDS = ['fertility_plan']
+
+/**
+ * @param {object} data   /api/finance/summary payload
+ * @param {object|null} west  west-projection payload (enrichment)
+ * @param {{ controllable?: Iterable<string>, lang?: string }} [options]
+ *   controllable: the shared CONTROLLABLE set from src/lib/controllable-categories.ts
+ *   (callers pass it in so this plain-JS module keeps a single source of truth).
+ */
+export function buildInsightsPrompt(data, west, options = {}) {
+  const lang = insightsLanguage(options.lang)
+  const controllableSet = options.controllable ? new Set(options.controllable) : null
+  const isControllable = (b) => controllableSet ? controllableSet.has(b.category) : !b.is_fixed
+  const promptData = Object.fromEntries(Object.entries(data || {}).filter(([key]) => !OMITTED_SUMMARY_FIELDS.includes(key)))
   const bva = data.current_month?.budget_vs_actual || []
   const bvaSection = bva.length > 0 ? `
 BUDGET VS ACTUAL (Current Month - Day ${data.current_month?.day_of_month}/${data.current_month?.days_in_month}, ${data.current_month?.month_progress_pct}% through month):
@@ -87,7 +113,6 @@ ${west.savings_plan.months.map((m) => `  · ${m.month}: save $${Number(m.target)
 
   // Weekly coaching context: spread the remaining controllable money across
   // the remaining month, then include only today through Sunday.
-  const CONTROLLABLE = new Set(['Dining Out', 'Groceries', 'Entertainment', 'Shopping', 'Transport', 'Travel', 'Gifts', 'Other'])
   const weekSection = (() => {
     const cm = data.current_month
     if (!cm || !bva.length) return ''
@@ -102,7 +127,7 @@ ${west.savings_plan.months.map((m) => `  · ${m.month}: save $${Number(m.target)
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
     }
     const satOffset = dow === 6 ? 0 : (6 - dow + 7) % 7
-    const ctrl = bva.filter((b) => CONTROLLABLE.has(b.category) && !b.is_non_monthly)
+    const ctrl = bva.filter((b) => isControllable(b) && !b.is_non_monthly)
     if (!ctrl.length) return ''
     const totalRemaining = ctrl.reduce((s, b) => s + Math.max(0, Number(b.budget) - Number(b.spent)), 0)
     const calendarEnvelope = remainingCalendarWeekEnvelope(totalRemaining, daysLeftMonth, dow)
@@ -126,7 +151,7 @@ ${westMonthTarget ? `- THIS MONTH'S WEST SAVINGS TARGET: $${Number(westMonthTarg
   const projectionSection = mp ? `
 MONTH-END SAVINGS PROJECTION (deterministic, computed today):
 - Expected income this month: $${Number(mp.expected_income).toLocaleString()}
-- Spent so far: $${Number(mp.spent_so_far).toLocaleString()} · Projected total spend: $${Number(mp.projected_spend).toLocaleString()}${mp.known_upcoming_treatment > 0 ? ` (includes $${Number(mp.known_upcoming_treatment).toLocaleString()} known upcoming treatment)` : ''}
+- Spent so far: $${Number(mp.spent_so_far).toLocaleString()} · Projected total spend: $${Number(mp.projected_spend).toLocaleString()}
 - PROJECTED SAVINGS AT MONTH END: $${Number(mp.projected_savings).toLocaleString()} (method: ${mp.method})` : ''
 
   const goalSection = data.goal_funding ? `
@@ -137,24 +162,22 @@ GOAL FUNDING GAP:
 
   const householdSection = `
 HOUSEHOLD PRIORITY ORDER (use this order when deciding what matters):
-1. Near-term liquidity and known bills/treatment payments
-2. Fertility treatment until the remaining balance reaches zero
-3. This month's WEST/GBM transfer and the December 2027 home-delivery gap
-4. Preserve the emergency floor; do not recommend adding more when it is already above target
-5. Bernardo + Laura's combined 2026 savings goals
-6. Discretionary optimization, crypto, and other secondary opportunities
+1. Near-term liquidity: known bills and baby-plan costs (prenatal, delivery, newborn)
+2. This month's WEST/GBM transfer and the December 2027 home-delivery gap
+3. Preserve the emergency floor; do not recommend adding more when it is already above target
+4. Bernardo + Laura's combined 2026 savings goals (the same GBM pesos as the WEST target — never add the two together)
+5. Discretionary optimization, crypto, and other secondary opportunities
 
 HOUSEHOLD HEALTH:
 - Sustainable income baseline: $${Number(data.income?.total_monthly || 0).toLocaleString()}/mo (${data.income?.baseline_method || 'configured'})
 - Fixed commitments: $${Number(data.cash_flow?.fixed_commitments || 0).toLocaleString()}/mo; capacity before goals: $${Number(data.cash_flow?.discretionary_available || 0).toLocaleString()}/mo
 - Emergency reserve: $${Number(data.emergency_fund?.current || 0).toLocaleString()} = ${Number(data.emergency_fund?.months_covered || 0)} months of essentials (${Number(data.emergency_fund?.funded_pct || 0)}% of target)
-- Fertility treatment remaining: $${Number(data.fertility_plan?.remaining_amount || 0).toLocaleString()}; next commitment $${Number(data.fertility_plan?.current_month_commitment || 0).toLocaleString()}
 - Combined monetary goals: ${(data.goals?.active || []).filter((g) => Number(g.target) >= 100).map((g) => `${g.name} ${g.pct}%`).join(', ') || 'none'}`
 
   return `You are MONA, Bernardo and Laura's calm, exact household finance coach in Mexico. Your job is not to produce a report; it is to identify the smallest number of decisions that keep their family plan, WEST home, and savings goals on track. Analyze the live data and generate a concise decision brief.
 
 FULL FINANCIAL DATA:
-${JSON.stringify(data, null, 2)}
+${JSON.stringify(promptData, null, 2)}
 ${bvaSection}
 ${msiSection}
 ${projectionSection}
@@ -205,7 +228,7 @@ Rules:
 - If long-term investment, net worth, real-estate, retirement, or tax data is missing, do not fabricate it. Prefer a recommendation to connect or refresh that data.
 - Include exactly 1 insight with category "HOUSEHOLD". It must state whether this month's projected savings cover the combined monthly goal pace, name the uncovered amount if any, and identify the one priority that should receive the next peso. Do not confuse normalized monthly capacity with the current-month projection.
 - If MONTH-END SAVINGS PROJECTION is present: include exactly 1 insight with category "PROJECTION", type "forecast". title: the projected savings figure with direction (e.g. "On pace to save $118k this month"). detail: 1-2 sentences on WHY — which categories drive it, how it compares to this month's WEST savings target, and the single behavior that would most improve it. Use the deterministic number given; do not recompute.
-- ALWAYS include exactly 1 insight with category "WIDGET": the single most decision-relevant directive for TODAY, chosen from everything in this data. type "recommendation". title = the directive itself, imperative, max 48 characters, punchy (e.g. "Cook tonight — dining pace is 2× budget", "Move $58k surplus to GBM today", "Treatment payment tomorrow — hold spending"). detail = ONE sentence with the key number that justifies it. This is shown on a phone home-screen widget — it must be the one line that most changes today's behavior.
+- ALWAYS include exactly 1 insight with category "WIDGET": the single most decision-relevant directive for TODAY, chosen from everything in this data. type "recommendation". title = the directive itself, imperative, max 48 characters, punchy (e.g. "Cook tonight — dining pace is 2× budget", "Move $58k surplus to GBM today", "Rent $35k posts tomorrow — hold spending"). detail = ONE sentence with the key number that justifies it. This is shown on a phone home-screen widget — it must be the one line that most changes today's behavior.
 - If WEEKLY SPENDING COACH CONTEXT is present: include exactly 2 insights with category "WEEK". These are the household's weekly money coach — be direct, personal, and specific, like a trainer, never generic:
   (1) type "recommendation", the CURRENT CALENDAR WEEK'S REMAINING ENVELOPE: exactly how much they can spend from today through Sunday in total and per key category (dining, groceries, entertainment), using the supplied calendar-week amounts, tightened if the month's WEST savings target is at risk;
   (2) type "alert" or "recommendation", the WEEKEND VERDICT for the coming weekend by name (e.g. "Jul 5–6"): can they afford dinner out or not, and if not say so bluntly ("this weekend is a cook-at-home weekend — dining budget is gone") with the specific number that remains;
@@ -233,6 +256,8 @@ CRITICAL — SIGNAL QUALITY:
 - A scheduled-cash-flow forecast excludes unscheduled variable spending. Never describe its ending net as guaranteed savings.
 - If the emergency fund is at or above 100%, treat it as protected infrastructure, not the next savings destination.
 - Do not mention completed MSI plans; the supplied timeline contains forward commitments only.
+
+${LANGUAGE_RULES[lang]}
 
 Return ONLY valid JSON array, no markdown, no explanation.`
 }

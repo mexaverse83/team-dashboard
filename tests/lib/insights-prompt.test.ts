@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mexicoCityDateParts, normalizeInsights, parseInsightsResponse, remainingCalendarWeekEnvelope } from '@/lib/insights-prompt.mjs'
+import { buildInsightsPrompt, insightsLanguage, mexicoCityDateParts, normalizeInsights, parseInsightsResponse, remainingCalendarWeekEnvelope } from '@/lib/insights-prompt.mjs'
+import { CONTROLLABLE } from '@/lib/controllable-categories'
 
 describe('mexicoCityDateParts', () => {
   // Vercel runs in UTC. At 7pm on July 25 in Mexico City the server clock has
@@ -90,5 +91,38 @@ describe('Wolff insight boundary', () => {
     ])
     expect(result).toHaveLength(1)
     expect(result[0].detail).toHaveLength(500)
+  })
+})
+
+describe('buildInsightsPrompt', () => {
+  const summary = {
+    current_month: {
+      month: '2026-10', day_of_month: 28, days_in_month: 31, month_progress_pct: 90, total_spent: 50_000,
+      budget_vs_actual: [
+        { category: 'Dining Out', spent: 4_000, budget: 6_000, pct_used: 67, status: 'ok' },
+        { category: 'Rent/Mortgage', spent: 45_000, budget: 45_000, pct_used: 100, status: 'ok', is_fixed: true },
+      ],
+    },
+    fertility_plan: { remaining_amount: 8_370, current_month_commitment: 0, monthly_gap_to_keep_goals: 10_488 },
+    income: { total_monthly: 200_000 },
+  }
+
+  it('never mentions the completed fertility plan (F14)', () => {
+    const prompt = buildInsightsPrompt(summary, null, { controllable: CONTROLLABLE })
+    expect(prompt).not.toMatch(/fertility|treatment/i)
+    expect(prompt).not.toContain('8370')
+    expect(prompt).not.toContain('monthly_gap_to_keep_goals')
+  })
+
+  it('pins one output language from FINANCE_LOCALE (W11)', () => {
+    expect(buildInsightsPrompt(summary, null, { lang: 'es' })).toContain('Write every title and detail in natural Mexican Spanish')
+    expect(buildInsightsPrompt(summary, null, { lang: 'en-US' })).toContain('Write every title and detail in English')
+    expect(insightsLanguage(undefined)).toBe('es')
+  })
+
+  it('takes the weekly coach categories from the shared CONTROLLABLE set', () => {
+    const prompt = buildInsightsPrompt(summary, null, { controllable: CONTROLLABLE })
+    expect(prompt).toMatch(/Dining Out: \$2,000 left/)
+    expect(prompt).not.toMatch(/Rent\/Mortgage: \$0 left/)
   })
 })

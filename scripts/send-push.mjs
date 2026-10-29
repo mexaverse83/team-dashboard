@@ -1,11 +1,18 @@
 #!/usr/bin/env node
-// Sends the daily brief as a web push to every subscribed device.
+// Sends the daily brief (or a custom message) as a web push.
 //
-// Usage: npm run push:send                      (daily brief from live data)
-//        node scripts/send-push.mjs "Title" "Body text"   (custom message)
+// Usage: npm run push:send                      (today's plan from live numbers)
+//        node scripts/send-push.mjs "Title" "Body text" [/finance/url]
 //
-// Requires in .env.local: VAPID_PRIVATE_KEY, FINANCE_API_KEY, Supabase URL +
-// anon key. The VAPID public key lives in src/lib/push-config.ts.
+// The server does the work: POST /api/finance/push/daily builds the message
+// from the deterministic live plan (never a stale brief), dedupes per day,
+// sends with Vercel's VAPID_PRIVATE_KEY and logs the run (AUTO-07, AUTO-08).
+// Only when the server has no VAPID key does this script send itself, with
+// VAPID_PRIVATE_KEY from .env.local.
+//
+// Requires in .env.local: FINANCE_API_KEY (and, for the local fallback,
+// VAPID_PRIVATE_KEY + Supabase URL/anon key). The VAPID public key lives in
+// src/lib/push-config.ts.
 
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -24,60 +31,85 @@ function loadEnvLocal() {
 }
 const env = loadEnvLocal()
 const { NEXT_PUBLIC_SUPABASE_URL: URL_, NEXT_PUBLIC_SUPABASE_ANON_KEY: ANON, VAPID_PRIVATE_KEY, FINANCE_API_KEY } = env
-if (!VAPID_PRIVATE_KEY) { console.error('VAPID_PRIVATE_KEY missing from .env.local'); process.exit(1) }
+const BASE_URL = env.FINANCE_BASE_URL || 'https://finance.autonomis.co'
+const headers = { 'x-api-key': FINANCE_API_KEY || '', 'Content-Type': 'application/json', 'x-automation-trigger': 'send-push' }
 
-const pushConfig = readFileSync(join(repoRoot, 'src/lib/push-config.ts'), 'utf8')
-const VAPID_PUBLIC_KEY = pushConfig.match(/VAPID_PUBLIC_KEY = '([^']+)'/)[1]
-webpush.setVapidDetails(env.VAPID_SUBJECT || 'mailto:bernardo.garza@nexaminds.ai', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+// Used only when the server is unreachable: no numbers rather than old numbers.
+const OFFLINE_MESSAGE = { title: 'Mona', body: 'Open Mona for today\'s plan.', url: '/finance' }
 
-async function buildDailyMessage() {
-  const headers = { 'x-api-key': FINANCE_API_KEY }
-  const [widget, insights] = await Promise.all([
-    fetch('https://finance.autonomis.co/api/finance/widget', { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch('https://finance.autonomis.co/api/finance/insights', { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
-  ])
-  const lines = []
-  if (widget) {
-    lines.push(widget.over_committed_by > 0
-      ? `Safe today: $0 (over by $${widget.over_committed_by.toLocaleString()})`
-      : `Safe today: $${widget.safe_to_spend_day.toLocaleString()}/day · Week: $${widget.week_envelope.toLocaleString()}`)
-  }
-  const top = (insights?.insights || []).find(i => i.priority === 'high')
-  if (top) lines.push(`${top.icon} ${top.title}`)
-  return { title: '🐕 Mona Daily Brief', body: lines.join('\n') || 'Open the dashboard for today\'s numbers.', url: '/finance' }
+async function post(path, body) {
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers, body: JSON.stringify(body ?? {}) })
+  const json = await res.json().catch(() => ({}))
+  return { ok: res.ok, status: res.status, json }
 }
 
-async function main() {
-  const [, , argTitle, argBody, argUrl] = process.argv
-  const message = argTitle
-    ? { title: argTitle, body: argBody || '', url: argUrl || '/finance' }
-    : await buildDailyMessage()
+async function logRun(status, error, details) {
+  if (!FINANCE_API_KEY) return
+  await post('/api/finance/automation/runs', { job: 'push-daily', status, error, details }).catch(() => {})
+}
+
+// Legacy direct send (home machine's VAPID key).
+async function sendLocally(message) {
+  if (!VAPID_PRIVATE_KEY) throw new Error('server cannot send (no VAPID key in Vercel) and VAPID_PRIVATE_KEY is missing from .env.local')
+  const pushConfig = readFileSync(join(repoRoot, 'src/lib/push-config.ts'), 'utf8')
+  const VAPID_PUBLIC_KEY = pushConfig.match(/VAPID_PUBLIC_KEY = '([^']+)'/)[1]
+  webpush.setVapidDetails(env.VAPID_SUBJECT || 'mailto:bernardo.garza@nexaminds.ai', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
 
   const res = await fetch(`${URL_}/rest/v1/finance_push_subscriptions?select=endpoint,subscription`, {
     headers: { apikey: ANON, Authorization: `Bearer ${ANON}` },
   })
-  if (!res.ok) { console.error(`subscriptions fetch failed (${res.status}) — did the table get created?`); process.exit(1) }
+  if (!res.ok) throw new Error(`subscriptions fetch failed (${res.status})`)
   const subs = await res.json()
-  if (!subs.length) { console.log('No subscribed devices yet.'); return }
-
   let sent = 0
   for (const row of subs) {
     try {
       await webpush.sendNotification(row.subscription, JSON.stringify(message))
       sent++
     } catch (err) {
-      if (err.statusCode === 404 || err.statusCode === 410) {
-        // Subscription expired/revoked — clean it up
-        await fetch(`${URL_}/rest/v1/finance_push_subscriptions?endpoint=eq.${encodeURIComponent(row.endpoint)}`, {
-          method: 'DELETE', headers: { apikey: ANON, Authorization: `Bearer ${ANON}` },
-        }).catch(() => {})
-        console.log('pruned expired subscription')
-      } else {
-        console.error('push failed:', err.statusCode || err.message)
-      }
+      console.error('push failed:', err.statusCode || err.message)
     }
   }
-  console.log(`✅ Pushed "${message.title}" to ${sent}/${subs.length} device(s).`)
+  return { sent, targeted: subs.length }
 }
 
-main().catch(err => { console.error('❌', err.message); process.exit(1) })
+async function main() {
+  if (!FINANCE_API_KEY) throw new Error('FINANCE_API_KEY missing from .env.local')
+  const [, , argTitle, argBody, argUrl] = process.argv
+
+  if (argTitle) {
+    const message = { title: argTitle, body: argBody || '', url: argUrl || '/finance' }
+    const res = await post('/api/finance/push/send', message)
+    if (res.ok && res.json.skipped !== 'no-vapid-key') {
+      console.log(`✅ Server pushed "${message.title}" to ${res.json.sent}/${res.json.targeted} device(s)${res.json.skipped ? ` (${res.json.skipped})` : ''}.`)
+      return
+    }
+    const local = await sendLocally(message)
+    console.log(`✅ Pushed "${message.title}" locally to ${local.sent}/${local.targeted} device(s).`)
+    return
+  }
+
+  let res
+  try {
+    res = await post('/api/finance/push/daily')
+  } catch (err) {
+    res = { ok: false, status: 0, json: { error: err.message } }
+  }
+  // 'no-audience' (no VAPID key in Vercel / nobody subscribed) and
+  // 'ledger-missing' (server can't dedupe) both mean nothing was delivered.
+  if (res.ok && res.json.skipped !== 'no-audience' && res.json.skipped !== 'ledger-missing') {
+    console.log(`✅ Daily push: ${res.json.skipped ? res.json.skipped : `${res.json.sent} device(s)`} — "${res.json.message?.title}"`)
+    return
+  }
+  // The server built the message but did not send it: try the home machine's key.
+  const message = res.json?.message || OFFLINE_MESSAGE
+  if (!res.ok) console.error(`server daily push failed (HTTP ${res.status}): ${res.json?.error || 'unknown'} — sending a generic message locally`)
+  const local = await sendLocally(message)
+  await logRun(local.sent > 0 ? 'ok' : 'warning', local.sent > 0 ? null : 'no devices reached', { via: 'local', ...local, message })
+  console.log(`✅ Pushed "${message.title}" locally to ${local.sent}/${local.targeted} device(s).`)
+}
+
+main().catch(async err => {
+  console.error('❌', err.message)
+  await logRun('error', err.message)
+  process.exit(1)
+})

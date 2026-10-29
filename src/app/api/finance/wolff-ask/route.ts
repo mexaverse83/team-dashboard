@@ -1,20 +1,21 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { configErrorResponse, getAdminClient } from '@/lib/supabase-admin'
 
 // Synchronous Ask-Wolff for iOS Shortcuts / Siri: POST a question, the
 // response blocks until the home-machine daemon answers (or 55s timeout).
 // Body: {"q": "..."} or {"content": "..."}. Returns {"answer": "..."}.
 export const maxDuration = 60
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-)
-
 export async function POST(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
+  let supabase
+  try {
+    supabase = getAdminClient()
+  } catch (err) {
+    return configErrorResponse(err)
+  }
 
   let body: { q?: string; content?: string }
   try {

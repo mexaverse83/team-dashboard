@@ -1,17 +1,20 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { configErrorResponse, getAdminClient } from '@/lib/supabase-admin'
 
+// Service role in production; a missing key answers 503 instead of RLS-empty data.
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  )
+  return getAdminClient()
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
+  try {
+    getSupabase()
+  } catch (err) {
+    return configErrorResponse(err)
+  }
   const { id } = await params
   const supabase = getSupabase()
 
