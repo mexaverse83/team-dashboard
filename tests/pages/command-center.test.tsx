@@ -80,7 +80,7 @@ describe('home', () => {
     expect(bar).toHaveAttribute('aria-valuemax', '20000')
     expect(within(bar).getByTestId('plan-marker')).toBeInTheDocument()
     expect(screen.getByText('$2k ahead of the plan')).toBeInTheDocument()
-    expect(screen.getByText(/Stretch/)).toHaveTextContent('Stretch $26k/mo funds WEST fully · purchase gap $400k')
+    expect(screen.getByTestId('stretch-caption')).toHaveTextContent('Stretch $26k/mo funds WEST fully · $4k short of it this month · purchase gap $400k')
     expect(screen.queryByText(/All 2026 goals/)).not.toBeInTheDocument()
   })
 

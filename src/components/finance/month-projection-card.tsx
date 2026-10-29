@@ -58,6 +58,10 @@ function WestBar({ projected, plan }: { projected: number; plan: HomeWestPlan })
   const ahead = projected >= capacity
   const gap = capacity - projected
   const pct = capacity > 0 ? Math.round((Math.max(0, projected) / capacity) * 100) : 0
+  // The track runs to the stretch target: label its end so the empty part of
+  // the bar reads as "full funding", not an unfinished bar.
+  const capacityAt = (capacity / scale) * 100
+  const stretchShort = stretch != null ? stretch - Math.max(0, projected) : 0
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3">
@@ -80,15 +84,23 @@ function WestBar({ projected, plan }: { projected: number; plan: HomeWestPlan })
       </div>
       <div className="relative mt-1.5 h-4 text-micro text-fg-tertiary">
         {stretch != null && <span className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: at(capacity) }}>Plan</span>}
+        {stretch != null && capacityAt <= 78 && (
+          <span className="absolute right-0 whitespace-nowrap" data-testid="stretch-end">Stretch<span className="hidden sm:inline" data-money> {compact(stretch)}</span></span>
+        )}
       </div>
       <p className={cn('mt-1 text-sm font-medium', ahead ? 'text-positive' : 'text-warning')} data-money>
         {ahead ? `${compact(-gap)} ahead of the plan` : `${pct}% of the plan so far`}
       </p>
       {stretch != null && (
-        <p className="mt-1 hidden text-label text-fg-tertiary sm:block">
+        // Shown on phones too: "ahead of the plan" in green must sit beside
+        // what full WEST funding would take, so the hero isn't green-only.
+        <p className="mt-1 text-label text-fg-tertiary" data-testid="stretch-caption">
           Stretch <span data-money>{compact(stretch)}</span>/mo funds WEST fully
-          {plan.purchase_gap != null && plan.purchase_gap > 0 && <> · purchase gap <span data-money>{compact(plan.purchase_gap)}</span></>}
-          {plan.furnishing_budget != null && plan.furnishing_budget > 0 && <> · furnishing <span data-money>{compact(plan.furnishing_budget)}</span></>}
+          {stretchShort > 0 && <> · <span data-money>{compact(stretchShort)}</span> short of it this month</>}
+          <span className="hidden sm:inline">
+            {plan.purchase_gap != null && plan.purchase_gap > 0 && <> · purchase gap <span data-money>{compact(plan.purchase_gap)}</span></>}
+            {plan.furnishing_budget != null && plan.furnishing_budget > 0 && <> · furnishing <span data-money>{compact(plan.furnishing_budget)}</span></>}
+          </span>
         </p>
       )}
       {plan.cumulative_vs_capacity_since_jan != null && (

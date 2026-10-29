@@ -43,7 +43,9 @@ describe('MonthProjectionCard (This month hero)', () => {
     expect(screen.getByText('71% of the plan so far')).toBeInTheDocument()
     expect(screen.getByText('Below plan')).toBeInTheDocument()
     // The stretch is broken into its two gaps, never a second target to add.
-    expect(screen.getByText(/Stretch/)).toHaveTextContent('Stretch $152.6k/mo funds WEST fully · purchase gap $1.4M · furnishing $1M')
+    expect(screen.getByTestId('stretch-caption')).toHaveTextContent('Stretch $152.6k/mo funds WEST fully · $69k short of it this month · purchase gap $1.4M · furnishing $1M')
+    // The empty part of the track is labelled as the stretch, on phones too.
+    expect(screen.getByTestId('stretch-end')).toHaveTextContent('Stretch $152.6k')
     expect(screen.queryByText(/2026 goals/)).not.toBeInTheDocument()
   })
 
