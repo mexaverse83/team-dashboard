@@ -103,3 +103,13 @@ export async function fetchCryptoPrices(
   }
   return Object.keys(prices).length > 0 ? prices : null
 }
+
+/** USD→MXN implied by today's coin quotes (each quote carries both currencies). */
+export function impliedUsdMxn(prices: CryptoPrices | null | undefined): number | null {
+  const rates = Object.values(prices || {})
+    .filter(p => p.usd > 0 && p.mxn > 0)
+    .map(p => p.mxn / p.usd)
+    .filter(r => r > 5 && r < 50)
+    .sort((a, b) => a - b)
+  return rates.length ? rates[Math.floor(rates.length / 2)] : null
+}

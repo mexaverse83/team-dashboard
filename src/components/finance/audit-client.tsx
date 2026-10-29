@@ -139,7 +139,7 @@ export default function AuditClient() {
   const [cryptoValue, setCryptoValue] = useState(0)
   const [investmentAudit, setInvestmentAudit] = useState<{
     score: number; score_label: string;
-    score_breakdown: Record<string, number>;
+    score_breakdown: Record<string, number | null>;
     findings: Array<{ id: string; severity: string; category: string; title: string; detail: string; suggestion: string; action_url: string }>;
     net_worth: { total: number; by_class: Record<string, number> };
   } | null>(null)
@@ -412,7 +412,8 @@ export default function AuditClient() {
       {investmentAudit && (() => {
         const score = investmentAudit.score
         const tone: Tone = score >= 80 ? 'positive' : score >= 60 ? 'warning' : 'negative'
-        const scoreLabel = score >= 80 ? 'Good' : score >= 60 ? 'Fair' : 'Needs work'
+        // One vocabulary: the API's label (Good ≥80 · Fair ≥60 · Needs work).
+        const scoreLabel = investmentAudit.score_label || (score >= 80 ? 'Good' : score >= 60 ? 'Fair' : 'Needs work')
         const catConfig: { key: string; label: string; max: number }[] = [
           { key: 'west_readiness', label: 'WEST Readiness', max: 25 },
           { key: 'debt_health', label: 'Debt Health', max: 20 },
@@ -441,7 +442,16 @@ export default function AuditClient() {
               <div className="min-w-0 flex-1 space-y-3">
                 <h3 className="text-[0.9375rem] font-semibold text-fg">Financial Health Score</h3>
                 {catConfig.map(cat => {
-                  const val = investmentAudit.score_breakdown[cat.key] || 0
+                  const raw = investmentAudit.score_breakdown[cat.key]
+                  if (raw == null) {
+                    return (
+                      <div key={cat.key} className="flex items-center justify-between">
+                        <span className="text-label font-medium text-fg-secondary">{cat.label}</span>
+                        <span className="text-label text-fg-tertiary">Not scored yet</span>
+                      </div>
+                    )
+                  }
+                  const val = raw
                   const pct = (val / cat.max) * 100
                   return (
                     <div key={cat.key}>
@@ -473,7 +483,7 @@ export default function AuditClient() {
           <Stat label="Leaks Found" value={String(leaks.length)} hint={`${formatMoney(totalLeakAmount)}/mo wasted`} tone={leaks.length > 0 ? 'warning' : 'neutral'} />
           <Stat label="Savings Potential" money value={formatMoney(totalSavings)} hint="/mo across all tiers" />
           <Stat
-            label="Overall Grade"
+            label="Spending grade"
             value={<span className={transactions.length > 0 ? GRADE_TEXT[gradeTone(overallGrade)] : undefined}>{transactions.length > 0 ? overallGrade : '—'}</span>}
             hint={transactions.length > 0 ? gradeLabel(overallGrade) : 'No spending yet'}
           />

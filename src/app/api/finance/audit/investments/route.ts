@@ -1,16 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { canonicalOwner } from '@/lib/owners'
-import { fetchCryptoPrices } from '@/lib/crypto-prices'
+import { fetchCryptoPrices, impliedUsdMxn } from '@/lib/crypto-prices'
 import { accruedValue } from '@/lib/fixed-income'
 import { localDateKey } from '@/lib/dates'
 import { ConfigError, configErrorResponse, getAdminClientInfo, withDegradedHeader } from '@/lib/supabase-admin'
 import { getWestProjection } from '@/lib/server/west'
+import { buildSummary } from '@/lib/server/summary'
+import { formatMonthShort } from '@/lib/format'
 
 // Used only when the live WEST projection can't be computed (no active target
 // row, or the projection query failed); CH-06.
 const WEST_FALLBACK = { target: 11_204_000, gapPct: 8.84, monthsToDelivery: 22 } as const
-const FALLBACK_USD_MXN = 17.13
+// Used only when no coin quote implies today's rate.
+const FALLBACK_USD_MXN = Number(process.env.USD_MXN_FALLBACK) || 18.5
+
+/** WEST inputs for the findings and the score, from the live projection. */
+interface WestAudit {
+  gap: number
+  gap_pct: number
+  months_to_delivery: number
+  /** Saving at the real pace reaches the target (savings_plan.feasible); null = unknown. */
+  feasible: boolean | null
+  shortfall: number
+  lump_sum_amount: number
+  lump_sum_month: string | null
+}
 
 interface Finding {
   id: string
@@ -76,7 +91,7 @@ function runCryptoFlags(crypto: Record<string, unknown> | null, netWorth: number
   }
 }
 
-function runRealEstateFlags(reData: Array<Record<string, unknown>>, westData: Record<string, unknown> | null, findings: Finding[], now: Date) {
+function runRealEstateFlags(reData: Array<Record<string, unknown>>, westData: WestAudit | null, findings: Finding[], now: Date) {
   const todayMs = now.getTime()
 
   for (const prop of reData) {
@@ -116,43 +131,44 @@ function runRealEstateFlags(reData: Array<Record<string, unknown>>, westData: Re
     }
   }
 
-  // WEST gap dynamic flag
+  // WEST verdict: the same feasibility the WEST tracker shows ("Needs
+  // financing" vs on track), never a bare "gap under $1M".
   if (westData) {
-    const gapPct = Number(westData.gap_pct || 0)
-    const monthsToDelivery = Number(westData.months_to_delivery || 24)
-
+    const { gap, gap_pct: gapPct, months_to_delivery: monthsToDelivery, feasible, shortfall } = westData
+    const lump = westData.lump_sum_amount > 0 && westData.lump_sum_month && westData.lump_sum_month >= localDateKey(now).slice(0, 7)
+      ? ` and the $${Math.round(westData.lump_sum_amount / 1000)}K ${formatMonthShort(westData.lump_sum_month, { withYear: true })} lump sum`
+      : ''
     if (gapPct > 20 && monthsToDelivery <= 12) {
       findings.push({
         id: 'west-gap-urgent',
         severity: 'red',
         category: 'real_estate',
-        title: `WEST gap $${Number(westData.gap || 0).toLocaleString()} MXN with ${monthsToDelivery} months to delivery`,
+        title: `WEST gap $${Math.round(gap).toLocaleString()} MXN with ${monthsToDelivery} months to delivery`,
         detail: `${gapPct.toFixed(1)}% of target unfunded with less than 12 months remaining. Financing options may be needed.`,
         suggestion: 'Evaluate mortgage pre-approval for the remaining gap amount.',
         action_url: '/finance/investments?tab=Real Estate',
       })
-    } else if (gapPct < 10 && monthsToDelivery > 0) {
+    } else if (feasible === false) {
       findings.push({
-        id: 'west-gap-healthy',
+        id: 'west-needs-financing',
+        severity: 'amber',
+        category: 'real_estate',
+        title: `WEST: at your real saving pace, delivery arrives $${Math.round(shortfall).toLocaleString()} short`,
+        detail: `Projected at delivery: ${(100 - gapPct).toFixed(1)}% of the target with ${monthsToDelivery} months to go. The WEST tracker marks this as needing financing.`,
+        suggestion: `Raise monthly WEST savings or line up financing for the shortfall; keep the scheduled payments${lump}.`,
+        action_url: '/finance/investments?tab=Real Estate',
+      })
+    } else if (feasible === true) {
+      findings.push({
+        id: 'west-on-track',
         severity: 'green',
         category: 'real_estate',
-        title: `WEST ${(100 - gapPct).toFixed(1)}% funded — gap under $1M 🎯`,
-        detail: `Gap of $${Number(westData.gap || 0).toLocaleString()} MXN is within standard mortgage financing range. On track for Dec 2027 delivery.`,
-        suggestion: 'Maintain $10K/mo payments and $100K Dec 2026 lump sum as planned.',
+        title: `WEST on track — ${(100 - gapPct).toFixed(1)}% projected at delivery`,
+        detail: `At the real saving pace the plan reaches the target in ${monthsToDelivery} months.`,
+        suggestion: `Keep the scheduled payments${lump}.`,
         action_url: '/finance/investments?tab=Real Estate',
       })
     }
-
-    // Green: apartment mortgages paid off April 2026
-    findings.push({
-      id: 'west-mortgages-payoff',
-      severity: 'green',
-      category: 'real_estate',
-      title: 'BBVA + Infonavit paid off April 2026 — freeing $18,925/mo',
-      detail: 'Current apartment sale proceeds in April 2026 pay off both mortgages (~$1.67M). Monthly mortgage payments of $18,925 are freed up permanently.',
-      suggestion: 'Allocate freed cash flow toward WEST payments or AFORE voluntary contributions.',
-      action_url: '/finance/investments?tab=Real Estate',
-    })
   }
 }
 
@@ -192,20 +208,22 @@ function runFixedIncomeFlags(fiData: Array<Record<string, unknown>>, findings: F
           category: 'fixed_income',
           title: `GBM commission drops when balance reaches $${(nextTierThreshold / 1e6).toFixed(1)}M`,
           detail: `Only $${deficit.toLocaleString()} MXN away from the next fee tier. Commission drops from ${(currentCommission * 100).toFixed(2)}% → 0.82%, saving ~$${Math.round(balance * (currentCommission - 0.0082)).toLocaleString()}/yr.`,
-          suggestion: 'April apartment sale proceeds will push balance well past this threshold.',
+          suggestion: `A $${deficit.toLocaleString()} deposit crosses the threshold.`,
           action_url: '/finance/investments?tab=Fixed Income',
         })
       }
 
+      // The record still carries the old fee, and the WEST projection computes
+      // with it — so this is a data fix to make, not a saving already banked.
       if (balance >= nextTierThreshold && currentCommission > 0.009) {
         const annualSavings = Math.round(balance * (currentCommission - 0.0082))
         findings.push({
-          id: 'gbm-commission-dropped',
-          severity: 'green',
+          id: 'gbm-commission-record-stale',
+          severity: 'amber',
           category: 'fixed_income',
-          title: `GBM commission reduced to 0.82% — saving ~$${annualSavings.toLocaleString()}/yr`,
-          detail: `Balance of $${balance.toLocaleString()} MXN exceeds the $2.5M threshold. Commission fell from ${(currentCommission * 100).toFixed(2)}% to 0.82%.`,
-          suggestion: 'Update the GBM record to reflect the new commission rate.',
+          title: `GBM record still at ${(currentCommission * 100).toFixed(2)}% commission — balance qualifies for 0.82%`,
+          detail: `Balance of $${balance.toLocaleString()} MXN is past the $2.5M tier, worth ~$${annualSavings.toLocaleString()}/yr. Projections (WEST, Real Estate) still compute with ${(currentCommission * 100).toFixed(2)}%.`,
+          suggestion: 'Confirm the tier with GBM, then update the commission on the GBM record.',
           action_url: '/finance/investments?tab=Fixed Income',
         })
       }
@@ -236,7 +254,7 @@ function runFixedIncomeFlags(fiData: Array<Record<string, unknown>>, findings: F
       category: 'fixed_income',
       title: `GBM growing at ${(netRate * 100).toFixed(1)}% net — above inflation`,
       detail: `$${Number(gbm.principal).toLocaleString()} MXN generating ${(netRate * 100).toFixed(2)}% net annual return. US Treasury bond fund, peso-hedged, no FX risk.`,
-      suggestion: 'Continue holding. Balance will grow significantly after April apartment sale proceeds land.',
+      suggestion: 'Continue holding.',
       action_url: '/finance/investments?tab=Fixed Income',
     })
   }
@@ -347,23 +365,36 @@ function runRetirementFlags(retirementData: Array<Record<string, unknown>>, mont
 }
 
 // ─── Health Score ───
-function calcHealthScore(westGapPct: number, hasMultipleAssets: boolean, liquidMonths: number, aforeProjectionOk: boolean, debtToIncome: number) {
-  const westScore = westGapPct <= 10 ? 25 : westGapPct <= 20 ? 18 : westGapPct <= 30 ? 12 : 5
+// Net worth trend isn't scored until there is snapshot history, so the score
+// is the other five parts (max 90) scaled to 100, and the trend is null.
+const SCORED_MAX = 90
+
+function scoreLabel(total: number): string {
+  return total >= 80 ? 'Good' : total >= 60 ? 'Fair' : 'Needs work'
+}
+
+function westReadinessScore(west: WestAudit | null, westGapPct: number): number {
+  if (west?.feasible === true) return 25
+  if (west?.feasible === false) return westGapPct <= 5 ? 18 : westGapPct <= 15 ? 12 : 5
+  return westGapPct <= 10 ? 25 : westGapPct <= 20 ? 18 : westGapPct <= 30 ? 12 : 5
+}
+
+function calcHealthScore(westScore: number, hasMultipleAssets: boolean, liquidMonths: number, aforeProjectionOk: boolean, debtToIncome: number) {
   const debtScore = debtToIncome < 0.3 ? 20 : debtToIncome < 0.4 ? 15 : debtToIncome < 0.5 ? 10 : 5
   const diversityScore = hasMultipleAssets ? 15 : 8
   const liquidityScore = liquidMonths >= 6 ? 15 : liquidMonths >= 3 ? 10 : liquidMonths >= 1 ? 5 : 0
   const retirementScore = aforeProjectionOk ? 15 : 8
-  const netWorthTrendScore = 8 // placeholder until we have historical snapshots
+  const scored = westScore + debtScore + diversityScore + liquidityScore + retirementScore
 
   return {
-    total: westScore + debtScore + diversityScore + liquidityScore + retirementScore + netWorthTrendScore,
+    total: Math.round((scored / SCORED_MAX) * 100),
     breakdown: {
       west_readiness: westScore,
       debt_health: debtScore,
       investment_diversity: diversityScore,
       liquidity: liquidityScore,
       retirement: retirementScore,
-      net_worth_trend: netWorthTrendScore,
+      net_worth_trend: null as number | null,
     },
   }
 }
@@ -396,9 +427,11 @@ export async function GET(req: NextRequest) {
 
     // Crypto summary
     let cryptoSummary: Record<string, unknown> | null = null
+    let usdMxn = FALLBACK_USD_MXN
     if (cryptoRes.data && cryptoRes.data.length > 0) {
       const holdings = cryptoRes.data
       const prices = await fetchCryptoPrices(holdings.map(h => h.symbol as string)) ?? {}
+      usdMxn = impliedUsdMxn(prices) ?? FALLBACK_USD_MXN
 
       let totalMXN = 0; let totalCost = 0
       const holdingsSummary = holdings.map(h => {
@@ -436,59 +469,76 @@ export async function GET(req: NextRequest) {
     let westTarget: number = WEST_FALLBACK.target
     let westGapPct: number = WEST_FALLBACK.gapPct
     let monthsToDelivery: number = WEST_FALLBACK.monthsToDelivery
+    let westFeasible: boolean | null = null
+    let westShortfall = 0
+    let lumpSum = { amount: 0, month: null as string | null }
     try {
       const west = await getWestProjection(supabase, { now })
       const atDelivery = west.projected_at_delivery
       westTarget = Number(west.property?.purchase_price) || westTarget
       if (atDelivery) westGapPct = Math.max(0, Number(atDelivery.gap_pct) || 0)
       if (Array.isArray(west.monthly_projection) && west.monthly_projection.length > 0) monthsToDelivery = west.monthly_projection.length
+      if (typeof west.savings_plan?.feasible === 'boolean') westFeasible = west.savings_plan.feasible
+      westShortfall = Math.max(0, Number(west.savings_plan?.projected_shortfall_at_delivery) || 0)
+      lumpSum = { amount: Number(west.schedule?.lump_sum_amount) || 0, month: west.schedule?.lump_sum_month ?? null }
     } catch (e) {
       console.warn('Investment audit: WEST projection unavailable, using fallback', e instanceof Error ? e.message : e)
     }
 
-    // Financial metrics
-    const monthlyIncome = (income || []).reduce((s, i) => s + (Number(i.monthly_amount) || 0), 0)
+    // Income and emergency-fund coverage come from the summary, so the audit
+    // agrees with the Emergency Fund page (months of ESSENTIALS, not income).
+    const summary = await buildSummary(supabase, { months: 3, now }).catch(e => {
+      console.warn('Investment audit: summary unavailable', e instanceof Error ? e.message : e)
+      return null
+    })
+    const extrasIncome = (income || []).reduce((s, i) => s + (Number(i.monthly_amount) || 0), 0)
+    const monthlyIncome = Number(summary?.cash_flow?.monthly_income) || extrasIncome
     const debtBalances = (debts || []).reduce((s, d) => s + (Number(d.balance) || 0), 0)
     const debtMinimums = (debts || []).reduce((s, d) => s + (Number(d.minimum_payment) || 0), 0)
     const debtToIncome = monthlyIncome > 0 ? debtMinimums / monthlyIncome : 0
-    const emergencyMonths = emergencyFund && monthlyIncome > 0
-      ? (Number(emergencyFund.current_amount) || 0) / monthlyIncome : 0
+    const emergencyMonths = Number(summary?.emergency_fund?.months_covered) || 0
+    const emergencyTargetMonths = Number(summary?.emergency_fund?.target_months) || 6
     const hasMultipleAssets = [cryptoTotal > 0, fiTotal > 0, reEquity > 0, retirementTotal > 0].filter(Boolean).length >= 3
 
     // Fetch stocks for PE flags
     const { data: stocksData } = await supabase.from('finance_stock_holdings').select('*')
     const peData = (stocksData || []) as Record<string, unknown>[]
     const peCurrentValue = peData.filter(s => s.asset_type === 'private_equity')
-      .reduce((sum, s) => sum + (Number(s.shares || 0) * Number(s.current_price_usd || 0) * FALLBACK_USD_MXN), 0)
+      .reduce((sum, s) => sum + (Number(s.shares || 0) * Number(s.current_price_usd || 0) * usdMxn), 0)
     const finalNetWorth = totalNetWorth + peCurrentValue
 
     // Run all flag rules
     const findings: Finding[] = []
     runCryptoFlags(cryptoSummary, finalNetWorth, findings)
-    runRealEstateFlags(reData, {
+    const westAudit: WestAudit = {
       gap: westTarget * (westGapPct / 100),
       gap_pct: westGapPct,
       months_to_delivery: monthsToDelivery,
-    }, findings, now)
+      feasible: westFeasible,
+      shortfall: westShortfall,
+      lump_sum_amount: lumpSum.amount,
+      lump_sum_month: lumpSum.month,
+    }
+    runRealEstateFlags(reData, westAudit, findings, now)
     runFixedIncomeFlags(fiData, findings, now)
     runRetirementFlags(retirementData, monthlyIncome, findings, now)
     runPrivateEquityFlags(peData, findings, now)
 
     // Emergency fund green finding
-    if (emergencyMonths >= 6) {
+    if (emergencyMonths >= emergencyTargetMonths) {
       findings.push({
         id: 'emergency-fund-healthy',
         severity: 'green',
         category: 'general',
         title: `Emergency fund covers ${emergencyMonths.toFixed(1)} months of expenses`,
-        detail: `$${Number(emergencyFund?.current_amount || 0).toLocaleString()} MXN provides ${emergencyMonths.toFixed(1)} months of coverage. Target: ${Math.ceil((Number(emergencyFund?.target_amount || 0)) / monthlyIncome)} months.`,
+        detail: `$${Number(summary?.emergency_fund?.current ?? emergencyFund?.current_amount ?? 0).toLocaleString()} MXN covers ${emergencyMonths.toFixed(1)} months of essential spending. Target: ${emergencyTargetMonths} months.`,
         suggestion: 'Emergency fund is healthy. Consider redirecting surplus savings to WEST or investments.',
         action_url: '/finance/emergency-fund',
       })
     }
 
     // Calc health score
-    const score = calcHealthScore(westGapPct, hasMultipleAssets, emergencyMonths, true, debtToIncome)
+    const score = calcHealthScore(westReadinessScore(westAudit, westGapPct), hasMultipleAssets, emergencyMonths, true, debtToIncome)
 
     // Sort: red first, then amber, then green
     findings.sort((a, b) => {
@@ -498,7 +548,7 @@ export async function GET(req: NextRequest) {
 
     return withDegradedHeader(NextResponse.json({
       score: score.total,
-      score_label: score.total >= 80 ? 'Excellent' : score.total >= 65 ? 'Good' : score.total >= 50 ? 'Fair' : 'Needs Attention',
+      score_label: scoreLabel(score.total),
       score_breakdown: score.breakdown,
       findings,
       net_worth: {
@@ -515,6 +565,7 @@ export async function GET(req: NextRequest) {
         monthly_income: Math.round(monthlyIncome),
         debt_to_income: Math.round(debtToIncome * 100),
         emergency_months: Math.round(emergencyMonths * 10) / 10,
+        usd_mxn: Math.round(usdMxn * 100) / 100,
         total_debt: Math.round(debtBalances),
       },
     }, { headers: { 'Cache-Control': 'private, no-store' } }), degraded)

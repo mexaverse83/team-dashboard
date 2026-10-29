@@ -266,22 +266,25 @@ describe('Reports Page', () => {
     expect(card.textContent).toContain("Monthly · Jan\u00a0'26\u00a0–\u00a0Sep\u00a0'26")
   })
 
-  it('renders the live WEST card even when the investment audit fails', async () => {
+  it('renders the live WEST card even when net worth fails', async () => {
     stubApis({ 'west-projection': { target: 11204000, months_to_delivery: 14, projected_at_delivery: { total_projected: 10200000, gap: 1004000 } } })
     const Comp = await load()
     render(<Comp />)
     const card = await screen.findByTestId('west-card')
-    expect(card).toHaveTextContent('91% funded')
+    expect(card).toHaveTextContent('91% at delivery')
     expect(card).toHaveTextContent('Delivery in 14 months')
-    expect(screen.getByText("Couldn't load investments")).toBeInTheDocument()
+    expect(screen.getByText("Couldn't load net worth")).toBeInTheDocument()
     expect(screen.queryByText('Net Worth Statement')).toBeNull()
   })
 
   it('shows the net-worth statement when only the WEST endpoint fails', async () => {
-    stubApis({ 'audit/investments': { score: 70, score_label: 'Fair', net_worth: { total: 1000000, by_class: { fixed_income: 1000000 } }, findings: [] } })
+    // The statement reads Home's snapshot: rows (incl. stocks and cash, minus debts) add up to the total.
+    stubApis({ 'net-worth': { snapshot: { snapshot_date: '2026-10-28', net_worth: 1_492_000, total_assets: 1_500_000, total_liabilities: 8_000, fixed_income_amount: 1_000_000, stocks_amount: 100_000, cash_amount: 400_000 } } })
     const Comp = await load()
     render(<Comp />)
     await waitFor(() => expect(screen.getByText('Net Worth Statement')).toBeInTheDocument())
+    expect(screen.getByText('Stocks & private equity (est.)')).toBeInTheDocument()
+    expect(screen.getByText('Debts & MSI owed')).toBeInTheDocument()
     expect(screen.getByText("Couldn't load the WEST projection")).toBeInTheDocument()
     expect(screen.queryByTestId('west-card')).toBeNull()
   })

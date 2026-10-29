@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest, type AuthOk } from '@/lib/finance-api-auth'
 import { accruedValue } from '@/lib/fixed-income'
-import { fetchCryptoPrices, type CryptoPrices } from '@/lib/crypto-prices'
+import { fetchCryptoPrices, impliedUsdMxn, type CryptoPrices } from '@/lib/crypto-prices'
 import { addDaysKey, mexicoCityToday } from '@/lib/dates'
 import { configErrorResponse, getAdminClient, withDegradedHeader } from '@/lib/supabase-admin'
 import { getWestProjection } from '@/lib/server/west'
@@ -11,15 +11,6 @@ import { recordRun, triggerFromAuth } from '@/lib/automation/runs'
 // Used only when no live rate is available (no priced coin today).
 const USD_MXN_FALLBACK = Number(process.env.USD_MXN_FALLBACK) || 18.5
 
-/** USD→MXN implied by today's coin quotes (each quote carries both currencies). */
-function impliedUsdMxn(prices: CryptoPrices | null | undefined): number | null {
-  const rates = Object.values(prices || {})
-    .filter(p => p.usd > 0 && p.mxn > 0)
-    .map(p => p.mxn / p.usd)
-    .filter(r => r > 5 && r < 50)
-    .sort((a, b) => a - b)
-  return rates.length ? rates[Math.floor(rates.length / 2)] : null
-}
 
 function client(): SupabaseClient | Response {
   try {

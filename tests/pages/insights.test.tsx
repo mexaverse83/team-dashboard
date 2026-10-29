@@ -44,7 +44,7 @@ describe('Daily Brief', () => {
     render(<InsightsClient />)
     fireEvent.click(await screen.findByRole('button', { name: /Show last brief \(Sep 4\)/ }))
     expect(screen.getByText('Protege $108,231 para WEST hoy')).toBeInTheDocument()
-    expect(screen.getByText('$119,400').tagName).toBe('STRONG')
+    expect(screen.getByText('$119,400').closest('strong')).not.toBeNull()
     expect(screen.getByText(/may no longer match this month/)).toBeInTheDocument()
     // Dated and muted inside the panel, never mixed into the live sections.
     expect(within(screen.getByTestId('last-brief')).getByText('Cocina en casa el fin')).toBeInTheDocument()
