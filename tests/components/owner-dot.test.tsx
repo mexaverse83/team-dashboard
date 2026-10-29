@@ -36,6 +36,8 @@ describe('OwnerDot (VIS-11)', () => {
     expect(ownerColor('bernardo')).toBe('hsl(var(--owner-a))')
     expect(getOwnerColor('Laura')).toBe('hsl(var(--owner-b))')
     expect(ownerColor(undefined)).toBe('hsl(var(--owner-shared))')
+    // Legacy callers keep their neutral fallback for unknown owners.
+    expect(getOwnerColor('joint')).toBe('hsl(var(--text-tertiary))')
   })
 })
 

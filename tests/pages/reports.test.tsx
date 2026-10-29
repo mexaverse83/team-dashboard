@@ -210,4 +210,92 @@ describe('Reports Page', () => {
     expect(screen.queryByText('Net saved')).toBeNull()
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
   })
+
+  const tx = (id: string, type: 'income' | 'expense', date: string, amount: number, extra: Record<string, unknown> = {}) =>
+    ({ id, type, amount_mxn: amount, category_id: 'cat-groc', merchant: 'HEB', transaction_date: date, owner: 'Bernardo', ...extra })
+
+  function stubApis(routes: Record<string, unknown>) {
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      const key = Object.keys(routes).find(k => String(url).includes(k))
+      return key
+        ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(routes[key]), text: () => Promise.resolve('') })
+        : Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}), text: () => Promise.resolve('') })
+    }))
+  }
+
+  it('labels the 6-month and YTD ranges', async () => {
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByTestId('report-period')).toHaveTextContent('February 2026'))
+    fireEvent.click(screen.getByRole('radio', { name: 'Last 6 months' }))
+    expect(screen.getByTestId('report-period')).toHaveTextContent('Sep 2025 – Feb 2026')
+    fireEvent.click(screen.getByRole('radio', { name: 'Year to date' }))
+    expect(screen.getByTestId('report-period')).toHaveTextContent('2026 to date')
+  })
+
+  it("marks the current month as '(so far)' and compares it with the same days of last month", async () => {
+    setupSupabaseMock({ finance_transactions: { data: [
+      tx('a', 'expense', '2026-02-05', 1000),
+      tx('b', 'expense', '2026-02-25', 9000), // after day 15 — excluded from the comparison
+      tx('c', 'expense', '2026-03-10', 1500),
+    ], error: null } })
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByTestId('report-period')).toHaveTextContent('February 2026'))
+    fireEvent.click(screen.getByRole('button', { name: 'Next month' }))
+    expect(screen.getByTestId('report-period')).toHaveTextContent('March 2026 (so far)')
+    expect(screen.getAllByText('vs Feb 1–15').length).toBe(2)
+    expect(screen.getByText('+$500')).toBeInTheDocument()
+  })
+
+  it('trend window covers the 12 months up to the selected month and skips sparse leading months', async () => {
+    vi.setSystemTime(new Date(2026, 9, 15, 12))
+    const rows = [
+      tx('old', 'expense', '2024-06-10', 50000), // outside the 12-month window
+      tx('stray', 'expense', '2025-10-03', 40), // stray legacy row — immaterial
+      ...['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09'].flatMap((m, i) => [
+        tx(`i${i}`, 'income', `${m}-01`, 180000),
+        tx(`e${i}`, 'expense', `${m}-12`, 90000),
+      ]),
+    ]
+    setupSupabaseMock({ finance_transactions: { data: rows, error: null } })
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByTestId('report-period')).toHaveTextContent('September 2026'))
+    const card = screen.getByText('Income vs Spending').closest('[data-variant]') as HTMLElement
+    expect(card.textContent).toContain("Monthly · Jan\u00a0'26\u00a0–\u00a0Sep\u00a0'26")
+  })
+
+  it('renders the live WEST card even when the investment audit fails', async () => {
+    stubApis({ 'west-projection': { target: 11204000, months_to_delivery: 14, projected_at_delivery: { total_projected: 10200000, gap: 1004000 } } })
+    const Comp = await load()
+    render(<Comp />)
+    const card = await screen.findByTestId('west-card')
+    expect(card).toHaveTextContent('91% funded')
+    expect(card).toHaveTextContent('Delivery in 14 months')
+    expect(screen.getByText("Couldn't load investments")).toBeInTheDocument()
+    expect(screen.queryByText('Net Worth Statement')).toBeNull()
+  })
+
+  it('shows the net-worth statement when only the WEST endpoint fails', async () => {
+    stubApis({ 'audit/investments': { score: 70, score_label: 'Fair', net_worth: { total: 1000000, by_class: { fixed_income: 1000000 } }, findings: [] } })
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText('Net Worth Statement')).toBeInTheDocument())
+    expect(screen.getByText("Couldn't load the WEST projection")).toBeInTheDocument()
+    expect(screen.queryByTestId('west-card')).toBeNull()
+  })
+})
+
+describe('trimLeadingSparse', () => {
+  it('drops leading months that are immaterial next to the median, keeps zeros inside the range', async () => {
+    const { trimLeadingSparse } = await import('@/lib/chart-theme')
+    const rows = [
+      { m: '2025-11', a: 120, b: 0 }, { m: '2025-12', a: 0, b: 0 }, { m: '2026-01', a: 900, b: 300 },
+      { m: '2026-02', a: 180000, b: 90000 }, { m: '2026-03', a: 0, b: 0 }, { m: '2026-04', a: 170000, b: 95000 },
+    ]
+    expect(trimLeadingSparse(rows, ['a', 'b']).map(r => r.m)).toEqual(['2026-02', '2026-03', '2026-04'])
+    expect(trimLeadingSparse([{ a: 0 }], ['a'])).toEqual([])
+    expect(trimLeadingSparse([{ a: 5 }], ['a'])).toEqual([{ a: 5 }])
+  })
 })

@@ -29,8 +29,10 @@ export const OWNER_COLORS: Record<string, string> = {
   [B_NAME]: B_COLOR,
 }
 
+/** Legacy helper: the two owners get their tokens; anything else stays neutral grey (as before v2). */
 export function getOwnerColor(name: string | null | undefined): string {
-  return ownerColor(name)
+  const canonical = canonicalOwner(name)
+  return canonical === A_NAME || canonical === B_NAME ? ownerColor(canonical) : 'hsl(var(--text-tertiary))'
 }
 
 /** Case-insensitive owner comparison — the DB holds mixed casing

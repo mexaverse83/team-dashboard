@@ -148,6 +148,7 @@ function stubSummary(emergency_fund: Record<string, unknown> | null, extra: Reco
 
 describe('Emergency Fund', () => {
   beforeEach(() => { vi.clearAllMocks(); setupSupabaseMock() })
+  afterEach(() => { vi.useRealTimers() })
 
   const load = async () => (await import('@/components/finance/emergency-fund-client')).default
 
@@ -207,14 +208,74 @@ describe('Emergency Fund', () => {
     expect(screen.getByText('Surplus')).toBeInTheDocument()
   })
 
-  it('offers the surplus as a link (no write) when coverage is above target', async () => {
-    stubSummary({ target: 150000, current: 390000, target_months: 6, monthly_essentials: 25000, months_covered: 15.6, funded_pct: 260, gap: 0, risk_score: 10 })
+  it('offers the surplus as a link (no write) when the balance is freshly confirmed and essentials derived', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 28, 12))
+    stubSummary(
+      { target: 150000, current: 390000, target_months: 6, monthly_essentials: 25000, months_covered: 15.6, funded_pct: 260, gap: 0, risk_score: 10, essentials_basis: 'derived' },
+      { staleness: { ef_confirmed_at: '2026-10-20', gbm_confirmed_at: null, real_estate_confirmed_at: null } },
+    )
     const Comp = await load()
     render(<Comp />)
     const link = await screen.findByRole('link', { name: /Plan it for WEST/ })
     expect(link).toHaveAttribute('href', '/finance/investments?tab=Real%20Estate')
     expect(screen.getByText('$240,000')).toBeInTheDocument()
     expect(vi.mocked(supabase.from).mock.results.some(r => (r.value as any).update.mock.calls.length > 0)).toBe(false)
+  })
+
+  it('asks to confirm a stale balance before suggesting where to move the surplus', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 28, 12))
+    stubSummary(
+      { target: 150000, current: 390000, target_months: 6, monthly_essentials: 25000, months_covered: 15.6, funded_pct: 260, gap: 0, risk_score: 10, essentials_basis: 'manual' },
+      { staleness: { ef_confirmed_at: '2026-02-16T18:00:00Z', gbm_confirmed_at: null, real_estate_confirmed_at: null } },
+    )
+    const Comp = await load()
+    render(<Comp />)
+    const box = await screen.findByTestId('ef-confirm-first')
+    expect(box).toHaveTextContent('last confirmed Feb 16 (8 months ago)')
+    expect(box).toHaveTextContent('essentials are a manual estimate')
+    expect(screen.getByRole('button', { name: 'Confirm your balance first' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Plan it for WEST/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm your balance first' }))
+    expect((document.getElementById('fund-settings') as HTMLDetailsElement).open).toBe(true)
+  })
+
+  it('never labels a settings save as a balance confirmation', async () => {
+    setupSupabaseMock({ finance_emergency_fund: { data: [{ ...FUND_ROW, updated_at: '2026-10-01T12:00:00Z' }], error: null } })
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText(/Settings last saved Oct 1 · balance not confirmed/)).toBeInTheDocument())
+    expect(screen.queryByText(/Balance last confirmed/)).toBeNull()
+  })
+
+  it('shows a skeleton, not placeholder money, while loading', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+    vi.mocked(supabase.from).mockImplementation((() => ({
+      select: () => { const p: any = new Promise(() => {}); p.order = () => p; p.limit = () => p; return p },
+    })) as any)
+    const Comp = await load()
+    const { container } = render(<Comp />)
+    expect(screen.getByTestId('ef-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('ef-months')).toBeNull()
+    expect(container.textContent).not.toMatch(/\$93|\$25,000|3\.7/)
+  })
+
+  it('shows an error state when both the summary and the fund row fail', async () => {
+    setupSupabaseMock({ finance_emergency_fund: { data: null, error: { message: 'rls' } } })
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText("Couldn't load your emergency fund")).toBeInTheDocument())
+    expect(screen.queryByTestId('ef-months')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  it('shows a setup prompt when there is no fund yet', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}), text: () => Promise.resolve('') })))
+    const Comp = await load()
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText('No emergency fund set up yet')).toBeInTheDocument())
+    expect(screen.queryByTestId('ef-months')).toBeNull()
   })
 
   it('shows a derived basis and a gap when essentials come from spending', async () => {

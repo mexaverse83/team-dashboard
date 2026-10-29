@@ -11,6 +11,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { Button } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/segmented'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ErrorState } from '@/components/ui/error-state'
 import { Modal } from '@/components/ui/modal'
 import { ChartFigure, ChartGrid, ChartLegend } from '@/components/ui/finance-chart'
 import { cn } from '@/lib/utils'
@@ -43,8 +44,10 @@ interface DebtForm { name: string; creditor: string; balance: string; interest_r
 const emptyForm: DebtForm = { name: '', creditor: '', balance: '', interest_rate: '', minimum_payment: '', type: 'credit_card' }
 
 // Simulate payoff schedule
-function simulatePayoff(debts: FinanceDebt[], strategy: 'snowball' | 'avalanche', extra: number) {
-  if (debts.length === 0) return { months: 0, totalInterest: 0, timeline: [] as { month: number; balance: number }[] }
+// `stalled` = payments never clear the balance (minimums don't cover interest);
+// `months` is then the simulation cap, not a real payoff date.
+export function simulatePayoff(debts: FinanceDebt[], strategy: 'snowball' | 'avalanche', extra: number) {
+  if (debts.length === 0) return { months: 0, totalInterest: 0, stalled: false, timeline: [] as { month: number; balance: number }[] }
 
   const sorted = [...debts].sort((a, b) =>
     strategy === 'snowball' ? a.balance - b.balance : b.interest_rate - a.interest_rate
@@ -80,13 +83,15 @@ function simulatePayoff(debts: FinanceDebt[], strategy: 'snowball' | 'avalanche'
     timeline.push({ month, balance: balances.reduce((s, b) => s + b, 0) })
   }
 
-  return { months: month, totalInterest: Math.round(totalInterest), timeline }
+  return { months: month, totalInterest: Math.round(totalInterest), stalled: balances.some(b => b > 0), timeline }
 }
 
 export default function DebtClient() {
   const [debts, setDebts] = useState<FinanceDebt[]>([])
   const [paidPrincipal, setPaidPrincipal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<'balance' | 'rate'>('rate')
   const [extraPayment, setExtraPayment] = useState(0)
 
@@ -98,12 +103,14 @@ export default function DebtClient() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
-    const [{ data }, payments] = await Promise.all([
+    const [{ data, error }, payments] = await Promise.all([
       supabase.from('finance_debts').select('*').eq('is_active', true).order('balance'),
       supabase.from('finance_debt_payments').select('principal_portion'),
     ])
-    setDebts(data || [])
-    setPaidPrincipal((payments.data || []).reduce((s, p) => s + Number(p.principal_portion || 0), 0))
+    // A failed read must not look like "no debts".
+    setLoadError(!!error)
+    if (!error) setDebts(data || [])
+    if (!payments.error) setPaidPrincipal((payments.data || []).reduce((s, p) => s + Number(p.principal_portion || 0), 0))
     setLoading(false)
   }, [])
 
@@ -120,9 +127,10 @@ export default function DebtClient() {
   const baselineSnowball = useMemo(() => simulatePayoff(debts, 'snowball', 0), [debts])
   const baselineAvalanche = useMemo(() => simulatePayoff(debts, 'avalanche', 0), [debts])
 
-  const winner = avalanche.totalInterest <= snowball.totalInterest ? 'avalanche' : 'snowball'
+  const winner = avalanche.stalled !== snowball.stalled ? (avalanche.stalled ? 'snowball' : 'avalanche') : avalanche.totalInterest <= snowball.totalInterest ? 'avalanche' : 'snowball'
   const bestResult = winner === 'avalanche' ? avalanche : snowball
   const debtFreeMonth = addMonthsKey(monthKey(new Date()), bestResult.months)
+  const baseline = winner === 'avalanche' ? baselineAvalanche : baselineSnowball
   const monthsSaved = Math.max(0, (winner === 'avalanche' ? baselineAvalanche.months : baselineSnowball.months) - bestResult.months)
   const interestSaved = Math.max(0, (winner === 'avalanche' ? baselineAvalanche.totalInterest : baselineSnowball.totalInterest) - bestResult.totalInterest)
 
@@ -150,18 +158,21 @@ export default function DebtClient() {
   const handleSave = async () => {
     if (!form.name || !form.balance || !form.interest_rate || !form.minimum_payment) return
     setSaving(true)
+    setActionError(null)
     const record = { name: form.name, creditor: form.creditor || null, balance: parseFloat(form.balance), interest_rate: parseFloat(form.interest_rate), minimum_payment: parseFloat(form.minimum_payment), type: form.type, is_active: true }
-    if (editingId) {
-      await supabase.from('finance_debts').update(record).eq('id', editingId)
-    } else {
-      await supabase.from('finance_debts').insert(record)
-    }
-    setSaving(false); setModalOpen(false); fetchData()
+    const { error } = editingId
+      ? await supabase.from('finance_debts').update(record).eq('id', editingId)
+      : await supabase.from('finance_debts').insert(record)
+    setSaving(false)
+    if (error) { setActionError(`Couldn't save the debt: ${error.message}`); return }
+    setModalOpen(false); fetchData()
   }
 
   const handleDelete = async (id: string) => {
-    await supabase.from('finance_debts').delete().eq('id', id)
-    setDeleteConfirm(null); fetchData()
+    const { error } = await supabase.from('finance_debts').delete().eq('id', id)
+    setDeleteConfirm(null)
+    if (error) { setActionError(`Couldn't delete the debt: ${error.message}`); return }
+    setActionError(null); fetchData()
   }
 
   const [paymentDebt, setPaymentDebt] = useState<string | null>(null)
@@ -173,13 +184,15 @@ export default function DebtClient() {
     const debt = debts.find(d => d.id === paymentDebt)
     if (!debt) return
     setPaymentSaving(true)
+    setActionError(null)
     const amount = parseFloat(paymentAmount)
     const monthlyRate = (debt.interest_rate || 0) / 100 / 12
     const interestPortion = Math.round(debt.balance * monthlyRate * 100) / 100
     const principalPortion = Math.round((amount - interestPortion) * 100) / 100
     const newBalance = Math.max(0, Math.round((debt.balance - principalPortion) * 100) / 100)
 
-    await supabase.from('finance_debt_payments').insert({
+    const fail = (what: string, message: string) => { setActionError(`Couldn't ${what}: ${message}`); setPaymentSaving(false) }
+    const { error: payErr } = await supabase.from('finance_debt_payments').insert({
       debt_id: paymentDebt,
       payment_date: localDateKey(),
       amount,
@@ -187,14 +200,26 @@ export default function DebtClient() {
       interest_portion: interestPortion,
       remaining_balance: newBalance,
     })
-    await supabase.from('finance_debts').update({ balance: newBalance }).eq('id', paymentDebt)
-    if (newBalance <= 0) {
-      await supabase.from('finance_debts').update({ is_active: false }).eq('id', paymentDebt)
-    }
+    if (payErr) return fail('log the payment', payErr.message)
+    const { error: balErr } = await supabase.from('finance_debts').update(newBalance <= 0 ? { balance: newBalance, is_active: false } : { balance: newBalance }).eq('id', paymentDebt)
+    if (balErr) { fetchData(); return fail('update the balance (the payment was logged)', balErr.message) }
     setPaymentDebt(null); setPaymentAmount(''); setPaymentSaving(false); fetchData()
   }
 
   if (loading) return <Page aria-busy="true"><div className="h-9 w-48 rounded-lg skeleton" /><div className="h-28 rounded-xl skeleton" /></Page>
+
+  if (loadError && debts.length === 0) {
+    return (
+      <PageTransition>
+      <Page>
+        <PageHeader title="Debt Planner" description="Snowball vs avalanche debt elimination" />
+        <Card><ErrorState title="Couldn't load your debts" body="Nothing is shown rather than an empty list." onRetry={() => { setLoading(true); void fetchData() }} /></Card>
+      </Page>
+      </PageTransition>
+    )
+  }
+
+  const stallNote = "Minimums don't cover interest"
 
   const sortedDebts = [...debts].sort((a, b) => sortBy === 'balance' ? a.balance - b.balance : b.interest_rate - a.interest_rate)
   const openPayment = (debt: FinanceDebt) => { setPaymentDebt(debt.id); setPaymentAmount(debt.minimum_payment.toString()) }
@@ -208,15 +233,28 @@ export default function DebtClient() {
         actions={<Button onClick={openAdd}><Plus aria-hidden="true" className="h-4 w-4" />Add Debt</Button>}
       />
 
+      {actionError && !modalOpen && !paymentDebt && (
+        <div role="alert" className="flex items-start justify-between gap-3 rounded-xl border border-negative/30 bg-negative-bg p-3 text-sm text-fg">
+          <span>{actionError}</span>
+          <Button size="sm" variant="ghost" onClick={() => setActionError(null)}>Dismiss</Button>
+        </div>
+      )}
+      {loadError && <Card><ErrorState compact title="Couldn't refresh your debts" body="Showing the last loaded list." onRetry={() => { void fetchData() }} /></Card>}
+
       {/* KPIs — neutral values; rate tone only where it means something */}
-      <Card>
+      {debts.length > 0 && <Card>
         <div className="grid grid-cols-2 gap-x-4 gap-y-5 lg:grid-cols-4 lg:divide-x lg:divide-border [&>*]:lg:pl-5 [&>*:first-child]:lg:pl-0">
           <Stat label="Total Debt" money value={formatMoney(totalDebt)} hint={`${debts.length} ${debts.length === 1 ? 'account' : 'accounts'}`} />
           <Stat label="Monthly Minimum" money value={formatMoney(totalMinimum)} hint="across all debts" />
           <Stat label="Avg Interest" value={formatPct(weightedAvgRate, { decimals: 1 })} hint="weighted by balance" />
-          <Stat label="Debt-Free Date" value={debts.length > 0 ? formatMonthLong(debtFreeMonth, { short: true }) : '—'} hint={debts.length > 0 ? `${bestResult.months} months away` : 'No active debts'} />
+          <Stat
+            label="Debt-Free Date"
+            value={bestResult.stalled ? 'Never' : formatMonthLong(debtFreeMonth, { short: true })}
+            hint={bestResult.stalled ? stallNote : `${bestResult.months} months away`}
+            tone={bestResult.stalled ? 'negative' : 'neutral'}
+          />
         </div>
-      </Card>
+      </Card>}
 
       {/* Strategy Comparison */}
       {debts.length > 0 && (
@@ -226,7 +264,10 @@ export default function DebtClient() {
             description="Total balance month by month"
             action={<ChartLegend items={[{ label: 'Snowball', color: CHART.series.info }, { label: 'Avalanche', color: CHART.series.target, dash: '6 3' }]} />}
           />
-          <ChartFigure summary={`Snowball pays off in ${snowball.months} months with ${formatCompact(snowball.totalInterest)} interest; avalanche in ${avalanche.months} months with ${formatCompact(avalanche.totalInterest)} interest`}>
+          {(snowball.stalled || avalanche.stalled) && (
+            <p role="status" className="mb-3 rounded-lg bg-warning-bg p-3 text-sm text-fg">{stallNote} — at this payment level the balance never reaches zero. Raise the payment with the slider below.</p>
+          )}
+          <ChartFigure summary={`Snowball ${snowball.stalled ? 'never pays off' : `pays off in ${snowball.months} months`} with ${formatCompact(snowball.totalInterest)} interest; avalanche ${avalanche.stalled ? 'never pays off' : `in ${avalanche.months} months`} with ${formatCompact(avalanche.totalInterest)} interest`}>
             <div className="h-44 sm:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -243,8 +284,8 @@ export default function DebtClient() {
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[
-              { name: 'Snowball', Icon: Snowflake, months: snowball.months, interest: snowball.totalInterest, pro: 'Smallest balance first — quick wins' },
-              { name: 'Avalanche', Icon: Mountain, months: avalanche.months, interest: avalanche.totalInterest, pro: 'Highest rate first — least total interest' },
+              { name: 'Snowball', Icon: Snowflake, result: snowball, pro: 'Smallest balance first — quick wins' },
+              { name: 'Avalanche', Icon: Mountain, result: avalanche, pro: 'Highest rate first — least total interest' },
             ].map(st => {
               const isWinner = st.name.toLowerCase() === winner
               return (
@@ -254,8 +295,8 @@ export default function DebtClient() {
                     {isWinner && <StatusPill tone="positive">Recommended</StatusPill>}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <Stat size="sm" label="Time" value={`${st.months} months`} />
-                    <Stat size="sm" label="Total Interest" money value={formatMoney(st.interest)} />
+                    <Stat size="sm" label="Time" value={st.result.stalled ? 'Never' : `${st.result.months} months`} />
+                    <Stat size="sm" label={st.result.stalled ? 'Interest (30 yrs)' : 'Total Interest'} money value={formatMoney(st.result.totalInterest)} />
                   </div>
                   <p className="mt-2 text-label text-fg-secondary">{st.pro}</p>
                 </div>
@@ -290,8 +331,8 @@ export default function DebtClient() {
                 options={[1000, 2500, 5000, 10000].map(amt => ({ value: String(amt), label: `+${formatCompact(amt)}` }))}
               />
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg bg-surface-2 p-3"><Stat size="sm" label="Time Saved" value={`${monthsSaved} months`} /></div>
-                <div className="rounded-lg bg-surface-2 p-3"><Stat size="sm" label="Interest Saved" money value={formatMoney(interestSaved)} /></div>
+                <div className="rounded-lg bg-surface-2 p-3"><Stat size="sm" label="Time Saved" value={bestResult.stalled ? '—' : baseline.stalled ? 'Pays off' : `${monthsSaved} months`} hint={baseline.stalled && !bestResult.stalled ? 'vs never at minimums' : undefined} /></div>
+                <div className="rounded-lg bg-surface-2 p-3"><Stat size="sm" label="Interest Saved" money value={bestResult.stalled ? '—' : formatMoney(interestSaved)} hint={baseline.stalled && !bestResult.stalled ? 'vs 30 years of minimums' : undefined} /></div>
               </div>
             </div>
           </Card>
@@ -299,8 +340,17 @@ export default function DebtClient() {
           <Card className="flex flex-col items-center justify-center py-8 text-center">
             <Target aria-hidden="true" className="mb-3 h-6 w-6 text-fg-tertiary" />
             <p className="text-label font-medium text-fg-secondary">Debt-Free Countdown</p>
-            <p className="num-metric text-4xl font-semibold text-fg sm:text-5xl" data-privacy-exempt>{bestResult.months}</p>
-            <p className="mt-1 text-sm text-fg-secondary">months to go</p>
+            {bestResult.stalled ? (
+              <>
+                <p className="text-2xl font-semibold text-fg">Not at this pace</p>
+                <p className="mt-1 text-sm text-fg-secondary">{stallNote}</p>
+              </>
+            ) : (
+              <>
+                <p className="num-metric text-4xl font-semibold text-fg sm:text-5xl" data-privacy-exempt>{bestResult.months}</p>
+                <p className="mt-1 text-sm text-fg-secondary">months to go</p>
+              </>
+            )}
             <div className="relative mx-auto mt-4 h-32 w-32">
               <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90" aria-hidden="true">
                 <circle cx="50" cy="50" r="42" fill="none" stroke="hsl(var(--surface-3))" strokeWidth="6" />
@@ -388,18 +438,19 @@ export default function DebtClient() {
       </Card>
 
       {/* Add/Edit Modal */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId ? 'Edit Debt' : 'Add Debt'}>
+      <Modal open={modalOpen} onClose={() => { setModalOpen(false); setActionError(null) }} title={editingId ? 'Edit Debt' : 'Add Debt'}>
         <form onSubmit={e => { e.preventDefault(); handleSave() }} className="space-y-4">
-          <div><label className="mb-1 block text-label font-medium text-fg-secondary">Debt Name *</label><input type="text" required placeholder="e.g., BBVA Credit Card" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} /></div>
+          {actionError && <p role="alert" className="rounded-lg bg-negative-bg p-3 text-sm text-fg">{actionError}</p>}
+          <div><label htmlFor="debt-name" className="mb-1 block text-label font-medium text-fg-secondary">Debt Name *</label><input id="debt-name" type="text" required placeholder="e.g., BBVA Credit Card" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} /></div>
           <div>
-            <label className="mb-1 block text-label font-medium text-fg-secondary">Type</label>
-            <Segmented ariaLabel="Debt type" size="sm" fullWidth className="flex-wrap" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} options={DEBT_TYPES.map(t => ({ value: t.key, label: t.label }))} />
+            <p id="debt-type-label" className="mb-1 block text-label font-medium text-fg-secondary">Type</p>
+            <Segmented ariaLabel="Debt type" ariaLabelledBy="debt-type-label" size="sm" fullWidth className="flex-wrap" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} options={DEBT_TYPES.map(t => ({ value: t.key, label: t.label }))} />
           </div>
-          <div><label className="mb-1 block text-label font-medium text-fg-secondary">Creditor</label><input type="text" placeholder="e.g., BBVA, Banorte..." value={form.creditor} onChange={e => setForm(f => ({ ...f, creditor: e.target.value }))} className={inputCls} /></div>
+          <div><label htmlFor="debt-creditor" className="mb-1 block text-label font-medium text-fg-secondary">Creditor</label><input id="debt-creditor" type="text" placeholder="e.g., BBVA, Banorte..." value={form.creditor} onChange={e => setForm(f => ({ ...f, creditor: e.target.value }))} className={inputCls} /></div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div><label className="mb-1 block text-label font-medium text-fg-secondary">Balance *</label><input type="number" step="100" required placeholder="45000" value={form.balance} onChange={e => setForm(f => ({ ...f, balance: e.target.value }))} className={cn(inputCls, "font-semibold")} /></div>
-            <div><label className="mb-1 block text-label font-medium text-fg-secondary">Rate % *</label><input type="number" step="0.1" required placeholder="36.0" value={form.interest_rate} onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))} className={inputCls} /></div>
-            <div><label className="mb-1 block text-label font-medium text-fg-secondary">Minimum *</label><input type="number" step="100" required placeholder="1800" value={form.minimum_payment} onChange={e => setForm(f => ({ ...f, minimum_payment: e.target.value }))} className={inputCls} /></div>
+            <div><label htmlFor="debt-balance" className="mb-1 block text-label font-medium text-fg-secondary">Balance *</label><input id="debt-balance" type="number" step="100" required placeholder="45000" value={form.balance} onChange={e => setForm(f => ({ ...f, balance: e.target.value }))} className={cn(inputCls, "font-semibold")} /></div>
+            <div><label htmlFor="debt-rate" className="mb-1 block text-label font-medium text-fg-secondary">Rate % *</label><input id="debt-rate" type="number" step="0.1" required placeholder="36.0" value={form.interest_rate} onChange={e => setForm(f => ({ ...f, interest_rate: e.target.value }))} className={inputCls} /></div>
+            <div><label htmlFor="debt-minimum" className="mb-1 block text-label font-medium text-fg-secondary">Minimum *</label><input id="debt-minimum" type="number" step="100" required placeholder="1800" value={form.minimum_payment} onChange={e => setForm(f => ({ ...f, minimum_payment: e.target.value }))} className={inputCls} /></div>
           </div>
           <Button type="submit" size="lg" className="w-full" disabled={saving || !form.name || !form.balance || !form.interest_rate || !form.minimum_payment}>
             {saving ? 'Saving…' : editingId ? 'Update Debt' : 'Add Debt'}
@@ -408,7 +459,7 @@ export default function DebtClient() {
       </Modal>
 
       {/* Log Payment Modal */}
-      <Modal open={!!paymentDebt} onClose={() => { setPaymentDebt(null); setPaymentAmount('') }}
+      <Modal open={!!paymentDebt} onClose={() => { setPaymentDebt(null); setPaymentAmount(''); setActionError(null) }}
         title={`Log Payment — ${debts.find(d => d.id === paymentDebt)?.name || ''}`}>
         {(() => {
           const debt = debts.find(d => d.id === paymentDebt)
@@ -425,8 +476,8 @@ export default function DebtClient() {
                 <div className="flex justify-between"><span className="text-fg-secondary">Rate</span><span>{debt.interest_rate}% APR</span></div>
               </div>
               <div>
-                <label className="mb-1 block text-label font-medium text-fg-secondary">Payment Amount</label>
-                <input type="number" step="100" value={paymentAmount}
+                <label htmlFor="debt-payment-amount" className="mb-1 block text-label font-medium text-fg-secondary">Payment Amount</label>
+                <input id="debt-payment-amount" type="number" step="100" value={paymentAmount}
                   onChange={e => setPaymentAmount(e.target.value)} className={inputCls} autoFocus />
               </div>
               {amount > 0 && (
@@ -436,6 +487,7 @@ export default function DebtClient() {
                   <div className="flex justify-between border-t border-border pt-1"><span className="font-medium">New balance</span><span className="num font-semibold" data-money>{formatMoney(newBalance, { mode: 'precise' })}</span></div>
                 </div>
               )}
+              {actionError && <p role="alert" className="rounded-lg bg-negative-bg p-3 text-sm text-fg">{actionError}</p>}
               <Button size="lg" className="w-full" onClick={handleLogPayment} disabled={paymentSaving || amount <= 0}>
                 {paymentSaving ? 'Processing…' : 'Log Payment & Update Balance'}
               </Button>

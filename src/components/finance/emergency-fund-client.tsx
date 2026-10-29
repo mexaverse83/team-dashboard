@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { ArrowRight, Check, ChevronDown, CircleHelp, Landmark, RotateCcw, ShieldCheck, X } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
@@ -15,7 +15,8 @@ import { Button } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/segmented'
 import { ChartFigure, ChartGrid } from '@/components/ui/finance-chart'
 import { CHART, chartAnimationProps, chartAxisProps, chartTooltipProps, chartYAxisMoneyProps, moneyTooltipFormatter } from '@/lib/chart-theme'
-import { addMonthsKey, monthKey } from '@/lib/dates'
+import { addMonthsKey, diffDaysKey, localDateKey, monthKey } from '@/lib/dates'
+import { ErrorState } from '@/components/ui/error-state'
 import { formatCompact, formatDateShort, formatMoney, formatMonthShort } from '@/lib/format'
 import { inputCls } from '@/lib/form-style'
 import { cn } from '@/lib/utils'
@@ -71,9 +72,26 @@ type FundRow = {
   account_allocation_json?: Record<string, any> | null
 }
 
-async function loadSummary(signal: AbortSignal): Promise<SummaryResponse | null> {
+async function loadSummary(signal: AbortSignal): Promise<SummaryResponse> {
   const res = await fetch('/api/finance/summary', { signal })
-  return res.ok ? (res.json() as Promise<SummaryResponse>) : null
+  if (!res.ok) throw new Error(`summary ${res.status}`)
+  return res.json() as Promise<SummaryResponse>
+}
+
+// A balance older than this is not trusted for "move the surplus" advice.
+const CONFIRM_STALE_DAYS = 60
+
+/** Calendar day of a date or timestamp, in local time (never a UTC slice). */
+function toLocalDay(value: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? value.slice(0, 10) : localDateKey(d)
+}
+
+function ageLabel(days: number): string {
+  if (days < 45) return `${days} days ago`
+  const months = Math.round(days / 30.4)
+  return `${months} ${months === 1 ? 'month' : 'months'} ago`
 }
 
 function MoneyInput({ id, label, value, onChange, step = 1000, hint }: { id: string; label: string; value: number; onChange: (n: number) => void; step?: number; hint?: string }) {
@@ -90,15 +108,17 @@ function MoneyInput({ id, label, value, onChange, step = 1000, hint }: { id: str
 }
 
 export default function EmergencyFundClient() {
-  // Fund state (user-editable in Settings)
-  const [monthlyEssentials, setMonthlyEssentials] = useState(25000)
-  const [currentFund, setCurrentFund] = useState(93000)
-  const [monthlySaving, setMonthlySaving] = useState(8000)
+  // Fund settings (user-editable). Start empty — never show placeholder money as real data.
+  const [monthlyEssentials, setMonthlyEssentials] = useState(0)
+  const [currentFund, setCurrentFund] = useState(0)
+  const [monthlySaving, setMonthlySaving] = useState(0)
   const [riskAnswers, setRiskAnswers] = useState<RiskAnswers>({})
-  const [tier1, setTier1] = useState(30000)
-  const [tier2, setTier2] = useState(40000)
-  const [tier3, setTier3] = useState(23000)
+  const [tier1, setTier1] = useState(0)
+  const [tier2, setTier2] = useState(0)
+  const [tier3, setTier3] = useState(0)
   const [fund, setFund] = useState<FundRow | null>(null)
+  const [fundStatus, setFundStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const settingsRef = useRef<HTMLDetailsElement>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -109,10 +129,11 @@ export default function EmergencyFundClient() {
   const [decisionResult, setDecisionResult] = useState<'use' | 'redirect'>('redirect')
   const [decisionMsg, setDecisionMsg] = useState('')
 
-  const { data: summary, refresh: refreshSummary } = useFinanceData('ef:summary', loadSummary)
+  const { data: summary, error: summaryError, loading: summaryLoading, refresh: refreshSummary } = useFinanceData('ef:summary', loadSummary)
 
   const loadFund = useCallback(() => {
-    supabase.from('finance_emergency_fund').select('*').order('created_at', { ascending: false }).limit(1).then(({ data }) => {
+    supabase.from('finance_emergency_fund').select('*').order('created_at', { ascending: false }).limit(1).then(({ data, error }) => {
+      setFundStatus(error ? 'error' : 'ready')
       if (data && data[0]) {
         const d = data[0] as FundRow
         setFund(d)
@@ -140,6 +161,10 @@ export default function EmergencyFundClient() {
 
   // Answer-first numbers: the summary (same source as home) wins; the saved row is the fallback.
   const ef = summary?.emergency_fund
+  const hasData = !!ef || !!fund
+  const pending = !hasData && (summaryLoading || fundStatus === 'loading')
+  // Either source failing with nothing to show is an error, not "no fund yet".
+  const failed = !hasData && !pending && (!!summaryError || fundStatus === 'error')
   const essentials = ef?.monthly_essentials && ef.monthly_essentials > 0 ? ef.monthly_essentials : monthlyEssentials
   const balance = ef ? ef.current : currentFund
   const targetMonths = ef?.target_months || fund?.target_months || recommendedMonths
@@ -147,7 +172,12 @@ export default function EmergencyFundClient() {
   const monthsCovered = ef ? ef.months_covered : essentials > 0 ? Math.round((balance / essentials) * 10) / 10 : 0
   const surplus = balance - target
   const basis = ef?.essentials_basis ?? 'manual'
-  const confirmedAt = summary?.staleness?.ef_confirmed_at ?? ef?.confirmed_at ?? fund?.updated_at ?? fund?.created_at ?? null
+  // Only an explicit balance confirmation counts — updated_at moves on any settings save.
+  const confirmedRaw = summary?.staleness?.ef_confirmed_at ?? ef?.confirmed_at ?? null
+  const confirmedDay = confirmedRaw ? toLocalDay(confirmedRaw) : null
+  const confirmedAgeDays = confirmedDay ? Math.max(0, diffDaysKey(confirmedDay, localDateKey())) : null
+  const savedDay = !confirmedDay && fund?.updated_at ? toLocalDay(fund.updated_at) : null
+  const balanceStale = confirmedAgeDays == null || confirmedAgeDays > CONFIRM_STALE_DAYS
   const coverageTone: Tone = monthsCovered >= targetMonths ? 'positive' : monthsCovered >= 3 ? 'warning' : 'negative'
   const coverageWord = monthsCovered >= targetMonths ? 'Fully funded' : monthsCovered >= 3 ? 'Building' : 'Thin cushion'
 
@@ -215,6 +245,14 @@ export default function EmergencyFundClient() {
   }
   const resetDecision = () => { setDecisionStep(0); setDecisionAnswers({}); setDecisionComplete(false) }
 
+  const openSettings = () => {
+    const el = settingsRef.current
+    if (!el) return
+    el.open = true
+    el.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+    el.querySelector<HTMLInputElement>('#ef-balance')?.focus({ preventScroll: true })
+  }
+
   const markers = [3, targetMonths].filter((m, i, arr) => m > 0 && arr.indexOf(m) === i)
   const scaleMax = Math.max(targetMonths, monthsCovered, 1)
   const roundedSurplus = Math.floor(surplus / 1000) * 1000
@@ -225,9 +263,24 @@ export default function EmergencyFundClient() {
       <PageHeader
         title="Emergency Fund"
         description="Your household safety net"
-        meta={confirmedAt ? `Balance last confirmed ${formatDateShort(confirmedAt.slice(0, 10))}` : undefined}
+        meta={confirmedDay ? `Balance last confirmed ${formatDateShort(confirmedDay)}` : savedDay ? `Settings last saved ${formatDateShort(savedDay)} · balance not confirmed` : undefined}
       />
 
+      {pending ? (
+        <div aria-busy="true" aria-label="Loading emergency fund" className="h-56 rounded-2xl skeleton" data-testid="ef-loading" />
+      ) : failed ? (
+        <Card><ErrorState title="Couldn't load your emergency fund" body="Nothing is shown rather than placeholder numbers." onRetry={() => { setFundStatus('loading'); loadFund(); void refreshSummary() }} /></Card>
+      ) : !hasData ? (
+        <Card>
+          <ErrorState
+            variant="empty"
+            title="No emergency fund set up yet"
+            body="Enter your balance and monthly essentials in Fund settings to see how many months you're covered."
+            action={<Button size="sm" onClick={() => openSettings()}>Open Fund settings</Button>}
+          />
+        </Card>
+      ) : (
+      <>
       {/* Answer first */}
       <Card variant="hero" className="sm:p-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -284,7 +337,19 @@ export default function EmergencyFundClient() {
           </div>
         </div>
 
-        {surplus > 0 && monthsCovered > targetMonths && (
+        {surplus > 0 && monthsCovered > targetMonths && (balanceStale || basis === 'manual') && (
+          <div className="mt-5 flex flex-col gap-3 rounded-xl border border-border bg-surface-2 p-4 sm:flex-row sm:items-center sm:justify-between" data-testid="ef-confirm-first">
+            <p className="text-sm text-fg-secondary">
+              About <span className="num font-semibold text-fg" data-money>{formatMoney(roundedSurplus)}</span> may sit above your {targetMonths}-month target, but{' '}
+              {[
+                balanceStale && (confirmedDay ? `the balance was last confirmed ${formatDateShort(confirmedDay)} (${ageLabel(confirmedAgeDays!)})` : 'the balance has never been confirmed'),
+                basis === 'manual' && 'essentials are a manual estimate',
+              ].filter(Boolean).join(' and ')}. Confirm both before moving money.
+            </p>
+            <Button className="shrink-0" variant="secondary" onClick={() => openSettings()}>Confirm your balance first</Button>
+          </div>
+        )}
+        {surplus > 0 && monthsCovered > targetMonths && !balanceStale && basis !== 'manual' && (
           <div className="mt-5 flex flex-col gap-3 rounded-xl border border-border bg-surface-2 p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-fg-secondary">
               About <span className="num font-semibold text-fg" data-money>{formatMoney(roundedSurplus)}</span> sits above your {targetMonths}-month target. Consider moving it toward WEST or the baby fund.
@@ -300,10 +365,12 @@ export default function EmergencyFundClient() {
           </div>
         )}
       </Card>
+      </>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
         {/* Savings plan — only meaningful while there is a gap */}
-        <Card>
+        {hasData && <Card>
           <CardHeader title="Savings Plan" description={gap > 0 ? `${formatMoney(monthlySaving)}/mo toward the ${targetMonths}-month target` : 'You are at or above target'} />
           {gap > 0 ? (
             <>
@@ -336,7 +403,7 @@ export default function EmergencyFundClient() {
               <p className="text-sm text-fg">No monthly saving needed for the fund. Keep the balance where you can reach it within days, and top it up after any withdrawal.</p>
             </div>
           )}
-        </Card>
+        </Card>}
 
         {/* Decision tree */}
         <Card>
@@ -375,7 +442,7 @@ export default function EmergencyFundClient() {
 
       {/* Settings disclosure: inputs, risk quiz, tiers */}
       <Card padding="none">
-        <details className="group">
+        <details ref={settingsRef} id="fund-settings" className="group">
           <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
             <span>
               <span className="block text-[0.9375rem] font-semibold text-fg">Fund settings</span>

@@ -230,4 +230,55 @@ describe('Debt Planner', () => {
       expect(inserts[0][0].payment_date).toBe('2026-10-28')
     })
   })
+
+  it('a failed read shows an error with Retry, not "No debts tracked yet"', async () => {
+    setupSupabaseMock({ finance_debts: { data: null, error: { message: 'permission denied' } } })
+    const Comp = (await import('@/components/finance/debt-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText("Couldn't load your debts")).toBeInTheDocument())
+    expect(screen.queryByText('No debts tracked yet')).toBeNull()
+    expect(screen.queryByText('Total Debt')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  })
+
+  it('a failed save keeps the modal open and says why', async () => {
+    setupSupabaseMock()
+    const base = vi.mocked(supabase.from).getMockImplementation()!
+    vi.mocked(supabase.from).mockImplementation(((table: string) => {
+      const b = base(table)
+      return table === 'finance_debts' ? { ...b, insert: vi.fn().mockReturnValue(Promise.resolve({ data: null, error: { message: 'rls says no' } })) } : b
+    }) as any)
+    const Comp = (await import('@/components/finance/debt-client')).default
+    render(<Comp />)
+    fireEvent.click((await screen.findAllByRole('button', { name: /Add Debt/ }))[0])
+    fireEvent.change(screen.getByLabelText('Debt Name *'), { target: { value: 'Amex' } })
+    fireEvent.change(screen.getByLabelText('Balance *'), { target: { value: '1000' } })
+    fireEvent.change(screen.getByLabelText('Rate % *'), { target: { value: '30' } })
+    fireEvent.change(screen.getByLabelText('Minimum *'), { target: { value: '200' } })
+    expect(screen.getByRole('radiogroup', { name: 'Type' })).toBeInTheDocument()
+    fireEvent.click(within(screen.getByTestId('modal')).getByRole('button', { name: 'Add Debt' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Couldn't save the debt: rls says no"))
+    expect(screen.getByTestId('modal')).toBeInTheDocument()
+  })
+
+  it('hides the KPI row when there are no debts', async () => {
+    setupSupabaseMock({ finance_debts: { data: [], error: null } })
+    const Comp = (await import('@/components/finance/debt-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText('No debts tracked yet')).toBeInTheDocument())
+    expect(screen.queryByText('Total Debt')).toBeNull()
+  })
+
+  it('says minimums do not cover interest instead of a 30-year date', async () => {
+    setupSupabaseMock({ finance_debts: { data: [
+      { id: 'd9', name: 'Old Card', creditor: 'X', balance: 100000, interest_rate: 60, minimum_payment: 1000, type: 'credit_card', is_active: true, created_at: '2026-01-01', updated_at: '2026-01-01' },
+    ], error: null } })
+    const Comp = (await import('@/components/finance/debt-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getAllByText("Minimums don't cover interest").length).toBeGreaterThanOrEqual(1))
+    expect(screen.queryByText(/360 months/)).toBeNull()
+    const { simulatePayoff } = await import('@/components/finance/debt-client')
+    expect(simulatePayoff([{ balance: 100000, interest_rate: 60, minimum_payment: 1000 } as any], 'avalanche', 0).stalled).toBe(true)
+    expect(simulatePayoff([{ balance: 10000, interest_rate: 12, minimum_payment: 1000 } as any], 'avalanche', 0).stalled).toBe(false)
+  })
 })

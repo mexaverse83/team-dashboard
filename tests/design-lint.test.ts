@@ -42,7 +42,8 @@ function overBaseline(counts: Record<string, number>, baseline: Record<string, n
 
 const PASTEL_TEXT = /\btext-(?:gray|slate|zinc|neutral|stone|red|rose|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink)-(?:300|400)\b/g
 const RAW_COLOR = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|hsl\(\s*\d/g
-const ISO_DATE_KEY = /toISOString\(\)\.slice\(/g
+// slice/substring/substr/split all cut a UTC timestamp into a (wrong) local date key.
+const ISO_DATE_KEY = /toISOString\(\)\.(?:slice|substring|substr|split)\(/g
 
 // Baselines as of Mona v2 Wave 1 (files owned by other streams at the time).
 const PASTEL_BASELINE: Record<string, number> = {
@@ -90,7 +91,7 @@ describe('design lint', () => {
     expect(overBaseline(countMatches(financeComponents, RAW_COLOR), RAW_COLOR_BASELINE)).toEqual([])
   })
 
-  it('no new toISOString().slice date keys in components (use src/lib/dates.ts)', () => {
+  it('no new toISOString() date-key cuts in components (use src/lib/dates.ts)', () => {
     expect(overBaseline(countMatches(components, ISO_DATE_KEY), ISO_BASELINE)).toEqual([])
   })
 

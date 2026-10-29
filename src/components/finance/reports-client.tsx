@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Building2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Building2, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   AreaChart, Area, BarChart, Bar,
@@ -19,16 +19,17 @@ import { Segmented } from '@/components/ui/segmented'
 import { StatusPill } from '@/components/ui/status-pill'
 import { CategoryIcon } from '@/components/ui/category-icon'
 import { ErrorState } from '@/components/ui/error-state'
+import { Button } from '@/components/ui/button'
 import { ProgressBar } from '@/components/ui/progress-bar'
 import { ChartFigure, ChartGrid, ChartLegend } from '@/components/ui/finance-chart'
 import { OwnerBar } from '@/components/finance/owner-dot'
 import {
   CHART, chartAnimationProps, chartTooltipProps, chartXAxisMonthProps, chartYAxisMoneyProps,
-  describeSeries, moneyTooltipFormatter, monthTick, trimLeadingEmpty,
+  describeSeries, moneyTooltipFormatter, monthTick, trimLeadingSparse,
 } from '@/lib/chart-theme'
 import { categoryColor } from '@/lib/category-icons'
-import { addMonthsKey, monthKey } from '@/lib/dates'
-import { formatCompact, formatDelta, formatMoney, formatMonthLong, formatMonthShort, formatPct } from '@/lib/format'
+import { addMonthsKey, localDateKey, monthKey } from '@/lib/dates'
+import { formatCompact, formatMoney, formatMonthLong, formatMonthShort, formatPct } from '@/lib/format'
 import { ownerColor } from '@/lib/owners'
 import type { Tone } from '@/lib/budget-tone'
 import type { FinanceCategory } from '@/lib/finance-types'
@@ -92,9 +93,23 @@ async function loadReportData(): Promise<{ categories: FinanceCategory[]; transa
   return { categories, transactions }
 }
 
-async function getJson<T>(url: string, signal: AbortSignal): Promise<T | null> {
+async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal })
-  return res.ok ? (res.json() as Promise<T>) : null
+  if (!res.ok) throw new Error(`${url} → ${res.status}`)
+  return res.json() as Promise<T>
+}
+
+/** One-line failure for a secondary card: says what's missing, offers Retry, takes little room. */
+function InlineLoadError({ title, onRetry, className }: { title: string; onRetry: () => void; className?: string }) {
+  return (
+    <div role="alert" className={`flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 ${className ?? ''}`}>
+      <span className="flex min-w-0 items-center gap-2 text-sm text-fg-secondary">
+        <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0 text-warning" />
+        <span>{title}</span>
+      </span>
+      <Button size="sm" variant="secondary" onClick={onRetry}><RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />Retry</Button>
+    </div>
+  )
 }
 
 function monthRange(from: string, to: string): string[] {
@@ -114,10 +129,10 @@ export default function ReportsClient() {
   const [selectedMonth, setSelectedMonth] = useState(lastFullMonth)
 
   const { data, error, loading, refresh } = useFinanceData('reports:transactions', loadReportData)
-  const { data: investmentAudit } = useFinanceData<InvestmentAudit | null>(
+  const { data: investmentAudit, error: auditError, refresh: refreshAudit } = useFinanceData<InvestmentAudit>(
     'reports:investment-audit', signal => getJson<InvestmentAudit>('/api/finance/audit/investments', signal),
   )
-  const { data: west } = useFinanceData<WestSnapshot | null>(
+  const { data: west, error: westError, refresh: refreshWest } = useFinanceData<WestSnapshot>(
     'reports:west', signal => getJson<WestSnapshot>('/api/finance/investments/west-projection', signal),
   )
 
@@ -162,13 +177,17 @@ export default function ReportsClient() {
   const net = income - spending
   const savingsRate = income > 0 ? (net / income) * 100 : null
 
+  // A month in progress is compared with the same days of the previous month,
+  // not the whole of it — otherwise spending always looks "down".
+  const partialMonth = mode === 'month' && selectedMonth === currentMonth
+  const asOfDay = partialMonth ? Number(localDateKey().slice(8, 10)) : null
   const previous = useMemo(() => {
     if (mode !== 'month') return null
     const prev = addMonthsKey(selectedMonth, -1)
     if (prev < firstMonth) return null
-    const rows = transactions.filter(t => t.transaction_date.startsWith(prev))
+    const rows = transactions.filter(t => t.transaction_date.startsWith(prev) && (asOfDay == null || Number(t.transaction_date.slice(8, 10)) <= asOfDay))
     return { month: prev, income: sumBy(rows, 'income'), spending: sumBy(rows, 'expense') }
-  }, [mode, selectedMonth, transactions, firstMonth])
+  }, [mode, selectedMonth, transactions, firstMonth, asOfDay])
 
   const deltaTone = (delta: number, goodWhenUp: boolean): Tone =>
     Math.abs(delta) < 1 ? 'neutral' : (delta > 0) === goodWhenUp ? 'positive' : 'negative'
@@ -188,14 +207,16 @@ export default function ReportsClient() {
       if (t.type === 'income') row.income += Number(t.amount_mxn) || 0
       else row.spending += Number(t.amount_mxn) || 0
     }
-    return trimLeadingEmpty(Array.from(map.values()), ['income', 'spending'])
+    return trimLeadingSparse(Array.from(map.values()), ['income', 'spending'])
   }, [transactions, trendMonths])
+  // One month axis for every trend chart, so they start together.
+  const chartMonths = useMemo(() => monthlyData.map(r => r.month), [monthlyData])
 
   const catById = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories])
   const sortIndex = useMemo(() => new Map(categories.map((c, i) => [c.id, i])), [categories])
 
   const trend = useMemo(() => {
-    const window = new Set(trendMonths)
+    const window = new Set(chartMonths)
     const totals = new Map<string, number>()
     for (const t of transactions) {
       if (t.type !== 'expense' || !window.has(t.transaction_date.slice(0, 7))) continue
@@ -206,14 +227,14 @@ export default function ReportsClient() {
       .sort((a, b) => (sortIndex.get(a) ?? 99) - (sortIndex.get(b) ?? 99))
     const series = top.map((id, i) => ({ id, key: `c${i}`, name: catById.get(id)?.name || 'Other', color: categoryColor(i) }))
     const keyOf = new Map(series.map(s => [s.id, s.key]))
-    const rows = new Map(trendMonths.map(m => [m, Object.fromEntries([['month', m], ...series.map(s => [s.key, 0])]) as Record<string, number | string>]))
+    const rows = new Map(chartMonths.map(m => [m, Object.fromEntries([['month', m], ...series.map(s => [s.key, 0])]) as Record<string, number | string>]))
     for (const t of transactions) {
       const key = keyOf.get(t.category_id)
       const row = key && t.type === 'expense' ? rows.get(t.transaction_date.slice(0, 7)) : undefined
       if (row && key) row[key] = (row[key] as number) + (Number(t.amount_mxn) || 0)
     }
-    return { series, rows: trimLeadingEmpty(Array.from(rows.values()), series.map(s => s.key)) }
-  }, [transactions, trendMonths, catById, sortIndex])
+    return { series, rows: series.length ? Array.from(rows.values()) : [] }
+  }, [transactions, chartMonths, catById, sortIndex])
 
   const topMerchants = useMemo(() => {
     const map = new Map<string, { total: number; count: number }>()
@@ -228,7 +249,7 @@ export default function ReportsClient() {
   }, [periodTx])
 
   const ownerMonthly = useMemo(() => {
-    const months = trendMonths.slice(-6)
+    const months = chartMonths.slice(-6)
     const map = new Map(months.map(m => [m, { month: m, a: 0, b: 0 }]))
     for (const t of transactions) {
       const row = t.type === 'expense' ? map.get(t.transaction_date.slice(0, 7)) : undefined
@@ -236,8 +257,8 @@ export default function ReportsClient() {
       if (ownersEqual(t.owner, OWNERS[0])) row.a += Number(t.amount_mxn) || 0
       else if (ownersEqual(t.owner, OWNERS[1])) row.b += Number(t.amount_mxn) || 0
     }
-    return trimLeadingEmpty(Array.from(map.values()), ['a', 'b'])
-  }, [transactions, trendMonths])
+    return Array.from(map.values()).some(r => r.a + r.b > 0) ? Array.from(map.values()) : []
+  }, [transactions, chartMonths])
 
   const ownerByCategory = useMemo(() => {
     const map = new Map<string, { id: string; name: string; icon: string; a: number; b: number }>()
@@ -294,13 +315,16 @@ export default function ReportsClient() {
   )
 
   const perMonthHint = (n: number) => (periodMonths > 1 ? `avg ${formatCompact(n / periodMonths)}/mo` : period.short)
-  const prevLabel = previous ? formatMonthShort(previous.month, { withYear: false }) : ''
+  const prevLabel = previous ? `${formatMonthShort(previous.month, { withYear: false })}${asOfDay != null ? ` 1–${asOfDay}` : ''}` : ''
+  // One precision per KPI row: always compact, always signed.
+  const delta = (n: number) => formatCompact(n, { sign: 'always' })
+  const tone = (n: number, goodWhenUp: boolean): Tone => (previous ? deltaTone(n, goodWhenUp) : 'neutral')
   const nwTotal = investmentAudit?.net_worth.total ?? 0
   const findings = investmentAudit?.findings.filter(f => f.severity !== 'green').slice(0, 3) ?? []
   const westProjected = west?.projected_at_delivery?.total_projected
-  const trendLabel = monthlyData.length > 0
-    ? `${formatMonthShort(monthlyData[0].month, { withYear: true })} – ${formatMonthShort(monthlyData[monthlyData.length - 1].month, { withYear: true })}`
-    : ''
+  // Non-breaking spaces keep "Nov '25" from wrapping apart at phone width.
+  const nb = (m: string) => formatMonthShort(m, { withYear: true }).replace(/ /g, '\u00a0')
+  const trendLabel = monthlyData.length > 0 ? `${nb(monthlyData[0].month)}\u00a0–\u00a0${nb(monthlyData[monthlyData.length - 1].month)}` : ''
 
   return (
     <PageTransition>
@@ -323,16 +347,16 @@ export default function ReportsClient() {
                   label="Income"
                   money
                   value={formatMoney(income)}
-                  delta={previous ? formatDelta(income - previous.income) : undefined}
-                  tone={previous ? deltaTone(income - previous.income, true) : 'neutral'}
+                  delta={previous ? delta(income - previous.income) : undefined}
+                  tone={tone(income - (previous?.income ?? 0), true)}
                   hint={previous ? `vs ${prevLabel}` : perMonthHint(income)}
                 />
                 <Stat
                   label="Spending"
                   money
                   value={formatMoney(spending)}
-                  delta={previous ? formatDelta(spending - previous.spending) : undefined}
-                  tone={previous ? deltaTone(spending - previous.spending, false) : 'neutral'}
+                  delta={previous ? delta(spending - previous.spending) : undefined}
+                  tone={tone(spending - (previous?.spending ?? 0), false)}
                   hint={previous ? `vs ${prevLabel}` : perMonthHint(spending)}
                 />
                 <Stat
@@ -440,11 +464,11 @@ export default function ReportsClient() {
             {/* By owner */}
             <section aria-labelledby="by-owner" className="flex flex-col gap-4">
               <h2 id="by-owner" className="text-lg font-semibold text-fg">By Owner</h2>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
                 <Card>
                   <CardHeader
                     title="Monthly Spending Comparison"
-                    description="Last 6 months of the trend window"
+                    description={ownerMonthly.length ? `${nb(ownerMonthly[0].month)} – ${nb(ownerMonthly[ownerMonthly.length - 1].month)}` : 'Last 6 months'}
                     action={<ChartLegend items={[{ label: OWNERS[0], color: ownerColor(OWNERS[0]), kind: 'bar' }, { label: OWNERS[1], color: ownerColor(OWNERS[1]), kind: 'bar' }]} />}
                   />
                   {ownerMonthly.length === 0 ? (
@@ -491,42 +515,48 @@ export default function ReportsClient() {
               </div>
             </section>
 
-            {/* Investments & net worth (live, from the audit + WEST endpoints) */}
-            {investmentAudit && (
+            {/* Investments & net worth (live, from the audit + WEST endpoints — each card stands alone) */}
+            {(investmentAudit || west || auditError || westError) && (
               <section aria-labelledby="investments" className="flex flex-col gap-4">
                 <h2 id="investments" className="text-lg font-semibold text-fg">Investments & Net Worth</h2>
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                  <Card>
-                    <CardHeader title="Net Worth Statement" description="Current balances by asset class" />
-                    <ul className="space-y-2.5 text-sm">
-                      {NET_WORTH_CLASSES.map(item => {
-                        const value = investmentAudit.net_worth.by_class[item.key] || 0
-                        return (
-                          <li key={item.key} className="flex items-center justify-between gap-3">
-                            <span className="flex min-w-0 items-center gap-2 text-fg-secondary">
-                              <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: item.color }} />
-                              <span className="min-w-0">
-                                <span className="block truncate">{item.label}</span>
-                                <span className="block text-label text-fg-tertiary">{item.note}</span>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
+                  {investmentAudit ? (
+                    <Card>
+                      <CardHeader title="Net Worth Statement" description="Current balances by asset class" />
+                      <ul className="space-y-2.5 text-sm">
+                        {NET_WORTH_CLASSES.map(item => {
+                          const value = investmentAudit.net_worth.by_class[item.key] || 0
+                          return (
+                            <li key={item.key} className="flex items-center justify-between gap-3">
+                              <span className="flex min-w-0 items-center gap-2 text-fg-secondary">
+                                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: item.color }} />
+                                <span className="min-w-0">
+                                  <span className="block truncate">{item.label}</span>
+                                  <span className="block text-label text-fg-tertiary">{item.note}</span>
+                                </span>
                               </span>
-                            </span>
-                            <span className="shrink-0 text-right">
-                              <span className="num block font-medium text-fg" data-money>{formatMoney(value)}</span>
-                              <span className="num block text-label text-fg-tertiary">{nwTotal > 0 ? formatPct((value / nwTotal) * 100, { decimals: 1 }) : '—'}</span>
-                            </span>
-                          </li>
-                        )
-                      })}
-                      <li className="flex justify-between gap-3 border-t border-border pt-2.5 font-semibold text-fg">
-                        <span>Total net worth</span>
-                        <span className="num" data-money>{formatMoney(nwTotal)}</span>
-                      </li>
-                    </ul>
-                  </Card>
+                              <span className="shrink-0 text-right">
+                                <span className="num block font-medium text-fg" data-money>{formatMoney(value)}</span>
+                                <span className="num block text-label text-fg-tertiary">{nwTotal > 0 ? formatPct((value / nwTotal) * 100, { decimals: 1 }) : '—'}</span>
+                              </span>
+                            </li>
+                          )
+                        })}
+                        <li className="flex justify-between gap-3 border-t border-border pt-2.5 font-semibold text-fg">
+                          <span>Total net worth</span>
+                          <span className="num" data-money>{formatMoney(nwTotal)}</span>
+                        </li>
+                      </ul>
+                    </Card>
+                  ) : auditError && westError ? (
+                    <InlineLoadError className="lg:col-span-2" title="Couldn't load investments or the WEST projection" onRetry={() => { void refreshAudit(); void refreshWest() }} />
+                  ) : auditError ? (
+                    <InlineLoadError title="Couldn't load investments" onRetry={() => { void refreshAudit() }} />
+                  ) : null}
 
                   <div className="flex flex-col gap-4">
-                    {west && westProjected != null && west.target > 0 && (
-                      <Card>
+                    {west && westProjected != null && west.target > 0 ? (
+                      <Card data-testid="west-card">
                         <CardHeader
                           title={<span className="inline-flex items-center gap-2"><Building2 aria-hidden="true" className="h-4 w-4 text-fg-tertiary" />WEST apartment</span>}
                           description={`Delivery in ${west.months_to_delivery} months`}
@@ -541,7 +571,9 @@ export default function ReportsClient() {
                           Open the WEST plan <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
                         </Link>
                       </Card>
-                    )}
+                    ) : westError && !auditError ? (
+                      <InlineLoadError title="Couldn't load the WEST projection" onRetry={() => { void refreshWest() }} />
+                    ) : null}
                     {findings.length > 0 && (
                       <Card>
                         <CardHeader

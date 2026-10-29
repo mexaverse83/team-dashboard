@@ -19,7 +19,9 @@ import { TrendBadge } from '@/components/ui/trend-badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { DEFAULT_CATEGORIES } from '@/lib/finance-utils'
-import { addMonthsKey, daysInMonth, monthKey, nextMonthStartKey, parseLocalDateKey } from '@/lib/dates'
+import { addDaysKey, addMonthsKey, daysInMonth, localDateKey, monthEndKey, monthKey, nextMonthStartKey, parseLocalDateKey } from '@/lib/dates'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
+import { Segmented } from '@/components/ui/segmented'
 import { formatDateShort, formatMoney, formatMonthLong, formatPct, formatTrendPct } from '@/lib/format'
 import { categoryColor } from '@/lib/category-icons'
 import type { Tone } from '@/lib/budget-tone'
@@ -46,14 +48,21 @@ export const HEATMAP_WEEKDAYS = [
   { label: 'Fri', day: 5 }, { label: 'Sat', day: 6 }, { label: 'Sun', day: 0 },
 ] as const
 
-export interface HeatmapCell { date: string; day: number; weekday: string; amount: number; count: number; intensity: number }
+export interface HeatmapCell { date: string; day: number; weekday: string; amount: number; count: number; intensity: number; future: boolean }
+
+/** Bills tied to a schedule (rent, subscriptions, installments) — they swamp day-to-day patterns. */
+export function isScheduledSpend(t: Pick<FinanceTransaction, 'recurring_id' | 'installment_id' | 'is_recurring' | 'source' | 'tags'>) {
+  return !!(t.recurring_id || t.installment_id || t.is_recurring || t.source === 'recurring_expense' || t.tags?.some(tag => tag.startsWith('auto-')))
+}
 
 /**
  * Day-of-week × week-of-month grid (VIS-08, F16). Transactions are date-only,
  * so dates are parsed as LOCAL calendar days — `new Date('YYYY-MM-DD')` is UTC
  * midnight and lands on the previous weekday in Mexico City.
+ * Intensity is sqrt-scaled against the 90th-percentile day so one rent day
+ * doesn't flatten the rest of the month.
  */
-export function buildSpendingHeatmap(month: string, rows: Array<Pick<FinanceTransaction, 'transaction_date' | 'amount_mxn'>>) {
+export function buildSpendingHeatmap(month: string, rows: Array<Pick<FinanceTransaction, 'transaction_date' | 'amount_mxn'>>, today = localDateKey()) {
   const [y, m] = month.split('-').map(Number)
   const totals = new Map<string, { amount: number; count: number }>()
   for (const t of rows) {
@@ -67,22 +76,31 @@ export function buildSpendingHeatmap(month: string, rows: Array<Pick<FinanceTran
   const firstWeekday = (parseLocalDateKey(`${month}-01`).getDay() + 6) % 7 // Monday = 0
   const weeks = Math.ceil((firstWeekday + days) / 7)
   const grid: Array<Array<HeatmapCell | null>> = Array.from({ length: weeks }, () => Array(7).fill(null))
-  let max = 0
-  for (const v of totals.values()) max = Math.max(max, v.amount)
+  const amounts = Array.from(totals.values()).map(v => v.amount).filter(a => a > 0).sort((a, b) => a - b)
+  const max = amounts.length ? amounts[amounts.length - 1] : 0
+  const cap = amounts.length ? amounts[Math.min(amounts.length - 1, Math.floor(amounts.length * 0.9))] : 0
   for (let d = 1; d <= days; d++) {
     const date = `${month}-${String(d).padStart(2, '0')}`
     const local = parseLocalDateKey(date)
     const col = (local.getDay() + 6) % 7
     const row = Math.floor((firstWeekday + d - 1) / 7)
     const v = totals.get(date) || { amount: 0, count: 0 }
-    grid[row][col] = { date, day: d, weekday: HEATMAP_WEEKDAYS[col].label, amount: v.amount, count: v.count, intensity: max > 0 ? v.amount / max : 0 }
+    grid[row][col] = { date, day: d, weekday: HEATMAP_WEEKDAYS[col].label, amount: v.amount, count: v.count, intensity: cap > 0 ? Math.min(1, Math.sqrt(v.amount / cap)) : 0, future: date > today }
   }
   const byWeekday = HEATMAP_WEEKDAYS.map((w, col) => ({
     label: w.label,
     amount: grid.reduce((s, week) => s + (week[col]?.amount || 0), 0),
   }))
-  return { grid, byWeekday, max }
+  const spendDays = amounts.length
+  const total = amounts.reduce((s, a) => s + a, 0)
+  let peak: HeatmapCell | null = null
+  for (const week of grid) for (const c of week) if (c && c.amount > 0 && (!peak || c.amount > peak.amount)) peak = c
+  return { grid, byWeekday, max, cap, spendDays, avgPerSpendDay: spendDays ? total / spendDays : 0, peak }
 }
+
+type UsageRow = Pick<FinanceTransaction, 'transaction_date' | 'recurring_id' | 'merchant' | 'description'>
+// Billing dates drift a few days month to month; don't call a sub unused on day 31.
+const USAGE_GRACE_DAYS = 5
 
 interface Leak { type: string; title: string; description: string; monthlyAmount: number; action: string; severity: 'high' | 'medium' | 'low'; recurringId?: string }
 interface CategoryScore { id: string; name: string; icon: string; colorIndex: number; spent: number; budget: number; grade: string; trend: number; txCount: number; budgetScore: number; trendScore: number; freqScore: number }
@@ -111,6 +129,10 @@ export default function AuditClient() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [flaggedSubs, setFlaggedSubs] = useState<Set<string>>(new Set())
+  // Expenses over the year before the month's anchor — subscription usage is judged here,
+  // not against the selected month alone (a yearly sub was never charged "this month").
+  const [usageWindow, setUsageWindow] = useState<UsageRow[] | null>(null)
+  const [heatScope, setHeatScope] = useState<'everyday' | 'all'>('everyday')
   // Stable per mount: keeps the 30-day snooze check from flickering mid-session
   const [snoozeNow] = useState(() => Date.now())
   const [cryptoRisks, setCryptoRisks] = useState<Risk[]>([])
@@ -138,16 +160,26 @@ export default function AuditClient() {
   const monthStart = `${month}-01`
   const monthEnd = nextMonthStartKey(month)
   const prevMonthStart = `${addMonthsKey(month, -1)}-01`
+  const isCurrentMonth = month === currentMonth
+  // Usage is measured back from today in the current month, from month end in past months.
+  const usageAnchor = isCurrentMonth ? localDateKey() : monthEndKey(month)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const [txRes, prevTxRes, recRes, budRes, catRes] = await Promise.all([
+    const usageFrom = addDaysKey(usageAnchor, -(365 + USAGE_GRACE_DAYS))
+    const [txRes, prevTxRes, recRes, budRes, catRes, usageRes] = await Promise.all([
       supabase.from('finance_transactions').select('*').gte('transaction_date', monthStart).lt('transaction_date', monthEnd).eq('type', 'expense'),
       supabase.from('finance_transactions').select('*').gte('transaction_date', prevMonthStart).lt('transaction_date', monthStart).eq('type', 'expense'),
       supabase.from('finance_recurring').select('*').eq('is_active', true),
       supabase.from('finance_budgets').select('*').eq('month', monthStart),
       supabase.from('finance_categories').select('*').order('sort_order'),
+      fetchAllRows<UsageRow>((from, to) =>
+        supabase.from('finance_transactions').select('id, transaction_date, recurring_id, merchant, description')
+          .eq('type', 'expense').gte('transaction_date', usageFrom).lte('transaction_date', usageAnchor)
+          .order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20000, true,
+      ).catch(() => null),
     ])
+    setUsageWindow(usageRes)
     setLoadError(!!(txRes.error || prevTxRes.error))
     setTransactions(txRes.data || [])
     setPrevTransactions(prevTxRes.data || [])
@@ -209,7 +241,7 @@ export default function AuditClient() {
     } catch { /* crypto fetch failed, non-blocking */ }
 
     setLoading(false)
-  }, [monthStart, monthEnd, prevMonthStart])
+  }, [monthStart, monthEnd, prevMonthStart, usageAnchor])
 
   useEffect(() => { fetchData(); const h = () => { if (document.visibilityState === "visible") fetchData() }; document.addEventListener("visibilitychange", h); return () => document.removeEventListener("visibilitychange", h) }, [fetchData])
 
@@ -232,10 +264,11 @@ export default function AuditClient() {
       // Skip debt-linked subscriptions — these are auto-tracked debt payments, not discretionary
       if ((r as any).debt_id) return
 
+      if (!usageWindow) return
       const window = freqDays[r.frequency] || 30
-      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - window)
-      const matching = transactions.filter(t => {
-        const onOrAfter = parseLocalDateKey(t.transaction_date) >= cutoff
+      const cutoff = addDaysKey(usageAnchor, -(window + USAGE_GRACE_DAYS))
+      const matching = usageWindow.filter(t => {
+        const onOrAfter = t.transaction_date.slice(0, 10) >= cutoff
         // Primary: recurring_id match (cron always stamps this — most reliable)
         if (t.recurring_id && t.recurring_id === r.id && onOrAfter) return true
         // Fallback: merchant/description text match
@@ -250,7 +283,7 @@ export default function AuditClient() {
           : r.frequency === 'quarterly'
             ? `${formatMoney(r.amount)}/qtr (${formatMoney(monthlyEquiv)}/mo equiv)`
             : `${formatMoney(r.amount)}/mo`
-        result.push({ type: 'unused_sub', severity: 'high', title: `${r.name} — no usage this ${label}`, description: `${amountText} — no matching transactions in ${window} days`, monthlyAmount: Math.round(monthlyEquiv), action: 'Review subscription', recurringId: r.id })
+        result.push({ type: 'unused_sub', severity: 'high', title: `${r.name} — no usage this ${label}`, description: `${amountText} — no matching charge in the ${window} days to ${formatDateShort(usageAnchor)}`, monthlyAmount: Math.round(monthlyEquiv), action: 'Review subscription', recurringId: r.id })
       }
     })
     // Bank fees
@@ -261,7 +294,7 @@ export default function AuditClient() {
       result.push({ type: 'bank_fee', severity: total > 500 ? 'high' : 'medium', title: `${fees.length} fee charges`, description: 'Bank fees and penalties', monthlyAmount: total, action: 'Switch accounts or negotiate' })
     }
     return result.sort((a, b) => b.monthlyAmount - a.monthlyAmount)
-  }, [transactions, recurring, snoozeNow])
+  }, [transactions, recurring, snoozeNow, usageWindow, usageAnchor])
 
   const totalLeakAmount = leaks.reduce((s, l) => s + l.monthlyAmount, 0)
   const catIndex = useMemo(() => new Map(categories.map((c, i) => [c.id, i])), [categories])
@@ -333,7 +366,8 @@ export default function AuditClient() {
   }, [transactions, categories, catIndex])
 
   // ── Heatmap ───────────────────────────────────────
-  const heatmap = useMemo(() => buildSpendingHeatmap(month, transactions), [month, transactions])
+  const heatRows = useMemo(() => heatScope === 'all' ? transactions : transactions.filter(t => !isScheduledSpend(t)), [transactions, heatScope])
+  const heatmap = useMemo(() => buildSpendingHeatmap(month, heatRows), [month, heatRows])
   const busiestWeekday = heatmap.byWeekday.reduce((best, d) => (d.amount > best.amount ? d : best), heatmap.byWeekday[0])
 
   // Savings potential (simple estimate)
@@ -447,13 +481,24 @@ export default function AuditClient() {
       </Card>
 
       {/* Heatmap + Category Scorecards */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
         <Card>
           <CardHeader
             title="Spending Heatmap"
-            description={busiestWeekday && busiestWeekday.amount > 0 ? `Daily spend by weekday. Busiest: ${busiestWeekday.label} (${formatMoney(busiestWeekday.amount)})` : 'Daily spend by weekday and week of the month'}
+            description={busiestWeekday && busiestWeekday.amount > 0
+              ? `${heatScope === 'everyday' ? 'Everyday spend, scheduled bills excluded' : 'All spend'}. Busiest: ${busiestWeekday.label} (${formatMoney(busiestWeekday.amount)})`
+              : 'Daily spend by weekday and week of the month'}
+            action={
+              <Segmented
+                size="sm"
+                ariaLabel="Heatmap spending scope"
+                value={heatScope}
+                onChange={setHeatScope}
+                options={[{ value: 'everyday', label: 'Everyday' }, { value: 'all', label: 'All' }]}
+              />
+            }
           />
-          <div className="w-full min-w-0" role="grid" aria-label={`Spending by day, ${monthLabel}`}>
+          <div className="w-full min-w-0" role="table" aria-label={`Spending by day, ${monthLabel}`}>
             <div className="mb-1 grid grid-cols-7 gap-1" role="row">
               {HEATMAP_WEEKDAYS.map(w => (
                 <span key={w.label} role="columnheader" className="text-center text-micro font-medium text-fg-tertiary">{w.label}</span>
@@ -464,27 +509,50 @@ export default function AuditClient() {
                 {week.map((cell, ci) => cell ? (
                   <div
                     key={cell.date}
-                    role="gridcell"
+                    role="cell"
                     data-date={cell.date}
                     data-weekday={cell.weekday}
-                    title={`${cell.weekday} ${formatDateShort(cell.date)}: ${formatMoney(cell.amount)}${cell.count ? ` · ${cell.count} ${cell.count === 1 ? 'txn' : 'txns'}` : ''}`}
-                    aria-label={`${cell.weekday} ${formatDateShort(cell.date)}: ${formatMoney(cell.amount)}`}
-                    className={cn('relative flex h-9 items-start justify-start rounded-md px-1.5 py-1 sm:h-10', cell.amount > 0 ? 'text-fg' : 'bg-surface-2 text-fg-tertiary')}
-                    style={cell.amount > 0 ? { background: `hsl(var(--info) / ${(0.14 + cell.intensity * 0.66).toFixed(2)})` } : undefined}
+                    data-future={cell.future || undefined}
+                    title={cell.future ? `${cell.weekday} ${formatDateShort(cell.date)}: upcoming` : `${cell.weekday} ${formatDateShort(cell.date)}: ${formatMoney(cell.amount)}${cell.count ? ` · ${cell.count} ${cell.count === 1 ? 'txn' : 'txns'}` : ''}`}
+                    aria-label={cell.future && cell.amount === 0 ? `${cell.weekday} ${formatDateShort(cell.date)}: upcoming` : `${cell.weekday} ${formatDateShort(cell.date)}: ${formatMoney(cell.amount)}`}
+                    className={cn(
+                      'relative flex h-9 items-start justify-start rounded-md px-1.5 py-1 sm:h-10',
+                      cell.amount > 0 ? 'text-fg' : cell.future ? 'heatmap-future border border-dashed border-border text-fg-tertiary' : 'bg-surface-2 text-fg-tertiary',
+                    )}
+                    style={cell.amount > 0 ? { background: `hsl(var(--info) / ${(0.12 + cell.intensity * 0.7).toFixed(2)})` } : undefined}
                   >
                     <span className="text-micro tabular-nums leading-none">{cell.day}</span>
                   </div>
-                ) : <div key={`empty-${wi}-${ci}`} role="gridcell" aria-hidden="true" />)}
+                ) : <div key={`empty-${wi}-${ci}`} role="cell" aria-hidden="true" />)}
               </div>
             ))}
-            <div className="mt-2 flex items-center justify-end gap-1" aria-hidden="true">
-              <span className="mr-1 text-micro text-fg-tertiary">Less</span>
-              {[0, 0.25, 0.5, 0.75, 1].map(v => (
-                <span key={v} className="h-3 w-5 rounded-sm" style={{ background: `hsl(var(--info) / ${(0.14 + v * 0.66).toFixed(2)})` }} />
-              ))}
-              <span className="ml-1 text-micro text-fg-tertiary">More</span>
+            <div className="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1" aria-hidden="true">
+              <span className="flex items-center gap-1">
+                <span className="mr-1 text-micro text-fg-tertiary">Less</span>
+                {[0, 0.25, 0.5, 0.75, 1].map(v => (
+                  <span key={v} className="h-3 w-5 rounded-sm" style={{ background: `hsl(var(--info) / ${(0.12 + v * 0.7).toFixed(2)})` }} />
+                ))}
+                <span className="ml-1 text-micro text-fg-tertiary">More</span>
+              </span>
+              {isCurrentMonth && (
+                <span className="flex items-center gap-1"><span className="heatmap-future h-3 w-5 rounded-sm border border-dashed border-border" /><span className="text-micro text-fg-tertiary">Upcoming</span></span>
+              )}
             </div>
           </div>
+          <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-3">
+            <div className="min-w-0">
+              <dt className="text-[0.75rem] text-fg-tertiary">Days with spend</dt>
+              <dd className="num-metric mt-0.5 text-sm font-semibold text-fg">{heatmap.spendDays}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-[0.75rem] text-fg-tertiary">Avg per day</dt>
+              <dd className="num-metric mt-0.5 text-sm font-semibold text-fg" data-money>{formatMoney(heatmap.avgPerSpendDay)}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-[0.75rem] text-fg-tertiary">Biggest day</dt>
+              <dd className="num-metric mt-0.5 truncate text-sm font-semibold text-fg">{heatmap.peak ? <><span data-money>{formatMoney(heatmap.peak.amount)}</span><span className="font-normal text-fg-tertiary"> · {formatDateShort(heatmap.peak.date)}</span></> : '—'}</dd>
+            </div>
+          </dl>
         </Card>
 
         <Card>
@@ -524,7 +592,9 @@ export default function AuditClient() {
       <Card>
         <CardHeader
           title={<span className="inline-flex items-center gap-2"><ShieldAlert aria-hidden="true" className="h-4 w-4 text-warning" />Money Leaks Detected</span>}
-          description="Fees, unused services, and avoidable charges"
+          description={usageWindow === null
+            ? "Fees this month · couldn't check subscription usage"
+            : isCurrentMonth ? 'Fees, unused services, and avoidable charges' : `Fees and unused services as of ${formatDateShort(usageAnchor)} · triage from the current month`}
           action={<span className="num text-sm font-semibold text-fg" data-money>{formatMoney(totalLeakAmount)}/mo</span>}
         />
         {leaks.length === 0 ? (
@@ -544,7 +614,7 @@ export default function AuditClient() {
                         <span className="num text-sm font-semibold text-fg" data-money>{formatMoney(leak.monthlyAmount)}/mo</span>
                         <span className="num text-label text-fg-tertiary" data-money>{formatMoney(leak.monthlyAmount * 12)}/yr</span>
                       </div>
-                      {leak.recurringId ? (
+                      {leak.recurringId && isCurrentMonth ? (
                         <div className="mt-3 grid grid-cols-3 gap-1.5">
                           <Button size="sm" variant="secondary" onClick={() => handleLeakTriage(leak.recurringId!, 'keep')}>Keep</Button>
                           <Button size="sm" variant="secondary" className="text-negative" onClick={() => handleLeakTriage(leak.recurringId!, 'cancel')}>Cancel</Button>

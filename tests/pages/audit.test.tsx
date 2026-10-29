@@ -201,11 +201,12 @@ describe('Expense Audit', () => {
     expect(headings.join(' ')).not.toMatch(/\p{Extended_Pictographic}/u)
   })
 
-  it('heatmap is a weekday × week grid with a Less → More legend', async () => {
+  it('heatmap is a weekday × week table with a Less → More legend', async () => {
     const Comp = (await load()).default
     const { container } = render(<Comp />)
-    await waitFor(() => expect(screen.getByRole('grid')).toBeInTheDocument())
-    expect(within(screen.getByRole('grid')).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+    await waitFor(() => expect(screen.getByRole('table', { name: /Spending by day/ })).toBeInTheDocument())
+    expect(screen.queryByRole('grid')).toBeNull()
+    expect(within(screen.getByRole('table', { name: /Spending by day/ })).getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
     expect(container.querySelectorAll('[data-date]').length).toBeGreaterThanOrEqual(28)
     expect(screen.getByText('Less')).toBeInTheDocument()
     expect(screen.getByText('More')).toBeInTheDocument()
@@ -233,7 +234,7 @@ describe('Expense Audit', () => {
       { transaction_date: '2026-10-28', amount_mxn: 300 },
       { transaction_date: '2026-10-28', amount_mxn: 100 },
       { transaction_date: '2026-10-31', amount_mxn: 200 },
-    ])
+    ], '2026-10-31')
     expect(max).toBe(400)
     const cells = grid.flat().filter(Boolean)
     expect(cells).toHaveLength(31)
@@ -241,6 +242,32 @@ describe('Expense Audit', () => {
     expect(oct28).toMatchObject({ weekday: 'Wed', amount: 400, count: 2, intensity: 1 })
     expect(cells.find(c => c!.date === '2026-10-31')!.weekday).toBe('Sat')
     expect(byWeekday.find(d => d.label === 'Wed')!.amount).toBe(400)
+  })
+
+  it('one huge day does not flatten the rest of the heatmap; future days are marked', async () => {
+    const { buildSpendingHeatmap } = await load()
+    const rows = [
+      { transaction_date: '2026-10-01', amount_mxn: 75000 }, // rent + WEST
+      ...Array.from({ length: 20 }, (_, i) => ({ transaction_date: `2026-10-${String(i + 2).padStart(2, '0')}`, amount_mxn: 200 + i * 100 })),
+    ]
+    const { grid, peak } = buildSpendingHeatmap('2026-10', rows, '2026-10-28')
+    const cells = grid.flat().filter(Boolean) as Array<{ date: string; intensity: number; future: boolean }>
+    const small = cells.find(c => c.date === '2026-10-02')!.intensity
+    const mid = cells.find(c => c.date === '2026-10-21')!.intensity
+    expect(cells.find(c => c.date === '2026-10-01')!.intensity).toBe(1)
+    expect(mid).toBeGreaterThan(0.5)
+    expect(mid - small).toBeGreaterThan(0.3)
+    expect(peak?.date).toBe('2026-10-01')
+    expect(cells.filter(c => c.future).map(c => c.date)).toEqual(['2026-10-29', '2026-10-30', '2026-10-31'])
+  })
+
+  it('isScheduledSpend separates bills from everyday spend', async () => {
+    const { isScheduledSpend } = await load()
+    const base = { recurring_id: null, installment_id: null, is_recurring: false, source: null, tags: [] as string[] }
+    expect(isScheduledSpend(base)).toBe(false)
+    expect(isScheduledSpend({ ...base, recurring_id: 'r01' })).toBe(true)
+    expect(isScheduledSpend({ ...base, installment_id: 'i1' })).toBe(true)
+    expect(isScheduledSpend({ ...base, tags: ['auto-msi'] })).toBe(true)
   })
 
   it('clamps runaway category trends instead of printing four-digit percentages', async () => {
@@ -282,5 +309,59 @@ describe('Expense Audit', () => {
     expect(flag).toHaveAttribute('aria-pressed', 'false')
     fireEvent.click(flag)
     expect(flag).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  // Leak detection reads its own usage window (anchored to today / month end), not just the selected month.
+  function mockUsage(usage: any[], { usageError = false } = {}) {
+    setupSupabaseMock({ finance_recurring: { data: [SEED_RECURRING[0]], error: null }, finance_transactions: { data: [], error: null } })
+    const base = vi.mocked(supabase.from).getMockImplementation()!
+    const usageFilters: Array<[string, unknown[]]> = []
+    vi.mocked(supabase.from).mockImplementation(((table: string) => {
+      const builder = base(table)
+      if (table !== 'finance_transactions') return builder
+      return {
+        ...builder,
+        select: (cols: string) => {
+          if (!String(cols).includes('recurring_id')) return builder.select(cols)
+          const res = usageError ? { data: null, error: { message: 'boom' } } : { data: usage, error: null }
+          const chain: any = Promise.resolve(res)
+          for (const m of ['eq', 'gte', 'lte', 'lt', 'order', 'range']) chain[m] = (...args: unknown[]) => { usageFilters.push([m, args]); return chain }
+          return chain
+        },
+      }
+    }) as any)
+    return usageFilters
+  }
+
+  it('does not flag a monthly sub charged within 30 days but before the 1st', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 3, 12))
+    const filters = mockUsage([{ id: 'u1', transaction_date: '2026-09-20', recurring_id: 'r01', merchant: 'Claude', description: null }])
+    const Comp = (await load()).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText('No leaks detected')).toBeInTheDocument())
+    expect(filters).toContainEqual(['lte', ['transaction_date', '2026-10-03']])
+  })
+
+  it('past months judge usage up to month end and hide the destructive triage buttons', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 28, 12))
+    const filters = mockUsage([])
+    const Comp = (await load()).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText(/Claude Pro — no usage/)).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+    await waitFor(() => expect(filters).toContainEqual(['lte', ['transaction_date', '2026-09-30']]))
+    await waitFor(() => expect(screen.getByText(/triage from the current month/)).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
+  })
+
+  it('a failed usage read flags no subscriptions instead of all of them', async () => {
+    mockUsage([], { usageError: true })
+    const Comp = (await load()).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByText(/couldn't check subscription usage/)).toBeInTheDocument())
+    expect(screen.queryByText(/no usage this/)).toBeNull()
   })
 })
