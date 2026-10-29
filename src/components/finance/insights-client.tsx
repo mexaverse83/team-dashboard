@@ -171,7 +171,9 @@ export default function InsightsClient() {
     setError(null)
     try {
       const [insightsRes, summaryRes, westData, auditRes] = await Promise.all([
-        fetch(`/api/finance/insights${refresh ? '?refresh=true' : ''}`, { cache: 'no-store' }),
+        refresh
+          ? fetch('/api/finance/insights', { method: 'POST', cache: 'no-store', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh: true }) })
+          : fetch('/api/finance/insights', { cache: 'no-store' }),
         fetch('/api/finance/summary?months=3'),
         fetchWestProjection<WestProjectionData>().catch(() => null),
         fetch('/api/finance/audit/investments').catch(() => null),

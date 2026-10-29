@@ -229,19 +229,19 @@ describe('widget content rules', () => {
 })
 
 describe('Finance.js loader', () => {
-  async function loaderSource(env: Record<string, string | undefined>) {
+  async function loaderResponse(env: Record<string, string | undefined>, query = 'slot=1') {
     const saved = { ...process.env }
     Object.assign(process.env, env)
     try {
       vi.resetModules()
       vi.doMock('@/lib/finance-api-auth', () => ({ authorizeFinanceRequest: async () => ({ ok: true }) }))
       const { GET } = await import('@/app/api/finance/widget-script/route')
-      const res = await GET(new NextRequest('https://finance.autonomis.co/api/finance/widget-script?slot=1'))
-      return await res.text()
+      return await GET(new NextRequest(`https://finance.autonomis.co/api/finance/widget-script?${query}`))
     } finally {
       process.env = saved
     }
   }
+  const loaderSource = async (env: Record<string, string | undefined>) => (await loaderResponse(env)).text()
 
   it('embeds the per-phone read token, never FINANCE_API_KEY', async () => {
     const src = await loaderSource({ WIDGET_READ_TOKENS: 'aaaaaaaaaaaaaaaa1,bbbbbbbbbbbbbbbb2', FINANCE_API_KEY: 'full-power-key' })
@@ -250,9 +250,17 @@ describe('Finance.js loader', () => {
     expect(() => new Function(`return (async () => {\n${src}\n})`)).not.toThrow()
   })
 
-  it('falls back to the legacy key while WIDGET_READ_TOKENS is unset', async () => {
+  it('fails closed while WIDGET_READ_TOKENS is unset, never embedding FINANCE_API_KEY', async () => {
+    const res = await loaderResponse({ WIDGET_READ_TOKENS: '', FINANCE_API_KEY: 'legacy-key', WIDGET_ALLOW_LEGACY_KEY: '' })
+    expect(res.status).toBe(503)
+    expect(await res.text()).not.toContain('legacy-key')
+    const check = await loaderResponse({ WIDGET_READ_TOKENS: '', WIDGET_ALLOW_LEGACY_KEY: '' }, 'slot=0&check=1')
+    expect(await check.json()).toMatchObject({ ready: false })
+  })
+
+  it('embeds the legacy key only with the explicit WIDGET_ALLOW_LEGACY_KEY opt-in', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const src = await loaderSource({ WIDGET_READ_TOKENS: '', FINANCE_API_KEY: 'legacy-key' })
+    const src = await loaderSource({ WIDGET_READ_TOKENS: '', FINANCE_API_KEY: 'legacy-key', WIDGET_ALLOW_LEGACY_KEY: '1' })
     expect(src).toContain('const API_KEY = "legacy-key"')
     expect(warn).toHaveBeenCalled()
     warn.mockRestore()

@@ -102,15 +102,14 @@ async function cacheInsights(supabase: SupabaseClient, insights: Insight[], gene
  * - Otherwise `insights` is the deterministic live plan (`source:'live'`),
  *   plus any LLM items that are not day-scoped and still under 72h, and the
  *   expired LLM items move to `archived` (the Insights page's "Show last brief").
- * `?refresh=true` generates a new LLM brief in-process (needs an AI key).
+ * GET never generates or writes: a fresh LLM brief is POST { refresh: true }
+ * (a cross-site link must not trigger paid generation for a signed-in user).
  */
 export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
   const supabase = admin()
   if (supabase instanceof Response) return supabase
-
-  if (req.nextUrl.searchParams.get('refresh') === 'true') return refreshBrief(req, supabase, triggerFromAuth(auth.method, req))
 
   const now = new Date()
   let cached: CachedBriefRow | null = null
@@ -225,20 +224,27 @@ async function refreshBrief(req: NextRequest, supabase: SupabaseClient, trigger:
  * POST /api/finance/insights — store a brief generated elsewhere (the home
  * PC's Codex script), so scripts never write the cache with the anon key.
  * API key only. Body: { insights: Insight[] }.
+ * Body { refresh: true } instead generates a new brief in-process (session or
+ * API key; needs an AI key) — the Daily Brief's "Generate" button.
  */
 export async function POST(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
-  if (auth.method !== 'api-key') return NextResponse.json({ error: 'API key required' }, { status: 403 })
-  const supabase = admin()
-  if (supabase instanceof Response) return supabase
 
-  let body: { insights?: unknown }
+  let body: { insights?: unknown; refresh?: unknown }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'invalid JSON' }, { status: 400 })
   }
+  if (body.refresh === true) {
+    const supabase = admin()
+    if (supabase instanceof Response) return supabase
+    return refreshBrief(req, supabase, triggerFromAuth(auth.method, req))
+  }
+  if (auth.method !== 'api-key') return NextResponse.json({ error: 'API key required' }, { status: 403 })
+  const supabase = admin()
+  if (supabase instanceof Response) return supabase
   const insights: Insight[] = normalizeInsights(body.insights)
   if (insights.length === 0) return NextResponse.json({ error: 'no valid insights' }, { status: 400 })
 

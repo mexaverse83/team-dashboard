@@ -29,12 +29,13 @@ function client(): SupabaseClient | Response {
   }
 }
 
-// GET: list snapshots. A Vercel cron (Bearer CRON_SECRET) or ?write=1 writes today's snapshot first.
+// GET: list snapshots. Only a Vercel cron (Bearer CRON_SECRET) writes today's
+// snapshot first; users and scripts POST (a GET link must never write).
 export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req, { allowCron: true })
   if (!auth.ok) return auth.response
 
-  if (auth.method === 'cron' || req.nextUrl.searchParams.get('write') === '1') {
+  if (auth.method === 'cron') {
     return writeSnapshot(req, auth)
   }
 

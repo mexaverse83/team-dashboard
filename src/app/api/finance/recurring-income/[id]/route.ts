@@ -1,12 +1,16 @@
-import { createClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { configErrorResponse, getAdminClient } from '@/lib/supabase-admin'
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  )
+// Service role like every other route: a missing key answers 503 'config',
+// never a silent anon-key write that RLS turns into a raw PGRST116 500.
+function adminOrError(): { supabase: SupabaseClient } | { response: Response } {
+  try {
+    return { supabase: getAdminClient() }
+  } catch (err) {
+    return { response: configErrorResponse(err) }
+  }
 }
 
 // PUT /api/finance/recurring-income/:id — update entry
@@ -14,6 +18,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
   const { id } = await params
+  const admin = adminOrError()
+  if ('response' in admin) return admin.response
 
   let body: Record<string, unknown>
   try {
@@ -35,7 +41,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (update.amount !== undefined) update.amount = Number(update.amount)
   if (update.day_of_month !== undefined) update.day_of_month = Number(update.day_of_month)
 
-  const { data, error } = await getSupabase()
+  const { data, error } = await admin.supabase
     .from('finance_recurring_income')
     .update(update)
     .eq('id', id)
@@ -53,11 +59,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
   const { id } = await params
+  const admin = adminOrError()
+  if ('response' in admin) return admin.response
 
   const hard = req.nextUrl.searchParams.get('hard') === 'true'
 
   if (hard) {
-    const { error } = await getSupabase()
+    const { error } = await admin.supabase
       .from('finance_recurring_income')
       .delete()
       .eq('id', id)
@@ -66,7 +74,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   }
 
   // Soft delete — deactivate only
-  const { data, error } = await getSupabase()
+  const { data, error } = await admin.supabase
     .from('finance_recurring_income')
     .update({ active: false })
     .eq('id', id)

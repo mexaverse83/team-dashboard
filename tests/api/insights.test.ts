@@ -97,4 +97,12 @@ describe('POST /api/finance/insights', () => {
     expect(state.insert.mock.calls.find(([t]) => t === 'finance_insights_cache')?.[1]).toMatchObject({ period_month: '2026-10-01' })
     expect(state.insert.mock.calls.find(([t]) => t === 'finance_automation_runs')?.[1]).toMatchObject({ job: 'insights', status: 'ok', trigger: 'codex' })
   })
+  it('generates only on POST { refresh: true }, never on a GET link', async () => {
+    const viaGet = await (await GET(new NextRequest('http://localhost/api/finance/insights?refresh=true'))).json()
+    expect(viaGet.source).toBe('live')
+    expect(state.insert.mock.calls.find(([t]) => t === 'finance_insights_cache')).toBeUndefined()
+    // A signed-in user may ask for a refresh by POST; without an AI key it explains instead of 403.
+    const res = await post({ refresh: true })
+    expect(res.status).not.toBe(403)
+  })
 })

@@ -87,6 +87,14 @@ describe('GET /api/finance/health', () => {
     expect(body.problems).toContain('No salary is set to post automatically')
     expect(body.status).toBe('late')
   })
+  it('flags a production deploy without CRON_SECRET, since every cron would get 401', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('CRON_SECRET', '')
+    state.counts = { finance_recurring_income: 3 }
+    const body = await getHealth()
+    expect(body.problems).toContain('Scheduled jobs can’t run: CRON_SECRET is not set in Vercel')
+    expect(body.status).not.toBe('ok')
+  })
   it('does not call a quiet processor late from inferred data', async () => {
     state.tables.finance_automation_heartbeats = new Error('relation does not exist')
     state.tables.finance_automation_runs = new Error('relation does not exist')

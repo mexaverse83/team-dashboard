@@ -57,6 +57,11 @@ describe('net-worth snapshots', () => {
     expect(snapshotWrite()).toBeUndefined()
     expect(body.snapshots).toHaveLength(2)
   })
+  it('ignores ?write=1 on a user GET (a link must never write)', async () => {
+    state.auth = { ok: true, method: 'user' }
+    await GET(new NextRequest('http://localhost/api/finance/net-worth?write=1'))
+    expect(snapshotWrite()).toBeUndefined()
+  })
   it('answers ?latest=1 with one row', async () => {
     state.auth = { ok: true, method: 'user' }
     const body = await (await GET(new NextRequest('http://localhost/api/finance/net-worth?latest=1'))).json()

@@ -1,8 +1,17 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WidgetInstallCard } from '@/components/finance/widget-install-card'
 
 describe('WidgetInstallCard', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('explains the missing read tokens instead of offering a download that would fail', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ready: false, message: 'Set WIDGET_READ_TOKENS (one per phone) in Vercel, then download again.' }), { status: 200 })))
+    render(<WidgetInstallCard />)
+    expect(await screen.findByRole('status')).toHaveTextContent(/WIDGET_READ_TOKENS/)
+    expect(screen.queryByRole('link', { name: /download finance\.js/i })).not.toBeInTheDocument()
+  })
+
   it('downloads the loader for the chosen phone', () => {
     render(<WidgetInstallCard />)
     const link = screen.getByRole('link', { name: /download finance\.js/i })

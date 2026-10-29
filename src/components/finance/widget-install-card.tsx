@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { Download, Smartphone } from 'lucide-react'
 import { Card, CardHeader } from '@/components/ui/card'
@@ -31,6 +31,17 @@ const PREVIEW_ALT = 'Example medium widget showing left to spend, spend pace and
 export function WidgetInstallCard({ className }: { className?: string }) {
   const [slot, setSlot] = useState<PhoneSlot>('0')
   const href = `/api/finance/widget-script?slot=${slot}`
+  // The download fails closed until per-phone read tokens exist; say so instead
+  // of letting the browser save an error (null = unknown, keep the button).
+  const [blocked, setBlocked] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    fetch(`${href}&check=1`, { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: { ready?: boolean; message?: string | null } | null) => { if (!cancelled) setBlocked(d && d.ready === false ? d.message || 'Widget download is not set up yet.' : null) })
+      .catch(() => { if (!cancelled) setBlocked(null) })
+    return () => { cancelled = true }
+  }, [href])
 
   return (
     <Card className={className}>
@@ -51,11 +62,17 @@ export function WidgetInstallCard({ className }: { className?: string }) {
           <div className="flex flex-col gap-2">
             <span className="text-label font-medium text-fg-secondary">Whose phone?</span>
             <Segmented options={PHONES.map(p => ({ value: p.value, label: p.label }))} value={slot} onChange={setSlot} ariaLabel="Whose phone" className="w-fit" />
-            <a href={href} download="Finance.js" className={buttonVariants({ variant: 'primary', size: 'md', className: 'sm:w-fit' })}>
-              <Download className="h-4 w-4" aria-hidden />
-              Download Finance.js
-            </a>
-            <p className="text-label text-fg-tertiary">Keep the file private: it carries this phone’s widget key.</p>
+            {blocked ? (
+              <p role="status" className="rounded-lg border border-warning/40 bg-warning-bg px-3 py-2 text-sm text-fg">{blocked}</p>
+            ) : (
+              <>
+                <a href={href} download="Finance.js" className={buttonVariants({ variant: 'primary', size: 'md', className: 'sm:w-fit' })}>
+                  <Download className="h-4 w-4" aria-hidden />
+                  Download Finance.js
+                </a>
+                <p className="text-label text-fg-tertiary">Keep the file private: it carries this phone’s read-only widget key.</p>
+              </>
+            )}
           </div>
 
           <ol className="flex flex-col gap-2 text-sm text-fg-secondary">

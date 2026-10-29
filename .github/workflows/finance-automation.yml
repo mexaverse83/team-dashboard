@@ -7,6 +7,10 @@ name: Finance Automation Watchdog
 # 26h or any job is failing. When the processor is late it kicks it once
 # (safe: posts are idempotent via unique indexes), then still fails so the
 # outage is visible. Manual dispatch can run the processor on demand.
+#
+# The repo is PUBLIC, so Actions logs are world-readable: never echo response
+# bodies, item names or error text — only statuses and counts. Read details in
+# the app (Settings → Automation) instead.
 
 on:
   schedule:
@@ -17,6 +21,8 @@ on:
         description: 'Also POST process-recurring now'
         type: boolean
         default: false
+
+permissions: {}
 
 concurrency:
   group: finance-automation
@@ -62,14 +68,15 @@ jobs:
         run: |
           set -euo pipefail
           code=$("$RUNNER_TEMP/req.sh" POST /api/finance/process-recurring run.json)
-          echo "HTTP $code"; jq . run.json 2>/dev/null || cat run.json
+          echo "HTTP $code"
+          jq -c '{ok, total_created, errors: ((.results.errors // []) | length), warnings: ((.item_warnings // []) | length)}' run.json 2>/dev/null || echo "(unparseable response)"
           if [ "$code" != "200" ]; then
-            echo "::error::process-recurring returned HTTP $code: $(jq -r '(.results.errors // []) | join(" | ")' run.json 2>/dev/null)"
+            echo "::error::process-recurring returned HTTP $code with $(jq -r '(.results.errors // []) | length' run.json 2>/dev/null || echo '?') error(s) — see the automation status in the app sidebar"
             exit 1
           fi
           warnings=$(jq '(.item_warnings // []) | length' run.json)
           if [ "$warnings" -gt 0 ]; then
-            echo "::warning::process-recurring OK with $warnings item warning(s): $(jq -r '[.item_warnings[] | "\(.item): \(.message)"] | join(" | ")' run.json)"
+            echo "::warning::process-recurring OK with $warnings item warning(s) — see the automation status in the app sidebar"
           fi
           echo "::notice::process-recurring OK — created $(jq -r '.total_created // 0' run.json)"
 
@@ -77,20 +84,26 @@ jobs:
         run: |
           set -euo pipefail
           code=$("$RUNNER_TEMP/req.sh" GET /api/finance/health health.json)
-          echo "HTTP $code"; jq . health.json 2>/dev/null || cat health.json
+          echo "HTTP $code"
           if [ "$code" != "200" ]; then
             echo "::error::/api/finance/health returned HTTP $code"
             exit 1
           fi
-          jq -r '.jobs[] | "\(.job): \(.status) (last ok \(.last_ok_at // "never"))\(if .last_error then " — \(.last_error)" else "" end)"' health.json
-          for p in $(jq -r '.problems[]? | @base64' health.json); do
-            echo "::warning::$(echo "$p" | base64 -d)"
-          done
+          # Status words and timestamps only: error text can name subscriptions or income sources.
+          jq -r '.jobs[] | "\(.job): \(.status) (last ok \(.last_ok_at // "never"))"' health.json
+          problems=$(jq -r '(.problems // []) | length' health.json)
+          if [ "$problems" -gt 0 ]; then
+            echo "::warning::/api/finance/health reports $problems problem(s) — see the automation status in the app sidebar"
+          fi
+          if [ "$(jq -r '.checks.cron_secret_present // true' health.json)" = "false" ]; then
+            echo "::error::CRON_SECRET is not set in Vercel — every scheduled job gets 401"
+            exit 1
+          fi
 
           # Only the run ledger is trustworthy enough to fail on or to kick the
           # processor; inferred times (ledger not migrated yet) just warn.
           recurring=$(jq -r '.jobs[] | select(.job == "process-recurring" and .source == "ledger") | .status' health.json)
-          failing=$(jq -r '[.jobs[] | select(.status == "failing" and .source == "ledger") | "\(.job): \(.last_error // "failed")"] | join(" | ")' health.json)
+          failing=$(jq -r '[.jobs[] | select(.status == "failing" and .source == "ledger") | .job] | join(", ")' health.json)
           if [ "$(jq -r '.checks.ledger // "ok"' health.json)" = "missing" ]; then
             echo "::warning::Run ledger not migrated — job times are inferred; apply supabase-2026-10-automation-runs.sql"
           fi
@@ -98,7 +111,8 @@ jobs:
           if [ "$recurring" = "late" ]; then
             echo "::error::process-recurring has not succeeded in over 26h (last ok $(jq -r '.jobs[] | select(.job == "process-recurring") | .last_ok_at // "never"' health.json)). Check CRON_SECRET in Vercel → Settings → Cron Jobs."
             kick=$("$RUNNER_TEMP/req.sh" POST /api/finance/process-recurring kick.json)
-            echo "Fallback kick → HTTP $kick"; jq '{ok, total_created, errors: .results.errors, item_warnings}' kick.json 2>/dev/null || cat kick.json
+            echo "Fallback kick → HTTP $kick"
+            jq -c '{ok, total_created, errors: ((.results.errors // []) | length), warnings: ((.item_warnings // []) | length)}' kick.json 2>/dev/null || echo "(unparseable response)"
             exit 1
           fi
           if [ -n "$failing" ]; then

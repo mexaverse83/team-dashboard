@@ -96,6 +96,8 @@ export async function GET(req: NextRequest) {
   const problems: string[] = []
   if (!checks.service_key_present) problems.push('The server is missing its database key, so automations can’t save anything')
   if (activeIncome === 0) problems.push('No salary is set to post automatically')
+  // Cron auth is Bearer-only: without CRON_SECRET every Vercel cron gets 401 silently.
+  if (process.env.NODE_ENV === 'production' && !checks.cron_secret_present) problems.push('Scheduled jobs can’t run: CRON_SECRET is not set in Vercel')
   const status = problems.length && overallHealth(jobs) === 'ok' ? 'late' : overallHealth(jobs)
 
   return NextResponse.json({

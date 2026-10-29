@@ -7,17 +7,30 @@ import { widgetTokenForLoader } from '@/lib/widget-auth'
 // The loader caches the widget logic from /api/finance/widget-code and
 // re-checks it at most every 6h (ETag → 304), so design changes deploy
 // without re-downloads. It embeds a read-only WIDGET_READ_TOKENS entry
-// (?slot=N picks one per phone), never the read/write FINANCE_API_KEY —
-// except while WIDGET_READ_TOKENS is unset, when it keeps the legacy key so
-// re-downloads keep working (W12, NU-5/6).
+// (?slot=N picks one per phone), never the read/write FINANCE_API_KEY. While
+// WIDGET_READ_TOKENS is unset the download fails closed (503) — phones already
+// installed keep their embedded key, and every phone must re-download anyway
+// to get a token. WIDGET_ALLOW_LEGACY_KEY=1 is an explicit escape hatch.
+// ?check=1 answers {ready} so the install card can explain instead of
+// downloading an error (W12, NU-5/6).
+const MISSING_TOKENS_MESSAGE = 'Set WIDGET_READ_TOKENS (one per phone) in Vercel, then download again.'
+
 export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
 
   const origin = process.env.NEXT_PUBLIC_APP_ORIGIN || 'https://finance.autonomis.co'
   const token = widgetTokenForLoader(req.nextUrl.searchParams.get('slot'))
+  const allowLegacy = process.env.WIDGET_ALLOW_LEGACY_KEY === '1'
+  const ready = Boolean(token) || allowLegacy
+  if (req.nextUrl.searchParams.get('check') === '1') {
+    return NextResponse.json({ ready, message: ready ? null : MISSING_TOKENS_MESSAGE }, { headers: { 'Cache-Control': 'no-store' } })
+  }
+  if (!ready) {
+    return NextResponse.json({ error: MISSING_TOKENS_MESSAGE }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+  }
   const legacyKey = token ? '' : process.env.FINANCE_API_KEY || ''
-  if (!token) console.warn('[widget-script] WIDGET_READ_TOKENS is unset; the loader falls back to FINANCE_API_KEY')
+  if (!token) console.warn('[widget-script] WIDGET_ALLOW_LEGACY_KEY=1: the loader embeds FINANCE_API_KEY')
 
   const script = buildLoader({ origin, token, legacyKey, generated: localDateKey() })
   return new NextResponse(script, {
