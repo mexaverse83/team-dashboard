@@ -11,6 +11,7 @@ import { useFinanceData } from '@/hooks/use-finance-data'
 import { buildDeterministicBrief, type BriefSummary } from '@/lib/deterministic-brief'
 import { insightFreshnessLevel, isInsightUsable, type FreshnessLevel } from '@/lib/insight-freshness'
 import { formatDateShort } from '@/lib/format'
+import { mexicoCityToday } from '@/lib/dates'
 import { MiniMarkdown, withMoneySpans } from '@/lib/mini-markdown'
 import { cn } from '@/lib/utils'
 
@@ -51,11 +52,13 @@ interface ChatMessage {
 }
 
 /**
- * Accepts both wolff-chat shapes: v2 `?latest_proactive=1` → `{question, reply}`
- * (or null), and the legacy `{messages}` list.
+ * Accepts the wolff-chat shapes: v2 `?latest_proactive=1` →
+ * `{latest_proactive: {question, reply} | null}`, a bare `{question, reply}`,
+ * and the legacy `{messages}` list.
  */
 export function proactiveFromChat(payload: unknown): ProactiveReply | null {
   if (!payload || typeof payload !== 'object') return null
+  if ('latest_proactive' in payload) return proactiveFromChat((payload as { latest_proactive: unknown }).latest_proactive)
   const p = payload as { reply?: unknown; messages?: ChatMessage[] }
   if (p.reply && typeof p.reply === 'object') {
     const reply = p.reply as Partial<ChatMessage>
@@ -161,6 +164,11 @@ function WolffWidgetView({ insights, proactive, summary, loading = false, now = 
     live && !coachInstead ? { label: 'Ask about this', prompt: live.coach.title } : { label: 'Review a purchase', prompt: 'Help me check a purchase against our budget and goals.' },
   ]
   const week = llmWeek ? { title: llmWeek.title, detail: llmWeek.detail } : live && !coachInstead ? live.week : null
+  // A proactive note is current only on the Mexico City day it was written;
+  // older ones (figures may have moved) sit behind a dated "earlier note".
+  const proactiveCurrent = Boolean(proactive?.created_at && !Number.isNaN(new Date(proactive.created_at).getTime())
+    && mexicoCityToday(new Date(proactive.created_at)) === mexicoCityToday(now))
+  const proactiveDate = proactive?.created_at && !Number.isNaN(new Date(proactive.created_at).getTime()) ? formatDateShort(new Date(proactive.created_at)) : null
 
   return (
     <Card className="flex flex-col" aria-labelledby="wolff-command-title">
@@ -220,16 +228,23 @@ function WolffWidgetView({ insights, proactive, summary, loading = false, now = 
       {(week || proactive) && (
         <details className="group mt-3 border-t border-border pt-1">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-label font-medium text-fg-secondary [&::-webkit-details-marker]:hidden">
-            <span>{proactive ? 'Mona noticed · this week' : 'This week'}</span><ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+            <span>{proactive && proactiveCurrent ? 'Mona noticed · today' : proactive && !week ? `Earlier note${proactiveDate ? ` · ${proactiveDate}` : ''}` : 'This week'}</span><ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
           </summary>
           <div className="space-y-3 pb-2 text-label leading-relaxed text-fg-secondary">
-            {proactive && (
+            {proactive && proactiveCurrent && (
               <div className="border-l-2 border-warning pl-3">
-                <span className="mb-1 block font-semibold text-fg">Mona noticed{proactive.created_at ? ` · ${formatDateShort(new Date(proactive.created_at))}` : ''}</span>
+                <span className="mb-1 block font-semibold text-fg">Mona noticed{proactiveDate ? ` · ${proactiveDate}` : ''}</span>
                 <MiniMarkdown text={proactive.content} />
               </div>
             )}
             {week && <p><span className="mb-1 block font-semibold text-fg">{withMoneySpans(week.title)}</span>{withMoneySpans(week.detail)}</p>}
+            {proactive && !proactiveCurrent && (
+              <div className="border-l-2 border-border pl-3" data-proactive="earlier">
+                <span className="mb-1 block font-semibold text-fg">Earlier note{proactiveDate ? ` · ${proactiveDate}` : ''}</span>
+                <span className="mb-1 block text-micro text-fg-tertiary">Written earlier · its figures may be out of date</span>
+                <MiniMarkdown text={proactive.content} />
+              </div>
+            )}
           </div>
         </details>
       )}

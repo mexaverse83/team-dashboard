@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { localDateKey } from '@/lib/dates'
-import { widgetTokenForLoader } from '@/lib/widget-auth'
+import { widgetReadTokens, widgetTokenForLoader } from '@/lib/widget-auth'
 
 // Serves the personalized Scriptable LOADER as a downloadable Finance.js.
 // The loader caches the widget logic from /api/finance/widget-code and
@@ -14,20 +14,28 @@ import { widgetTokenForLoader } from '@/lib/widget-auth'
 // ?check=1 answers {ready} so the install card can explain instead of
 // downloading an error (W12, NU-5/6).
 const MISSING_TOKENS_MESSAGE = 'Set WIDGET_READ_TOKENS (one per phone) in Vercel, then download again.'
+const slotMissingMessage = (slot: string | null) => Number(slot) === 1
+  ? 'Add a second WIDGET_READ_TOKENS entry for Laura’s phone in Vercel, then download again.'
+  : `Add a WIDGET_READ_TOKENS entry for phone slot ${slot} in Vercel, then download again.`
 
 export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
 
   const origin = process.env.NEXT_PUBLIC_APP_ORIGIN || 'https://finance.autonomis.co'
-  const token = widgetTokenForLoader(req.nextUrl.searchParams.get('slot'))
-  const allowLegacy = process.env.WIDGET_ALLOW_LEGACY_KEY === '1'
+  const slot = req.nextUrl.searchParams.get('slot')
+  const token = widgetTokenForLoader(slot)
+  const tokenCount = widgetReadTokens().length
+  // Tokens exist but not one for this phone's slot: never hand out another phone's.
+  const slotMissing = !token && tokenCount > 0
+  const allowLegacy = process.env.WIDGET_ALLOW_LEGACY_KEY === '1' && tokenCount === 0
   const ready = Boolean(token) || allowLegacy
+  const message = ready ? null : slotMissing ? slotMissingMessage(slot) : MISSING_TOKENS_MESSAGE
   if (req.nextUrl.searchParams.get('check') === '1') {
-    return NextResponse.json({ ready, message: ready ? null : MISSING_TOKENS_MESSAGE }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ ready, message }, { headers: { 'Cache-Control': 'no-store' } })
   }
   if (!ready) {
-    return NextResponse.json({ error: MISSING_TOKENS_MESSAGE }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ error: message }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
   }
   const legacyKey = token ? '' : process.env.FINANCE_API_KEY || ''
   if (!token) console.warn('[widget-script] WIDGET_ALLOW_LEGACY_KEY=1: the loader embeds FINANCE_API_KEY')

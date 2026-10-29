@@ -121,11 +121,23 @@ describe("Mona's take", () => {
     render(<WolffWidget now={now} summary={liveSummary} insights={fixture.insights} proactive={{ content: 'Saw **$1,840** at Monita.', created_at: '2026-10-27T15:00:00Z' }} />)
     const link = screen.getByRole('link', { name: /Plan a date night/ })
     expect(new URL(link.getAttribute('href')!, 'http://localhost').searchParams.get('prompt')).toContain('date night')
-    fireEvent.click(screen.getByText('Mona noticed · this week'))
+    // Written two days ago: it sits behind a dated "earlier note", not as today's take.
+    expect(screen.queryByText(/Mona noticed/)).toBeNull()
+    expect(screen.getByText('$1,840').closest('[data-proactive="earlier"]')).not.toBeNull()
     expect(screen.getByText('$1,840').closest('strong')).not.toBeNull()
   })
 
-  it('reads both wolff-chat shapes', () => {
+  it('shows a proactive note written today as current', () => {
+    render(<WolffWidget now={now} summary={liveSummary} insights={fixture.insights} proactive={{ content: 'Saw **$900** at Oxxo.', created_at: now.toISOString() }} />)
+    expect(screen.getByText('Mona noticed · today')).toBeInTheDocument()
+    expect(screen.getByText('$900').closest('[data-proactive="earlier"]')).toBeNull()
+  })
+
+  it('reads the wolff-chat shapes', () => {
+    // The route's real ?latest_proactive=1 shape (tests/api/wolff-chat.test.ts).
+    expect(proactiveFromChat({ latest_proactive: { question: { id: 'q' }, reply: { content: 'Hi', created_at: 'x' } } })).toEqual({ content: 'Hi', created_at: 'x' })
+    expect(proactiveFromChat({ latest_proactive: null })).toBeNull()
+    expect(proactiveFromChat({ latest_proactive: { question: { id: 'q' }, reply: null } })).toBeNull()
     expect(proactiveFromChat({ question: {}, reply: { content: 'Hi', created_at: 'x' } })).toEqual({ content: 'Hi', created_at: 'x' })
     expect(proactiveFromChat({ messages: [
       { id: 'q', role: 'user', content: 'tx', asked_by: 'wolff-monitor:1', created_at: 'a' },

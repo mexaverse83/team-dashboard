@@ -40,11 +40,14 @@ export async function authorizeWidgetRequest(req: NextRequest) {
 
 /**
  * The token embedded in a downloaded loader. `slot` picks one phone's token
- * (?slot=1 → the second entry); out-of-range falls back to the first.
+ * (?slot=1 → the second entry); no slot means the first. An out-of-range or
+ * invalid slot returns null — never another phone's token, or revoking one
+ * phone would silently break both.
  */
 export function widgetTokenForLoader(slot: string | null | undefined, env: NodeJS.ProcessEnv = process.env): string | null {
   const tokens = widgetReadTokens(env)
   if (!tokens.length) return null
+  if (slot == null || slot === '') return tokens[0]
   const i = Number(slot)
-  return tokens[Number.isInteger(i) && i >= 0 && i < tokens.length ? i : 0]
+  return Number.isInteger(i) && i >= 0 && i < tokens.length ? tokens[i] : null
 }

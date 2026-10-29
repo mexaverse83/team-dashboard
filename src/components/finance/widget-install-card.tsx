@@ -77,7 +77,7 @@ export function WidgetInstallCard({ className }: { className?: string }) {
 
           <ol className="flex flex-col gap-2 text-sm text-fg-secondary">
             <li><span className="font-semibold text-fg">1.</span> Install <span className="font-medium text-fg">Scriptable</span> from the App Store.</li>
-            <li><span className="font-semibold text-fg">2.</span> Open the downloaded <span className="font-mono text-fg">Finance.js</span> on the iPhone and choose <span className="font-medium text-fg">Open in Scriptable</span>.</li>
+            <li><span className="font-semibold text-fg">2.</span> On the iPhone, open <span className="font-medium text-fg">Files › Downloads › <span className="font-mono">Finance.js</span></span>, tap <span className="font-medium text-fg">Share</span>, choose <span className="font-medium text-fg">Scriptable</span>, then <span className="font-medium text-fg">Add to My Scripts</span>.</li>
             <li><span className="font-semibold text-fg">3.</span> Long-press the home or lock screen, add a <span className="font-medium text-fg">Scriptable</span> widget, tap it and pick <span className="font-medium text-fg">Finance</span> as the script.</li>
           </ol>
 

@@ -208,6 +208,17 @@ describe('widget token scope', () => {
     expect((await authorizeWidgetRequest(getReq)).ok).toBe(true)
   })
 
+  it('never hands one phone another phone’s token', async () => {
+    const { widgetTokenForLoader } = await import('@/lib/widget-auth')
+    const one = { WIDGET_READ_TOKENS: 'phone-a-0123456789abcdef' } as unknown as NodeJS.ProcessEnv
+    const two = { WIDGET_READ_TOKENS: 'phone-a-0123456789abcdef,phone-b-0123456789abcdef' } as unknown as NodeJS.ProcessEnv
+    expect(widgetTokenForLoader(null, one)).toBe('phone-a-0123456789abcdef')
+    expect(widgetTokenForLoader('0', one)).toBe('phone-a-0123456789abcdef')
+    expect(widgetTokenForLoader('1', one)).toBeNull()
+    expect(widgetTokenForLoader('x', two)).toBeNull()
+    expect(widgetTokenForLoader('1', two)).toBe('phone-b-0123456789abcdef')
+  })
+
   it('ignores short tokens and an unset env', async () => {
     const { isValidWidgetToken, widgetReadTokens } = await import('@/lib/widget-auth')
     expect(widgetReadTokens({ WIDGET_READ_TOKENS: 'short, ,phone-a-0123456789abcdef' } as unknown as NodeJS.ProcessEnv)).toEqual(['phone-a-0123456789abcdef'])

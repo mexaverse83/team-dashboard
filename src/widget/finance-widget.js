@@ -42,7 +42,8 @@ const STR = {
   en: {
     left: 'Left to spend', over: 'Over budget', leftShort: 'left', overShort: 'over',
     everyday: 'everyday budgets', thru: 'thru', daysLeft: n => n === 1 ? 'last day' : n + ' days left',
-    perDay: v => v + '/day', onPlan: 'On plan', tight: 'Tight', overPlan: 'Over plan',
+    // Chip words are about everyday budgets; "plan" means only the savings plan (home).
+    perDay: v => v + '/day', onPlan: 'Within budget', tight: 'Tight', overPlan: 'Over budget',
     ofBudget: (n, p) => n + ' ' + p + '% of budget', underPace: v => v + ' under pace', overPace: v => v + ' over pace',
     spendPace: 'Spend vs pace', west: 'WEST', savings: 'Savings goal', onTarget: 'on target', of: 'of', toGo: v => v + ' to go',
     budgets: 'Budgets', leftOf: v => v + ' left', overBy: v => v + ' over', comingUp: 'Coming up', more: n => '+' + n + ' more',
@@ -53,7 +54,7 @@ const STR = {
   es: {
     left: 'Disponible', over: 'Excedido', leftShort: 'quedan', overShort: 'arriba',
     everyday: 'gasto diario', thru: 'hasta', daysLeft: n => n === 1 ? 'último día' : 'quedan ' + n + ' días',
-    perDay: v => v + '/día', onPlan: 'En plan', tight: 'Justo', overPlan: 'Fuera de plan',
+    perDay: v => v + '/día', onPlan: 'En presupuesto', tight: 'Justo', overPlan: 'Excedido',
     ofBudget: (n, p) => n + ' ' + p + '% del presupuesto', underPace: v => v + ' bajo el ritmo', overPace: v => v + ' sobre el ritmo',
     spendPace: 'Gasto vs ritmo', west: 'WEST', savings: 'Meta de ahorro', onTarget: 'en meta', of: 'de', toGo: v => 'faltan ' + v,
     budgets: 'Presupuestos', leftOf: v => 'quedan ' + v, overBy: v => v + ' arriba', comingUp: 'Próximos cargos', more: n => '+' + n + ' más',
@@ -515,7 +516,8 @@ function medium(w, d, m, inLarge) {
   const hl = headerLine(d)
   txt(head, hl.text, 12, hl.color, 'semibold')
   head.addSpacer()
-  if (!fromLastMonth(d)) chip(head, st)
+  // Over: the hero label already says "Over budget" in red; no chip to repeat it.
+  if (!fromLastMonth(d) && statusOf(d) !== 'over') chip(head, st)
   w.addSpacer(m.height < 160 ? 4 : 7)
 
   const body = w.addStack()
@@ -637,10 +639,12 @@ function lockRect(w, d, m) {
   txt(top, d.__stale ? '⚠︎ ' + stampTime(d.updated_at) : STR.thru + ' ' + thruShort(v), 11, whiteA(0.7), 'medium')
   const wm = d.west_month
   if (wm) {
-    w.addSpacer(5)
-    addBar(w, cw, 5, wm.pct / 100, WHITE, whiteA(0.25))
-    w.addSpacer(4)
+    // WEST label first, its bar right under it: the bar reads as WEST's, not
+    // as a gauge for the spend number above.
+    w.addSpacer(6)
     txt(w, STR.west + ' ' + wm.pct + '% · ' + (wm.gap > 0 ? STR.toGo(moneyShort(wm.gap)) : STR.onTarget), 11, whiteA(0.85), 'semibold')
+    w.addSpacer(3)
+    addBar(w, cw, 5, wm.pct / 100, WHITE, whiteA(0.25))
   }
 }
 function lockCirc(w, d) {

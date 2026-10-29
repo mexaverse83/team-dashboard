@@ -97,13 +97,14 @@ describe('widget content rules', () => {
     expect(r.allText).toContain('Over budget')
     expect(r.allText).toContain('$5,486')
     expect(r.allText).toContain('thru Sat Oct 31')
-    expect(r.allText).toContain('Over plan')
+    // No "Over plan" chip: "plan" means the savings plan on home; the hero already says Over budget.
+    expect(r.allText).not.toContain('Over plan')
     expect(r.allText).toContain('Wed Oct 28 · 4 days left')
     expect(r.allText).not.toMatch(/EXTRA TODAY|PROTECT THE PLAN|THROUGH SUNDAY/i)
   })
 
   it('names the status with a word, not colour alone', async () => {
-    expect((await render({ fixture: underBudget, family: 'medium' })).allText).toContain('On plan')
+    expect((await render({ fixture: underBudget, family: 'medium' })).allText).toContain('Within budget')
     expect((await render({ fixture: tightBudget, family: 'medium' })).allText).toContain('Tight')
   })
 
@@ -241,7 +242,7 @@ describe('Finance.js loader', () => {
       process.env = saved
     }
   }
-  const loaderSource = async (env: Record<string, string | undefined>) => (await loaderResponse(env)).text()
+  const loaderSource = async (env: Record<string, string | undefined>, query?: string) => (await loaderResponse(env, query)).text()
 
   it('embeds the per-phone read token, never FINANCE_API_KEY', async () => {
     const src = await loaderSource({ WIDGET_READ_TOKENS: 'aaaaaaaaaaaaaaaa1,bbbbbbbbbbbbbbbb2', FINANCE_API_KEY: 'full-power-key' })
@@ -258,6 +259,14 @@ describe('Finance.js loader', () => {
     expect(await check.json()).toMatchObject({ ready: false })
   })
 
+  it('never hands Laura\u2019s slot Bernardo\u2019s token when only one is set', async () => {
+    const res = await loaderResponse({ WIDGET_READ_TOKENS: 'aaaaaaaaaaaaaaaa1', WIDGET_ALLOW_LEGACY_KEY: '' }, 'slot=1')
+    expect(res.status).toBe(503)
+    expect(await res.text()).not.toContain('aaaaaaaaaaaaaaaa1')
+    const check = await loaderResponse({ WIDGET_READ_TOKENS: 'aaaaaaaaaaaaaaaa1', WIDGET_ALLOW_LEGACY_KEY: '' }, 'slot=1&check=1')
+    expect(await check.json()).toMatchObject({ ready: false, message: expect.stringContaining('second WIDGET_READ_TOKENS entry') })
+  })
+
   it('embeds the legacy key only with the explicit WIDGET_ALLOW_LEGACY_KEY opt-in', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const src = await loaderSource({ WIDGET_READ_TOKENS: '', FINANCE_API_KEY: 'legacy-key', WIDGET_ALLOW_LEGACY_KEY: '1' })
@@ -267,7 +276,7 @@ describe('Finance.js loader', () => {
   })
 
   it('caches the widget code and revalidates with the ETag at most every 6h', async () => {
-    const src = await loaderSource({ WIDGET_READ_TOKENS: 'aaaaaaaaaaaaaaaa1' })
+    const src = await loaderSource({ WIDGET_READ_TOKENS: 'aaaaaaaaaaaaaaaa1' }, 'slot=0')
     const files = new Map<string, string>()
     const calls: Array<{ url: string; headers: Record<string, string> }> = []
     const respond = ({ url, headers }: { url: string; headers: Record<string, string> }) => {
@@ -297,7 +306,7 @@ describe('Finance.js loader', () => {
   })
 
   it('shows the re-install notice when the token is revoked before any code is cached', async () => {
-    const src = await loaderSource({ WIDGET_READ_TOKENS: 'aaaaaaaaaaaaaaaa1' })
+    const src = await loaderSource({ WIDGET_READ_TOKENS: 'aaaaaaaaaaaaaaaa1' }, 'slot=0')
     const env = createScriptableEnv({ family: 'small', respond: () => ({ status: 401, body: '{"error":"Unauthorized"}' }) })
     const { widget } = await env.run(src)
     expect(inspectWidget(widget).allText).toContain('Re-install the widget')
