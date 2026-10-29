@@ -28,8 +28,9 @@ import {
   describeSeries, moneyTooltipFormatter, monthTick, trimLeadingSparse,
 } from '@/lib/chart-theme'
 import { categoryColor } from '@/lib/category-icons'
-import { addMonthsKey, localDateKey, monthKey } from '@/lib/dates'
-import { formatCompact, formatMoney, formatMonthLong, formatMonthShort, formatPct } from '@/lib/format'
+import { addMonthsKey, localDateKey, monthKey, parseLocalDateKey } from '@/lib/dates'
+import { fetchLatestNetWorth, netWorthRows, type NetWorthSnapshotRow } from '@/lib/net-worth-rows'
+import { formatCompact, formatDateShort, formatMoney, formatMonthLong, formatMonthShort, formatPct } from '@/lib/format'
 import { ownerColor } from '@/lib/owners'
 import type { Tone } from '@/lib/budget-tone'
 import type { FinanceCategory } from '@/lib/finance-types'
@@ -73,12 +74,6 @@ const PERIOD_OPTIONS = [
   { value: 'all' as const, label: 'All', ariaLabel: 'All time' },
 ]
 
-const NET_WORTH_CLASSES = [
-  { key: 'real_estate', label: 'Real estate (equity)', color: 'hsl(var(--cat-3))', note: '+10–15%/yr est.' },
-  { key: 'fixed_income', label: 'Fixed income (GBM)', color: 'hsl(var(--cat-1))', note: '9.5% net' },
-  { key: 'retirement', label: 'Retirement (locked)', color: 'hsl(var(--cat-5))', note: '+8.5%/yr est.' },
-  { key: 'crypto', label: 'Crypto', color: 'hsl(var(--cat-4))', note: 'volatile' },
-]
 
 async function loadReportData(): Promise<{ categories: FinanceCategory[]; transactions: ReportTx[] }> {
   const [catRes, transactions] = await Promise.all([
@@ -129,8 +124,12 @@ export default function ReportsClient() {
   const [selectedMonth, setSelectedMonth] = useState(lastFullMonth)
 
   const { data, error, loading, refresh } = useFinanceData('reports:transactions', loadReportData)
-  const { data: investmentAudit, error: auditError, refresh: refreshAudit } = useFinanceData<InvestmentAudit>(
+  const { data: investmentAudit, error: auditError } = useFinanceData<InvestmentAudit>(
     'reports:investment-audit', signal => getJson<InvestmentAudit>('/api/finance/audit/investments', signal),
+  )
+  // The statement reads the same snapshot as Home, so its rows add up to the total.
+  const { data: nwSnap, error: nwError, refresh: refreshNetWorth } = useFinanceData<NetWorthSnapshotRow | null>(
+    'reports:net-worth', signal => fetchLatestNetWorth(signal),
   )
   const { data: west, error: westError, refresh: refreshWest } = useFinanceData<WestSnapshot>(
     'reports:west', signal => getJson<WestSnapshot>('/api/finance/investments/west-projection', signal),
@@ -319,7 +318,7 @@ export default function ReportsClient() {
   // One precision per KPI row: always compact, always signed.
   const delta = (n: number) => formatCompact(n, { sign: 'always' })
   const tone = (n: number, goodWhenUp: boolean): Tone => (previous ? deltaTone(n, goodWhenUp) : 'neutral')
-  const nwTotal = investmentAudit?.net_worth.total ?? 0
+  const nwTotal = nwSnap?.net_worth ?? 0
   const findings = investmentAudit?.findings.filter(f => f.severity !== 'green').slice(0, 3) ?? []
   const westProjected = west?.projected_at_delivery?.total_projected
   // Non-breaking spaces keep "Nov '25" from wrapping apart at phone width.
@@ -516,42 +515,45 @@ export default function ReportsClient() {
             </section>
 
             {/* Investments & net worth (live, from the audit + WEST endpoints — each card stands alone) */}
-            {(investmentAudit || west || auditError || westError) && (
+            {(nwSnap || investmentAudit || west || nwError || auditError || westError) && (
               <section aria-labelledby="investments" className="flex flex-col gap-4">
                 <h2 id="investments" className="text-lg font-semibold text-fg">Investments & Net Worth</h2>
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
-                  {investmentAudit ? (
+                  {nwSnap ? (
                     <Card>
-                      <CardHeader title="Net Worth Statement" description="Current balances by asset class" />
+                      <CardHeader title="Net Worth Statement" description={`Snapshot ${formatDateShort(parseLocalDateKey(nwSnap.snapshot_date))} · the same figure as Home`} />
                       <ul className="space-y-2.5 text-sm">
-                        {NET_WORTH_CLASSES.map(item => {
-                          const value = investmentAudit.net_worth.by_class[item.key] || 0
-                          return (
-                            <li key={item.key} className="flex items-center justify-between gap-3">
-                              <span className="flex min-w-0 items-center gap-2 text-fg-secondary">
-                                <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: item.color }} />
-                                <span className="min-w-0">
-                                  <span className="block truncate">{item.label}</span>
-                                  <span className="block text-label text-fg-tertiary">{item.note}</span>
-                                </span>
+                        {netWorthRows(nwSnap).map(item => (
+                          <li key={item.key} className="flex items-center justify-between gap-3">
+                            <span className="flex min-w-0 items-center gap-2 text-fg-secondary">
+                              <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ background: item.color }} />
+                              <span className="min-w-0">
+                                <span className="block truncate">{item.label}</span>
+                                {item.note && <span className="block text-label text-fg-tertiary">{item.note}</span>}
                               </span>
-                              <span className="shrink-0 text-right">
-                                <span className="num block font-medium text-fg" data-money>{formatMoney(value)}</span>
-                                <span className="num block text-label text-fg-tertiary">{nwTotal > 0 ? formatPct((value / nwTotal) * 100, { decimals: 1 }) : '—'}</span>
-                              </span>
-                            </li>
-                          )
-                        })}
+                            </span>
+                            <span className="shrink-0 text-right">
+                              <span className="num block font-medium text-fg" data-money>{formatMoney(item.value)}</span>
+                              <span className="num block text-label text-fg-tertiary">{(nwSnap.total_assets ?? 0) > 0 ? `${formatPct((item.value / nwSnap.total_assets!) * 100, { decimals: 1 })} of assets` : '—'}</span>
+                            </span>
+                          </li>
+                        ))}
+                        {(nwSnap.total_liabilities ?? 0) > 0 && (
+                          <li className="flex items-center justify-between gap-3 text-fg-secondary">
+                            <span className="pl-4">Debts & MSI owed</span>
+                            <span className="num font-medium text-fg" data-money>−{formatMoney(nwSnap.total_liabilities ?? 0)}</span>
+                          </li>
+                        )}
                         <li className="flex justify-between gap-3 border-t border-border pt-2.5 font-semibold text-fg">
                           <span>Total net worth</span>
                           <span className="num" data-money>{formatMoney(nwTotal)}</span>
                         </li>
                       </ul>
                     </Card>
-                  ) : auditError && westError ? (
-                    <InlineLoadError className="lg:col-span-2" title="Couldn't load investments or the WEST projection" onRetry={() => { void refreshAudit(); void refreshWest() }} />
-                  ) : auditError ? (
-                    <InlineLoadError title="Couldn't load investments" onRetry={() => { void refreshAudit() }} />
+                  ) : nwError && westError ? (
+                    <InlineLoadError className="lg:col-span-2" title="Couldn't load net worth or the WEST projection" onRetry={() => { void refreshNetWorth(); void refreshWest() }} />
+                  ) : nwError ? (
+                    <InlineLoadError title="Couldn't load net worth" onRetry={() => { void refreshNetWorth() }} />
                   ) : null}
 
                   <div className="flex flex-col gap-4">
@@ -560,7 +562,7 @@ export default function ReportsClient() {
                         <CardHeader
                           title={<span className="inline-flex items-center gap-2"><Building2 aria-hidden="true" className="h-4 w-4 text-fg-tertiary" />WEST apartment</span>}
                           description={`Delivery in ${west.months_to_delivery} months`}
-                          action={<StatusPill tone={westProjected >= west.target ? 'positive' : 'warning'}>{formatPct((westProjected / west.target) * 100)} funded</StatusPill>}
+                          action={<StatusPill tone={westProjected >= west.target ? 'positive' : 'warning'}>{formatPct((westProjected / west.target) * 100)} at delivery</StatusPill>}
                         />
                         <ProgressBar value={westProjected} max={west.target} tone={westProjected >= west.target ? 'positive' : 'warning'} label="WEST funding projected at delivery" />
                         <div className="mt-2 flex flex-wrap justify-between gap-x-3 gap-y-1 text-label text-fg-secondary">
@@ -571,7 +573,7 @@ export default function ReportsClient() {
                           Open the WEST plan <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
                         </Link>
                       </Card>
-                    ) : westError && !auditError ? (
+                    ) : westError && !nwError ? (
                       <InlineLoadError title="Couldn't load the WEST projection" onRetry={() => { void refreshWest() }} />
                     ) : null}
                     {findings.length > 0 && (

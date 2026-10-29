@@ -10,13 +10,13 @@ import { cn } from '@/lib/utils'
 import { fetchWestProjection } from '@/lib/west-projection-client'
 import { buildDeterministicBrief, type BriefSummary } from '@/lib/deterministic-brief'
 import { insightFreshnessLevel, isInsightUsable } from '@/lib/insight-freshness'
-import { mexicoCityToday } from '@/lib/dates'
+import { mexicoCityToday, parseLocalDateKey } from '@/lib/dates'
 import { formatDateShort } from '@/lib/format'
 import { MiniMarkdown } from '@/lib/mini-markdown'
+import { fetchLatestNetWorth, netWorthRows, type NetWorthSnapshotRow } from '@/lib/net-worth-rows'
 import Link from 'next/link'
 
 function fmtMXN(n: number) { return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)} MXN` }
-function fmtUSD(n: number) { return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)} USD` }
 
 interface WestSnapshot {
   projectedTotal: number; target: number; gap: number; paidPct: number; investPct: number
@@ -28,9 +28,6 @@ interface WestProjectionData {
   monthly_projection?: Array<{ total?: number }>
   current_status?: { amount_paid?: number; investment_value?: number }
   milestones?: Array<Record<string, string>>
-}
-interface NetWorthSnapshot {
-  total: number; totalUSD: number; crypto: number; fixedIncome: number; realEstate: number; retirement: number
 }
 interface Insight {
   type: 'alert' | 'recommendation' | 'win' | 'forecast' | 'pattern' | 'saving'
@@ -91,6 +88,8 @@ interface SummaryData extends Omit<BriefSummary, 'current_month'> {
   cash_flow?: {
     monthly_income: number
     fixed_commitments: number
+    /** monthly_income − discretionary_available (v2). */
+    planned_spend?: number
     discretionary_available: number
   }
 }
@@ -163,20 +162,21 @@ export default function InsightsClient() {
   const [archived, setArchived] = useState<Insight[]>([])
   const [liveSource, setLiveSource] = useState(false)
   const [showLast, setShowLast] = useState(false)
-  const [netWorthSnapshot, setNetWorthSnapshot] = useState<NetWorthSnapshot | null>(null)
+  // Same snapshot as Home and Investments, so the total matches everywhere.
+  const [netWorthSnapshot, setNetWorthSnapshot] = useState<NetWorthSnapshotRow | null>(null)
 
   const fetchAll = async (refresh = false) => {
     if (refresh) setGenerating(true)
     else setLoading(true)
     setError(null)
     try {
-      const [insightsRes, summaryRes, westData, auditRes] = await Promise.all([
+      const [insightsRes, summaryRes, westData, netWorth] = await Promise.all([
         refresh
           ? fetch('/api/finance/insights', { method: 'POST', cache: 'no-store', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh: true }) })
           : fetch('/api/finance/insights', { cache: 'no-store' }),
         fetch('/api/finance/summary?months=3'),
         fetchWestProjection<WestProjectionData>().catch(() => null),
-        fetch('/api/finance/audit/investments').catch(() => null),
+        fetchLatestNetWorth().catch(() => null),
       ])
 
       // WEST snapshot
@@ -204,20 +204,7 @@ export default function InsightsClient() {
       }
 
       // Net worth snapshot
-      if (auditRes?.ok) {
-        const ad = await auditRes.json().catch(() => null)
-        if (ad?.net_worth) {
-          const nw = ad.net_worth
-          setNetWorthSnapshot({
-            total: nw.total,
-            totalUSD: Math.round(nw.total / 17.13),
-            crypto: nw.by_class?.crypto || 0,
-            fixedIncome: nw.by_class?.fixed_income || 0,
-            realEstate: nw.by_class?.real_estate || 0,
-            retirement: nw.by_class?.retirement || 0,
-          })
-        }
-      }
+      setNetWorthSnapshot(netWorth)
 
       if (!insightsRes.ok) {
         const data = await insightsRes.json().catch(() => ({}))
@@ -496,9 +483,9 @@ export default function InsightsClient() {
                   {summary?.current_month && (
                     <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-[hsl(var(--bg-elevated))] font-semibold">
                       <div className="col-span-3">Total</div>
-                      <div className="col-span-2 text-right tabular-nums">${formatMXN(summary.current_month.total_spent)}</div>
-                      <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-secondary))]">
-                        ${formatMXN(bva.reduce((s, b) => s + b.budget, 0))}
+                      <div className="col-span-2 text-right tabular-nums" data-money>${formatMXN(bva.reduce((s, b) => s + b.spent, 0))}</div>
+                      <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-secondary))]" data-money>
+                        ${formatMXN(bva.reduce((s, b) => s + (b.monthly_budget ?? b.budget), 0))}
                       </div>
                       <div className="col-span-5" />
                     </div>
@@ -542,8 +529,8 @@ export default function InsightsClient() {
                   ))}
                   {summary?.current_month && (
                     <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))] flex items-center justify-between text-sm font-semibold">
-                      <span>Total Spent</span>
-                      <span className="tabular-nums">${formatMXN(summary.current_month.total_spent)}</span>
+                      <span>Total in budgeted categories</span>
+                      <span className="tabular-nums" data-money>${formatMXN(bva.reduce((s, b) => s + b.spent, 0))}</span>
                     </div>
                   )}
                 </div>
@@ -599,25 +586,26 @@ export default function InsightsClient() {
                 <GlassCard className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <p className="text-xl font-bold tabular-nums">{fmtMXN(netWorthSnapshot.total)}</p>
-                      <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">≈ {fmtUSD(netWorthSnapshot.totalUSD)}</p>
+                      <p className="text-xl font-bold tabular-nums" data-money>{fmtMXN(netWorthSnapshot.net_worth)}</p>
+                      <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">Snapshot {formatDateShort(parseLocalDateKey(netWorthSnapshot.snapshot_date))} · same figure as Home</p>
                     </div>
                   </div>
                   <div className="space-y-1.5 border-t border-[hsl(var(--border))] pt-3">
-                    {[
-                      { label: 'Real Estate (equity)', value: netWorthSnapshot.realEstate, color: 'bg-violet-500' },
-                      { label: 'Retirement', value: netWorthSnapshot.retirement, color: 'bg-slate-500' },
-                      { label: 'Fixed Income', value: netWorthSnapshot.fixedIncome, color: 'bg-emerald-500' },
-                      { label: 'Crypto', value: netWorthSnapshot.crypto, color: 'bg-amber-500' },
-                    ].map(item => (
-                      <div key={item.label} className="flex items-center justify-between text-xs">
+                    {netWorthRows(netWorthSnapshot).map(item => (
+                      <div key={item.key} className="flex items-center justify-between text-xs">
                         <span className="flex items-center gap-1.5">
-                          <span className={cn("h-2 w-2 rounded-full shrink-0", item.color)} />
+                          <span className="h-2 w-2 rounded-full shrink-0" style={{ background: item.color }} />
                           <span className="text-[hsl(var(--text-secondary))]">{item.label}</span>
                         </span>
-                        <span className="font-medium tabular-nums">{fmtMXN(item.value)}</span>
+                        <span className="font-medium tabular-nums" data-money>{fmtMXN(item.value)}</span>
                       </div>
                     ))}
+                    {(netWorthSnapshot.total_liabilities ?? 0) > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="pl-3.5 text-[hsl(var(--text-secondary))]">Debts & MSI owed</span>
+                        <span className="font-medium tabular-nums" data-money>−{fmtMXN(netWorthSnapshot.total_liabilities ?? 0)}</span>
+                      </div>
+                    )}
                   </div>
                 </GlassCard>
               </section>
@@ -796,7 +784,7 @@ export default function InsightsClient() {
                     )}
 
                     <p className="text-label text-fg-tertiary">
-                      Goal and WEST funding live on <Link href="/finance/goals" className="font-semibold text-fg-secondary hover:text-fg">Goals &amp; WEST</Link> — they draw on the same GBM pesos, so they aren’t added together here.
+                      Goal funding lives on <Link href="/finance/goals" className="font-semibold text-fg-secondary hover:text-fg">Goals</Link> and WEST on <Link href="/finance/investments?tab=Real%20Estate" className="font-semibold text-fg-secondary hover:text-fg">Investments › Real Estate</Link> — they draw on the same GBM pesos, so they aren’t added together here.
                     </p>
 
                     {/* Cash Flow Summary */}
@@ -812,7 +800,7 @@ export default function InsightsClient() {
                           </div>
                           <div className="flex justify-between">
                             <span>Planned spend</span>
-                            <span className="font-medium tabular-nums text-fg">−${formatMXN(summary.cash_flow.fixed_commitments)}</span>
+                            <span className="font-medium tabular-nums text-fg" data-money>−${formatMXN(summary.cash_flow.planned_spend ?? summary.cash_flow.fixed_commitments)}</span>
                           </div>
                           <div className="pt-2 mt-1 border-t border-[hsl(var(--border))] flex justify-between font-semibold">
                             <span>Discretionary</span>
