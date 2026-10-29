@@ -11,6 +11,9 @@ import { buildDeterministicBrief, type BriefSummary } from '@/lib/deterministic-
 import { formatMoney } from '@/lib/format'
 import { isInsightUsable } from '@/lib/insight-freshness'
 import type { SummaryResponse, SummaryUpcomingItem, SummaryVariable } from '@/lib/summary/types'
+import { buildToday, type WidgetToday } from '@/lib/widget/today'
+
+export type { WidgetToday } from '@/lib/widget/today'
 
 export const WIDGET_PAYLOAD_VERSION = 2
 export const UPCOMING_WINDOW_DAYS = 14
@@ -25,7 +28,7 @@ const MONTHS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep'
 
 export interface WidgetInsight { type?: string; icon?: string; title: string; detail?: string; priority?: string; category?: string }
 export interface WidgetInsightsCache { generated_at: string | null; period_month?: string | null; insights: WidgetInsight[] }
-export interface WidgetTransaction { transaction_date: string; amount?: number | null; amount_mxn?: number | null; category_id?: string | null }
+export interface WidgetTransaction { transaction_date: string; amount?: number | null; amount_mxn?: number | null; category_id?: string | null; tags?: string[] | null }
 
 /** The parts of the WEST projection the widget reads. */
 export interface WidgetWestInput {
@@ -72,6 +75,8 @@ export interface WidgetPayloadV2 {
   coach: { title: string; url: string; question: string; rule: string; tone: string }
   coach_es: { title: string; url: string; question: string }
   brief: { fresh: boolean; generated_at: string | null; title: string | null; detail: string | null }
+  /** v3 daily plan (see src/lib/widget/today.ts); null when there is no month goal to measure against. */
+  today: WidgetToday | null
   [legacy: string]: unknown
 }
 
@@ -304,6 +309,18 @@ export function buildWidgetPayload(input: WidgetPayloadInput): WidgetPayloadV2 {
   const coachEsTitle = coachTitle(coachEs.directive, variable, 'es')
   const brief = usableBrief(input.insights, now)
 
+  const upcoming = buildUpcoming(summary, today)
+  const westMonthsToDelivery = summary.west_plan?.months_to_delivery ?? west?.months_to_delivery ?? null
+  const todayPlan = buildToday({
+    summary,
+    transactions: input.transactions,
+    target,
+    stretchTarget: stretch,
+    upcoming,
+    westFundedPct: funded,
+    westMonthsToDelivery,
+  })
+
   // ── legacy (v1) fields, kept one release ──
   const goalNeed = Number(summary.goal_funding?.total_monthly_needed) || 0
   const findCat = (c: string) => brief.all.find(i => String(i.category || '').toUpperCase() === c)
@@ -336,15 +353,16 @@ export function buildWidgetPayload(input: WidgetPayloadInput): WidgetPayloadV2 {
       tone: westTone(westPct),
       stretch_target: stretch != null && stretch > 0 ? round(stretch) : null,
     } : null,
-    upcoming: buildUpcoming(summary, today),
+    upcoming,
     milestones: {
       baby_months: Number.isFinite(summary.baby_plan?.months_to_birth) ? Number(summary.baby_plan!.months_to_birth) : null,
       west_funded_pct: funded,
-      west_months_to_delivery: summary.west_plan?.months_to_delivery ?? west?.months_to_delivery ?? null,
+      west_months_to_delivery: westMonthsToDelivery,
     },
     coach: { title: coachEnTitle, url: coachEn.coach.url, question: coachEn.coach.title, rule: coachEn.directive.rule, tone: coachEn.directive.tone },
     coach_es: { title: coachEsTitle, url: coachEs.coach.url, question: coachEs.coach.title },
     brief: { fresh: brief.fresh, generated_at: brief.generated_at, title: brief.title, detail: brief.detail },
+    today: todayPlan,
 
     week_envelope_basis: 'remaining planned category spending from today through Sunday',
     net_this_month: round((summary.income?.current_month_actual ?? 0) - (cm.total_spent ?? 0)),

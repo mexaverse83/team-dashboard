@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       } : null)
       .catch(() => null),
     fetchAllRows<WidgetTransaction>((from, to) => supabase.from('finance_transactions')
-      .select('id,transaction_date,amount,amount_mxn,category_id')
+      .select('id,transaction_date,amount,amount_mxn,category_id,tags')
       .eq('type', 'expense').gte('transaction_date', `${month}-01`).lt('transaction_date', nextMonthStartKey(month))
       .order('id').range(from, to), 1000, 20000, true).catch(() => null),
     Promise.resolve(supabase.from('finance_categories').select('id,name'))

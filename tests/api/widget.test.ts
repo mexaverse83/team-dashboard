@@ -132,6 +132,14 @@ describe('GET /api/finance/widget (v2)', () => {
     ])
   })
 
+  it('adds the daily plan (today) from the ledger, leaving planned rows out of today\'s spend', async () => {
+    state.transactions = [...state.transactions, { transaction_date: '2026-10-28', amount: 758, category_id: 'c-other', tags: ['auto-msi'] }]
+    const data = await (await get()).json()
+    expect(data.today).toMatchObject({ date: '2026-10-28', basis: 'goal', spent: 500, days_left: 4 })
+    expect(data.today.goal).toMatchObject({ label: 'WEST', target: 152583, projected: 83536 })
+    expect(data.today.week.at(-1)).toMatchObject({ date: '2026-10-28', today: true, spent: 500 })
+  })
+
   it('daily spend ends exactly at variable.spent', async () => {
     state.transactions = [
       { transaction_date: '2026-10-02', amount: 16961, category_id: 'c-other' },

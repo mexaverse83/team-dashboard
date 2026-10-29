@@ -5,6 +5,7 @@
 //   npm run widget:preview                         → $TMPDIR/widget-preview/
 //   npm run widget:preview -- --out /tmp/shots --only medium,large
 //   npm run widget:preview -- --fixture live.json   (a saved GET /api/finance/widget)
+//   npm run widget:preview -- --fixture live.json --now 2026-10-29T09:44:00-06:00   (clock for the base cases)
 //
 // Offline and read-only: the page never touches the network.
 import { execSync } from 'node:child_process'
@@ -28,7 +29,9 @@ try { puppeteer = require('puppeteer-core') } catch { puppeteer = (await import(
 
 const harness = join(root, 'tests', 'widget-harness')
 const fixtures = await import(pathToFileURL(join(harness, 'fixtures.mjs')).href)
-const base = flag('--fixture') ? JSON.parse(readFileSync(resolve(flag('--fixture')), 'utf8')) : fixtures.overBudget
+const base = flag('--fixture') ? JSON.parse(readFileSync(resolve(flag('--fixture')), 'utf8')) : fixtures.goalSafe
+// The base payload's own clock (a saved fixture renders on its own date).
+const baseNow = flag('--now') || (flag('--fixture') ? null : fixtures.NOW_TODAY)
 const code = readFileSync(join(root, 'src', 'widget', 'finance-widget.js'), 'utf8')
 // Keep the bundled copy the widget-code route serves in step with the script.
 const { renderSourceModule } = await import(pathToFileURL(join(root, 'src', 'widget', 'sync-source.mjs')).href)
@@ -62,36 +65,45 @@ const FAMILIES = ['small', 'medium', 'large', 'accessoryRectangular', 'accessory
 const BOTH = ['light', 'dark']
 const cases = [
   ...FAMILIES.map(family => ({ name: family, family, fixture: base, schemes: BOTH })),
-  { name: 'medium-under', family: 'medium', fixture: fixtures.underBudget, schemes: BOTH },
-  { name: 'large-under', family: 'large', fixture: fixtures.underBudget, schemes: BOTH },
-  { name: 'small-under', family: 'small', fixture: fixtures.underBudget, schemes: BOTH },
-  { name: 'medium-tight', family: 'medium', fixture: fixtures.tightBudget, schemes: ['light'] },
-  { name: 'medium-weekend', family: 'medium', fixture: fixtures.weekend, now: fixtures.NOW_WEEKEND, schemes: ['dark'] },
-  { name: 'medium-day1', family: 'medium', fixture: fixtures.dayOne, now: fixtures.NOW_DAY_ONE, schemes: BOTH },
-  { name: 'large-day1', family: 'large', fixture: fixtures.dayOne, now: fixtures.NOW_DAY_ONE, schemes: ['light'] },
-  { name: 'large-fresh-brief', family: 'large', fixture: fixtures.freshBrief, schemes: ['light'] },
+  { name: 'small-spent', family: 'small', fixture: fixtures.spentToday, now: fixtures.NOW_TODAY, schemes: BOTH },
+  { name: 'medium-spent', family: 'medium', fixture: fixtures.spentToday, now: fixtures.NOW_TODAY, schemes: ['light'] },
+  { name: 'small-over', family: 'small', fixture: fixtures.overToday, now: fixtures.NOW_TODAY, schemes: BOTH },
+  { name: 'medium-over', family: 'medium', fixture: fixtures.overToday, now: fixtures.NOW_TODAY, schemes: BOTH },
+  { name: 'large-over', family: 'large', fixture: fixtures.overToday, now: fixtures.NOW_TODAY, schemes: ['dark'] },
+  { name: 'rect-over', family: 'accessoryRectangular', fixture: fixtures.overToday, now: fixtures.NOW_TODAY, schemes: ['dark'] },
+  { name: 'circ-over', family: 'accessoryCircular', fixture: fixtures.overToday, now: fixtures.NOW_TODAY, schemes: ['dark'] },
+  { name: 'small-risk', family: 'small', fixture: fixtures.goalRisk, now: fixtures.NOW_TODAY, schemes: BOTH },
+  { name: 'medium-risk', family: 'medium', fixture: fixtures.goalRisk, now: fixtures.NOW_TODAY, schemes: BOTH },
+  { name: 'large-risk', family: 'large', fixture: fixtures.goalRisk, now: fixtures.NOW_TODAY, schemes: ['light'] },
+  { name: 'rect-risk', family: 'accessoryRectangular', fixture: fixtures.goalRisk, now: fixtures.NOW_TODAY, schemes: ['dark'] },
+  { name: 'medium-lastday', family: 'medium', fixture: fixtures.lastDay, now: fixtures.NOW_LAST_DAY, schemes: ['light'] },
+  { name: 'large-lastday', family: 'large', fixture: fixtures.lastDay, now: fixtures.NOW_LAST_DAY, schemes: ['dark'] },
+  { name: 'medium-cached-yesterday', family: 'medium', fail: true, cache: base, now: '2026-10-30T08:00:00-06:00', schemes: ['light'] },
+  { name: 'small-cached-yesterday', family: 'small', fail: true, cache: base, now: '2026-10-30T08:00:00-06:00', schemes: ['dark'] },
+  { name: 'medium-no-today', family: 'medium', fixture: fixtures.overBudget, now: fixtures.NOW_WEEKDAY, schemes: BOTH },
+  { name: 'large-no-today', family: 'large', fixture: fixtures.underBudget, now: fixtures.NOW_WEEKDAY, schemes: ['light'] },
+  { name: 'small-no-today', family: 'small', fixture: fixtures.overBudget, now: fixtures.NOW_WEEKDAY, schemes: ['light'] },
+  { name: 'medium-day1', family: 'medium', fixture: fixtures.dayOne, now: fixtures.NOW_DAY_ONE, schemes: ['light'] },
   { name: 'medium-offline-cache', family: 'medium', fail: true, cache: base, schemes: BOTH },
   { name: 'large-offline-cache', family: 'large', fail: true, cache: base, schemes: ['dark'] },
   { name: 'small-offline-cache', family: 'small', fail: true, cache: base, schemes: ['light'] },
-  { name: 'medium-offline-2days', family: 'medium', fail: true, cache: fixtures.cachedTwoDaysAgo, schemes: ['light'] },
-  { name: 'small-offline-lastmonth', family: 'small', fail: true, cache: fixtures.cachedLastMonth, schemes: ['dark'] },
-  { name: 'large-offline-lastmonth', family: 'large', fail: true, cache: fixtures.cachedLastMonth, schemes: ['light'] },
-  { name: 'rect-offline-2days', family: 'accessoryRectangular', fail: true, cache: fixtures.cachedTwoDaysAgo, schemes: ['dark'] },
-  { name: 'rect-es', family: 'accessoryRectangular', param: 'lang=es', fixture: fixtures.underBudget, schemes: ['dark'] },
-  { name: 'large-under-coach', family: 'large', fixture: fixtures.underBudget, param: 'coach', schemes: ['dark'] },
-  { name: 'medium-offline-empty', family: 'medium', fail: true, schemes: BOTH },
+  { name: 'small-offline-lastmonth', family: 'small', fail: true, cache: fixtures.cachedLastMonth, now: fixtures.NOW_WEEKDAY, schemes: ['dark'] },
+  { name: 'large-offline-lastmonth', family: 'large', fail: true, cache: fixtures.cachedLastMonth, now: fixtures.NOW_WEEKDAY, schemes: ['light'] },
+  { name: 'rect-offline-2days', family: 'accessoryRectangular', fail: true, cache: fixtures.cachedTwoDaysAgo, now: fixtures.NOW_WEEKDAY, schemes: ['dark'] },
+  { name: 'rect-es', family: 'accessoryRectangular', param: 'lang=es', fixture: base, schemes: ['dark'] },
+  { name: 'medium-offline-empty', family: 'medium', fail: true, schemes: ['light'] },
   { name: 'medium-401', family: 'medium', status: 401, fixture: { error: 'Unauthorized' }, schemes: ['light'] },
   { name: 'rect-401', family: 'accessoryRectangular', status: 401, fixture: { error: 'Unauthorized' }, schemes: ['dark'] },
-  { name: 'medium-coach', family: 'medium', param: 'coach', fixture: fixtures.freshBrief, schemes: BOTH },
   { name: 'small-goals', family: 'small', param: 'goals', fixture: base, schemes: BOTH },
-  { name: 'circ-spend', family: 'accessoryCircular', param: 'spend', fixture: base, schemes: ['dark'] },
+  { name: 'circ-goals', family: 'accessoryCircular', param: 'goals', fixture: base, schemes: ['dark'] },
   { name: 'large-es', family: 'large', param: 'lang=es', fixture: base, schemes: ['light'] },
   { name: 'medium-es', family: 'medium', param: 'lang=es', fixture: base, schemes: ['dark'] },
-  { name: 'medium-legacy-v1', family: 'medium', fixture: fixtures.legacyV1, schemes: ['light'] },
+  { name: 'small-es', family: 'small', param: 'lang=es', fixture: base, schemes: ['light'] },
+  { name: 'medium-legacy-v1', family: 'medium', fixture: fixtures.legacyV1, now: fixtures.NOW_WEEKDAY, schemes: ['light'] },
   { name: 'medium-pro', family: 'medium', screen: 'pro', fixture: base, schemes: ['light'] },
   { name: 'large-x', family: 'large', screen: 'x', fixture: base, schemes: ['dark'] },
   { name: 'medium-se', family: 'medium', screen: 'se', fixture: base, schemes: ['light'] },
-  { name: 'large-se', family: 'large', screen: 'se', fixture: fixtures.underBudget, schemes: ['light'] },
+  { name: 'large-se', family: 'large', screen: 'se', fixture: base, schemes: ['light'] },
   { name: 'small-se', family: 'small', screen: 'se', fixture: base, schemes: ['dark'] },
   { name: 'rect-se', family: 'accessoryRectangular', screen: 'se', fixture: base, schemes: ['dark'] },
 ].filter(c => !only.length || only.some(o => c.name === o || c.name.startsWith(o + '-') || c.family === o))
@@ -102,7 +114,7 @@ function page(c, scheme) {
   const bg = accessory ? 'linear-gradient(160deg,#1e2a4a,#3b2f5c 60%,#141826)' : scheme === 'dark' ? '#0b0c10' : '#e7ecf3'
   const opts = {
     fixture: c.fixture ?? null, status: c.status ?? 200, fail: !!c.fail, family: c.family, param: c.param || null,
-    now: c.now || fixtures.NOW_WEEKDAY, cache: c.cache, screen: SCREENS[c.screen || 'max'].screen,
+    now: c.now || baseNow || fixtures.NOW_WEEKDAY, cache: c.cache, screen: SCREENS[c.screen || 'max'].screen,
   }
   return `<!doctype html><meta charset="utf-8"><style>
   html,body{margin:0}

@@ -1,5 +1,8 @@
-// v2 widget payloads for the harness (shape of buildWidgetPayload()).
-// Numbers follow the Oct 28 review: everyday budgets $38,500, spent $43,986.
+// Widget payloads for the harness (shape of buildWidgetPayload()).
+// The first group has no `today` block: what an older API build (or a phone's
+// cached payload) returns, so the widget's fallback stays covered. Numbers
+// follow the Oct 28 review: everyday budgets $38,500, spent $43,986.
+// The v3 group at the end carries `today` (the daily goal-safe plan).
 
 const clone = o => JSON.parse(JSON.stringify(o))
 /** Rescale a daily series so it sums exactly to `total` (the hero's variable.spent). */
@@ -140,3 +143,282 @@ export const legacyV1 = {
   west_month: { target: 152583, projected_savings: 83536, gap: 69047, pct: 55 },
   wolff: { top: { title: 'Sep 5–6: sí cabe una cena', detail: '' }, weekend: null, directive: null },
 }
+
+// ── v3: payload.today, the daily goal-safe plan (src/lib/widget/today.ts) ──
+// The `today` blocks below were produced by buildToday() from the Oct 29 2026
+// live summary (and small variations of it), so the numbers follow the real
+// definition: pool = income − WEST target − spent before today − still
+// scheduled; 20% of the cushion held back; spread over the days left.
+
+export const NOW_TODAY = '2026-10-29T09:44:00-06:00'
+export const NOW_GOOD_DAY = '2026-10-22T09:10:00-06:00'
+export const NOW_LAST_DAY = '2026-10-31T10:00:00-06:00'
+
+const LIVE_DAILY = [16420, 1356, 892, 65, 596, 2493, 1045, 934, 792, 375, 3115, 0, 233, 153, 1670, 1500, 1541, 1310, 464, 779, 740, 1633, 1006, 308, 2227, 211, 288, 1923, 0]
+
+/** Oct 29: everyday budgets $5.6k over, but WEST is 105% of its month target. */
+export const goalSafe = (() => {
+  const d = clone(overBudget)
+  d.updated_at = '2026-10-29T15:44:00.000Z'
+  d.day = 29
+  d.variable = { budget: 38500, spent: 44069, left: -5569, days_left: 3, through_label: 'Sat Oct 31', through_date: '2026-10-31', status: 'over' }
+  d.top_over = { name: 'Other', pct: 339, over_by: 11961 }
+  d.budget_pace[2] = { name: 'Groceries', spent: 12127, budget: 13000, pct: 93, left: 873 }
+  d.daily_spend = [...LIVE_DAILY]
+  d.west_month = { label: 'Oct', month: '2026-10', target: 84869, projected_savings: 89127, surplus_so_far: 89127, gap: 0, pct: 105, tone: 'good', stretch_target: 115790 }
+  d.upcoming = [
+    { date: '2026-11-01', label: 'Rent', amount: 47907, count: 8, kind: 'bill' },
+    { date: '2026-11-03', label: 'Regalo Rochie', amount: 989, count: 1, kind: 'msi' },
+    { date: '2026-11-10', label: 'Seguro sportage', amount: 758, count: 1, kind: 'msi' },
+  ]
+  d.milestones = { baby_months: 6, west_funded_pct: 92.9, west_months_to_delivery: 14 }
+  d.today = {
+    date: '2026-10-29',
+    basis: 'goal',
+    state: 'ok',
+    allowance: 2170,
+    spent: 0,
+    left: 2170,
+    days_left: 3,
+    tomorrow: 3260,
+    pool: 7382,
+    reserve: 852,
+    usual: 1041,
+    goal: { label: 'WEST', month: '2026-10', target: 84869, projected: 89127, pct: 105, buffer: 4258, no_spend_pct: 106, stretch_target: 115790, stretch_pct: 77 },
+    streak: 3,
+    yesterday: { date: '2026-10-28', spent: 1923, room: 2110, diff: 187 },
+    week: [
+      { date: '2026-10-23', spent: 1006, room: 1380, ok: true },
+      { date: '2026-10-24', spent: 308, room: 1430, ok: true },
+      { date: '2026-10-25', spent: 2227, room: 1590, ok: false },
+      { date: '2026-10-26', spent: 211, room: 1490, ok: true },
+      { date: '2026-10-27', spent: 288, room: 1740, ok: true },
+      { date: '2026-10-28', spent: 1923, room: 2110, ok: true },
+      { date: '2026-10-29', spent: 0, room: 2170, ok: null, today: true },
+    ],
+    nudge: { kind: 'skip', category: 'Other', over_by: 11961, url: '/finance/budgets' },
+    goals: [
+      { kind: 'west_month', month: '2026-10', pct: 105, buffer: 4258, url: '/finance/investments?tab=Real%20Estate' },
+      { kind: 'year', year: 2026, pct: 62, covered_pct: 57, on_track: false, url: '/finance/goals' },
+      { kind: 'west_home', pct: 92.9, months: 14, url: '/finance/investments?tab=Real%20Estate' },
+      { kind: 'emergency', pct: 96, months: 5.8, url: '/finance' },
+    ],
+  }
+  return d
+})()
+
+/** Same day after a $640 lunch. */
+export const spentToday = (() => {
+  const d = clone(goalSafe)
+  d.daily_spend[28] = 640
+  d.variable = { ...d.variable, spent: 44709, left: -6209 }
+  d.west_month = { ...d.west_month, projected_savings: 88487, surplus_so_far: 88487, pct: 104 }
+  d.today = {
+    date: '2026-10-29',
+    basis: 'goal',
+    state: 'ok',
+    allowance: 2170,
+    spent: 640,
+    left: 1530,
+    days_left: 3,
+    tomorrow: 2940,
+    pool: 7382,
+    reserve: 852,
+    usual: 828,
+    goal: { label: 'WEST', month: '2026-10', target: 84869, projected: 88487, pct: 104, buffer: 3618, no_spend_pct: 105, stretch_target: 115790, stretch_pct: 76 },
+    streak: 3,
+    yesterday: { date: '2026-10-28', spent: 1923, room: 2110, diff: 187 },
+    week: [
+      { date: '2026-10-23', spent: 1006, room: 1380, ok: true },
+      { date: '2026-10-24', spent: 308, room: 1430, ok: true },
+      { date: '2026-10-25', spent: 2227, room: 1590, ok: false },
+      { date: '2026-10-26', spent: 211, room: 1490, ok: true },
+      { date: '2026-10-27', spent: 288, room: 1740, ok: true },
+      { date: '2026-10-28', spent: 1923, room: 2110, ok: true },
+      { date: '2026-10-29', spent: 640, room: 2170, ok: null, today: true },
+    ],
+    nudge: { kind: 'skip', category: 'Other', over_by: 11961, url: '/finance/budgets' },
+    goals: [
+      { kind: 'west_month', month: '2026-10', pct: 104, buffer: 3618, url: '/finance/investments?tab=Real%20Estate' },
+      { kind: 'year', year: 2026, pct: 62, covered_pct: 57, on_track: false, url: '/finance/goals' },
+      { kind: 'west_home', pct: 92.9, months: 14, url: '/finance/investments?tab=Real%20Estate' },
+      { kind: 'emergency', pct: 96, months: 5.8, url: '/finance' },
+    ],
+  }
+  return d
+})()
+
+/** Same day after $2,600: past today's room, WEST still on target. */
+export const overToday = (() => {
+  const d = clone(goalSafe)
+  d.daily_spend[28] = 2600
+  d.variable = { ...d.variable, spent: 46669, left: -8169 }
+  d.west_month = { ...d.west_month, projected_savings: 86527, surplus_so_far: 86527, pct: 102 }
+  d.today = {
+    date: '2026-10-29',
+    basis: 'goal',
+    state: 'over',
+    allowance: 2170,
+    spent: 2600,
+    left: -430,
+    days_left: 3,
+    tomorrow: 1960,
+    pool: 7382,
+    reserve: 852,
+    usual: 175,
+    goal: { label: 'WEST', month: '2026-10', target: 84869, projected: 86527, pct: 102, buffer: 1658, no_spend_pct: 102, stretch_target: 115790, stretch_pct: 75 },
+    streak: 3,
+    yesterday: { date: '2026-10-28', spent: 1923, room: 2110, diff: 187 },
+    week: [
+      { date: '2026-10-23', spent: 1006, room: 1380, ok: true },
+      { date: '2026-10-24', spent: 308, room: 1430, ok: true },
+      { date: '2026-10-25', spent: 2227, room: 1590, ok: false },
+      { date: '2026-10-26', spent: 211, room: 1490, ok: true },
+      { date: '2026-10-27', spent: 288, room: 1740, ok: true },
+      { date: '2026-10-28', spent: 1923, room: 2110, ok: true },
+      { date: '2026-10-29', spent: 2600, room: 2170, ok: null, today: true },
+    ],
+    nudge: { kind: 'skip', category: 'Other', over_by: 11961, url: '/finance/budgets' },
+    goals: [
+      { kind: 'west_month', month: '2026-10', pct: 102, buffer: 1658, url: '/finance/investments?tab=Real%20Estate' },
+      { kind: 'year', year: 2026, pct: 62, covered_pct: 57, on_track: false, url: '/finance/goals' },
+      { kind: 'west_home', pct: 92.9, months: 14, url: '/finance/investments?tab=Real%20Estate' },
+      { kind: 'emergency', pct: 96, months: 5.8, url: '/finance' },
+    ],
+  }
+  return d
+})()
+
+/** Even a no-spend day leaves WEST short: today's job is to save. */
+export const goalRisk = (() => {
+  const d = clone(goalSafe)
+  d.west_month = { ...d.west_month, projected_savings: 80000, surplus_so_far: 80000, gap: 4869, pct: 94, tone: 'warn' }
+  d.today = {
+    date: '2026-10-29',
+    basis: 'goal',
+    state: 'risk',
+    allowance: 0,
+    spent: 0,
+    left: 0,
+    days_left: 3,
+    tomorrow: 0,
+    pool: -1745,
+    reserve: 0,
+    usual: 1041,
+    goal: { label: 'WEST', month: '2026-10', target: 84869, projected: 80000, pct: 94, buffer: -4869, no_spend_pct: 95, stretch_target: 115790, stretch_pct: 69 },
+    streak: 0,
+    yesterday: { date: '2026-10-28', spent: 1923, room: 40, diff: -1883 },
+    week: [
+      { date: '2026-10-23', spent: 1006, room: 460, ok: false },
+      { date: '2026-10-24', spent: 308, room: 400, ok: true },
+      { date: '2026-10-25', spent: 2227, room: 410, ok: false },
+      { date: '2026-10-26', spent: 211, room: 110, ok: false },
+      { date: '2026-10-27', spent: 288, room: 90, ok: false },
+      { date: '2026-10-28', spent: 1923, room: 40, ok: false },
+      { date: '2026-10-29', spent: 0, room: 0, ok: null, today: true },
+    ],
+    nudge: { kind: 'skip', category: 'Other', over_by: 11961, url: '/finance/budgets' },
+    goals: [
+      { kind: 'west_month', month: '2026-10', pct: 94, buffer: -4869, url: '/finance/investments?tab=Real%20Estate' },
+      { kind: 'year', year: 2026, pct: 62, covered_pct: 57, on_track: false, url: '/finance/goals' },
+      { kind: 'west_home', pct: 92.9, months: 14, url: '/finance/investments?tab=Real%20Estate' },
+      { kind: 'emergency', pct: 96, months: 5.8, url: '/finance' },
+    ],
+  }
+  return d
+})()
+
+/** Oct 22, a good day: $640 spent of $1,790, a 4-day streak, WEST 112%. */
+export const goodDay = (() => {
+  const d = clone(goalSafe)
+  d.updated_at = '2026-10-22T15:10:00.000Z'
+  d.day = 22
+  d.variable = { budget: 38500, spent: 21700, left: 16800, days_left: 10, through_label: 'Sat Oct 31', through_date: '2026-10-31', status: 'ok' }
+  d.status = 'ok'
+  d.top_over = null
+  d.budget_pace = [
+    { name: 'Groceries', spent: 8900, budget: 13000, pct: 68, left: 4100 },
+    { name: 'Transport', spent: 3600, budget: 5500, pct: 65, left: 1900 },
+    { name: 'Other', spent: 3100, budget: 5000, pct: 62, left: 1900 },
+    { name: 'Dining Out', spent: 6100, budget: 15000, pct: 41, left: 8900 },
+  ]
+  d.daily_spend = [...scaleTo(LIVE_DAILY.slice(0, 15), 14726), 1500, 1541, 1310, 464, 779, 740, 640]
+  d.west_month = { ...d.west_month, projected_savings: 95053, surplus_so_far: 95053, pct: 112 }
+  d.upcoming = d.upcoming.slice(0, 2)
+  d.today = {
+    date: '2026-10-22',
+    basis: 'goal',
+    state: 'ok',
+    allowance: 1790,
+    spent: 640,
+    left: 1150,
+    days_left: 10,
+    tomorrow: 1910,
+    pool: 20071,
+    reserve: 2165,
+    usual: 1517,
+    goal: { label: 'WEST', month: '2026-10', target: 84869, projected: 95053, pct: 112, buffer: 10184, no_spend_pct: 114, stretch_target: 115790, stretch_pct: 82 },
+    streak: 4,
+    yesterday: { date: '2026-10-21', spent: 740, room: 1690, diff: 950 },
+    week: [
+      { date: '2026-10-16', spent: 1500, room: 1510, ok: true },
+      { date: '2026-10-17', spent: 1541, room: 1510, ok: false },
+      { date: '2026-10-18', spent: 1310, room: 1510, ok: true },
+      { date: '2026-10-19', spent: 464, room: 1520, ok: true },
+      { date: '2026-10-20', spent: 779, room: 1610, ok: true },
+      { date: '2026-10-21', spent: 740, room: 1690, ok: true },
+      { date: '2026-10-22', spent: 640, room: 1790, ok: null, today: true },
+    ],
+    nudge: { kind: 'fits', category: 'Dining Out', left: 8900, url: '/finance/budgets' },
+    goals: [
+      { kind: 'west_month', month: '2026-10', pct: 112, buffer: 10184, url: '/finance/investments?tab=Real%20Estate' },
+      { kind: 'year', year: 2026, pct: 62, covered_pct: 57, on_track: false, url: '/finance/goals' },
+      { kind: 'west_home', pct: 92.9, months: 14, url: '/finance/investments?tab=Real%20Estate' },
+      { kind: 'emergency', pct: 96, months: 5.8, url: '/finance' },
+    ],
+  }
+  return d
+})()
+
+/** Oct 31, the month's last day: Rent + 7 tomorrow. */
+export const lastDay = (() => {
+  const d = clone(goalSafe)
+  d.updated_at = '2026-10-31T16:00:00.000Z'
+  d.day = 31
+  d.daily_spend = [...LIVE_DAILY, 600, 0]
+  d.variable = { ...d.variable, spent: 44669, left: -6169, days_left: 1 }
+  d.west_month = { ...d.west_month, projected_savings: 88827, surplus_so_far: 88827, pct: 105 }
+  d.today = {
+    date: '2026-10-31',
+    basis: 'goal',
+    state: 'ok',
+    allowance: 5990,
+    spent: 0,
+    left: 5990,
+    days_left: 1,
+    tomorrow: null,
+    pool: 6782,
+    reserve: 792,
+    usual: 2524,
+    goal: { label: 'WEST', month: '2026-10', target: 84869, projected: 88827, pct: 105, buffer: 3958, no_spend_pct: 108, stretch_target: 115790, stretch_pct: 77 },
+    streak: 5,
+    yesterday: { date: '2026-10-30', spent: 600, room: 3290, diff: 2690 },
+    week: [
+      { date: '2026-10-25', spent: 2227, room: 1600, ok: false },
+      { date: '2026-10-26', spent: 211, room: 1500, ok: true },
+      { date: '2026-10-27', spent: 288, room: 1760, ok: true },
+      { date: '2026-10-28', spent: 1923, room: 2120, ok: true },
+      { date: '2026-10-29', spent: 0, room: 2190, ok: true },
+      { date: '2026-10-30', spent: 600, room: 3290, ok: true },
+      { date: '2026-10-31', spent: 0, room: 5990, ok: null, today: true },
+    ],
+    nudge: { kind: 'due', label: 'Rent', count: 8, amount: 47907, date: '2026-11-01', days: 1, url: '/finance/subscriptions' },
+    goals: [
+      { kind: 'west_month', month: '2026-10', pct: 105, buffer: 3958, url: '/finance/investments?tab=Real%20Estate' },
+      { kind: 'year', year: 2026, pct: 62, covered_pct: 57, on_track: false, url: '/finance/goals' },
+      { kind: 'west_home', pct: 92.9, months: 14, url: '/finance/investments?tab=Real%20Estate' },
+      { kind: 'emergency', pct: 96, months: 5.8, url: '/finance' },
+    ],
+  }
+  return d
+})()
