@@ -24,7 +24,7 @@ describe('Sidebar', () => {
     expect(primaryFinanceSections.map(s => s.label)).toEqual(['Activity', 'Plan', 'Wealth', 'Mona'])
     expect(Object.fromEntries(primaryFinanceSections.map(s => [s.label, s.items.map(i => i.label)]))).toEqual({
       Activity: ['Transactions', 'Budgets', 'Subscriptions', 'MSI Installments', 'Income'],
-      Plan: ['Goals & WEST', 'Family & Baby', 'Emergency Fund'],
+      Plan: ['Goals', 'Family & Baby', 'Emergency Fund'],
       Wealth: ['Investments', 'Debt Planner', 'Reports'],
       Mona: ['Ask Mona', 'Daily Brief'],
     })

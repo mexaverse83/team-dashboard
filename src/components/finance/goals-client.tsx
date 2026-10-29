@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Plus, Pencil, Trash2, MoreHorizontal } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -311,8 +312,8 @@ export default function GoalsClient() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Goals &amp; WEST</h1>
-          <p className="text-[hsl(var(--text-secondary))]">Track progress toward your financial & crypto targets</p>
+          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Goals</h1>
+          <p className="text-[hsl(var(--text-secondary))]">Track progress toward your financial & crypto targets. The WEST apartment plan lives in <Link href="/finance/investments?tab=Real%20Estate" className="font-medium text-fg underline-offset-2 hover:underline">Investments › Real Estate</Link>.</p>
         </div>
       </div>
 

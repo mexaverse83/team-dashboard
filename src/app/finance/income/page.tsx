@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { IncomeClient } from '@/components/finance/income-client'
 
 export const metadata: Metadata = {
-  title: 'Income — Finance',
+  title: 'Income — Mona',
   description: 'Manage recurring income sources and auto-registration',
 }
 

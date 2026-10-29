@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import BudgetsClient from '@/components/finance/budgets-client'
 
 export const metadata: Metadata = {
-  title: 'Budgets — Finance',
+  title: 'Budgets — Mona',
   description: 'Monthly budget management by category',
 }
 

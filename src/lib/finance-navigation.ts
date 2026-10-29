@@ -80,7 +80,7 @@ export const primaryFinanceSections: FinanceNavSection[] = [
   {
     label: 'Plan',
     items: [
-      { href: '/finance/goals', label: 'Goals & WEST', shortLabel: 'Goals', icon: Target, description: 'Savings goals and the WEST apartment', keywords: ['savings', 'targets', 'west', 'apartment'] },
+      { href: '/finance/goals', label: 'Goals', icon: Target, description: 'Savings goals for the year', keywords: ['savings', 'targets'] },
       { href: '/finance/family', label: 'Family & Baby', shortLabel: 'Family', icon: Baby, description: 'Baby 2027, the education fund, and protection', keywords: ['baby', 'education', 'tec', '2045', 'insurance', 'protection'] },
       { href: '/finance/emergency-fund', label: 'Emergency Fund', icon: ShieldCheck, description: 'Protected liquidity reserve', keywords: ['runway', 'reserve'] },
     ],

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import SubscriptionsClient from '@/components/finance/subscriptions-client'
 
 export const metadata: Metadata = {
-  title: 'Subscriptions — Finance',
+  title: 'Subscriptions — Mona',
   description: 'Recurring subscription tracker',
 }
 

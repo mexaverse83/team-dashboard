@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import GoalsClient from '@/components/finance/goals-client'
 
 export const metadata: Metadata = {
-  title: 'Savings Goals — Finance',
+  title: 'Goals — Mona',
   description: 'Goal-based savings with progress tracking',
 }
 

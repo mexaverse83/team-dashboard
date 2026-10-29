@@ -166,7 +166,7 @@ describe('Savings Goals', () => {
     render(<Comp />)
     // Page was renamed from "Savings Goals" to "Goals" (now covers crypto targets too)
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Goals & WEST' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Goals' })).toBeInTheDocument()
       expect(screen.getByText('Track progress toward your financial & crypto targets')).toBeInTheDocument()
     })
   })

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import AskWolffClient from '@/components/finance/ask-wolff-client'
 
 export const metadata: Metadata = {
-  title: 'Ask Mona — Finance',
+  title: 'Ask Mona — Mona',
   description: 'Chat with your household financial advisor',
 }
 
