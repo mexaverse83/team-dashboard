@@ -82,10 +82,12 @@ export default function AskWolffClient() {
   }, [load])
 
   // Poll faster while a question waits for Mona; pause while the tab is hidden.
+  // While waiting, re-read the full page: a failed answer only PATCHes the
+  // question row's status, which a `since` (created_at) poll never sees.
   useEffect(() => {
-    const tick = () => { if (document.visibilityState === 'visible') void load() }
+    const tick = () => { if (document.visibilityState === 'visible') void load(waiting) }
     const id = window.setInterval(tick, waiting ? 3000 : 15000)
-    const onVisible = () => { if (document.visibilityState === 'visible') void load() }
+    const onVisible = () => { if (document.visibilityState === 'visible') void load(waiting) }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
       window.clearInterval(id)

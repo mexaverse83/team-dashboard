@@ -35,17 +35,19 @@ export function DailySpendingPlan({ summary, westTarget, ownerSpent }: {
   const plan = calculateDailyPlan(summary, westTarget)
   const room = calculateSpendingRoom(summary)
   const variable = summary.variable
-  // Until summary.variable ships, take the signed week from the same
-  // deterministic brief Mona shows, so both surfaces quote one number.
-  const briefWeek = variable ? null : buildDeterministicBrief(summary).week
+  // One signed number for Today and This week, the same one Mona quotes (W3):
+  // the deterministic brief reads summary.variable when present and otherwise
+  // nets overruns against what's left, so an over-budget category can't hide.
+  const briefWeek = buildDeterministicBrief(summary).week
   const fallback = fallbackThroughLabel(summary)
-  const weekLeft = variable ? variable.left : briefWeek!.left
-  const through = variable?.through_label || briefWeek?.through_label || fallback.label
-  const weekDays = variable?.days_left ?? fallback.days
+  const weekLeft = briefWeek.left
+  const through = variable?.through_label || briefWeek.through_label || fallback.label
+  const weekDays = Math.max(1, variable?.days_left ?? fallback.days)
+  const today = weekLeft > 0 ? Math.round(weekLeft / weekDays) : 0
   const freeExtra = plan.safe_to_spend_day
 
   const items = [
-    { id: 'today', label: 'Today', value: money(plan.controllable_per_day), note: 'within your budgets', primary: true, negative: false },
+    { id: 'today', label: 'Today', value: money(today), note: weekLeft > 0 ? 'within your budgets' : 'week is over plan', primary: true, negative: false },
     { id: 'week', label: 'This week', value: money(weekLeft), note: weekLeft < 0 ? `over plan through ${through}` : `left through ${through}`, primary: false, negative: weekLeft < 0 },
     { id: 'extra', label: 'Free extra', value: freeExtra > 0 ? money(freeExtra) : EMPTY_VALUE, note: freeExtra > 0 ? 'per day, above the plan' : 'all slack goes to WEST', primary: false, negative: false },
   ]
@@ -72,7 +74,9 @@ export function DailySpendingPlan({ summary, westTarget, ownerSpent }: {
       </div>
       {expanded && (
         <div id="daily-plan-explanation" className="border-t border-border bg-surface-2 px-4 py-3 text-label leading-relaxed text-fg-secondary sm:px-5">
-          {expanded === 'today' && <p>Your remaining everyday budgets spread over the {room.daysLeft} day{room.daysLeft === 1 ? '' : 's'} left, today included. This spending is already in the plan.</p>}
+          {expanded === 'today' && <p>{weekLeft > 0
+            ? `This week’s ${money(weekLeft)} spread over its ${weekDays} day${weekDays === 1 ? '' : 's'}, today included. This spending is already in the plan.`
+            : `Everyday spending is already past this week’s room, so nothing more fits the plan today. Anything extra comes out of savings.`}</p>}
           {expanded === 'week' && <p>{weekLeft < 0
             ? `Everyday spending is ${money(-weekLeft)} past the room through ${through}. Anything more comes out of savings.`
             : `${money(weekLeft)} of everyday budget left through ${through} (${weekDays} day${weekDays === 1 ? '' : 's'}, today included). It already includes today’s amount; don’t add the two.`}</p>}

@@ -12,6 +12,7 @@ import { WolffWidget, proactiveFromChat, type InsightsPayload } from '@/componen
 import { MonthProjectionCard } from '@/components/finance/month-projection-card'
 import { InstallPrompt } from '@/components/finance/install-prompt'
 import { useFinanceData } from '@/hooks/use-finance-data'
+import { useRefreshReport } from './command-center/use-refresh-report'
 import { fetchWestProjection } from '@/lib/west-projection-client'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
 import { supabase } from '@/lib/supabase'
@@ -126,6 +127,7 @@ export default function CommandCenterClient() {
   const chatQ = useFinanceData<unknown>('home:proactive', readJson('/api/finance/wolff-chat?latest_proactive=1'), { minIntervalMs: 5 * 60_000 })
   const needsActivity = Boolean(summary) && (!summary?.owner_spend || !summary?.recent_transactions)
   const activityQ = useFinanceData<MonthActivity>('home:activity', readMonthActivity, { enabled: needsActivity })
+  useRefreshReport([summaryQ, westQ, forecastQ, netWorthQ, insightsQ, chatQ, activityQ])
 
   const refreshAll = () => {
     void summaryQ.refresh()
@@ -152,6 +154,7 @@ export default function CommandCenterClient() {
   const recentRows = allRecent && (scopeOwner ? allRecent.filter(r => ownersEqual(r.owner, scopeOwner)) : allRecent).slice(0, RECENT_ROWS)
 
   const attention = summary ? buildAttentionItems(summary, today) : []
+  const attentionCategories = attention.flatMap(item => item.category ? [item.category] : [])
   const events = upcomingEvents(summary, forecastQ.data)
   const proactive = chatQ.data === undefined ? (chatQ.error ? null : undefined) : proactiveFromChat(chatQ.data)
 
@@ -228,7 +231,7 @@ export default function CommandCenterClient() {
           <div className="order-1"><DailySpendingPlan summary={summary} westTarget={westPlan?.month_target ?? null} ownerSpent={scopedSpend} /></div>
           <div className="order-2"><NeedsAttention items={attention} /></div>
           <div className="order-3">
-            <WolffWidget insights={insightsQ.error ? null : insightsQ.data} proactive={proactive} summary={summary} loading={insightsQ.loading} />
+            <WolffWidget insights={insightsQ.error ? null : insightsQ.data} proactive={proactive} summary={summary} loading={insightsQ.loading} overBudgetShown={attentionCategories.length > 0} />
           </div>
           <div className="order-7"><RecentActivity rows={recentRows} scopeOwner={scopeOwner} /></div>
         </div>
@@ -237,7 +240,7 @@ export default function CommandCenterClient() {
             <WestProgressCard plan={westPlan} />
             <BabyProgressCard plan={baby ?? undefined} />
           </div>
-          <div className="order-5"><BudgetWatch summary={summary} /></div>
+          <div className="order-5"><BudgetWatch summary={summary} exclude={attentionCategories} /></div>
           <div className="order-6">
             <Card>
               <SectionHeader title="Next 14 days" subtitle="Bills, income and plan events" action={{ label: 'Manage', href: '/finance/subscriptions' }} />

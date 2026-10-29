@@ -21,7 +21,7 @@ import {
   Wand2,
   type LucideIcon,
 } from 'lucide-react'
-import { FINANCE_EVENTS, type QuickAddPrefill } from '@/lib/finance-events'
+import { dispatchFinanceEvent, FINANCE_EVENTS, type QuickAddPrefill } from '@/lib/finance-events'
 
 export interface FinanceNavItem {
   href: string
@@ -155,4 +155,30 @@ export function requestQuickAdd(prefill?: QuickAddPrefill): boolean {
   if (typeof window === 'undefined') return false
   const event = new CustomEvent(FINANCE_EVENTS.quickAdd, { detail: prefill ?? {}, cancelable: true })
   return !window.dispatchEvent(event)
+}
+
+const REFRESH_TIMEOUT_MS = 20_000
+
+/**
+ * `finance:refresh` detail: listeners that can tell when their refetch settles
+ * pass its promise to `waitUntil`, so pull-to-refresh only says "Updated" once
+ * something really refreshed.
+ */
+export interface FinanceRefreshDetail {
+  waitUntil: (promise: Promise<unknown>) => void
+}
+
+/** Dispatch `finance:refresh` and settle with what actually happened. */
+export async function refreshFinanceData(timeoutMs = REFRESH_TIMEOUT_MS): Promise<'updated' | 'failed' | 'offline' | 'unknown'> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'offline'
+  const pending: Promise<unknown>[] = []
+  const detail: FinanceRefreshDetail = { waitUntil: promise => { pending.push(promise) } }
+  dispatchFinanceEvent(FINANCE_EVENTS.refresh, detail)
+  if (pending.length === 0) return 'unknown'
+  let timer = 0
+  const timeout = new Promise<'timeout'>(resolve => { timer = window.setTimeout(() => resolve('timeout'), timeoutMs) })
+  const result = await Promise.race([Promise.allSettled(pending), timeout])
+  window.clearTimeout(timer)
+  if (result === 'timeout' || result.some(r => r.status === 'rejected')) return 'failed'
+  return 'updated'
 }

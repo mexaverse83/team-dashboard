@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Baby, CalendarClock, GraduationCap, ShieldCheck, Tag, TrendingUp } from 'lucide-react'
+import { ArrowRight, Baby, CalendarClock, Check, GraduationCap, ShieldCheck, Tag, TrendingUp } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
 import { OwnerAvatar } from '@/components/ui/owner-avatar'
@@ -13,6 +13,7 @@ import { mexicoCityToday, parseLocalDateKey } from '@/lib/dates'
 import { formatCompact, formatDateShort, formatMoney, formatMonthShort } from '@/lib/format'
 import { dispatchFinanceEvent, FINANCE_EVENTS } from '@/lib/finance-events'
 import { useFinanceData } from '@/hooks/use-finance-data'
+import { useRefreshReport } from './command-center/use-refresh-report'
 import { cn } from '@/lib/utils'
 import type { FinanceTransaction } from '@/lib/finance-types'
 import { type Summary, type TreatmentEvent, fmtMoney } from './command-center/types'
@@ -44,8 +45,10 @@ export function groupPlanEvents(events: TreatmentEvent[]): Array<{ key: string; 
 // ── Tag past baby expenses (UX-04, MOB-03 backfill) ─────────────────────────
 // Untagged Health/Shopping rows since July whose text looks prenatal. Nothing
 // is tagged until the user ticks rows and presses the button.
-export const BABY_KEYWORDS = /bby|beb|gine|prenatal|ultrason|eco |nutri|embarazo|pañal|pediatr|obstetr/i
+// `\bbeb[eé]` (bebé), not `beb`, which also matches "bebidas".
+export const BABY_KEYWORDS = /bby|\bbeb[eé]|gine|prenatal|ultrason|eco |nutri|embarazo|pañal|pediatr|obstetr/i
 const REVIEW_SINCE = '2026-07-01'
+const REVIEW_PREVIEW_ROWS = 5
 const REVIEW_CATEGORIES = new Set(['Health', 'Shopping'])
 
 type ReviewRow = Pick<FinanceTransaction, 'id' | 'transaction_date' | 'merchant' | 'description' | 'amount_mxn' | 'tags' | 'owner' | 'category_id'> & { category_name: string }
@@ -74,7 +77,7 @@ function BabyTagReview({ onTagged }: { onTagged: () => void }) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-
+  const [showAll, setShowAll] = useState(false)
 
   const toggle = (id: string) => setSelected(prev => {
     const next = new Set(prev)
@@ -110,12 +113,6 @@ function BabyTagReview({ onTagged }: { onTagged: () => void }) {
           <h2 id="baby-review-title" className="flex items-center gap-2 text-[0.9375rem] font-semibold text-fg"><Tag className="h-4 w-4 text-fg-secondary" aria-hidden="true" />Tag past baby expenses</h2>
           <p className="mt-0.5 text-label text-fg-secondary">Health and shopping since July that look prenatal but miss the “baby” tag. Tagging feeds the envelope above.</p>
         </div>
-        {rows && rows.length > 0 && (
-          <button type="button" onClick={tagSelected} disabled={saving || selected.size === 0}
-            className="btn-primary inline-flex min-h-11 shrink-0 items-center rounded-lg px-4 text-sm font-semibold disabled:opacity-40">
-            {saving ? 'Tagging…' : selected.size ? `Tag ${selected.size} as baby` : 'Select expenses to tag'}
-          </button>
-        )}
       </div>
       {message && <p role="status" className="mt-3 text-label text-positive">{message}</p>}
       {failed ? (
@@ -127,23 +124,43 @@ function BabyTagReview({ onTagged }: { onTagged: () => void }) {
       ) : (
         <>
           <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
-            {rows.map(row => (
-              <li key={row.id}>
-                <label className="flex min-h-12 cursor-pointer items-center gap-3 px-3 py-2 hover:bg-surface-2">
-                  <input type="checkbox" checked={selected.has(row.id)} onChange={() => toggle(row.id)} className="h-5 w-5 shrink-0 accent-[hsl(var(--positive))]" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-fg">{row.merchant || row.description || '—'}</span>
-                    <span className="flex items-center gap-1.5 text-micro text-fg-tertiary">{row.category_name} · {formatDateShort(parseLocalDateKey(row.transaction_date))}{row.owner && <OwnerAvatar owner={row.owner} size={14} />}</span>
-                  </span>
-                  <span className="num shrink-0 text-sm font-semibold text-fg" data-money>{formatMoney(row.amount_mxn)}</span>
-                </label>
-              </li>
-            ))}
+            {(showAll ? rows : rows.slice(0, REVIEW_PREVIEW_ROWS)).map(row => {
+              const checked = selected.has(row.id)
+              return (
+                <li key={row.id}>
+                  <label className="flex min-h-12 cursor-pointer items-center gap-3 px-3 py-2 hover:bg-surface-2">
+                    <input type="checkbox" checked={checked} onChange={() => toggle(row.id)} className="peer sr-only" />
+                    <span aria-hidden="true" className={cn('flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[hsl(var(--positive))] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[hsl(var(--surface))]',
+                      checked ? 'border-transparent bg-[hsl(var(--btn-primary-bg))] text-[hsl(var(--btn-primary-fg))]' : 'border-border-strong bg-surface')}>
+                      {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-fg">{row.merchant || row.description || '—'}</span>
+                      <span className="flex items-center gap-1.5 text-micro text-fg-tertiary">{row.category_name} · {formatDateShort(parseLocalDateKey(row.transaction_date))}{row.owner && <OwnerAvatar owner={row.owner} size={14} />}</span>
+                    </span>
+                    <span className="num shrink-0 text-sm font-semibold text-fg" data-money>{formatMoney(row.amount_mxn)}</span>
+                  </label>
+                </li>
+              )
+            })}
           </ul>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-label text-fg-tertiary">
-            <span>{rows.length} candidate{rows.length === 1 ? '' : 's'}{selected.size ? ` · ${formatMoney(total)} selected` : ''}</span>
-            <button type="button" onClick={() => setSelected(selected.size === rows.length ? new Set() : new Set(rows.map(r => r.id)))} className="min-h-11 px-2 font-medium text-fg-secondary hover:text-fg">
-              {selected.size === rows.length ? 'Clear selection' : 'Select all'}
+          {rows.length > REVIEW_PREVIEW_ROWS && (
+            <button type="button" onClick={() => setShowAll(v => !v)} aria-expanded={showAll}
+              className="mt-1 inline-flex min-h-11 items-center px-1 text-label font-semibold text-fg-secondary hover:text-fg">
+              {showAll ? 'Show fewer' : `Show all ${rows.length}`}
+            </button>
+          )}
+          {/* Sticky so the action stays in reach while ticking rows (above the dock on phones). */}
+          <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-10 -mx-4 mt-2 flex items-center justify-between gap-2 border-t border-border bg-surface/95 px-4 py-2 backdrop-blur sm:-mx-5 sm:px-5 md:bottom-0">
+            <span className="min-w-0 text-label text-fg-tertiary">
+              {selected.size ? <>{selected.size} selected · <span data-money>{formatMoney(total)}</span></> : `${rows.length} candidate${rows.length === 1 ? '' : 's'}`}
+              <button type="button" onClick={() => setSelected(selected.size === rows.length ? new Set() : new Set(rows.map(r => r.id)))} className="ml-2 min-h-11 font-medium text-fg-secondary underline-offset-2 hover:text-fg hover:underline">
+                {selected.size === rows.length ? 'Clear' : 'Select all'}
+              </button>
+            </span>
+            <button type="button" onClick={tagSelected} disabled={saving || selected.size === 0}
+              className="btn-primary inline-flex min-h-11 shrink-0 items-center rounded-lg px-4 text-sm font-semibold disabled:opacity-40">
+              {saving ? 'Tagging…' : selected.size ? `Tag ${selected.size} as baby` : 'Select to tag'}
             </button>
           </div>
         </>
@@ -155,8 +172,10 @@ function BabyTagReview({ onTagged }: { onTagged: () => void }) {
 export function FamilyClient() {
   const summaryQ = useFinanceData<Summary | null>('family:summary', async signal => {
     const res = await fetch('/api/finance/summary', { cache: 'no-store', signal })
-    return res.ok ? res.json() : null
+    if (!res.ok) throw new Error(`summary ${res.status}`)
+    return res.json()
   })
+  useRefreshReport([summaryQ])
   const summary = summaryQ.data ?? null
   const loading = summaryQ.loading
   const fetchData = summaryQ.refresh

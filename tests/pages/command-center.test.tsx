@@ -1,9 +1,16 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../fixtures/finance-review.json'
 import { supabase } from '@/lib/supabase'
 import CommandCenter from '@/components/finance/command-center-client'
 import { buildAttentionItems } from '@/components/finance/command-center/attention'
+import { BillsTimeline } from '@/components/finance/bills-timeline'
+import { refreshFinanceData } from '@/lib/finance-navigation'
+
+const auth = vi.hoisted(() => ({ owner: null as string | null }))
+vi.mock('@/components/finance-auth-guard', () => ({
+  useFinanceAuth: () => ({ status: 'signed-in', email: auth.owner ? `${auth.owner.toLowerCase()}@x` : null, owner: auth.owner, verified: true }),
+}))
 
 const west = vi.hoisted(() => ({ fetch: vi.fn() }))
 vi.mock('@/lib/west-projection-client', () => ({ fetchWestProjection: west.fetch, westMonthTarget: () => null }))
@@ -48,6 +55,8 @@ function stubFetch(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
+  auth.owner = null
+  window.localStorage.clear()
   vi.restoreAllMocks()
   west.fetch.mockReset()
   west.fetch.mockResolvedValue(fixture.west)
@@ -101,6 +110,46 @@ describe('home', () => {
     expect(from).not.toHaveBeenCalledWith('finance_transactions')
   })
 
+  it('You mode shows only the viewer’s activity and highlights their spend', async () => {
+    auth.owner = 'Laura'
+    render(<CommandCenter />)
+    expect(await screen.findByRole('heading', { level: 1, name: /, Laura$/ })).toBeInTheDocument()
+    expect(await screen.findByText('Weekly groceries')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'You' }))
+    expect(screen.queryByText('Weekly groceries')).not.toBeInTheDocument()
+    expect(screen.getByText('Tacos')).toBeInTheDocument()
+    expect(screen.getByText('Laura’s latest')).toBeInTheDocument()
+    expect(within(screen.getByLabelText('Spent this month by owner')).getByText('L').parentElement).toHaveClass('font-semibold')
+    expect(screen.getByText(/Laura spent/)).toHaveTextContent('Laura spent $3k this month')
+  })
+
+  it('shows a budget overrun once: Needs attention, not again in Mona’s take or Budgets', async () => {
+    const over = { ...summary, current_month: { ...summary.current_month, budget_vs_actual: [
+      { category: 'Groceries', budget: 8000, spent: 5200, projected_month_total: 7000, is_non_monthly: false, pct_used: 65, status: 'ok' },
+      { category: 'Other', budget: 5000, spent: 17000, projected_month_total: 17000, is_non_monthly: false, pct_used: 340, status: 'over' },
+    ] } }
+    stubFetch({ summary: over })
+    render(<CommandCenter />)
+    expect(await screen.findByText('Other is $12k over budget')).toBeInTheDocument()
+    const mona = screen.getByRole('heading', { name: 'Mona’s take' }).closest('[aria-labelledby="wolff-command-title"]') as HTMLElement
+    expect(within(mona).queryByText(/Pause Other/)).not.toBeInTheDocument()
+    expect(within(mona).getByText('How do we get Other back on budget?')).toBeInTheDocument()
+    const budgets = screen.getByRole('heading', { name: 'Budgets' }).closest('div')!.parentElement!.parentElement as HTMLElement
+    expect(within(budgets).queryByText('Other')).not.toBeInTheDocument()
+    expect(within(budgets).getByText('Groceries')).toBeInTheDocument()
+  })
+
+  it('reports pull-to-refresh completion only once home has new data', async () => {
+    render(<CommandCenter />)
+    await screen.findByText('$22,000')
+    let outcome: Promise<string> = Promise.resolve('')
+    act(() => { outcome = refreshFinanceData(5_000) })
+    await expect(outcome).resolves.toBe('updated')
+    vi.mocked(fetch).mockRejectedValue(new Error('offline'))
+    act(() => { outcome = refreshFinanceData(5_000) })
+    await expect(outcome).resolves.toBe('failed')
+  })
+
   it('offers recovery instead of showing zero balances when initial loading fails', async () => {
     vi.mocked(fetch).mockRejectedValue(new Error('offline'))
     render(<CommandCenter />)
@@ -137,5 +186,22 @@ describe('needs attention', () => {
   it('links untagged baby spend to the family review', () => {
     const items = buildAttentionItems({ current_month: { month: '2026-10', budget_vs_actual: [] }, baby_plan: { untagged_candidates: 2 } }, '2026-10-12')
     expect(items).toEqual([expect.objectContaining({ id: 'baby-untagged', href: '/finance/family#baby-review' })])
+  })
+})
+
+describe('next 14 days', () => {
+  const bill = (date: string, name: string, amount = -1000, type = 'subscription') => ({ date, name, amount_mxn: amount, type: type as 'subscription' })
+
+  it('says how many events the cap hid and links to them', () => {
+    const events = [1, 2, 3, 4, 5, 6, 7, 8].map(i => bill('2026-11-01', `Bill ${i}`))
+    render(<BillsTimeline events={events} daysAhead={14} maxItems={6} today="2026-10-28" />)
+    expect(screen.getAllByText(/^Bill \d$/)).toHaveLength(6)
+    expect(screen.getByRole('link', { name: /\+2 more in the next 14 days · \$2,000 out/ })).toHaveAttribute('href', '/finance/subscriptions')
+  })
+
+  it('uses a bill glyph for outflows, not the external-link arrow', () => {
+    const { container } = render(<BillsTimeline events={[bill('2026-10-30', 'Netflix')]} today="2026-10-28" />)
+    expect(container.querySelector('.lucide-arrow-up-right')).toBeNull()
+    expect(container.querySelector('.lucide-receipt')).not.toBeNull()
   })
 })

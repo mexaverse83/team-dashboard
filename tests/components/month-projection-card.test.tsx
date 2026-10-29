@@ -27,7 +27,9 @@ const plan: HomeWestPlan = {
 describe('MonthProjectionCard (This month hero)', () => {
   it('leads with a verdict and the projected savings figure', () => {
     render(<MonthProjectionCard projection={projection} westPlan={plan} monthLabel="October" monthEndLabel="Oct 31" dayOfMonth={28} daysInMonth={31} />)
-    expect(screen.getByText('On track to save 40% of income')).toBeInTheDocument()
+    // Below capacity the headline names the shortfall, never "on track" beside "Below plan".
+    expect(screen.getByText('Saving 40% of income — $34.6k short of the WEST plan')).toBeInTheDocument()
+    expect(screen.queryByText(/On track/)).not.toBeInTheDocument()
     expect(screen.getByText('$83,536')).toBeInTheDocument()
     expect(screen.getByText(/projected savings by Oct 31 · 4 days left/)).toBeInTheDocument()
   })
@@ -38,7 +40,7 @@ describe('MonthProjectionCard (This month hero)', () => {
     expect(bar).toHaveAttribute('aria-valuemax', '118129')
     expect(bar.firstElementChild).toHaveClass('bg-warning')
     expect(within(bar).getByTestId('plan-marker')).toBeInTheDocument()
-    expect(screen.getByText('$34.6k to reach the plan')).toBeInTheDocument()
+    expect(screen.getByText('71% of the plan so far')).toBeInTheDocument()
     expect(screen.getByText('Below plan')).toBeInTheDocument()
     // The stretch is broken into its two gaps, never a second target to add.
     expect(screen.getByText(/Stretch/)).toHaveTextContent('Stretch $152.6k/mo funds WEST fully · purchase gap $1.4M · furnishing $1M')
@@ -50,6 +52,7 @@ describe('MonthProjectionCard (This month hero)', () => {
     expect(screen.getByRole('progressbar').firstElementChild).toHaveClass('bg-positive')
     expect(screen.getByText('$1.9k ahead of the plan')).toBeInTheDocument()
     expect(screen.getByText('On plan')).toBeInTheDocument()
+    expect(screen.getByText('On plan: saving 57% of income')).toBeInTheDocument()
   })
 
   it('shows a skeleton while WEST loads and a note when it is unavailable', () => {
@@ -63,6 +66,8 @@ describe('MonthProjectionCard (This month hero)', () => {
     render(<MonthProjectionCard projection={projection} westPlan={plan} ownerSpend={{ bernardo: 73500, Laura: 43000 }} />)
     expect(screen.getByLabelText('Spent this month by owner')).toHaveTextContent('B$73.5kL$43k')
     expect(screen.getByText('Still expected').nextElementSibling).toHaveTextContent('$8.8k')
+    // Values sit under their labels, not right-aligned by .num.
+    expect(screen.getByText('Still expected').nextElementSibling).toHaveClass('text-left')
   })
 
   it('renders nothing without a projection', () => {

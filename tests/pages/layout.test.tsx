@@ -73,34 +73,33 @@ describe('Root Layout', () => {
 })
 
 describe('Finance shell', () => {
-  it('waits for the session, then shows the page with one quick-add FAB', async () => {
+  it('waits for the session, then shows the page', async () => {
     vi.mocked(supabase.auth.getSession).mockResolvedValue(session('bernardo.gza83@gmail.com') as never)
     vi.mocked(supabase.auth.getUser).mockResolvedValue({ data: { user: { email: 'bernardo.gza83@gmail.com' } }, error: null } as never)
     render(<FinanceLayout><p>Home page</p></FinanceLayout>)
     expect(screen.getByRole('status', { name: 'Checking your session' })).toBeInTheDocument()
     expect(await screen.findByText('Home page')).toBeInTheDocument()
-    const fab = screen.getByRole('button', { name: 'Add transaction' })
-    fireEvent.click(fab)
-    expect(nav.push).toHaveBeenCalledWith('/finance/transactions?add=1')
-  })
-
-  it('lets a mounted quick-add host handle the FAB', async () => {
-    vi.mocked(supabase.auth.getSession).mockResolvedValue(session('lcampomtz89@gmail.com') as never)
-    const host = vi.fn((event: Event) => event.preventDefault())
-    window.addEventListener(FINANCE_EVENTS.quickAdd, host)
-    render(<FinanceLayout><p>Budgets</p></FinanceLayout>)
-    fireEvent.click(await screen.findByRole('button', { name: 'Add transaction' }))
-    expect(host).toHaveBeenCalled()
-    expect(nav.push).not.toHaveBeenCalled()
-    window.removeEventListener(FINANCE_EVENTS.quickAdd, host)
-  })
-
-  it('hides the FAB where it would cover the composer', async () => {
-    nav.pathname = '/finance/ask'
-    vi.mocked(supabase.auth.getSession).mockResolvedValue(session('lcampomtz89@gmail.com') as never)
-    render(<FinanceLayout><p>Ask</p></FinanceLayout>)
-    await screen.findByText('Ask')
+    // The add action lives in the dock / sidebar, never floating over page content.
     expect(screen.queryByRole('button', { name: 'Add transaction' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the shell when an expired token can’t refresh on a weak network', async () => {
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: null }, error: { name: 'AuthRetryableFetchError', status: 0, message: 'Failed to fetch' } } as never)
+    document.cookie = `sb-test-auth-token=${encodeURIComponent(JSON.stringify({ user: { email: 'lcampomtz89@gmail.com' } }))}; path=/`
+    render(<FinanceLayout><p>Still yours</p></FinanceLayout>)
+    expect(await screen.findByText('Still yours')).toBeInTheDocument()
+    expect(nav.replace).not.toHaveBeenCalled()
+    document.cookie = 'sb-test-auth-token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
+  })
+
+  it('shows an offline state, not the login page, when no stored session can be read', async () => {
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: null }, error: { name: 'AuthRetryableFetchError', status: 0, message: 'Failed to fetch' } } as never)
+    render(<FinanceLayout><p>Private</p></FinanceLayout>)
+    expect(await screen.findByText('Can’t reach the server')).toBeInTheDocument()
+    expect(nav.replace).not.toHaveBeenCalled()
+    vi.mocked(supabase.auth.getSession).mockResolvedValue(session('lcampomtz89@gmail.com') as never)
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Private')).toBeInTheDocument()
   })
 
   it('keeps the app open when the background check fails on a weak network', async () => {
@@ -143,6 +142,34 @@ describe('Finance shell', () => {
     touch('touchend')
     expect(onRefresh).toHaveBeenCalledTimes(1)
     expect(screen.getByText('Refreshing…')).toBeInTheDocument()
+    window.removeEventListener(FINANCE_EVENTS.refresh, onRefresh)
+  })
+
+  it('pull-to-refresh says Updated only after listeners finish, and admits failure', async () => {
+    vi.mocked(supabase.auth.getSession).mockResolvedValue(session('lcampomtz89@gmail.com') as never)
+    let settle: (ok: boolean) => void = () => {}
+    const onRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ waitUntil: (p: Promise<unknown>) => void }>).detail
+      detail.waitUntil(new Promise((resolve, reject) => { settle = ok => (ok ? resolve(null) : reject(new Error('x'))) }))
+    }
+    window.addEventListener(FINANCE_EVENTS.refresh, onRefresh)
+    render(<FinanceLayout><p>Pull</p></FinanceLayout>)
+    await screen.findByText('Pull')
+    const pull = () => {
+      for (const [type, y] of [['touchstart', 100], ['touchmove', 200], ['touchend', undefined]] as const) {
+        const event = new Event(type, { bubbles: true })
+        Object.defineProperty(event, 'touches', { value: y == null ? [] : [{ clientY: y }] })
+        act(() => { window.dispatchEvent(event) })
+      }
+    }
+    pull()
+    expect(screen.getByText('Refreshing…')).toBeInTheDocument()
+    expect(screen.queryByText(/^Updated/)).not.toBeInTheDocument()
+    await act(async () => { settle(false) })
+    expect(await screen.findByText('Couldn’t refresh — showing last update')).toBeInTheDocument()
+    pull()
+    await act(async () => { settle(true) })
+    expect(await screen.findByText(/^Updated /)).toBeInTheDocument()
     window.removeEventListener(FINANCE_EVENTS.refresh, onRefresh)
   })
 })

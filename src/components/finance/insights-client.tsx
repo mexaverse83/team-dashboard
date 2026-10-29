@@ -276,7 +276,8 @@ export default function InsightsClient() {
   const lastBrief = llmUsable ? [] : (archived.length ? archived : liveSource ? [] : insights)
   const shown = llmUsable ? insights : liveSource ? insights.filter(i => !['WIDGET', 'WEEK', 'HOUSEHOLD'].includes((i.category || '').toUpperCase())) : []
   const live = !llmUsable && summary?.current_month ? buildDeterministicBrief(summary as BriefSummary) : null
-  const visibleInsights = showLast ? [...shown, ...lastBrief] : shown
+  // The old brief never joins the live sections; it renders dated and muted in its own panel.
+  const visibleInsights = shown
   const lastDate = generatedAt ? formatDateShort(new Date(generatedAt)) : null
   const freshness = insightFreshnessLevel(generatedAt)
 
@@ -288,7 +289,6 @@ export default function InsightsClient() {
 
   const bva = summary?.current_month?.budget_vs_actual || []
   const msiTimeline = summary?.msi_timeline || []
-  const goalFunding = summary?.goal_funding
 
   const formatTime = (iso: string) => {
     try { return new Date(iso).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) }
@@ -355,7 +355,7 @@ export default function InsightsClient() {
           <GlassCard className="text-center py-12">
             <WolffAvatar className="mx-auto mb-3 h-10 w-10" />
             <p className="text-sm text-[hsl(var(--text-secondary))]">{error}</p>
-            <button onClick={() => fetchAll(true)} className="mt-4 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-medium transition-colors">
+            <button onClick={() => fetchAll(true)} className="btn-primary mt-4 min-h-11 rounded-lg px-4 text-sm font-semibold transition-colors">
               Try Again
             </button>
           </GlassCard>
@@ -390,7 +390,19 @@ export default function InsightsClient() {
                   <span className="flex items-center gap-2"><History className="h-4 w-4" aria-hidden="true" />{showLast ? 'Hide last brief' : `Show last brief${lastDate ? ` (${lastDate})` : ''}`}</span>
                   <ChevronDown className={cn('h-4 w-4 transition-transform', showLast && 'rotate-180')} aria-hidden="true" />
                 </button>
-                {showLast && <p className="border-t border-border px-4 py-2.5 text-label text-fg-tertiary">Written {lastDate ?? 'earlier'} — its numbers may no longer match this month. The items appear in the sections below.</p>}
+                {showLast && (
+                  <div className="border-t border-border px-4 py-3" data-testid="last-brief">
+                    <p className="text-label text-fg-tertiary">Written {lastDate ?? 'earlier'} — history, not today’s advice. Its numbers may no longer match this month.</p>
+                    <ul className="mt-3 space-y-3">
+                      {lastBrief.map((item, i) => (
+                        <li key={i} className="border-l-2 border-border pl-3">
+                          <p className="text-sm font-medium text-fg-secondary">{item.title}</p>
+                          {item.detail && <MiniMarkdown text={item.detail} className="mt-0.5 text-label leading-relaxed text-fg-tertiary" />}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
 
@@ -454,14 +466,14 @@ export default function InsightsClient() {
                       <div className="col-span-2 text-right tabular-nums">${formatMXN(row.spent)}</div>
                       <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-secondary))]">
                         ${formatMXN(row.budget)}
-                        {row.is_non_monthly && <span className="text-xs text-blue-600 ml-0.5">({row.cycle_months}mo)</span>}
+                        {row.is_non_monthly && <span className="text-xs text-fg-tertiary ml-0.5">({row.cycle_months}mo)</span>}
                       </div>
                       <div className="col-span-1 text-center"><StatusBadge status={row.status} pct={row.pct_used} /></div>
                       <div className="col-span-2 text-right tabular-nums">
                         {row.is_non_monthly
                           ? <span className="text-[hsl(var(--text-secondary))]">—</span>
                           : <span className={cn(
-                              row.projected_month_total > row.budget ? 'text-red-500' : 'text-[hsl(var(--text-secondary))]'
+                              row.projected_month_total > row.budget ? 'text-negative' : 'text-[hsl(var(--text-secondary))]'
                             )}>
                               ${formatMXN(row.projected_month_total)}
                             </span>}
@@ -510,12 +522,12 @@ export default function InsightsClient() {
                         <div>
                           <span className="text-[hsl(var(--text-secondary))]">of </span>
                           <span className="tabular-nums text-[hsl(var(--text-secondary))]">${formatMXN(row.budget)}</span>
-                          {row.is_non_monthly && <span className="text-[10px] text-blue-600 ml-0.5">({row.cycle_months}mo)</span>}
+                          {row.is_non_monthly && <span className="text-[10px] text-fg-tertiary ml-0.5">({row.cycle_months}mo)</span>}
                         </div>
                       </div>
                       {!row.is_non_monthly && (
                         <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-[hsl(var(--border))]/50 text-xs">
-                          <span className="text-[hsl(var(--text-tertiary))]">Projected: <span className={cn("font-medium", row.projected_month_total > row.budget ? 'text-red-500' : 'text-[hsl(var(--text-secondary))]')}>${formatMXN(row.projected_month_total)}</span></span>
+                          <span className="text-[hsl(var(--text-tertiary))]">Projected: <span className={cn("font-medium", row.projected_month_total > row.budget ? 'text-negative' : 'text-[hsl(var(--text-secondary))]')}>${formatMXN(row.projected_month_total)}</span></span>
                           <PaceBadge pct={row.pace_vs_budget_pct} />
                         </div>
                       )}
@@ -541,7 +553,7 @@ export default function InsightsClient() {
                       <Home className="h-4 w-4 text-fg-secondary" aria-hidden="true" />
                       <span className="text-sm font-semibold">WEST Apartment</span>
                     </div>
-                    <Link href="/finance/investments" className="inline-flex min-h-10 items-center text-xs text-blue-600 hover:underline">Full tracker →</Link>
+                    <Link href="/finance/investments?tab=Real%20Estate" className="inline-flex min-h-10 items-center text-xs font-semibold text-fg-secondary hover:text-fg">Full tracker →</Link>
                   </div>
                   <div className="flex h-2.5 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))] mb-2">
                     <div className="h-full bg-emerald-500" style={{ width: `${Math.max(0, westSnapshot.paidPct)}%` }} />
@@ -555,10 +567,10 @@ export default function InsightsClient() {
                       <span className="text-[hsl(var(--text-secondary))] whitespace-nowrap"> / {fmtMXN(westSnapshot.target)}</span>
                     </div>
                     <div className="text-right whitespace-nowrap">
-                      <span className="font-semibold tabular-nums text-emerald-600">{westSnapshot.fundedPct.toFixed(0)}%</span>
+                      <span className="font-semibold tabular-nums text-fg">{westSnapshot.fundedPct.toFixed(0)}%</span>
                       <span className="text-[hsl(var(--text-secondary))]"> funded</span>
                     </div>
-                    <div className="mt-1"><span className="text-red-600 tabular-nums">Gap: {fmtMXN(westSnapshot.gap)}</span></div>
+                    <div className="mt-1"><span className="text-fg-secondary tabular-nums">Gap: {fmtMXN(westSnapshot.gap)}</span></div>
                     <div className="text-right mt-1 whitespace-nowrap"><span className="text-[hsl(var(--text-secondary))]">{westSnapshot.monthsRemaining}mo to delivery</span></div>
                   </div>
                   {westSnapshot.nextMilestone && (
@@ -566,7 +578,7 @@ export default function InsightsClient() {
                       <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
                       <span className="text-[hsl(var(--text-secondary))]">Next: </span>
                       <span className="font-medium min-w-0 truncate">{westSnapshot.nextMilestone.title}</span>
-                      <span className="text-[hsl(var(--text-secondary))] ml-auto shrink-0 tabular-nums">{westSnapshot.nextMilestone.date}</span>
+                      <span className="text-[hsl(var(--text-secondary))] ml-auto shrink-0 tabular-nums">{formatDateShort(westSnapshot.nextMilestone.date)}</span>
                     </div>
                   )}
                 </GlassCard>
@@ -629,7 +641,7 @@ export default function InsightsClient() {
                   {recommendations.map((rec, i) => (
                     <div key={i} className="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--bg-surface))]/50 p-4">
                       <div className="flex items-start gap-3">
-                        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-500/10 text-blue-600 shrink-0 mt-0.5">
+                        <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-surface-2 text-fg-secondary shrink-0 mt-0.5">
                           <Lightbulb className="h-4 w-4" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -639,7 +651,7 @@ export default function InsightsClient() {
                           </div>
                           <p className="text-sm text-[hsl(var(--text-secondary))] mt-1 leading-relaxed">{rec.detail}</p>
                           {rec.savings_amount && rec.savings_amount > 0 && (
-                            <p className="text-xs font-medium text-emerald-500 mt-1.5">
+                            <p className="text-xs font-medium text-positive mt-1.5">
                               Potential savings: ${formatMXN(rec.savings_amount)}/mo
                             </p>
                           )}
@@ -657,8 +669,8 @@ export default function InsightsClient() {
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">Wins</h2>
                 <div className="space-y-2">
                   {wins.map((w, i) => (
-                    <div key={i} className="flex items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
-                      <Trophy className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                    <div key={i} className="flex items-start gap-3 rounded-lg border border-border bg-positive-bg p-4">
+                      <Trophy className="h-4 w-4 text-positive shrink-0 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium">{w.title}</p>
                         <p className="text-sm text-[hsl(var(--text-secondary))] mt-0.5">{w.detail}</p>
@@ -676,7 +688,7 @@ export default function InsightsClient() {
                 <div className="space-y-2">
                   {forecasts.map((f, i) => (
                     <div key={i} className="flex items-start gap-3 rounded-lg border border-[hsl(var(--border))] p-4">
-                      <TrendingUp className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                      <TrendingUp className="h-4 w-4 text-fg-secondary shrink-0 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium">{f.title}</p>
                         <p className="text-sm text-[hsl(var(--text-secondary))] mt-0.5">{f.detail}</p>
@@ -717,7 +729,7 @@ export default function InsightsClient() {
                       <div className="flex items-baseline justify-between gap-3">
                         <p className="text-sm font-medium leading-tight">{westSnapshot.nextMilestone.title}</p>
                       </div>
-                      <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{westSnapshot.nextMilestone.date}</p>
+                      <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">{formatDateShort(westSnapshot.nextMilestone.date)}</p>
                     </div>
                   </div>
                 </GlassCard>
@@ -727,7 +739,7 @@ export default function InsightsClient() {
             {/* ══════════════════════════════════════════════════ */}
             {/* WOLFF'S COMMENTARY — Raw data behind the insights */}
             {/* ══════════════════════════════════════════════════ */}
-            {(msiTimeline.length > 0 || goalFunding) && (
+            {(msiTimeline.length > 0 || summary?.cash_flow) && (
               <section>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] flex items-center gap-2">
@@ -736,7 +748,8 @@ export default function InsightsClient() {
                   </h2>
                   <button
                     onClick={() => setShowRawData(!showRawData)}
-                    className="inline-flex min-h-10 sm:min-h-0 items-center text-xs text-[hsl(var(--text-secondary))] hover:text-[hsl(var(--text-primary))] transition-colors"
+                    aria-expanded={showRawData}
+                    className="inline-flex min-h-11 items-center px-2 text-xs font-medium text-fg-secondary hover:text-fg transition-colors"
                   >
                     {showRawData ? 'Hide data' : 'Show data'}
                   </button>
@@ -756,12 +769,12 @@ export default function InsightsClient() {
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">{m.name}</p>
                                 <p className="text-xs sm:text-sm text-[hsl(var(--text-secondary))]">
-                                  {m.merchant && <>{m.merchant} · </>}{m.payments_remaining} payments left · <span className="whitespace-nowrap">ends {m.end_date}</span>
+                                  {m.merchant && <>{m.merchant} · </>}{m.payments_remaining} payments left · <span className="whitespace-nowrap">ends {formatDateShort(m.end_date)}</span>
                                 </p>
                               </div>
                               <div className="text-right shrink-0 ml-3 min-w-[80px]">
                                 <p className="font-medium tabular-nums">${formatMXN(m.monthly_payment)}/mo</p>
-                                <p className="text-xs text-emerald-500 whitespace-nowrap">
+                                <p className="text-xs text-positive whitespace-nowrap">
                                   Frees ${formatMXN(m.monthly_payment)}/mo
                                 </p>
                               </div>
@@ -775,42 +788,9 @@ export default function InsightsClient() {
                       </div>
                     )}
 
-                    {/* Goal Funding Gap */}
-                    {goalFunding && (
-                      <div className={cn(
-                        'rounded-lg border p-4',
-                        goalFunding.fully_funded
-                          ? 'border-emerald-500/20 bg-emerald-500/5'
-                          : 'border-yellow-500/20 bg-yellow-500/5'
-                      )}>
-                        <h3 className="text-xs font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-3">
-                          Goal Funding Analysis
-                        </h3>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span>Goals need</span>
-                            <span className="font-medium tabular-nums">${formatMXN(goalFunding.total_monthly_needed)}/mo</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Discretionary available</span>
-                            <span className="font-medium tabular-nums">${formatMXN(goalFunding.discretionary_available)}/mo</span>
-                          </div>
-                          <div className="pt-2 mt-1 border-t border-[hsl(var(--border))]">
-                            {goalFunding.fully_funded ? (
-                              <div className="flex justify-between text-emerald-500 font-semibold">
-                                <span>Fully funded</span>
-                                <span className="tabular-nums">+${formatMXN(Math.abs(goalFunding.gap))}/mo surplus</span>
-                              </div>
-                            ) : (
-                              <div className="flex justify-between text-yellow-500 font-semibold">
-                                <span>Funding gap</span>
-                                <span className="tabular-nums">-${formatMXN(goalFunding.gap)}/mo short</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    <p className="text-label text-fg-tertiary">
+                      Goal and WEST funding live on <Link href="/finance/goals" className="font-semibold text-fg-secondary hover:text-fg">Goals &amp; WEST</Link> — they draw on the same GBM pesos, so they aren’t added together here.
+                    </p>
 
                     {/* Cash Flow Summary */}
                     {summary?.cash_flow && (
@@ -821,11 +801,11 @@ export default function InsightsClient() {
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
                             <span>Income</span>
-                            <span className="font-medium tabular-nums text-emerald-500">${formatMXN(summary.cash_flow.monthly_income)}</span>
+                            <span className="font-medium tabular-nums text-fg">${formatMXN(summary.cash_flow.monthly_income)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span>Fixed commitments</span>
-                            <span className="font-medium tabular-nums text-red-500">-${formatMXN(summary.cash_flow.fixed_commitments)}</span>
+                            <span>Planned spend</span>
+                            <span className="font-medium tabular-nums text-fg">−${formatMXN(summary.cash_flow.fixed_commitments)}</span>
                           </div>
                           <div className="pt-2 mt-1 border-t border-[hsl(var(--border))] flex justify-between font-semibold">
                             <span>Discretionary</span>
@@ -860,7 +840,7 @@ export default function InsightsClient() {
                 <button
                   onClick={handleRefresh}
                   disabled={generating}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-medium transition-colors disabled:opacity-50"
+                  className="btn-primary min-h-11 rounded-lg px-4 text-sm font-semibold transition-colors disabled:opacity-50"
                 >
                   {generating ? 'Generating...' : 'Generate Daily Brief'}
                 </button>

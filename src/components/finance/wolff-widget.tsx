@@ -97,6 +97,8 @@ interface WolffWidgetProps {
   summary?: BriefSummary | null
   loading?: boolean
   now?: Date
+  /** Needs attention already shows a budget overrun: don't repeat it as Mona's move (UX-15). */
+  overBudgetShown?: boolean
 }
 
 // Mona's take (UX-01, VIS-07, F01): an LLM brief is only shown as current
@@ -121,7 +123,7 @@ function SelfFetchingWolffWidget() {
   )
 }
 
-function WolffWidgetView({ insights, proactive, summary, loading = false, now = new Date() }: WolffWidgetProps) {
+function WolffWidgetView({ insights, proactive, summary, loading = false, now = new Date(), overBudgetShown = false }: WolffWidgetProps) {
   const [showLast, setShowLast] = useState(false)
   const failed = insights === null
   const items = insights?.insights || []
@@ -138,17 +140,21 @@ function WolffWidgetView({ insights, proactive, summary, loading = false, now = 
   const lastBrief = pickDirective(lastItems)
   const lastDate = generatedAt ? formatDateShort(new Date(generatedAt)) : null
 
+  // When the overrun is already a Needs attention row, Mona offers the coaching
+  // question instead of restating it.
+  const coachInstead = Boolean(live && overBudgetShown && live.directive.rule === 'over-budget')
   const directive = llmDirective
-    ? { title: llmDirective.title, detail: llmDirective.detail, url: llmDirective.url }
-    : live ? { title: live.directive.title, detail: live.directive.detail, url: live.directive.url } : null
+    ? { title: llmDirective.title, detail: llmDirective.detail, url: llmDirective.url, cta: 'Open' }
+    : live && coachInstead ? { title: live.coach.title, detail: `${live.week.title}. ${live.week.detail}.`, url: live.coach.url, cta: 'Ask Mona' }
+    : live ? { title: live.directive.title, detail: live.directive.detail, url: live.directive.url, cta: 'Open' } : null
   const level: FreshnessLevel | 'live' = llmDirective ? insightFreshnessLevel(generatedAt, now) : live ? 'live' : insightFreshnessLevel(generatedAt, now)
   const stamp = llmDirective && generatedAt ? `Mona’s brief · ${timeStamp(generatedAt)}` : live ? 'Built from today’s numbers' : failed ? 'Brief unavailable' : 'Brief out of date'
 
   const suggestions = [
     { label: 'Plan a date night', prompt: 'Can we afford a date night this week while staying on track with our goals?' },
-    live ? { label: 'Ask about this', prompt: live.coach.title } : { label: 'Review a purchase', prompt: 'Help me check a purchase against our budget and goals.' },
+    live && !coachInstead ? { label: 'Ask about this', prompt: live.coach.title } : { label: 'Review a purchase', prompt: 'Help me check a purchase against our budget and goals.' },
   ]
-  const week = llmWeek ? { title: llmWeek.title, detail: llmWeek.detail } : live ? live.week : null
+  const week = llmWeek ? { title: llmWeek.title, detail: llmWeek.detail } : live && !coachInstead ? live.week : null
 
   return (
     <Card className="flex flex-col" aria-labelledby="wolff-command-title">
@@ -172,7 +178,7 @@ function WolffWidgetView({ insights, proactive, summary, loading = false, now = 
           {directive?.detail
             ? <MiniMarkdown text={directive.detail} className="mt-2 line-clamp-3 text-sm leading-relaxed text-fg-secondary" />
             : <p className="mt-2 text-sm leading-relaxed text-fg-secondary">Use the live numbers above, or ask Mona about your next decision.</p>}
-          {directive?.url && <Link href={directive.url} className="mt-2 inline-flex min-h-9 items-center gap-1 text-label font-semibold text-fg">Open <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>}
+          {directive?.url && <Link href={directive.url} className="mt-2 inline-flex min-h-9 items-center gap-1 text-label font-semibold text-fg">{directive.cta} <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link>}
         </div>
       )}
 

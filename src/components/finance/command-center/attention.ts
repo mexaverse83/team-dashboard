@@ -13,6 +13,8 @@ export interface AttentionItem {
   detail?: string
   href: string
   cta: string
+  /** Budget category this row is about, so other home cards can skip it (UX-15). */
+  category?: string
 }
 
 /** The summary subset the rows read; v2 fields are optional. */
@@ -46,6 +48,7 @@ export function buildAttentionItems(summary: AttentionSummary, todayKey: string)
     const more = over.length - 1
     items.push({
       id: `over-${top.category}`,
+      category: top.category,
       tone: 'negative',
       title: `${top.category} is ${formatCompact(top.spent - top.budget)} over budget`,
       detail: `${formatMoney(top.spent)} of ${formatMoney(top.budget)}${more > 0 ? ` · ${more} more categor${more === 1 ? 'y' : 'ies'} over` : ''}`,

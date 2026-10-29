@@ -12,11 +12,17 @@ const MAX_ROWS = 4
 // Budget pace (not an alert surface — overruns live in Needs attention).
 // One tone rule shared with the Budgets page (getBudgetTone, VIS-03) and a
 // pace marker at today's share of the month.
-export function BudgetWatch({ summary }: { summary: Summary }) {
+export function BudgetWatch({ summary, exclude = [] }: {
+  summary: Summary
+  /** Categories already shown in Needs attention (UX-15: one surface per overrun). */
+  exclude?: string[]
+}) {
   const month = summary.current_month
   const budgets = month.budget_vs_actual.filter(b => !b.is_non_monthly && b.budget > 0)
-  const shown = [...budgets].sort((a, b) => b.spent / b.budget - a.spent / a.budget).slice(0, MAX_ROWS)
   const pace = month.days_in_month > 0 ? month.day_of_month / month.days_in_month : null
+  // "How are the rest pacing": furthest ahead of today's pace first.
+  const paceRatio = (b: { spent: number; budget: number }) => b.spent / (b.budget * (pace || 1))
+  const shown = budgets.filter(b => !exclude.includes(b.category)).sort((a, b) => paceRatio(b) - paceRatio(a)).slice(0, MAX_ROWS)
 
   return (
     <Card>

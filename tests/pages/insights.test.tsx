@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../fixtures/finance-review.json'
 import InsightsClient from '@/components/finance/insights-client'
@@ -46,6 +46,21 @@ describe('Daily Brief', () => {
     expect(screen.getByText('Protege $108,231 para WEST hoy')).toBeInTheDocument()
     expect(screen.getByText('$119,400').tagName).toBe('STRONG')
     expect(screen.getByText(/may no longer match this month/)).toBeInTheDocument()
+    // Dated and muted inside the panel, never mixed into the live sections.
+    expect(within(screen.getByTestId('last-brief')).getByText('Cocina en casa el fin')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Active Alerts' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Recommendations' })).not.toBeInTheDocument()
+  })
+
+  it('never adds goal need and WEST into one funding gap, and says Planned spend', async () => {
+    stub(staleInsights)
+    render(<InsightsClient />)
+    await screen.findByText('Today’s move')
+    const toggle = screen.queryByRole('button', { name: 'Show data' })
+    if (toggle) fireEvent.click(toggle)
+    expect(screen.queryByText(/Goal Funding Analysis/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Funding gap/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Fixed commitments')).not.toBeInTheDocument()
   })
 
   it('keeps the priority hero for a brief written today', async () => {

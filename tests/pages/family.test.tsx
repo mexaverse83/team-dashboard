@@ -29,11 +29,11 @@ const rows = [
 ]
 
 const update = vi.fn()
-function mockSupabase() {
+function mockSupabase(txRows = rows) {
   vi.spyOn(supabase, 'from').mockImplementation((table: string) => {
     const data = table === 'finance_categories'
       ? [{ id: 'health', name: 'Health' }, { id: 'shopping', name: 'Shopping' }, { id: 'dining', name: 'Dining Out' }]
-      : rows
+      : txRows
     const chain: Record<string, unknown> = { then: (resolve: (v: unknown) => unknown) => Promise.resolve({ data, error: null }).then(resolve) }
     for (const m of ['select', 'eq', 'gte', 'in', 'order', 'range']) chain[m] = vi.fn(() => chain)
     chain.update = (patch: unknown) => {
@@ -80,5 +80,22 @@ describe('Family & Baby', () => {
   it('matches the prenatal keywords', () => {
     for (const text of ['Eco bebe ', 'Cita gine', 'ULTRASONIDO 3D', 'Pañales', 'Pediatra']) expect(BABY_KEYWORDS.test(text)).toBe(true)
     expect(BABY_KEYWORDS.test('Ibuprofeno farmacia')).toBe(false)
+    expect(BABY_KEYWORDS.test('Ropa bebé')).toBe(true)
+    expect(BABY_KEYWORDS.test('Bebidas OXXO')).toBe(false)
+  })
+
+  it('previews five candidates and keeps the tag action in one sticky bar', async () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ id: `e${i}`, transaction_date: `2026-10-${String(10 + i).padStart(2, '0')}`, merchant: `Eco bebe ${i}`, description: null, amount_mxn: 1000, tags: [], owner: 'Laura', category_id: 'health' }))
+    vi.restoreAllMocks()
+    mockSupabase(many)
+    render(<FamilyClient />)
+    expect(await screen.findByText('Eco bebe 7')).toBeInTheDocument()
+    expect(screen.getAllByRole('checkbox')).toHaveLength(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 8' }))
+    expect(screen.getAllByRole('checkbox')).toHaveLength(8)
+    fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
+    const tag = screen.getByRole('button', { name: 'Tag 8 as baby' })
+    expect(tag.parentElement).toHaveClass('sticky')
+    expect(tag.parentElement).toHaveTextContent('8 selected · $8,000')
   })
 })

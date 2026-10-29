@@ -40,10 +40,12 @@ const compact = (n: number) => formatCompact(n)
 function verdict(p: MonthProjection, plan: HomeWestPlan | null | undefined): { text: string; tone: Tone; pill: string } {
   const rate = p.expected_income > 0 ? Math.round((p.projected_savings / p.expected_income) * 100) : null
   if (p.projected_savings < 0) return { text: 'Spending is running ahead of income this month', tone: 'negative', pill: 'Over income' }
-  const text = rate != null ? `On track to save ${formatPct(rate)} of income` : 'On track to save this month'
-  if (!plan) return { text, tone: 'neutral', pill: 'Projected' }
-  if (p.projected_savings >= plan.capacity_target) return { text, tone: 'positive', pill: 'On plan' }
-  return { text, tone: 'warning', pill: 'Below plan' }
+  const saving = rate != null ? `saving ${formatPct(rate)} of income` : 'saving this month'
+  const Saving = saving.charAt(0).toUpperCase() + saving.slice(1)
+  // The headline follows the plan, so it never says "on track" beside "Below plan".
+  if (!plan) return { text: `Projected: ${saving}`, tone: 'neutral', pill: 'Projected' }
+  if (p.projected_savings >= plan.capacity_target) return { text: `On plan: ${saving}`, tone: 'positive', pill: 'On plan' }
+  return { text: `${Saving} — ${compact(plan.capacity_target - p.projected_savings)} short of the WEST plan`, tone: 'warning', pill: 'Below plan' }
 }
 
 // One bar against the realistic WEST capacity; the stretch (full funding)
@@ -80,7 +82,7 @@ function WestBar({ projected, plan }: { projected: number; plan: HomeWestPlan })
         {stretch != null && <span className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: at(capacity) }}>Plan</span>}
       </div>
       <p className={cn('mt-1 text-sm font-medium', ahead ? 'text-positive' : 'text-warning')} data-money>
-        {ahead ? `${compact(-gap)} ahead of the plan` : `${compact(gap)} to reach the plan`}
+        {ahead ? `${compact(-gap)} ahead of the plan` : `${pct}% of the plan so far`}
       </p>
       {stretch != null && (
         <p className="mt-1 hidden text-label text-fg-tertiary sm:block">
@@ -166,16 +168,16 @@ export function MonthProjectionCard({ projection, westPlan, monthLabel, monthEnd
         <dl className="grid grid-cols-3 divide-x divide-border">
           <div className="pr-4">
             <dt className="text-label text-fg-tertiary">Income</dt>
-            <dd className="num mt-0.5 text-[0.9375rem] font-semibold text-fg" data-money>{compact(received)}</dd>
+            <dd className="mt-0.5 text-left text-[0.9375rem] font-semibold tabular-nums text-fg" data-money>{compact(received)}</dd>
             {scheduled > 0 && <dd className="text-micro text-fg-tertiary" data-money>+{compact(scheduled)} due</dd>}
           </div>
           <div className="px-4">
             <dt className="text-label text-fg-tertiary">Spent</dt>
-            <dd className="num mt-0.5 text-[0.9375rem] font-semibold text-fg" data-money>{compact(p.spent_so_far)}</dd>
+            <dd className="mt-0.5 text-left text-[0.9375rem] font-semibold tabular-nums text-fg" data-money>{compact(p.spent_so_far)}</dd>
           </div>
           <div className="pl-4">
             <dt className="text-label text-fg-tertiary">Still expected</dt>
-            <dd className="num mt-0.5 text-[0.9375rem] font-semibold text-fg" data-money>{compact(stillExpected)}</dd>
+            <dd className="mt-0.5 text-left text-[0.9375rem] font-semibold tabular-nums text-fg" data-money>{compact(stillExpected)}</dd>
           </div>
         </dl>
         {ownerSpend && <OwnerSplit ownerSpend={ownerSpend} highlightOwner={highlightOwner} />}

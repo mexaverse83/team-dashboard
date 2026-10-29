@@ -3,10 +3,10 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { Sidebar } from '@/components/Sidebar'
 import { allFinanceNavItems, moreFinanceSection, paletteOnlyItems, primaryFinanceSections } from '@/lib/finance-navigation'
 
-const nav = vi.hoisted(() => ({ pathname: '/finance' }))
+const nav = vi.hoisted(() => ({ pathname: '/finance', push: vi.fn() }))
 vi.mock('next/navigation', () => ({
   usePathname: () => nav.pathname,
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
+  useRouter: () => ({ push: nav.push, replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
 }))
 
 const desktopNav = () => screen.getByRole('navigation', { name: 'Primary finance navigation' })
@@ -14,6 +14,7 @@ const desktopNav = () => screen.getByRole('navigation', { name: 'Primary finance
 describe('Sidebar', () => {
   beforeEach(() => {
     nav.pathname = '/finance'
+    nav.push.mockReset()
     window.localStorage.clear()
     document.body.classList.remove('privacy-on')
     window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })
@@ -89,7 +90,7 @@ describe('Sidebar', () => {
     render(<Sidebar />)
     const dock = screen.getByRole('navigation', { name: 'Quick finance navigation' })
     expect([...dock.querySelectorAll('a')].map(a => a.textContent)).toEqual(['Home', 'Activity', 'Mona', 'Goals'])
-    expect(dock.querySelector('button')?.textContent).toContain('More')
+    expect(within(dock).getByRole('button', { name: 'Open all finance tools' })).toHaveTextContent('More')
     expect(dock.querySelector('a span.text-label')).toBeInTheDocument()
     expect(within(dock).getByTestId('dock-active-indicator')).toBeInTheDocument()
   })
@@ -137,5 +138,32 @@ describe('Sidebar', () => {
     nav.pathname = '/finance/login'
     const { container } = render(<Sidebar />)
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('puts the one add action in the dock and the desktop sidebar, not over content', () => {
+    render(<Sidebar />)
+    const dock = screen.getByRole('navigation', { name: 'Quick finance navigation' })
+    const add = within(dock).getByRole('button', { name: 'Add transaction' })
+    // Centre-left slot: Home, Activity, Add, Mona, Plan, More.
+    expect([...dock.children].indexOf(add)).toBe(2)
+    fireEvent.click(add)
+    expect(nav.push).toHaveBeenCalledWith('/finance/transactions?add=1')
+    expect(screen.getByTestId('quick-add-desktop')).toHaveTextContent('Add transaction')
+  })
+
+  it('lets a mounted quick-add host handle the add action', () => {
+    const host = vi.fn((event: Event) => event.preventDefault())
+    window.addEventListener('finance:quick-add', host)
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('quick-add-desktop'))
+    expect(host).toHaveBeenCalled()
+    expect(nav.push).not.toHaveBeenCalled()
+    window.removeEventListener('finance:quick-add', host)
+  })
+
+  it('layers the open mobile menu above page content', () => {
+    render(<Sidebar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Open finance navigation' }))
+    expect(document.getElementById('finance-mobile-menu')?.parentElement).toHaveClass('z-[45]')
   })
 })

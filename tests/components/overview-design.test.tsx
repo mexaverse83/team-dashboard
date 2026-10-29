@@ -31,6 +31,35 @@ describe('Can we spend?', () => {
     expect(week.querySelector('.num-metric')).toHaveClass('text-negative')
   })
 
+  describe('one number for Today and This week (W3)', () => {
+    // Wed Oct 28 in Mexico City: 4 days left through Sat Oct 31 (month end).
+    const october = (rows: Array<{ category: string; budget: number; spent: number }>) => ({
+      ...summary,
+      current_month: { ...summary.current_month, month: '2026-10', day_of_month: 28, days_in_month: 31, budget_vs_actual: rows.map(r => ({ ...r, is_non_monthly: false })) },
+    }) as unknown as Summary
+    afterEach(() => { vi.useRealTimers() })
+
+    it('nets an over-budget category instead of ignoring it', () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-10-28T18:00:00Z'))
+      // Groceries has $4k left, Other is $12k over: the week is over plan.
+      render(<DailySpendingPlan summary={october([{ category: 'Groceries', budget: 8000, spent: 4000 }, { category: 'Other', budget: 2000, spent: 14000 }])} westTarget={null} />)
+      const today = screen.getByRole('button', { name: /^Today/ })
+      const week = screen.getByRole('button', { name: /This week/ })
+      expect(week).toHaveTextContent('−$8,000')
+      expect(today).toHaveTextContent('$0')
+      expect(today).toHaveTextContent('week is over plan')
+    })
+
+    it('spreads the same weekly room over its days', () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-10-28T18:00:00Z'))
+      render(<DailySpendingPlan summary={october([{ category: 'Groceries', budget: 8000, spent: 4000 }, { category: 'Dining Out', budget: 3000, spent: 3400 }])} westTarget={null} />)
+      expect(screen.getByRole('button', { name: /This week/ })).toHaveTextContent('$3,600')
+      expect(screen.getByRole('button', { name: /^Today/ })).toHaveTextContent('$900')
+    })
+  })
+
   it('shows a neutral dash when the plan leaves no free extra', () => {
     const tight = { ...summary, goal_funding: { ...summary.goal_funding, total_monthly_needed: 999999 } }
     render(<DailySpendingPlan summary={tight} westTarget={null} />)

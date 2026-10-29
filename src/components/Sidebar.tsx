@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { ChevronDown, Eye, EyeOff, LayoutGrid, Menu, MoreHorizontal, Search, X } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { ChevronDown, Eye, EyeOff, LayoutGrid, Menu, MoreHorizontal, Plus, Search, X } from 'lucide-react'
 import { FinanceAuthBadge } from './finance-auth-badge'
 import { BrandLogo, WolffAvatar } from './brand-logo'
 import { ThemeToggle } from './ui/theme-toggle'
@@ -14,6 +14,7 @@ import {
   isMoreRouteActive,
   moreFinanceSection,
   primaryFinanceSections,
+  requestQuickAdd,
   wolffNavItem,
   type FinanceNavItem,
 } from '@/lib/finance-navigation'
@@ -129,6 +130,17 @@ function MoreGroup({ pathname, onNavigate, compact = false }: { pathname: string
   )
 }
 
+// The one add affordance (MOB-01): the dock's centre slot on phones, a sidebar
+// button on desktop, so nothing floats over amounts. Opens the global
+// quick-add sheet; falls back to the transactions deep link while no host is mounted.
+function useQuickAdd(before?: () => void) {
+  const router = useRouter()
+  return () => {
+    before?.()
+    if (!requestQuickAdd()) router.push('/finance/transactions?add=1')
+  }
+}
+
 export function Sidebar() {
   // The sign-in screen shouldn't offer navigation to pages it can't open yet.
   if (usePathname() === '/finance/login') return null
@@ -146,6 +158,7 @@ function SidebarNav() {
   const otherRouteActive = !dockRoutes.some(href => isFinanceRouteActive(pathname, href))
 
   const closeMobile = useCallback(() => setMobileRoute(null), [])
+  const quickAdd = useQuickAdd(closeMobile)
   const toggleMobile = () => setMobileRoute(route => route === pathname ? null : pathname)
 
   useEffect(() => {
@@ -202,7 +215,7 @@ function SidebarNav() {
       </header>
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 md:hidden" role="presentation" onClick={closeMobile}>
+        <div className="fixed inset-0 z-[45] md:hidden" role="presentation" onClick={closeMobile}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <nav
             ref={mobileNavRef}
@@ -225,23 +238,33 @@ function SidebarNav() {
       )}
 
       <nav className="mobile-dock fixed inset-x-0 bottom-0 z-50 flex h-[calc(4.25rem+env(safe-area-inset-bottom))] items-start justify-around px-1 pt-1 pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Quick finance navigation">
-        {mobileDockItems.map(item => {
+        {mobileDockItems.map((item, index) => {
           const active = isFinanceRouteActive(pathname, item.href)
           const Icon = item.icon
           const mona = item.href === wolffNavItem.href
-          return (
+          const link = (
             <Link
               key={item.href}
               onClick={closeMobile}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={`mobile-dock-link relative flex min-h-[52px] min-w-[60px] flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 ${active ? 'mobile-dock-link-active' : ''} ${mona ? 'mobile-dock-wolff' : ''}`}
+              className={`mobile-dock-link relative flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 ${active ? 'mobile-dock-link-active' : ''} ${mona ? 'mobile-dock-wolff' : ''}`}
             >
               {active && !mona && <span aria-hidden="true" data-testid="dock-active-indicator" className="absolute -top-1 left-1/2 h-[3px] w-6 -translate-x-1/2 rounded-full bg-current" />}
               {mona ? <WolffAvatar className="h-7 w-7" /> : <Icon className="h-5 w-5" aria-hidden="true" />}
               <span className="text-label font-semibold">{item.shortLabel || item.label}</span>
             </Link>
           )
+          if (index !== 2) return link
+          return [
+            <button key="add" type="button" onClick={quickAdd} aria-label="Add transaction" data-testid="quick-add"
+              className="relative flex min-h-[52px] min-w-0 flex-1 items-center justify-center">
+              <span className="btn-primary flex h-11 w-11 items-center justify-center rounded-full shadow-[0_8px_20px_-10px_hsl(var(--shadow-color)/0.6)] transition-transform active:scale-95">
+                <Plus className="h-6 w-6" strokeWidth={2.5} aria-hidden="true" />
+              </span>
+            </button>,
+            link,
+          ]
         })}
         <button
           type="button"
@@ -249,7 +272,7 @@ function SidebarNav() {
           aria-label="Open all finance tools"
           aria-expanded={mobileOpen}
           aria-controls="finance-mobile-menu"
-          className={`mobile-dock-link relative flex min-h-[52px] min-w-[60px] flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 ${otherRouteActive ? 'mobile-dock-link-active' : ''}`}
+          className={`mobile-dock-link relative flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1.5 ${otherRouteActive ? 'mobile-dock-link-active' : ''}`}
         >
           {otherRouteActive && <span aria-hidden="true" className="absolute -top-1 left-1/2 h-[3px] w-6 -translate-x-1/2 rounded-full bg-current" />}
           <LayoutGrid className="h-5 w-5" aria-hidden="true" />
@@ -262,6 +285,11 @@ function SidebarNav() {
           <BrandLogo className="h-12 w-12" />
           <div className="min-w-0"><h2 className="text-[15px] font-semibold tracking-tight text-fg">Bernardo + Laura</h2><p className="text-micro font-medium text-fg-tertiary">Our goals, together</p></div>
         </div>
+
+        <button type="button" onClick={quickAdd} data-testid="quick-add-desktop"
+          className="btn-primary mb-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold">
+          <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />Add transaction
+        </button>
 
         <div className="mb-4 flex items-center gap-2">
           <button type="button" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))} className="sidebar-search flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-xl px-3 text-xs">
