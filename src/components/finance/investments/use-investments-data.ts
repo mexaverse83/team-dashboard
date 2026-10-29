@@ -59,7 +59,7 @@ export function useInvestmentsData() {
 }
 
 export interface NetWorthData {
-  latest: { date: string; net_worth: number; total_assets?: number; total_liabilities?: number } | null
+  latest: { date: string; net_worth: number; total_assets?: number; total_liabilities?: number; stocks_amount?: number | null } | null
   points: NetWorthPoint[]
 }
 

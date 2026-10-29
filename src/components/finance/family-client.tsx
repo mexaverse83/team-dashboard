@@ -9,7 +9,7 @@ import { OwnerAvatar } from '@/components/ui/owner-avatar'
 import { BABY_CHECKLIST, BABY_PLAN_TAG, PROTECTION_PLAN } from '@/lib/baby-plan'
 import { supabase } from '@/lib/supabase'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
-import { mexicoCityToday, parseLocalDateKey } from '@/lib/dates'
+import { diffDaysKey, mexicoCityToday, parseLocalDateKey } from '@/lib/dates'
 import { formatCompact, formatDateShort, formatMoney, formatMonthShort } from '@/lib/format'
 import { dispatchFinanceEvent, FINANCE_EVENTS } from '@/lib/finance-events'
 import { useFinanceData } from '@/hooks/use-finance-data'
@@ -182,12 +182,17 @@ export function FamilyClient() {
   const fetchData = summaryQ.refresh
 
   const today = useMemo(() => mexicoCityToday(), [])
-  const checklist = useMemo(() =>
-    BABY_CHECKLIST.map(item => ({
-      ...item,
-      state: (item.windowStart <= today && today <= item.windowEnd ? 'open'
-        : today < item.windowStart ? 'upcoming' : 'closed') as ChecklistState,
-    })), [today])
+  const checklist = useMemo(() => {
+    const STATE_ORDER: Record<ChecklistState, number> = { open: 0, upcoming: 1, closed: 2 }
+    return BABY_CHECKLIST.map(item => {
+      const state = (item.windowStart <= today && today <= item.windowEnd ? 'open'
+        : today < item.windowStart ? 'upcoming' : 'closed') as ChecklistState
+      // A window closing within 14 days is urgent whatever its static severity.
+      const closingSoon = state === 'open' && diffDaysKey(today, item.windowEnd) <= 14
+      return { ...item, state, severity: closingSoon ? 'warning' as const : item.severity }
+    }).sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state]
+      || (a.state === 'open' ? a.windowEnd.localeCompare(b.windowEnd) : 0))
+  }, [today])
 
   if (loading) {
     return (
@@ -315,7 +320,7 @@ export function FamilyClient() {
                     <span className={cn(
                       'shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide whitespace-nowrap',
                       item.state === 'open' && item.severity === 'warning' && 'bg-amber-500/15 text-warning',
-                      item.state === 'open' && item.severity === 'info' && 'bg-sky-500/15 text-sky-700',
+                      item.state === 'open' && item.severity === 'info' && 'bg-info-bg text-info',
                       item.state === 'upcoming' && 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]',
                       item.state === 'closed' && 'bg-[hsl(var(--accent))] text-[hsl(var(--text-tertiary))]',
                     )}>
@@ -407,8 +412,8 @@ export function FamilyClient() {
                 <p className="mt-0.5 text-[11px] leading-relaxed text-[hsl(var(--text-secondary))] max-w-xl">
                   This plan doesn&rsquo;t have its own money — it&rsquo;s a set of claims on the household portfolio. {(summary?.emergency_fund?.gap ?? 0) > 0
                     ? <>The birth envelope is funded from monthly cash flow (the emergency fund is {formatCompact(summary!.emergency_fund!.gap)} below target);</>
-                    : <>The birth envelope draws on the emergency-fund surplus;</>}
-                  the education fund becomes a dedicated GBM position from {baby.education.start_month}; the insurance premiums are cash-flow. WEST and the yearly goals live on the same pot.
+                    : <>The birth envelope draws on the emergency-fund surplus;</>}{' '}
+                  the education fund becomes a dedicated GBM position from {fmtMonthYear(baby.education.start_month)}; the insurance premiums are cash-flow. WEST and the yearly goals live on the same pot.
                 </p>
               </div>
             </div>

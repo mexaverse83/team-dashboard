@@ -198,8 +198,7 @@ export async function getWestProjection(
     milestones.push(
       { date: schedule.sale_remaining_date, label: `Apartment sale proceeds land (~$${(schedule.sale_net_proceeds / 1e6).toFixed(1)}M net)`, status },
       { date: schedule.sale_remaining_date, label: 'BBVA + Infonavit paid off', status },
-      // GBM commission drops 1.25% → 0.82% once the balance crosses $2.5M
-      { date: schedule.sale_remaining_date, label: `GBM commission 1.25% → 0.82% (+$${(Math.round(postSaleBalance * (0.0125 - 0.0082)) / 1000).toFixed(0)}K/yr saved)`, status },
+      gbmCommissionMilestone(schedule.sale_remaining_date, status, gbmCommission, gbmPrincipal > 0 ? gbmPrincipal : postSaleBalance),
     )
   }
   if (target.lump_sum_date) {
@@ -313,3 +312,30 @@ export async function getWestProjection(
 }
 
 export type WestProjection = Awaited<ReturnType<typeof getWestProjection>>
+
+/** The tier GBM moves the household to once the balance crosses $2.5M. */
+export const GBM_TARGET_COMMISSION = 0.0082
+const GBM_LEGACY_COMMISSION = 0.0125
+
+/**
+ * GBM commission 1.25% → 0.82%: done only when the GBM record actually shows
+ * the lower rate (the projection compounds at the recorded net rate, so a
+ * "done" milestone with a 1.25% record would claim a saving nobody gets).
+ * The yearly saving uses the audit's formula: balance × (current − 0.82%).
+ */
+export function gbmCommissionMilestone(
+  date: string,
+  dateStatus: string,
+  commission: number | null,
+  balance: number,
+): { date: string; label: string; status: string } {
+  const current = commission ?? GBM_LEGACY_COMMISSION
+  if (commission != null && commission <= GBM_TARGET_COMMISSION + 1e-6) {
+    return { date, label: `GBM commission at ${(GBM_TARGET_COMMISSION * 100).toFixed(2)}%`, status: 'done' }
+  }
+  const savedK = Math.round(Math.max(0, balance * (current - GBM_TARGET_COMMISSION)) / 1000)
+  const from = `${(current * 100).toFixed(2)}%`
+  return dateStatus === 'done'
+    ? { date, label: `GBM commission ${from} → 0.82% — pending: confirm with GBM (~$${savedK}K/yr)`, status: 'pending' }
+    : { date, label: `GBM commission ${from} → 0.82% (~$${savedK}K/yr)`, status: 'pending' }
+}

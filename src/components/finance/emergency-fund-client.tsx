@@ -225,10 +225,11 @@ export default function EmergencyFundClient() {
     let bal = balance
     for (let i = 0; i <= Math.min(monthsToTarget + 3, 60); i++) {
       data.push({ month: addMonthsKey(start, i), balance: Math.round(bal) })
-      bal += monthlySaving
+      // The fund stops at its target: past it, the surplus goes to WEST and goals.
+      bal = Math.min(target, bal + monthlySaving)
     }
     return data
-  }, [balance, gap, monthlySaving, monthsToTarget])
+  }, [balance, gap, monthlySaving, monthsToTarget, target])
 
   const handleDecision = (step: number, answer: string) => {
     setDecisionAnswers(prev => ({ ...prev, [step]: answer }))
@@ -381,7 +382,9 @@ export default function EmergencyFundClient() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
         {/* Savings plan — only meaningful while there is a gap */}
         {hasData && <Card>
-          <CardHeader title="Savings Plan" description={gap > 0 ? `${formatMoney(monthlySaving)}/mo toward the ${targetMonths}-month target` : 'You are at or above target'} />
+          <CardHeader title="Savings Plan" description={gap <= 0 ? 'You are at or above target'
+            : monthlySaving > gap ? `One ${formatMoney(gap)} top-up reaches the ${targetMonths}-month target (your saved plan is ${formatMoney(monthlySaving)}/mo; the rest goes to WEST and goals)`
+              : `${formatMoney(monthlySaving)}/mo toward the ${targetMonths}-month target (your saved plan)`} />
           {gap > 0 ? (
             <>
               <dl className="mb-4 grid grid-cols-2 gap-3">

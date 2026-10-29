@@ -121,6 +121,14 @@ describe('buildDeterministicBrief', () => {
     expect(es.directive.title).toBe('En plan — quedan $1,000 esta semana')
   })
 
+  it('localizes the week end from through_date, never the English label', () => {
+    const es = buildDeterministicBrief(summary({ variable: { left: -5_486, through_label: 'Sat Oct 31', through_date: '2026-10-31', days_left: 4 } }), { now: NOW, lang: 'es' })
+    expect(es.week.through_label).toBe('sáb 31 oct')
+    expect(JSON.stringify(es)).not.toContain('Sat Oct 31')
+    const en = buildDeterministicBrief(summary({ variable: { left: -5_486, through_label: 'Sat Oct 31', through_date: '2026-10-31', days_left: 4 } }), { now: NOW })
+    expect(en.week.through_label).toBe('Sat Oct 31')
+  })
+
   it('survives an empty summary', () => {
     const brief = buildDeterministicBrief({}, { now: NOW })
     expect(brief.directive.rule).toBe('on-plan')

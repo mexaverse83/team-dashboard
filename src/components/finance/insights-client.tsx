@@ -485,7 +485,7 @@ export default function InsightsClient() {
                   {summary?.current_month && (
                     <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-[hsl(var(--bg-elevated))] font-semibold">
                       <div className="col-span-3">Total</div>
-                      <div className="col-span-2 text-right tabular-nums" data-money>${formatMXN(bva.reduce((s, b) => s + b.spent, 0))}</div>
+                      <div className="col-span-2 text-right tabular-nums" data-money>${formatMXN(Math.round(bva.reduce((s, b) => s + (b.is_non_monthly ? b.spent / (b.cycle_months || 1) : b.spent), 0)))}</div>
                       <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-secondary))]" data-money>
                         ${formatMXN(bva.reduce((s, b) => s + (b.monthly_budget ?? b.budget), 0))}
                       </div>
@@ -532,7 +532,7 @@ export default function InsightsClient() {
                   {summary?.current_month && (
                     <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))] flex items-center justify-between text-sm font-semibold">
                       <span>Total in budgeted categories</span>
-                      <span className="tabular-nums" data-money>${formatMXN(bva.reduce((s, b) => s + b.spent, 0))}</span>
+                      <span className="tabular-nums" data-money>${formatMXN(Math.round(bva.reduce((s, b) => s + (b.is_non_monthly ? b.spent / (b.cycle_months || 1) : b.spent), 0)))}</span>
                     </div>
                   )}
                 </div>
@@ -564,7 +564,7 @@ export default function InsightsClient() {
                     </div>
                     <div className="text-right whitespace-nowrap">
                       <span className="font-semibold tabular-nums text-fg">{westSnapshot.fundedPct.toFixed(0)}%</span>
-                      <span className="text-[hsl(var(--text-secondary))]"> funded</span>
+                      <span className="text-[hsl(var(--text-secondary))]"> at delivery</span>
                     </div>
                     <div className="mt-1"><span className="text-fg-secondary tabular-nums">Gap: {fmtMXN(westSnapshot.gap)}</span></div>
                     <div className="text-right mt-1 whitespace-nowrap"><span className="text-[hsl(var(--text-secondary))]">{westSnapshot.monthsRemaining}mo to delivery</span></div>

@@ -99,9 +99,9 @@ const T = {
     west: (gap: string) => `WEST: faltan ${gap} este mes`,
     westDetail: (projected: string, capacity: string) => `Ahorro proyectado ${projected} vs capacidad ${capacity}.`,
     onPlan: (left: string) => `En plan — quedan ${left} esta semana`,
-    overWeek: (over: string, month: string) => `Fuera de plan — presupuestos diarios ${over} arriba en ${month}`,
+    overWeek: (over: string, month: string) => `Fuera de plan — presupuestos del día a día ${over} arriba en ${month}`,
     weekTitle: (left: string) => `Quedan ${left} esta semana`,
-    weekOver: (over: string, month: string) => `Presupuestos diarios ${over} arriba en ${month}`,
+    weekOver: (over: string, month: string) => `Presupuestos del día a día ${over} arriba en ${month}`,
     weekDetail: (through: string, perDay: string) => `Hasta ${through} · ~${perDay}/día`,
     overDetail: (through: string) => `Pausa el gasto discrecional hasta ${through}`,
     householdTitle: (projected: string) => `Ahorro proyectado ${projected} este mes`,
@@ -119,7 +119,10 @@ const compact = (n: number) => formatCompact(n)
 
 function dayLabel(dateKey: string, lang: BriefLang): string {
   const d = parseLocalDateKey(dateKey)
-  return `${WEEKDAYS[lang][d.getDay()]} ${MONTHS[lang][d.getMonth()]} ${d.getDate()}`
+  // 'Sat Oct 31' / 'sáb 31 oct' (the widget's Spanish order).
+  return lang === 'es'
+    ? `${WEEKDAYS.es[d.getDay()]} ${d.getDate()} ${MONTHS.es[d.getMonth()]}`
+    : `${WEEKDAYS.en[d.getDay()]} ${MONTHS.en[d.getMonth()]} ${d.getDate()}`
 }
 
 function dueWord(today: string, date: string, lang: BriefLang): string {
@@ -138,7 +141,10 @@ function weekRoom(summary: BriefSummary, today: string, dayOfWeek: number, lang:
   const dayOfMonth = Number(cm?.day_of_month) || Number(today.slice(8, 10))
   const daysLeftMonth = Math.max(1, daysInMonth ? daysInMonth - dayOfMonth + 1 : 1)
   const daysThroughSunday = Math.min(daysLeftMonth, dayOfWeek === 0 ? 1 : 8 - dayOfWeek)
-  const through = summary.variable?.through_label || dayLabel(addDaysKey(today, daysThroughSunday - 1), lang)
+  // through_label is English; build the label from through_date in the brief's language.
+  const v = summary.variable
+  const through = v?.through_date ? dayLabel(v.through_date, lang)
+    : (lang === 'en' && v?.through_label) || dayLabel(addDaysKey(today, daysThroughSunday - 1), lang)
 
   if (summary.variable && typeof summary.variable.left === 'number') {
     return { left: summary.variable.left, through, days: Math.max(1, Number(summary.variable.days_left) || daysThroughSunday) }

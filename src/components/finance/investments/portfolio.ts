@@ -2,6 +2,7 @@
 // ownersEqual because the DB mixes casing ('bernardo' on real estate, stock and
 // retirement rows, 'Bernardo' on fixed income) — F12.
 import { accruedValue } from '@/lib/fixed-income'
+import { propertyEquity as sharedPropertyEquity, type WestPaidToDate } from '@/lib/property-equity'
 import { OWNERS, ownersEqual } from '@/lib/owners'
 import type {
   CryptoHoldingLite, CryptoPrices, FIGroup, FixedIncomeInstrument, OwnerFilter,
@@ -31,8 +32,9 @@ export function stockValueMXN(s: StockHolding, fxRate: number): number {
   return s.shares * s.avg_cost_basis
 }
 
-export function propertyEquity(p: RealEstateProperty): number {
-  return (p.current_value || 0) - (p.mortgage_balance || 0)
+/** Equity = value − still owed; WEST owes target − paid-to-date when known (same rule as the net-worth snapshot). */
+export function propertyEquity(p: RealEstateProperty, west?: WestPaidToDate | null): number {
+  return sharedPropertyEquity(p, west)
 }
 
 export function cryptoValueMXN(h: CryptoHoldingLite, prices: CryptoPrices | null | undefined): number {
@@ -91,9 +93,11 @@ export interface PortfolioInput {
   retirement: readonly RetirementRecordLite[]
   ownerFilter: OwnerFilter
   now?: Date
+  /** WEST paid-to-date from /investments/west-projection; null falls back to mortgage_balance. */
+  west?: WestPaidToDate | null
 }
 
-export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, prices, retirement, ownerFilter, now }: PortfolioInput) {
+export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, prices, retirement, ownerFilter, now, west = null }: PortfolioInput) {
   const fxRate = usdMxnRate(prices)
   const ownedStocks = filterByOwner(stocks, ownerFilter)
   const privateEquity = ownedStocks.filter(s => s.asset_type === 'private_equity')
@@ -109,7 +113,7 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
   // fiCost = confirmed principal; fiTotal = estimate accrued since confirmation
   const fiCost = fi.reduce((s, i) => s + i.principal, 0)
   const fiTotal = fi.reduce((s, i) => s + accruedValue(i, now), 0)
-  const reTotal = re.reduce((s, p) => s + propertyEquity(p), 0)
+  const reTotal = re.reduce((s, p) => s + propertyEquity(p, west), 0)
   const cryptoTotal = coins.reduce((s, h) => s + cryptoValueMXN(h, prices), 0)
   const cryptoCost = coins.reduce((s, h) => s + cryptoCostMXN(h, fxRate), 0)
   const retirementTotal = ret.reduce((s, r) => s + (r.current_balance || 0), 0)
@@ -127,6 +131,7 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
 
   return {
     fxRate,
+    west,
     privateEquity,
     publicStocks,
     fixedIncome: fi,
@@ -147,7 +152,7 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
       crypto: split([...crypto], h => cryptoValueMXN(h, prices), rows => rows.filter(h => h.quantity > 0).length),
       stocks: split([...stocks], h => stockValueMXN(h, fxRate)),
       fixedIncome: split([...fixedIncome], i => accruedValue(i, now), rows => new Set(rows.map(fiKey)).size),
-      realEstate: split([...realEstate], propertyEquity),
+      realEstate: split([...realEstate], p => propertyEquity(p, west)),
       retirement: split([...retirement], r => r.current_balance || 0),
     },
   }

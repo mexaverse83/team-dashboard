@@ -16,6 +16,7 @@ import { WestTracker } from '@/components/finance/west-tracker'
 import { HoldingFormModal, type HoldingField } from './holding-form-modal'
 import { KV, OwnerSplitCards } from './shared'
 import { propertyEquity, type Portfolio } from './portfolio'
+import { propertyOwed } from '@/lib/property-equity'
 import type { RealEstateProperty } from './types'
 
 
@@ -109,7 +110,8 @@ export function RealEstateTab({ portfolio, ownerFilter, failed, onRetry, onChang
               {realEstate.map(prop => {
                 const isPreSale = prop.property_type === 'pre_sale'
                 const isSalePending = prop.property_type === 'sale_pending'
-                const equity = propertyEquity(prop)
+                const equity = propertyEquity(prop, portfolio.west)
+                const owed = propertyOwed(prop, portfolio.west)
                 const appreciation = prop.purchase_price > 0 ? ((prop.current_value - prop.purchase_price) / prop.purchase_price) * 100 : null
                 const cashFlow = (prop.rental_income || 0) - (prop.monthly_mortgage || 0) - (prop.monthly_expenses || 0)
                 const staleDays = prop.last_valuation_date ? diffDaysKey(prop.last_valuation_date.slice(0, 10), today) : null
@@ -142,9 +144,9 @@ export function RealEstateTab({ portfolio, ownerFilter, failed, onRetry, onChang
                     </div>
 
                     <dl className="mt-3 space-y-1.5 border-t border-border pt-3">
-                      {prop.mortgage_balance ? (
+                      {owed ? (
                         <KV label={isPreSale ? 'Remaining to developer' : 'Mortgage'}>
-                          <MoneyText value={prop.mortgage_balance} />{prop.mortgage_rate ? ` @ ${formatPct(normalizePct(prop.mortgage_rate), { decimals: 1 })}` : ''}
+                          <MoneyText value={owed} />{prop.mortgage_rate ? ` @ ${formatPct(normalizePct(prop.mortgage_rate), { decimals: 1 })}` : ''}
                         </KV>
                       ) : null}
                       {prop.mortgage_balance && prop.monthly_mortgage ? <KV label="Monthly payment"><MoneyText value={-prop.monthly_mortgage} /></KV> : null}

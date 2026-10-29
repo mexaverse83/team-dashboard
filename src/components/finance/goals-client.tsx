@@ -21,8 +21,8 @@ import { parseLocalDateKey } from '@/lib/transaction-entry'
 import { inputCls } from '@/lib/form-style'
 import { tooltipStyle, CHART_TOOLTIP_STYLE } from '@/lib/chart-style'
 import { CHART } from '@/lib/chart-theme'
-import { isCryptoGoal, isGoalOverdue, monthlyNeeded, monthsRemaining, type CalendarDay } from '@/lib/finance-utils'
-import { diffDaysKey, mexicoCityDateParts } from '@/lib/dates'
+import { goalPaceTarget, isCryptoGoal, isGoalOverdue, monthlyNeeded, monthsRemaining, type CalendarDay } from '@/lib/finance-utils'
+import { mexicoCityDateParts } from '@/lib/dates'
 import { formatCompact, formatMoney } from '@/lib/format'
 import { cryptoQuantities } from '@/lib/summary/crypto'
 
@@ -55,13 +55,8 @@ function today(): CalendarDay & { key: string } {
 }
 
 /** Where the goal should be today on a straight line from its creation to its date. */
-function paceTarget(g: FinanceGoal, todayKey: string): number | null {
-  if (!g.target_date || !g.created_at) return null
-  const total = diffDaysKey(g.created_at.slice(0, 10), g.target_date.slice(0, 10))
-  if (total <= 0) return null
-  const elapsed = Math.min(total, Math.max(0, diffDaysKey(g.created_at.slice(0, 10), todayKey)))
-  return g.target_amount * (elapsed / total)
-}
+// Shared with the summary (goals.ts) so a crypto goal's on_track agrees with this page.
+const paceTarget = (g: FinanceGoal, todayKey: string) => goalPaceTarget(g, todayKey)
 
 /** ⋯ menu: focus moves in on open, Escape / focus leaving / outside press close it and focus returns to the trigger. */
 function GoalActionsMenu({ name, open, onOpenChange, onEdit, onDelete }: {
@@ -483,7 +478,7 @@ export default function GoalsClient() {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
                         <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} />
-                        <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                        <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis, className: 'money-tick' }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                         <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
                         <Area type="monotone" dataKey="projected" stroke="hsl(var(--chart-3))" fill="url(#goalGrad)" strokeWidth={2} />
                         <ReferenceLine y={goal.target_amount} stroke="hsl(var(--chart-1))" strokeDasharray="5 5" />
@@ -573,7 +568,7 @@ export default function GoalsClient() {
               <BarChart data={savingsChart} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: CHART.axis, fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis className="money-axis" tick={{ fill: CHART.axis, fontSize: 11 }} axisLine={false} tickLine={false}
+                <YAxis className="money-axis" tick={{ fill: CHART.axis, fontSize: 11, className: 'money-tick' }} axisLine={false} tickLine={false}
                   tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                 <Tooltip
                   contentStyle={CHART_TOOLTIP_STYLE}

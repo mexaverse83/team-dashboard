@@ -74,7 +74,7 @@ export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, o
                   : 'Assets minus debts & MSI'}
               </p>
               <p className="text-label text-fg-tertiary">
-                Snapshot {formatDateShort(latest.date, { withYear: 'auto' })}{totals.privateEquity > 0 && ' · private equity at cost'} · <Link href="/finance" className="underline-offset-2 hover:underline">same as Home</Link>
+                Snapshot {formatDateShort(latest.date, { withYear: 'auto' })}{totals.privateEquity > 0 && latest.stocks_amount != null && latest.stocks_amount < totals.privateEquity / 2 && ' · private equity still at cost (re-valued on the next snapshot)'} · <Link href="/finance" className="underline-offset-2 hover:underline">same as Home</Link>
               </p>
             </div>
           )}

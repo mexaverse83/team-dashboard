@@ -226,6 +226,19 @@ export function isGoalOverdue(goal: GoalLike, asOf: CalendarDay): boolean {
   return !!goal.target_date && goal.target_date.slice(0, 10) < calendarDayKey(asOf)
 }
 
+/**
+ * Where a goal should be today on a straight line from its creation to its
+ * target date (in the goal's own unit — pesos or coins). null when undated.
+ */
+export function goalPaceTarget(goal: { target_amount: number; target_date?: string | null; created_at?: string | null }, todayKey: string): number | null {
+  if (!goal.target_date || !goal.created_at) return null
+  const day = (k: string) => Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)))
+  const total = Math.round((day(goal.target_date.slice(0, 10)) - day(goal.created_at.slice(0, 10))) / 86_400_000)
+  if (total <= 0) return null
+  const elapsed = Math.min(total, Math.max(0, Math.round((day(todayKey) - day(goal.created_at.slice(0, 10))) / 86_400_000)))
+  return goal.target_amount * (elapsed / total)
+}
+
 /** Pesos per month still needed to hit the goal by its date. 0 for crypto, undated, funded or overdue goals. */
 export function monthlyNeeded(goal: GoalLike, asOf: CalendarDay): number {
   if (isCryptoGoal(goal) || isGoalOverdue(goal, asOf)) return 0

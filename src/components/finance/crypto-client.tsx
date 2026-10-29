@@ -356,14 +356,15 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
           </p>
         </div>
         <div className="flex w-full gap-2 sm:w-auto">
-          <Button variant="secondary" size="sm" className="flex-1 sm:flex-none" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw aria-hidden className={cn('h-4 w-4', refreshing && 'animate-spin')} />{refreshing ? 'Refreshing…' : 'Refresh'}
+          {/* Phones: Refresh is icon-only so the two labelled actions keep their icons and padding. */}
+          <Button variant="secondary" size="sm" className="shrink-0" onClick={handleRefresh} disabled={refreshing} aria-label={refreshing ? 'Refreshing prices' : 'Refresh prices'}>
+            <RefreshCw aria-hidden className={cn('h-4 w-4 shrink-0', refreshing && 'animate-spin')} /><span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
           </Button>
-          <Button variant="secondary" size="sm" className="flex-1 sm:flex-none" onClick={() => { setActionError(null); setHoldingForm(EMPTY_HOLDING_FORM) }}>
-            <Plus aria-hidden className="h-4 w-4" />Add position
+          <Button variant="secondary" size="sm" className="min-w-0 flex-1 whitespace-nowrap sm:flex-none" onClick={() => { setActionError(null); setHoldingForm(EMPTY_HOLDING_FORM) }}>
+            <Plus aria-hidden className="h-4 w-4 shrink-0" />Add position
           </Button>
-          <Button size="sm" className="flex-1 sm:flex-none" onClick={() => openTxForm()}>
-            <Plus aria-hidden className="h-4 w-4" />Log transaction
+          <Button size="sm" className="min-w-0 flex-1 whitespace-nowrap sm:flex-none" onClick={() => openTxForm()}>
+            <Plus aria-hidden className="h-4 w-4 shrink-0" />Log transaction
           </Button>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { fetchCryptoPrices, impliedUsdMxn } from '@/lib/crypto-prices'
 import { accruedValue } from '@/lib/fixed-income'
 import { localDateKey } from '@/lib/dates'
 import { ConfigError, configErrorResponse, getAdminClientInfo, withDegradedHeader } from '@/lib/supabase-admin'
+import { propertyEquity, type PropertyLike, type WestPaidToDate } from '@/lib/property-equity'
 import { getWestProjection } from '@/lib/server/west'
 import { buildSummary } from '@/lib/server/summary'
 import { formatMonthShort } from '@/lib/format'
@@ -23,6 +24,8 @@ interface WestAudit {
   /** Saving at the real pace reaches the target (savings_plan.feasible); null = unknown. */
   feasible: boolean | null
   shortfall: number
+  /** Month the purchase alone is funded at the real pace (behavioral run); null = not before delivery. */
+  purchase_funded_month: string | null
   lump_sum_amount: number
   lump_sum_month: string | null
 }
@@ -153,8 +156,8 @@ function runRealEstateFlags(reData: Array<Record<string, unknown>>, westData: We
         id: 'west-needs-financing',
         severity: 'amber',
         category: 'real_estate',
-        title: `WEST: at your real saving pace, delivery arrives $${Math.round(shortfall).toLocaleString()} short`,
-        detail: `Projected at delivery: ${(100 - gapPct).toFixed(1)}% of the target with ${monthsToDelivery} months to go. The WEST tracker marks this as needing financing.`,
+        title: `WEST + furnishing arrives $${Math.round(shortfall).toLocaleString()} short at your real saving pace`,
+        detail: `${westData.purchase_funded_month ? `The purchase alone is funded by ${formatMonthShort(westData.purchase_funded_month, { withYear: true })}; the shortfall is the furnishing budget. ` : ''}${monthsToDelivery} months to delivery; with no extra saving, ${(100 - gapPct).toFixed(1)}% of the purchase is funded at delivery. The WEST tracker marks this as needing financing.`,
         suggestion: `Raise monthly WEST savings or line up financing for the shortfall; keep the scheduled payments${lump}.`,
         action_url: '/finance/investments?tab=Real Estate',
       })
@@ -459,11 +462,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Net worth
-    const reEquity = reData.reduce((s, p) => s + (Number(p.current_value) || 0) - (Number(p.mortgage_balance) || 0), 0)
     const fiTotal = fiData.reduce((s, i) => s + accruedValue(i, now), 0)
     const retirementTotal = retirementData.reduce((s, r) => s + (Number(r.current_balance) || 0), 0)
     const cryptoTotal = Number(cryptoSummary?.total_value_mxn || 0)
-    const totalNetWorth = reEquity + fiTotal + retirementTotal + cryptoTotal
 
     // WEST: the live projection (same as the WEST tracker), else the fallback constants
     let westTarget: number = WEST_FALLBACK.target
@@ -471,19 +472,28 @@ export async function GET(req: NextRequest) {
     let monthsToDelivery: number = WEST_FALLBACK.monthsToDelivery
     let westFeasible: boolean | null = null
     let westShortfall = 0
+    let westPaid: WestPaidToDate | null = null
+    let purchaseFundedMonth: string | null = null
     let lumpSum = { amount: 0, month: null as string | null }
     try {
       const west = await getWestProjection(supabase, { now })
       const atDelivery = west.projected_at_delivery
       westTarget = Number(west.property?.purchase_price) || westTarget
       if (atDelivery) westGapPct = Math.max(0, Number(atDelivery.gap_pct) || 0)
-      if (Array.isArray(west.monthly_projection) && west.monthly_projection.length > 0) monthsToDelivery = west.monthly_projection.length
+      // months_to_delivery is what Home, the tracker and the Daily Brief show
+      // (monthly_projection also counts the current month).
+      if (Number.isFinite(west.months_to_delivery)) monthsToDelivery = west.months_to_delivery
+      westPaid = { target: west.target, paid: west.current_status.amount_paid }
+      purchaseFundedMonth = west.behavioral?.fully_funded_month ?? null
       if (typeof west.savings_plan?.feasible === 'boolean') westFeasible = west.savings_plan.feasible
       westShortfall = Math.max(0, Number(west.savings_plan?.projected_shortfall_at_delivery) || 0)
       lumpSum = { amount: Number(west.schedule?.lump_sum_amount) || 0, month: west.schedule?.lump_sum_month ?? null }
     } catch (e) {
       console.warn('Investment audit: WEST projection unavailable, using fallback', e instanceof Error ? e.message : e)
     }
+    // Same equity rule as the net-worth snapshot (WEST owes target − paid-to-date).
+    const reEquity = reData.reduce((s, p) => s + propertyEquity(p as PropertyLike, westPaid), 0)
+    const totalNetWorth = reEquity + fiTotal + retirementTotal + cryptoTotal
 
     // Income and emergency-fund coverage come from the summary, so the audit
     // agrees with the Emergency Fund page (months of ESSENTIALS, not income).
@@ -516,6 +526,7 @@ export async function GET(req: NextRequest) {
       months_to_delivery: monthsToDelivery,
       feasible: westFeasible,
       shortfall: westShortfall,
+      purchase_funded_month: purchaseFundedMonth,
       lump_sum_amount: lumpSum.amount,
       lump_sum_month: lumpSum.month,
     }

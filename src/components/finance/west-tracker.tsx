@@ -190,7 +190,7 @@ function WestSavingsPlanCard({ data }: { data: WestData }) {
       </div>
 
       <p className="mt-3 pt-2 border-t border-[hsl(var(--border))] text-[11px] text-[hsl(var(--text-tertiary))]">
-        Solid bar = capacity, faint bar = stretch target. Stretch totals {fmtMXN(plan.total_nominal)} over {plan.months.length} months and grows to {fmtMXN(plan.gap_to_close)} at the base GBM return. Recomputed from live balances on every load.
+        Solid bar = capacity, faint bar = stretch target. Stretch totals {fmtMXN(plan.total_nominal)} over {plan.months.length} monthly contributions (this month through delivery) and grows to {fmtMXN(plan.gap_to_close)} at the base GBM return. Recomputed from live balances on every load.
       </p>
     </GlassCard>
   )
@@ -257,7 +257,7 @@ function WestReadinessCard({ data }: { data: WestData }) {
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Needed to close gap</p>
           <p className="num-metric text-xl font-bold text-info">{fmtMXN(needed)}</p>
-          <p className="text-[10px] text-[hsl(var(--text-tertiary))]">/mo into GBM until delivery{plan?.flat_monthly_equivalent != null && furnishing > 0 ? ', incl. furnishing' : ''}</p>
+          <p className="text-[10px] text-[hsl(var(--text-tertiary))]">flat /mo into GBM until delivery{plan?.flat_monthly_equivalent != null && furnishing > 0 ? ', incl. furnishing' : ''}; the plan below varies by month</p>
         </div>
       </div>
 
@@ -307,11 +307,34 @@ function StatusPill({ status }: { status: string }) {
   return <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full", c.cls)}>{c.label}</span>
 }
 
+// ─── Rate presets + caption, shared by the Real Estate and Portfolio variants ───
+function rateScenarios(data: WestData) {
+  const serverRate = data.assumptions.investment_return * 100
+  const presets = [
+    { label: 'Conservative', rate: 8.0 },
+    { label: data.assumptions.investment_return_basis === 'gbm-net' ? 'GBM net' : 'Base', rate: Math.round(serverRate * 10) / 10 },
+    { label: 'Optimistic', rate: 11.0 },
+  ]
+  const gross = data.assumptions.gbm_gross_rate
+  const commission = data.assumptions.gbm_commission_rate
+  const caption = data.assumptions.investment_return_basis === 'gbm-net' && gross != null && commission != null
+    ? `GBM today: ${(gross * 100).toFixed(2)}% gross − ${(commission * 100).toFixed(2)}% commission = ${serverRate.toFixed(2)}% net`
+    : `Base case ${serverRate.toFixed(1)}% net of commission`
+  return { serverRate, presets, caption }
+}
+
 // ─── Client-side projection recalculation ───
 // Same engine and schedule as the server, so slider moves and the API
 // headline can't disagree.
 function recalcProjection(data: WestData, rate: number, appreciationPct: number, cryptoGrowthPct: number) {
-  if (!data.schedule) {
+  // Sliders at the server's assumptions → show the server's numbers verbatim,
+  // so this tab matches Home / Daily Brief / Reports to the peso (a separate
+  // live crypto fetch would otherwise drift by a few hundred pesos).
+  const a = data.assumptions
+  const atServer = Math.abs(rate / 100 - a.investment_return) < 1e-6
+    && Math.abs(appreciationPct / 100 - a.appreciation_rate) < 1e-6
+    && Math.abs(cryptoGrowthPct / 100 - (a.crypto_growth ?? 0.15)) < 1e-6
+  if (!data.schedule || (atServer && data.projected_at_delivery && data.monthly_projection.length > 0)) {
     const last = data.monthly_projection[data.monthly_projection.length - 1]
     const value = last?.property_value || data.target
     return { months: data.monthly_projection, projectedTotal: last?.total || 0, gap: last?.gap || 0, projectedPropertyValue: value, equityAtDelivery: value - data.target }
@@ -383,17 +406,7 @@ export function WestTracker() {
   const planShortfall = plan?.projected_shortfall_at_delivery ?? 0
   const gapTone = !planKnown ? 'text-red-600' : planFeasible ? 'text-positive' : 'text-warning'
   const gapStatus = !planKnown ? 'gap' : planFeasible ? 'covered' : 'financing'
-  const serverRate = data.assumptions.investment_return * 100
-  const ratePresets = [
-    { label: 'Conservative', rate: 8.0 },
-    { label: data.assumptions.investment_return_basis === 'gbm-net' ? 'GBM net' : 'Base', rate: Math.round(serverRate * 10) / 10 },
-    { label: 'Optimistic', rate: 11.0 },
-  ]
-  const gross = data.assumptions.gbm_gross_rate
-  const commission = data.assumptions.gbm_commission_rate
-  const rateCaption = data.assumptions.investment_return_basis === 'gbm-net' && gross != null && commission != null
-    ? `GBM today: ${(gross * 100).toFixed(2)}% gross − ${(commission * 100).toFixed(2)}% commission = ${serverRate.toFixed(2)}% net`
-    : `Base case ${serverRate.toFixed(1)}% net of commission`
+  const { presets: ratePresets, caption: rateCaption } = rateScenarios(data)
   const infonavit = data.current_status.infonavit_laura || 350000
   const projectedGrowth = Math.max(0, projectedTotal - amountPaid - investmentValue - cryptoValue - infonavit)
 
@@ -470,7 +483,7 @@ export function WestTracker() {
               </div>
               <div className="h-8 w-px bg-[hsl(var(--border))]" />
               <div className="text-center">
-                <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-positive">{fundedPct.toFixed(1)}%</p>
+                <p className={cn('num-metric text-2xl sm:text-3xl font-bold tabular-nums', planKnown && !planFeasible ? 'text-warning' : fundedPct >= 100 ? 'text-positive' : 'text-fg')}>{fundedPct.toFixed(1)}%</p>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">At delivery</p>
               </div>
             </div>
@@ -636,7 +649,7 @@ export function WestTracker() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(m: string) => formatMonthShort(m, { withYear: true })} interval="preserveStartEnd" />
-              <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
+              <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis, className: 'money-tick' }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
 
@@ -887,7 +900,8 @@ export function WestTracker() {
 // Shows only the chart + interactive scenario sliders (no header/funding sources/milestones)
 export function WestProjectionWithScenarios() {
   const [data, setData] = useState<WestData | null>(null)
-  const [returnRate, setReturnRate] = useState(9.5)
+  // null until the server's assumptions arrive (never a hard-coded 9.5%)
+  const [returnRate, setReturnRate] = useState<number | null>(null)
   const [cryptoGrowth, setCryptoGrowth] = useState(15)
 
   useEffect(() => {
@@ -900,12 +914,14 @@ export function WestProjectionWithScenarios() {
       .catch(() => null)
   }, [])
 
+  const appreciationPct = (data?.assumptions?.appreciation_rate ?? 0.125) * 100
   const projection = useMemo(() => {
-    if (!data) return null
-    return recalcProjection(data, returnRate, 12.5, cryptoGrowth)
-  }, [data, returnRate, cryptoGrowth])
+    if (!data || returnRate == null) return null
+    return recalcProjection(data, returnRate, appreciationPct, cryptoGrowth)
+  }, [data, returnRate, appreciationPct, cryptoGrowth])
 
-  if (!data || !projection) return null
+  if (!data || !projection || returnRate == null) return null
+  const { presets: ratePresets, caption: rateCaption } = rateScenarios(data)
 
   const target = data.target
   const projectedTotal = projection.projectedTotal
@@ -935,7 +951,7 @@ export function WestProjectionWithScenarios() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(m: string) => formatMonthShort(m, { withYear: true })} interval="preserveStartEnd" />
-              <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
+              <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis, className: 'money-tick' }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
 
@@ -975,7 +991,7 @@ export function WestProjectionWithScenarios() {
       <GlassCard className="p-4 sm:p-5">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] mb-4">Scenarios</h3>
         <div className="flex gap-2 mb-4">
-          {[{ label: 'Conservative', rate: 8.0 }, { label: 'Base', rate: 9.5 }, { label: 'Optimistic', rate: 11.0 }].map(p => (
+          {ratePresets.map(p => (
             <button key={p.label} onClick={() => setReturnRate(p.rate)}
               className={cn("flex-1 px-1 py-2 rounded-lg text-xs font-medium leading-tight sm:leading-normal transition-all border",
                 Math.abs(returnRate - p.rate) < 0.1
@@ -995,7 +1011,7 @@ export function WestProjectionWithScenarios() {
               [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:shadow-lg
               [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-thumb]:active:cursor-grabbing" />
           <div className="flex justify-between text-[10px] text-[hsl(var(--text-tertiary))]">
-            <span className="shrink-0">5%</span><span className="text-center">Based on 2023–25 avg ~10.3% gross − 1.25% commission</span><span className="shrink-0">13%</span>
+            <span className="shrink-0">5%</span><span className="text-center">{rateCaption}</span><span className="shrink-0">13%</span>
           </div>
         </div>
         <div className="space-y-2 mt-4 pt-4 border-t border-[hsl(var(--border))]">

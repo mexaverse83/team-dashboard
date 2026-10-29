@@ -6,6 +6,9 @@ import { fetchCryptoPrices, impliedUsdMxn, type CryptoPrices } from '@/lib/crypt
 import { addDaysKey, mexicoCityToday } from '@/lib/dates'
 import { configErrorResponse, getAdminClient, withDegradedHeader } from '@/lib/supabase-admin'
 import { getWestProjection } from '@/lib/server/west'
+import { isWestProperty, propertyEquity, type PropertyLike, type WestPaidToDate } from '@/lib/property-equity'
+import { stockValueMXN } from '@/components/finance/investments/portfolio'
+import type { StockHolding } from '@/components/finance/investments/types'
 import { recordRun, triggerFromAuth } from '@/lib/automation/runs'
 
 // Used only when no live rate is available (no priced coin today).
@@ -44,7 +47,7 @@ export async function GET(req: NextRequest) {
     const latest = data?.[0]
     return withDegradedHeader(NextResponse.json({
       snapshot: latest ?? null,
-      summary: { latest: latest ? { date: latest.snapshot_date, net_worth: latest.net_worth, total_assets: latest.total_assets, total_liabilities: latest.total_liabilities } : null },
+      summary: { latest: latest ? { date: latest.snapshot_date, net_worth: latest.net_worth, total_assets: latest.total_assets, total_liabilities: latest.total_liabilities, stocks_amount: latest.stocks_amount } : null },
     }, { headers: { 'Cache-Control': 'private, no-store' } }))
   }
 
@@ -69,7 +72,7 @@ export async function GET(req: NextRequest) {
     snapshots,
     summary: {
       count: snapshots.length,
-      latest: latest ? { date: latest.snapshot_date, net_worth: latest.net_worth, total_assets: latest.total_assets, total_liabilities: latest.total_liabilities } : null,
+      latest: latest ? { date: latest.snapshot_date, net_worth: latest.net_worth, total_assets: latest.total_assets, total_liabilities: latest.total_liabilities, stocks_amount: latest.stocks_amount } : null,
       delta,
       delta_pct: deltaPct,
     },
@@ -110,6 +113,10 @@ async function writeSnapshot(req: NextRequest, auth: AuthOk) {
   if (readError) return fail(`snapshot read failed: ${readError.message}`)
   const [cryptoHoldings, stocks, fixedIncome, realEstate, retirement, ef, debts, installments] = reads.map(r => r.data || [])
 
+  // Fallbacks taken while valuing: the run is recorded as 'warning' (not 'ok')
+  // so a snapshot built from stale inputs shows up in the automation panel.
+  const warnings: string[] = []
+
   // Live crypto prices (best-effort; fall back to cost basis if unavailable)
   let cryptoTotalMXN = 0
   let prices: CryptoPrices | null = null
@@ -124,17 +131,25 @@ async function writeSnapshot(req: NextRequest, auth: AuthOk) {
         } else if (h.avg_cost_basis_usd) {
           // No live price: fall back to cost basis (avg_cost_basis_usd stores MXN despite its name)
           cryptoTotalMXN += h.quantity * h.avg_cost_basis_usd
+          warnings.push(`no live price for ${h.symbol} — valued at cost basis`)
         }
       }
     }
   } catch (e) {
     console.error('Crypto valuation failed:', e)
+    warnings.push('crypto prices unavailable — valued at cost basis')
   }
 
   const liveRate = impliedUsdMxn(prices)
   const usdMxn = liveRate ?? USD_MXN_FALLBACK
+  const needsUsd = stocks.some((x: { currency?: string; asset_type?: string }) => x.currency === 'USD' || x.asset_type === 'private_equity')
+  if (!liveRate && needsUsd) warnings.push(`no live USD/MXN rate — used fallback ${USD_MXN_FALLBACK}`)
 
-  const stocksTotal = stocks.reduce((s: number, x: { shares?: number; current_price_mxn?: number; current_price?: number; avg_cost_basis?: number; currency?: string }) => {
+  // Private equity is an estimate at current_price_usd × the live USD/MXN rate —
+  // the same stockValueMXN the Investments page uses. Other holdings: a stored
+  // price if the row has one, else cost basis.
+  const stocksTotal = stocks.reduce((s: number, x: { asset_type?: string; shares?: number; current_price_usd?: number; current_price_mxn?: number; current_price?: number; avg_cost_basis?: number; currency?: string }) => {
+    if (x.asset_type === 'private_equity') return s + stockValueMXN(x as StockHolding, usdMxn)
     const shares = x.shares || 0
     const fxRate = x.currency === 'USD' ? usdMxn : 1
     const price = x.current_price_mxn ?? (x.current_price ? x.current_price * fxRate : 0)
@@ -148,19 +163,21 @@ async function writeSnapshot(req: NextRequest, auth: AuthOk) {
   // Real estate: equity = value − still owed. For the pre-sale WEST unit the
   // amount owed comes from the WEST tracker's paid-to-date (posted payments
   // roll in monthly), not the static mortgage_balance from February (F13).
-  let west: { target: number; paid: number } | null = null
+  let west: WestPaidToDate | null = null
   try {
     const projection = await getWestProjection(supabase, { now: startedAt })
     west = { target: projection.target, paid: projection.current_status.amount_paid }
-  } catch {
+  } catch (e) {
     west = null
+    if (realEstate.some((x: PropertyLike) => isWestProperty(x))) {
+      warnings.push(`WEST projection unavailable — used mortgage_balance (${e instanceof Error ? e.message : String(e)})`)
+    }
   }
   const realEstateBasis: string[] = []
-  const realEstateTotal = realEstate.reduce((s: number, x: { name?: string; property_type?: string; current_value?: number; mortgage_balance?: number }) => {
-    const isWest = west && (x.property_type === 'pre_sale' || /west/i.test(x.name || ''))
-    const owed = isWest ? Math.max(0, west!.target - west!.paid) : (x.mortgage_balance || 0)
+  const realEstateTotal = realEstate.reduce((s: number, x: PropertyLike) => {
+    const isWest = !!west && isWestProperty(x)
     realEstateBasis.push(`${x.name || 'property'}:${isWest ? 'west-paid-to-date' : 'mortgage_balance'}`)
-    return s + Math.max(0, (x.current_value || 0) - owed)
+    return s + Math.max(0, propertyEquity(x, west))
   }, 0)
 
   const retirementTotal = retirement.reduce((s: number, x: { current_balance?: number }) => s + (x.current_balance || 0), 0)
@@ -198,9 +215,9 @@ async function writeSnapshot(req: NextRequest, auth: AuthOk) {
     job: 'net-worth',
     trigger,
     started_at: startedAt,
-    status: liveRate || !stocks.some((x: { currency?: string }) => x.currency === 'USD') ? 'ok' : 'warning',
+    status: warnings.length === 0 ? 'ok' : 'warning',
     created_count: 1,
-    details: { snapshot_date: today, net_worth: netWorth, usd_mxn: usdMxn, usd_mxn_source: liveRate ? 'live' : 'fallback', real_estate_basis: realEstateBasis },
+    details: { snapshot_date: today, net_worth: netWorth, usd_mxn: usdMxn, usd_mxn_source: liveRate ? 'live' : 'fallback', real_estate_basis: realEstateBasis, ...(warnings.length ? { warnings } : {}) },
   })
 
   return withDegradedHeader(NextResponse.json({

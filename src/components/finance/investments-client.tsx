@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useFinanceData } from '@/hooks/use-finance-data'
 import type { FamilyFutureBaby } from '@/components/finance/family-tracker'
 import { computePortfolio } from './investments/portfolio'
+import { fetchWestProjection } from '@/lib/west-projection-client'
+import { westPaidToDate } from '@/lib/property-equity'
 import { OwnerFilterControl, SourceError } from './investments/shared'
 import { TabSkeleton } from './investments/tab-skeleton'
 import { useInvestmentsData, useNetWorth } from './investments/use-investments-data'
@@ -47,6 +49,9 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
   const netWorth = useNetWorth()
   // baby_plan for the Family future strip, fetched once and only for Portfolio
   const baby = useFinanceData('investments:baby', fetchBaby, { enabled: activeTab === 'Portfolio', refetchOnVisible: false })
+  // WEST paid-to-date: equity uses target − paid, the same rule as the net-worth snapshot.
+  const westProjection = useFinanceData('investments:west-paid', () => fetchWestProjection<unknown>(), { refetchOnVisible: false })
+  const west = useMemo(() => westPaidToDate(westProjection.data), [westProjection.data])
 
   const portfolio = useMemo(() => computePortfolio({
     stocks: data?.stocks ?? [],
@@ -56,7 +61,8 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
     prices: data?.prices ?? null,
     retirement: data?.retirement ?? [],
     ownerFilter,
-  }), [data, ownerFilter])
+    west,
+  }), [data, ownerFilter, west])
 
   const errors = useMemo(() => data?.errors ?? {}, [data])
   const failedSources = (Object.keys(errors) as InvestmentSource[]).map(k => SOURCE_LABEL[k])

@@ -1,4 +1,4 @@
-import { calendarDayKey, isCryptoGoal, isGoalOverdue, monthlyNeeded, monthsRemaining, type CalendarDay } from '@/lib/finance-utils'
+import { calendarDayKey, goalPaceTarget, isCryptoGoal, isGoalOverdue, monthlyNeeded, monthsRemaining, type CalendarDay } from '@/lib/finance-utils'
 
 export interface GoalRow {
   id?: string
@@ -11,6 +11,7 @@ export interface GoalRow {
   crypto_symbol?: string | null
   owner?: string | null
   scope?: string | null
+  created_at?: string | null
 }
 
 export interface SummaryGoal {
@@ -63,7 +64,9 @@ export function buildGoals(goals: GoalRow[], asOf: CalendarDay, cryptoQty: Recor
       current: crypto ? current : Math.round(current),
       pct: target > 0 ? Math.round((current / target) * 100) : 0,
       monthly_needed: needed,
-      on_track: crypto ? true : (g.monthly_contribution || 0) >= needed,
+      // Crypto pace is in coins (the Goals page's straight line from creation to
+      // target date); monthly_needed stays 0 so coins never enter peso totals.
+      on_track: crypto ? cryptoOnPace({ ...g, target_amount: target }, current, asOf) : (g.monthly_contribution || 0) >= needed,
       target_date: g.target_date ?? null,
       months_remaining: monthsRemaining(g.target_date, asOf),
       overdue,
@@ -93,4 +96,9 @@ export function buildGoals(goals: GoalRow[], asOf: CalendarDay, cryptoQty: Recor
     open_remaining: open.reduce((s, g) => s + Math.max(0, g.target - g.current), 0),
     target_year: openYears.length > 0 ? Math.min(...openYears) : asOf.year,
   }
+}
+
+function cryptoOnPace(g: GoalRow, current: number, asOf: CalendarDay): boolean {
+  const pace = goalPaceTarget(g, calendarDayKey(asOf))
+  return pace == null || current >= pace * 0.95
 }
