@@ -1,22 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
-import { LogOut } from 'lucide-react'
+import { LockKeyhole, LogOut } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
-import type { User } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
+import { useFinanceAuth } from './finance-auth-guard'
 
 export function FinanceAuthBadge({ collapsed }: { collapsed: boolean }) {
-  const [user, setUser] = useState<User | null>(null)
+  const { status, email, owner } = useFinanceAuth()
   const pathname = usePathname()
   const router = useRouter()
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user))
-  }, [])
-
   // Only show on finance routes
-  if (!pathname.startsWith('/finance') || !user) return null
+  if (!pathname.startsWith('/finance') || status !== 'signed-in' || !email) return null
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -25,25 +20,25 @@ export function FinanceAuthBadge({ collapsed }: { collapsed: boolean }) {
 
   if (collapsed) {
     return (
-      <button onClick={handleSignOut} title={`${user.email} — Sign out`}
-        className="w-full flex items-center justify-center p-2 rounded-lg hover:bg-red-500/10 text-red-600 transition-colors">
-        <LogOut className="h-4 w-4" />
+      <button type="button" onClick={handleSignOut} title={`${email} — Sign out`} aria-label="Sign out"
+        className="flex min-h-11 w-full items-center justify-center rounded-lg text-negative transition-colors hover:bg-negative-bg">
+        <LogOut className="h-4 w-4" aria-hidden="true" />
       </button>
     )
   }
 
   return (
-    <div className="px-3 py-2 rounded-lg bg-[hsl(var(--bg-elevated))]">
-      <div className="flex items-center justify-between">
-        <div className="min-w-0">
-          <p className="text-[10px] text-emerald-600 font-medium">🔒 Authenticated</p>
-          <p className="text-[10px] text-[hsl(var(--text-tertiary))] truncate">{user.email}</p>
-        </div>
-        <button onClick={handleSignOut} title="Sign out"
-          className="p-1 rounded hover:bg-red-500/10 text-red-600 transition-colors shrink-0">
-          <LogOut className="h-3.5 w-3.5" />
-        </button>
+    <div className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2">
+      <div className="min-w-0">
+        <p className="flex items-center gap-1 text-label font-medium text-fg">
+          <LockKeyhole className="h-3 w-3 text-positive" aria-hidden="true" />{owner || 'Signed in'}
+        </p>
+        <p className="truncate text-micro text-fg-tertiary">{email}</p>
       </div>
+      <button type="button" onClick={handleSignOut} title="Sign out" aria-label="Sign out"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-fg-secondary transition-colors hover:bg-negative-bg hover:text-negative">
+        <LogOut className="h-4 w-4" aria-hidden="true" />
+      </button>
     </div>
   )
 }

@@ -1,18 +1,58 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Download, X } from 'lucide-react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { Download, Share, SquarePlus, X } from 'lucide-react'
+import { isIosDevice, isStandaloneApp } from './push-toggle'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
-// Android Chrome fires beforeinstallprompt when the PWA is installable and
-// not yet installed. We stash the event and offer a real Install button that
-// triggers the native dialog — no digging through browser menus. iOS never
-// fires this event (install is Share → Add to Home Screen), so the banner
-// simply never renders there.
+const IOS_DISMISS_KEY = 'mona:ios-install-dismissed'
+const DISMISS_EVENT = 'mona:install-dismissed'
+
+function readIosCardVisible(): boolean {
+  if (!isIosDevice() || isStandaloneApp()) return false
+  try { return window.localStorage.getItem(IOS_DISMISS_KEY) !== '1' } catch { return true }
+}
+
+function subscribeDismiss(onChange: () => void) {
+  window.addEventListener(DISMISS_EVENT, onChange)
+  return () => window.removeEventListener(DISMISS_EVENT, onChange)
+}
+
+const cardClass = 'flex items-start gap-3 rounded-xl border border-border bg-surface px-4 py-3 shadow-card'
+
+// iPhone: Safari never fires beforeinstallprompt, so show the two Share-sheet
+// steps instead (MOB-17). Dismissal is remembered per device.
+function IosInstallCard() {
+  const visible = useSyncExternalStore(subscribeDismiss, readIosCardVisible, () => false)
+  const dismiss = useCallback(() => {
+    try { window.localStorage.setItem(IOS_DISMISS_KEY, '1') } catch { /* storage blocked */ }
+    window.dispatchEvent(new Event(DISMISS_EVENT))
+  }, [])
+  if (!visible) return null
+  return (
+    <section className={cardClass} aria-labelledby="ios-install-title">
+      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-3 text-fg-secondary"><SquarePlus className="h-4 w-4" aria-hidden="true" /></span>
+      <div className="min-w-0 flex-1">
+        <h2 id="ios-install-title" className="text-sm font-semibold text-fg">Add Mona to your Home Screen</h2>
+        <ol className="mt-1 space-y-0.5 text-label text-fg-secondary">
+          <li className="flex items-center gap-1.5">1. Tap <Share className="h-3.5 w-3.5" aria-label="Share" /> in Safari’s toolbar</li>
+          <li>2. Choose “Add to Home Screen”</li>
+        </ol>
+        <p className="mt-1 text-micro text-fg-tertiary">Full screen, faster to open, and the daily push works from there.</p>
+      </div>
+      <button type="button" onClick={dismiss} aria-label="Dismiss" className="-mr-2 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-fg-tertiary hover:text-fg">
+        <X className="h-4 w-4" aria-hidden="true" />
+      </button>
+    </section>
+  )
+}
+
+// Android Chrome fires beforeinstallprompt when the PWA is installable; we
+// stash it and offer a real Install button for the native dialog.
 export function InstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
   const [dismissed, setDismissed] = useState(false)
@@ -31,7 +71,7 @@ export function InstallPrompt() {
     }
   }, [])
 
-  if (!deferred || dismissed) return null
+  if (!deferred || dismissed) return <IosInstallCard />
 
   const install = async () => {
     await deferred.prompt()
@@ -40,21 +80,18 @@ export function InstallPrompt() {
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5">
-      <span className="text-lg">📲</span>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold">Install Finance as an app</p>
-        <p className="text-[11px] text-[hsl(var(--text-secondary))]">Fullscreen, home-screen icon, no browser bar</p>
+    <section className={cardClass} aria-label="Install the app">
+      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-3 text-fg-secondary"><Download className="h-4 w-4" aria-hidden="true" /></span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-fg">Install Mona as an app</p>
+        <p className="text-label text-fg-secondary">Full screen, home-screen icon, no browser bar</p>
       </div>
-      <button
-        onClick={install}
-        className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
-      >
-        <Download className="h-3.5 w-3.5" /> Install
+      <button type="button" onClick={install} className="btn-primary inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-label font-semibold">
+        <Download className="h-3.5 w-3.5" aria-hidden="true" /> Install
       </button>
-      <button onClick={() => setDismissed(true)} aria-label="Dismiss" className="p-1 text-[hsl(var(--text-tertiary))] hover:text-[hsl(var(--foreground))]">
-        <X className="h-3.5 w-3.5" />
+      <button type="button" onClick={() => setDismissed(true)} aria-label="Dismiss" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-fg-tertiary hover:text-fg">
+        <X className="h-4 w-4" aria-hidden="true" />
       </button>
-    </div>
+    </section>
   )
 }

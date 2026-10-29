@@ -1,43 +1,186 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Baby, CalendarClock, GraduationCap, ShieldCheck, TrendingUp } from 'lucide-react'
+import { ArrowRight, Baby, CalendarClock, Check, GraduationCap, ShieldCheck, Tag, TrendingUp } from 'lucide-react'
 import { GlassCard } from '@/components/ui/glass-card'
 import { PageTransition } from '@/components/page-transition'
-import { BABY_CHECKLIST, PROTECTION_PLAN } from '@/lib/baby-plan'
+import { OwnerAvatar } from '@/components/ui/owner-avatar'
+import { BABY_CHECKLIST, BABY_PLAN_TAG, PROTECTION_PLAN } from '@/lib/baby-plan'
+import { supabase } from '@/lib/supabase'
+import { fetchAllRows } from '@/lib/supabase-fetch-all'
+import { mexicoCityToday, parseLocalDateKey } from '@/lib/dates'
+import { formatCompact, formatDateShort, formatMoney, formatMonthShort } from '@/lib/format'
+import { dispatchFinanceEvent, FINANCE_EVENTS } from '@/lib/finance-events'
+import { useFinanceData } from '@/hooks/use-finance-data'
+import { useRefreshReport } from './command-center/use-refresh-report'
 import { cn } from '@/lib/utils'
-import { type Summary, fmtMoney, fmtMonth } from './command-center/types'
+import type { FinanceTransaction } from '@/lib/finance-types'
+import { type Summary, type TreatmentEvent, fmtMoney } from './command-center/types'
 import { EducationProjectionWithScenarios } from './family-tracker'
 
 function fmtMonthYear(month: string) {
-  return `${fmtMonth(month)} ${month.slice(0, 4)}`
-}
-
-function dayKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  return formatMonthShort(parseLocalDateKey(month), { withYear: true })
 }
 
 type ChecklistState = 'open' | 'upcoming' | 'closed'
 
+// Collapse runs of identical months ("Prenatal care $4k" × 6) into one row (VIS-22).
+export function groupPlanEvents(events: TreatmentEvent[]): Array<{ key: string; label: string; amount: number; count: number; first: string; last: string; months: string[] }> {
+  const groups: Array<{ key: string; label: string; amount: number; count: number; first: string; last: string; months: string[] }> = []
+  for (const event of events) {
+    const label = event.label.split('(')[0].trim()
+    const prev = groups[groups.length - 1]
+    if (prev && prev.label === label && prev.amount === event.amount) {
+      prev.count += 1
+      prev.last = event.month
+      prev.months.push(event.month)
+    } else {
+      groups.push({ key: event.month, label, amount: event.amount, count: 1, first: event.month, last: event.month, months: [event.month] })
+    }
+  }
+  return groups
+}
+
+// ── Tag past baby expenses (UX-04, MOB-03 backfill) ─────────────────────────
+// Untagged Health/Shopping rows since July whose text looks prenatal. Nothing
+// is tagged until the user ticks rows and presses the button.
+// `\bbeb[eé]` (bebé), not `beb`, which also matches "bebidas".
+export const BABY_KEYWORDS = /bby|\bbeb[eé]|gine|prenatal|ultrason|eco |nutri|embarazo|pañal|pediatr|obstetr/i
+const REVIEW_SINCE = '2026-07-01'
+const REVIEW_PREVIEW_ROWS = 5
+const REVIEW_CATEGORIES = new Set(['Health', 'Shopping'])
+
+type ReviewRow = Pick<FinanceTransaction, 'id' | 'transaction_date' | 'merchant' | 'description' | 'amount_mxn' | 'tags' | 'owner' | 'category_id'> & { category_name: string }
+
+async function loadBabyCandidates(): Promise<ReviewRow[]> {
+  const { data: cats, error } = await supabase.from('finance_categories').select('id, name')
+  if (error) throw new Error(error.message)
+  const names = new Map((cats || []).map((c: { id: string; name: string }) => [c.id, c.name]))
+  const ids = (cats || []).filter((c: { name: string }) => REVIEW_CATEGORIES.has(c.name)).map((c: { id: string }) => c.id)
+  if (!ids.length) return []
+  const rows = await fetchAllRows<Omit<ReviewRow, 'category_name'>>((from, to) => supabase.from('finance_transactions')
+    .select('id, transaction_date, merchant, description, amount_mxn, tags, owner, category_id')
+    .eq('type', 'expense').gte('transaction_date', REVIEW_SINCE).in('category_id', ids)
+    .order('id').range(from, to), 1000, 20_000, true)
+  return rows
+    .filter(r => !(r.tags || []).includes(BABY_PLAN_TAG) && BABY_KEYWORDS.test(`${r.merchant || ''} ${r.description || ''} `))
+    .map(r => ({ ...r, category_name: names.get(r.category_id) || '' }))
+    .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
+}
+
+function BabyTagReview({ onTagged }: { onTagged: () => void }) {
+  const candidates = useFinanceData<ReviewRow[]>('family:baby-candidates', loadBabyCandidates, { refetchOnVisible: false })
+  const rows = candidates.data ?? null
+  const failed = Boolean(candidates.error) && !candidates.data
+  const load = () => { void candidates.refresh() }
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
+
+  const toggle = (id: string) => setSelected(prev => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
+
+  const tagSelected = async () => {
+    if (!rows || selected.size === 0) return
+    setSaving(true)
+    setMessage(null)
+    let ok = 0
+    for (const row of rows.filter(r => selected.has(r.id))) {
+      const tags = Array.from(new Set([...(row.tags || []), BABY_PLAN_TAG]))
+      const { error } = await supabase.from('finance_transactions').update({ tags }).eq('id', row.id)
+      if (!error) ok += 1
+    }
+    setSaving(false)
+    setSelected(new Set())
+    setMessage(ok === selected.size ? `Tagged ${ok} expense${ok === 1 ? '' : 's'} as baby.` : `Tagged ${ok} of ${selected.size}. Try the rest again.`)
+    dispatchFinanceEvent(FINANCE_EVENTS.dataChanged, { source: 'finance_transactions' })
+    load()
+    onTagged()
+  }
+
+  const total = rows?.filter(r => selected.has(r.id)).reduce((sum, r) => sum + (Number(r.amount_mxn) || 0), 0) ?? 0
+
+  return (
+    <section id="baby-review" aria-labelledby="baby-review-title" className="scroll-mt-24 rounded-xl border border-border bg-surface p-4 shadow-card sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 id="baby-review-title" className="flex items-center gap-2 text-[0.9375rem] font-semibold text-fg"><Tag className="h-4 w-4 text-fg-secondary" aria-hidden="true" />Tag past baby expenses</h2>
+          <p className="mt-0.5 text-label text-fg-secondary">Health and shopping since July that look prenatal but miss the “baby” tag. Tagging feeds the envelope above.</p>
+        </div>
+      </div>
+      {message && <p role="status" className="mt-3 text-label text-positive">{message}</p>}
+      {failed ? (
+        <p className="mt-3 text-sm text-fg-tertiary">Couldn’t load transactions. <button type="button" onClick={load} className="font-semibold text-fg underline">Retry</button></p>
+      ) : rows === null ? (
+        <div className="mt-3 space-y-2" aria-label="Loading candidates">{[0, 1, 2].map(i => <div key={i} className="h-11 animate-pulse rounded-lg bg-surface-2" />)}</div>
+      ) : rows.length === 0 ? (
+        <p className="mt-3 text-sm text-fg-secondary">All caught up — nothing untagged looks like baby spending.</p>
+      ) : (
+        <>
+          <ul className="mt-3 divide-y divide-border rounded-lg border border-border">
+            {(showAll ? rows : rows.slice(0, REVIEW_PREVIEW_ROWS)).map(row => {
+              const checked = selected.has(row.id)
+              return (
+                <li key={row.id}>
+                  <label className="flex min-h-12 cursor-pointer items-center gap-3 px-3 py-2 hover:bg-surface-2">
+                    <input type="checkbox" checked={checked} onChange={() => toggle(row.id)} className="peer sr-only" />
+                    <span aria-hidden="true" className={cn('flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[hsl(var(--positive))] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[hsl(var(--surface))]',
+                      checked ? 'border-transparent bg-[hsl(var(--btn-primary-bg))] text-[hsl(var(--btn-primary-fg))]' : 'border-border-strong bg-surface')}>
+                      {checked && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-fg">{row.merchant || row.description || '—'}</span>
+                      <span className="flex items-center gap-1.5 text-micro text-fg-tertiary">{row.category_name} · {formatDateShort(parseLocalDateKey(row.transaction_date))}{row.owner && <OwnerAvatar owner={row.owner} size={14} />}</span>
+                    </span>
+                    <span className="num shrink-0 text-sm font-semibold text-fg" data-money>{formatMoney(row.amount_mxn)}</span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+          {rows.length > REVIEW_PREVIEW_ROWS && (
+            <button type="button" onClick={() => setShowAll(v => !v)} aria-expanded={showAll}
+              className="mt-1 inline-flex min-h-11 items-center px-1 text-label font-semibold text-fg-secondary hover:text-fg">
+              {showAll ? 'Show fewer' : `Show all ${rows.length}`}
+            </button>
+          )}
+          {/* Sticky so the action stays in reach while ticking rows (above the dock on phones). */}
+          <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-10 -mx-4 mt-2 flex items-center justify-between gap-2 border-t border-border bg-surface/95 px-4 py-2 backdrop-blur sm:-mx-5 sm:px-5 md:bottom-0">
+            <span className="min-w-0 text-label text-fg-tertiary">
+              {selected.size ? <>{selected.size} selected · <span data-money>{formatMoney(total)}</span></> : `${rows.length} candidate${rows.length === 1 ? '' : 's'}`}
+              <button type="button" onClick={() => setSelected(selected.size === rows.length ? new Set() : new Set(rows.map(r => r.id)))} className="ml-2 min-h-11 font-medium text-fg-secondary underline-offset-2 hover:text-fg hover:underline">
+                {selected.size === rows.length ? 'Clear' : 'Select all'}
+              </button>
+            </span>
+            <button type="button" onClick={tagSelected} disabled={saving || selected.size === 0}
+              className="btn-primary inline-flex min-h-11 shrink-0 items-center rounded-lg px-4 text-sm font-semibold disabled:opacity-40">
+              {saving ? 'Tagging…' : selected.size ? `Tag ${selected.size} as baby` : 'Select to tag'}
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
 export function FamilyClient() {
-  const [summary, setSummary] = useState<Summary | null>(null)
-  const [loading, setLoading] = useState(true)
+  const summaryQ = useFinanceData<Summary | null>('family:summary', async signal => {
+    const res = await fetch('/api/finance/summary', { cache: 'no-store', signal })
+    if (!res.ok) throw new Error(`summary ${res.status}`)
+    return res.json()
+  })
+  useRefreshReport([summaryQ])
+  const summary = summaryQ.data ?? null
+  const loading = summaryQ.loading
+  const fetchData = summaryQ.refresh
 
-  const fetchData = useCallback(async () => {
-    const sum = await fetch('/api/finance/summary').then(r => r.ok ? r.json() : null).catch(() => null)
-    setSummary(sum)
-    setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    fetchData()
-    const h = () => { if (document.visibilityState === 'visible') fetchData() }
-    document.addEventListener('visibilitychange', h)
-    return () => document.removeEventListener('visibilitychange', h)
-  }, [fetchData])
-
-  const today = useMemo(() => dayKey(new Date()), [])
+  const today = useMemo(() => mexicoCityToday(), [])
   const checklist = useMemo(() =>
     BABY_CHECKLIST.map(item => ({
       ...item,
@@ -69,14 +212,16 @@ export function FamilyClient() {
 
   const spentPct = Math.round((baby.spent_to_date / baby.planning_total) * 100)
   const next = baby.current_month_event ?? baby.remaining_events[0] ?? null
+  const remainingMonths = new Set(baby.remaining_events.map(e => e.month))
+  const eventGroups = groupPlanEvents(baby.monthly_events)
 
   return (
     <PageTransition>
       <div className="max-w-6xl space-y-6 p-0 md:p-6" data-animate>
         {/* Header */}
         <div>
-          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Family Plan</h1>
-          <p className="text-[hsl(var(--text-secondary))] text-sm">Baby {fmtMonthYear(baby.due_month)}, the education fund, and protection</p>
+          <h1 className="text-[1.75rem] font-semibold leading-[2.125rem] tracking-[-0.02em] text-fg">Family &amp; Baby</h1>
+          <p className="mt-1 text-sm text-fg-secondary">Baby {fmtMonthYear(baby.due_month)}, the education fund, and protection</p>
         </div>
 
         {/* ── Hero: the countdown and the envelope ── */}
@@ -85,7 +230,7 @@ export function FamilyClient() {
           <div className="relative grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
             <div>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Baby arrives</span>
-              <p className="num-metric text-3xl sm:text-4xl font-bold tabular-nums mt-1 text-sky-600">{baby.months_to_birth} mo</p>
+              <p className="num-metric text-3xl sm:text-4xl font-bold tabular-nums mt-1 text-fg" data-privacy-exempt>{baby.months_to_birth} mo</p>
               <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">due {fmtMonthYear(baby.due_month)}</p>
             </div>
             <div>
@@ -100,7 +245,7 @@ export function FamilyClient() {
             </div>
             <div>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Fund at 2045</span>
-              <p className="num-metric text-3xl sm:text-4xl font-bold tabular-nums mt-1 text-violet-600">{fmtMoney(baby.education.projected_value, { compact: true })}</p>
+              <p className="num-metric text-3xl sm:text-4xl font-bold tabular-nums mt-1 text-fg">{formatCompact(baby.education.projected_value)}</p>
               <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5">vs Tec {fmtMoney(baby.education.tec_cost_min, { compact: true })}–{fmtMoney(baby.education.tec_cost_max, { compact: true })}</p>
             </div>
           </div>
@@ -110,10 +255,12 @@ export function FamilyClient() {
               <span className="text-[11px] tabular-nums text-[hsl(var(--text-tertiary))]">{spentPct}% · {fmtMoney(baby.spent_to_date, { compact: true })}</span>
             </div>
             <div className="h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
-              <div className="h-full rounded-full bg-sky-500" style={{ width: `${Math.min(spentPct, 100)}%` }} />
+              <div className="h-full rounded-full bg-fg-secondary" style={{ width: `${Math.min(spentPct, 100)}%` }} />
             </div>
           </div>
         </GlassCard>
+
+        <BabyTagReview onTagged={() => { void fetchData() }} />
 
         {/* ── Schedule + Action items ── */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -123,18 +270,22 @@ export function FamilyClient() {
               <h3 className="text-sm font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">Planned Spend</h3>
             </div>
             <div className="space-y-2">
-              {baby.monthly_events.map(event => {
-                const isPast = !baby.remaining_events.some(item => item.month === event.month)
+              {eventGroups.map(group => {
+                const elapsed = group.months.filter(m => !remainingMonths.has(m)).length
+                const done = elapsed === group.count
+                const range = group.count > 1 ? `${fmtMonthYear(group.first)} – ${fmtMonthYear(group.last)}` : fmtMonthYear(group.first)
                 return (
-                  <div key={event.month} className={cn(
+                  <div key={group.key} className={cn(
                     'flex items-center justify-between rounded-lg border px-3 py-2.5',
-                    isPast ? 'border-sky-500/30 bg-sky-500/5' : 'border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30'
+                    done ? 'border-border bg-surface-2 opacity-70' : 'border-border bg-surface',
                   )}>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium line-clamp-2 sm:line-clamp-none sm:truncate">{event.label}</p>
-                      <p className="text-[10px] text-[hsl(var(--text-tertiary))]">{fmtMonthYear(event.month)}{isPast ? ' · elapsed' : ''}</p>
+                      <p className="text-sm font-medium text-fg line-clamp-2 sm:line-clamp-none sm:truncate">{group.label}</p>
+                      <p className="text-micro text-fg-tertiary">{range}{elapsed > 0 ? ` · ${done ? 'elapsed' : `${elapsed} of ${group.count} elapsed`}` : ''}</p>
                     </div>
-                    <span className="text-sm font-bold tabular-nums shrink-0 ml-3">{fmtMoney(event.amount, { compact: true })}</span>
+                    <span className="num ml-3 shrink-0 text-sm font-bold text-fg" data-money>
+                      {formatCompact(group.amount)}{group.count > 1 && <span className="font-medium text-fg-tertiary">/mo × {group.count}</span>}
+                    </span>
                   </div>
                 )
               })}
@@ -167,7 +318,7 @@ export function FamilyClient() {
                       item.state === 'upcoming' && 'bg-[hsl(var(--accent))] text-[hsl(var(--text-secondary))]',
                       item.state === 'closed' && 'bg-[hsl(var(--accent))] text-[hsl(var(--text-tertiary))]',
                     )}>
-                      {item.state === 'open' ? `closes ${item.windowEnd.slice(5)}` : item.state === 'upcoming' ? `opens ${item.windowStart.slice(0, 7)}` : 'window closed'}
+                      {item.state === 'open' ? `closes ${formatDateShort(parseLocalDateKey(item.windowEnd))}` : item.state === 'upcoming' ? `opens ${fmtMonthYear(item.windowStart.slice(0, 7))}` : 'window closed'}
                     </span>
                   </div>
                   {item.state !== 'closed' && (

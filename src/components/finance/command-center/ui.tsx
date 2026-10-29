@@ -1,74 +1,46 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight, type LucideIcon } from 'lucide-react'
-import { GlassCard } from '@/components/ui/glass-card'
-import { TrendBadge } from '@/components/ui/trend-badge'
-import { SparklineChart } from '@/components/ui/sparkline-chart'
+import { ArrowUpRight, type LucideIcon } from 'lucide-react'
+import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 // ─── KPI Card ────────────────────────────────────────────────────────────────
-// Accent is reserved for STATUS only (positive / negative). 'brand' is a neutral
-// emphasis used sparingly for the headline metric (net worth). Everything else
-// stays in the default foreground colour so colour keeps its meaning.
-export function KpiCard({ label, value, sublabel, trend, sparkline, sparklineColor, accent, icon: Icon, href }: {
+// Values stay neutral (VIS-03); only a delta or hint carries tone. No chart
+// dependency, so recharts stays out of home's first load (perf-10).
+export function KpiCard({ label, value, sublabel, icon: Icon, href, money = true }: {
   href?: string
   label: string
   value: string
   sublabel?: React.ReactNode
-  trend?: number
-  sparkline?: number[]
-  sparklineColor?: string
-  accent?: 'positive' | 'negative' | 'neutral' | 'brand'
   icon?: LucideIcon
+  /** Blur the value in privacy mode (false for months, percentages). */
+  money?: boolean
 }) {
-  const accentClass = accent === 'positive' ? 'text-emerald-600'
-    : accent === 'negative' ? 'text-rose-600'
-    : accent === 'brand' ? 'text-teal-700'
-    : 'text-[hsl(var(--foreground))]'
-  const chipClass = accent === 'positive' ? 'bg-emerald-500/10 text-emerald-700'
-    : accent === 'negative' ? 'bg-rose-500/10 text-rose-700'
-    : accent === 'brand' ? 'bg-teal-500/10 text-teal-700'
-    : 'bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-secondary))]'
   const card = (
-    <GlassCard className="h-full">
-      <div className="flex items-start justify-between gap-2 mb-2.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))]">{label}</span>
-        <span className="flex items-center gap-2">
-          {trend !== undefined && <TrendBadge value={trend} />}
-          {Icon && (
-            <span className={cn('hidden h-7 w-7 items-center justify-center rounded-lg -mt-1 sm:flex', chipClass)}>
-              <Icon className="h-3.5 w-3.5" />
-            </span>
-          )}
-        </span>
+    <Card interactive={Boolean(href)} className="h-full">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-label font-medium text-fg-secondary">{label}</span>
+        {Icon && <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-surface-3 text-fg-secondary"><Icon className="h-3.5 w-3.5" aria-hidden="true" /></span>}
       </div>
-      <p className={cn('num-metric text-xl sm:text-[28px] font-bold leading-none', accentClass)}>{value}</p>
-      {sublabel && <div className="mt-1.5 text-xs text-[hsl(var(--text-secondary))]">{sublabel}</div>}
-      {sparkline && sparkline.length > 0 && (
-        <div className="mt-3 -mx-1">
-          <SparklineChart data={sparkline} color={sparklineColor || 'hsl(var(--chart-1))'} width={200} height={28} />
-        </div>
-      )}
-    </GlassCard>
+      <p className="num-metric text-2xl font-semibold leading-none text-fg" {...(money ? { 'data-money': '' } : { 'data-privacy-exempt': '' })}>{value}</p>
+      {sublabel && <div className="mt-2 text-label text-fg-secondary">{sublabel}</div>}
+    </Card>
   )
-  return href ? <Link href={href} className="block rounded-2xl transition-transform hover:-translate-y-0.5">{card}</Link> : card
+  return href ? <Link href={href} className="block rounded-xl">{card}</Link> : card
 }
 
 // ─── Section header ──────────────────────────────────────────────────────────
-export function SectionHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: { label: string; href: string } }) {
+export function SectionHeader({ title, subtitle, action, className }: { title: string; subtitle?: string; action?: { label: string; href: string }; className?: string }) {
   return (
-    <div className="flex items-end justify-between gap-3 mb-3">
+    <div className={cn('mb-3 flex items-end justify-between gap-3', className)}>
       <div className="min-w-0">
-        <h3 className="flex items-center gap-2 text-base font-semibold leading-tight">
-          <span className="section-tick" aria-hidden />
-          {title}
-        </h3>
-        {subtitle && <p className="text-xs text-[hsl(var(--text-secondary))] mt-0.5 ml-3">{subtitle}</p>}
+        <h2 className="text-[0.9375rem] font-semibold leading-5 text-fg">{title}</h2>
+        {subtitle && <p className="mt-0.5 text-label text-fg-tertiary">{subtitle}</p>}
       </div>
       {action && (
-        <Link href={action.href} className="text-xs text-blue-600 hover:underline inline-flex shrink-0 items-center gap-1 whitespace-nowrap min-h-9 sm:min-h-0">
-          {action.label} <ArrowRight className="h-3 w-3" />
+        <Link href={action.href} className="inline-flex min-h-9 shrink-0 items-center gap-1 whitespace-nowrap text-label font-medium text-fg-secondary hover:text-fg">
+          {action.label} <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
         </Link>
       )}
     </div>

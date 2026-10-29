@@ -1,9 +1,25 @@
-import type { AlertSeverity } from '@/components/ui/alert-card'
+import type {
+  SummaryRecentTransaction,
+  SummaryStaleness,
+  SummaryUpcomingItem,
+  SummaryVariable,
+  SummaryWestPlan,
+} from '@/lib/summary/types'
 
 // ─── Summary endpoint response shape (subset we use) ─────────────────────────
+// The optional tail mirrors the v2 contract (src/lib/summary/types.ts); every
+// consumer must keep working while those fields are missing.
 export interface Summary {
+  variable?: SummaryVariable
+  owner_spend?: Record<string, number>
+  recent_transactions?: SummaryRecentTransaction[]
+  upcoming?: SummaryUpcomingItem[]
+  west_plan?: SummaryWestPlan | null
+  staleness?: SummaryStaleness
   month_projection?: {
     expected_income: number
+    income_received?: number
+    income_still_scheduled?: number
     spent_so_far: number
     projected_spend: number
     known_upcoming_treatment: number
@@ -27,6 +43,8 @@ export interface Summary {
       pace_vs_budget_pct: number
       status: 'ok' | 'warning' | 'over'
       is_non_monthly: boolean
+      is_fixed?: boolean
+      category_id?: string
       cycle_months: number
     }>
   }
@@ -39,7 +57,7 @@ export interface Summary {
   }
   spending: { total_monthly_avg: number }
   budgets: { total_budgeted: number }
-  subscriptions: { total_monthly: number; total_annual: number }
+  subscriptions: { total_monthly: number; total_annual: number; active?: Array<{ name: string; amount: number; last_charge?: string | null }> }
   installments: { total_monthly_commitment: number }
   debts: { total_balance: number; total_minimums: number }
   emergency_fund: {
@@ -53,7 +71,13 @@ export interface Summary {
   }
   goals: { active: Array<{ name: string; target: number; current: number; pct: number; monthly_needed: number; on_track: boolean }> }
   cash_flow: { monthly_income: number; fixed_commitments: number; discretionary_available: number }
-  goal_funding: { total_monthly_needed: number; discretionary_available: number; gap: number; fully_funded: boolean }
+  goal_funding: {
+    total_monthly_needed: number
+    discretionary_available: number
+    gap: number
+    fully_funded: boolean
+    overdue_goals?: Array<{ name: string; target_date: string; remaining: number }>
+  }
   year_end_goal_plan: {
     target_amount: number
     current_saved: number
@@ -134,6 +158,7 @@ export interface Summary {
       coverage_pct_max: number
     }
     checklist: Array<{ id: string; title: string; description: string; severity: 'info' | 'warning'; window_end: string }>
+    untagged_candidates?: number
   }
   msi_timeline: Array<{ name: string; merchant: string; monthly_payment: number; payments_remaining: number; end_date: string }>
   crypto: null | {
@@ -167,15 +192,6 @@ export interface Forecast {
     next_7_days: { events: number; net: number }
     next_30_days: { events: number; net: number }
   }
-}
-
-export type Alert = {
-  id: string
-  severity: AlertSeverity
-  title: string
-  description: string
-  action?: { label: string; href: string }
-  weight: number
 }
 
 export type BudgetCat = Summary['current_month']['budget_vs_actual'][number]

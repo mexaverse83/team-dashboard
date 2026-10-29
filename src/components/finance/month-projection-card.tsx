@@ -1,135 +1,187 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { TrendingUp } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowUpRight } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import { StatusPill } from '@/components/ui/status-pill'
+import { ownerSlot } from '@/components/ui/owner-avatar'
+import { formatCompact, formatMoney, formatPct } from '@/lib/format'
+import { OWNERS, canonicalOwner } from '@/lib/owners'
+import type { Tone } from '@/lib/budget-tone'
 import { cn } from '@/lib/utils'
-import { monthKey } from '@/lib/finance-utils'
-import { fetchWestProjection, westMonthTarget } from '@/lib/west-projection-client'
+import type { HomeWestPlan } from './command-center/west-plan'
 
-interface MonthProjection {
+export interface MonthProjection {
   expected_income: number
   income_received?: number
   income_still_scheduled?: number
   spent_so_far: number
   projected_spend: number
-  known_upcoming_treatment: number
   projected_savings: number
-  method: string
+  method?: string
 }
 
 interface Props {
-  compact?: boolean
-  westTarget?: number | null
   projection?: MonthProjection | null
-  /** summary.goal_funding.total_monthly_needed — the 2026 GBM goals' monthly ask. */
-  goalMonthlyNeeded?: number
+  /** undefined = still loading (skeleton); null = unavailable. */
+  westPlan?: HomeWestPlan | null
+  monthLabel?: string
+  monthEndLabel?: string
+  dayOfMonth?: number
+  daysInMonth?: number
+  ownerSpend?: Record<string, number> | null
+  /** Highlight this owner's spend chip (You mode). */
+  highlightOwner?: string | null
 }
 
-// One month's savings measured against two different bars. The WEST monthly
-// transfer and the combined 2026 goals both draw on the same GBM pot (the
-// projection counts the whole GBM balance as WEST funding, and both goals'
-// investment_vehicle IS that fund), so they are alternative readings of one
-// number — never additive, and never a bare ✓ on WEST while goals are short.
-function TargetBar({ label, target, savings, note }: { label: string; target: number; savings: number; note?: string }) {
-  const vsTarget = savings - target
-  const onTrack = vsTarget >= 0
-  const pct = target > 0 ? Math.min(100, Math.round(Math.max(0, savings / target) * 100)) : 100
+const money = (n: number) => formatMoney(n)
+const compact = (n: number) => formatCompact(n)
+
+function verdict(p: MonthProjection, plan: HomeWestPlan | null | undefined): { text: string; tone: Tone; pill: string } {
+  const rate = p.expected_income > 0 ? Math.round((p.projected_savings / p.expected_income) * 100) : null
+  if (p.projected_savings < 0) return { text: 'Spending is running ahead of income this month', tone: 'negative', pill: 'Over income' }
+  const saving = rate != null ? `saving ${formatPct(rate)} of income` : 'saving this month'
+  const Saving = saving.charAt(0).toUpperCase() + saving.slice(1)
+  // The headline follows the plan, so it never says "on track" beside "Below plan".
+  if (!plan) return { text: `Projected: ${saving}`, tone: 'neutral', pill: 'Projected' }
+  if (p.projected_savings >= plan.capacity_target) return { text: `On plan: ${saving}`, tone: 'positive', pill: 'On plan' }
+  return { text: `${Saving} — ${compact(plan.capacity_target - p.projected_savings)} short of the WEST plan`, tone: 'warning', pill: 'Below plan' }
+}
+
+// One bar against the realistic WEST capacity; the stretch (full funding)
+// target is only a thin marker, never a second goal (UX-03, F04).
+function WestBar({ projected, plan }: { projected: number; plan: HomeWestPlan }) {
+  const capacity = plan.capacity_target
+  const stretch = plan.month_target > capacity ? plan.month_target : null
+  const scale = Math.max(capacity, stretch ?? 0, projected, 1)
+  const at = (n: number) => `${Math.min(100, Math.max(0, (n / scale) * 100))}%`
+  const ahead = projected >= capacity
+  const gap = capacity - projected
+  const pct = capacity > 0 ? Math.round((Math.max(0, projected) / capacity) * 100) : 0
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-semibold text-[hsl(var(--text-tertiary))]">{label} ${target.toLocaleString()}</span>
-        <span className={cn('text-xs font-bold', onTrack ? 'text-emerald-600' : 'text-amber-600')}>
-          {onTrack ? `+$${vsTarget.toLocaleString()} ahead` : `$${Math.abs(vsTarget).toLocaleString()} short · ${pct}%`}
-        </span>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-label font-medium text-fg-secondary">WEST plan this month</span>
+        <span className="num text-label text-fg-secondary" data-money>{compact(Math.max(0, projected))} of {compact(capacity)}</span>
       </div>
-      <div role="progressbar" aria-label={label} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} className="mt-1.5 h-1.5 rounded-full bg-[hsl(var(--bg-elevated))] overflow-hidden">
-        <div
-          className={cn('h-full rounded-full transition-all', onTrack ? 'bg-gradient-to-r from-emerald-400 to-teal-500' : 'bg-gradient-to-r from-amber-400 to-amber-600')}
-          style={{ width: `${pct}%` }}
-        />
+      <div
+        role="progressbar"
+        aria-label="Projected savings vs the WEST plan"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(capacity)}
+        aria-valuenow={Math.round(Math.min(capacity, Math.max(0, projected)))}
+        aria-valuetext={`${pct}% of the WEST plan — ${ahead ? `${compact(-gap)} ahead` : `${compact(gap)} to go`}`}
+        className="relative mt-2 h-2.5 w-full rounded-full bg-surface-3"
+      >
+        <div className={cn('h-full rounded-full transition-[width] duration-500', ahead ? 'bg-positive' : 'bg-warning')} style={{ width: at(Math.max(0, projected)) }} />
+        {stretch != null && (
+          <span aria-hidden="true" data-testid="plan-marker" className="absolute -top-1 h-[18px] w-0.5 -translate-x-1/2 rounded-full bg-fg" style={{ left: at(capacity) }} />
+        )}
       </div>
-      {note && <p className="mt-1 text-[10px] text-[hsl(var(--text-tertiary))]">{note}</p>}
+      <div className="relative mt-1.5 h-4 text-micro text-fg-tertiary">
+        {stretch != null && <span className="absolute -translate-x-1/2 whitespace-nowrap" style={{ left: at(capacity) }}>Plan</span>}
+      </div>
+      <p className={cn('mt-1 text-sm font-medium', ahead ? 'text-positive' : 'text-warning')} data-money>
+        {ahead ? `${compact(-gap)} ahead of the plan` : `${pct}% of the plan so far`}
+      </p>
+      {stretch != null && (
+        <p className="mt-1 hidden text-label text-fg-tertiary sm:block">
+          Stretch <span data-money>{compact(stretch)}</span>/mo funds WEST fully
+          {plan.purchase_gap != null && plan.purchase_gap > 0 && <> · purchase gap <span data-money>{compact(plan.purchase_gap)}</span></>}
+          {plan.furnishing_budget != null && plan.furnishing_budget > 0 && <> · furnishing <span data-money>{compact(plan.furnishing_budget)}</span></>}
+        </p>
+      )}
+      {plan.cumulative_vs_capacity_since_jan != null && (
+        <p className="mt-1 text-label text-fg-secondary" data-money>
+          Since January: {plan.cumulative_vs_capacity_since_jan >= 0 ? `${compact(plan.cumulative_vs_capacity_since_jan)} ahead of plan` : `${compact(-plan.cumulative_vs_capacity_since_jan)} behind plan`}
+        </p>
+      )}
     </div>
   )
 }
 
-// "How much will we save this month?" — the system's headline metric.
-// Full-width feature band under the hero: deterministic projection
-// (recomputed every load), both monthly finish lines, and Mona's daily
-// commentary from the brief.
-export function MonthProjectionCard({ projection, goalMonthlyNeeded, westTarget: pageWestTarget, compact = false }: Props) {
-  const [fetchedWestTarget, setWestTarget] = useState<number | null>(null)
+function OwnerSplit({ ownerSpend, highlightOwner }: { ownerSpend: Record<string, number>; highlightOwner?: string | null }) {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-full border border-border px-2.5 py-1 text-label text-fg-secondary" aria-label="Spent this month by owner">
+      {OWNERS.map(owner => {
+        const value = Object.entries(ownerSpend).find(([k]) => canonicalOwner(k) === owner)?.[1] ?? 0
+        return (
+          <span key={owner} className={cn('inline-flex items-center gap-1', highlightOwner === owner && 'font-semibold text-fg')}>
+            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full" style={{ background: `hsl(var(--${ownerSlot(owner)}))` }} />
+            <span>{owner.charAt(0)}</span>
+            <span className="num" data-money>{compact(value)}</span>
+          </span>
+        )
+      })}
+    </span>
+  )
+}
 
-  useEffect(() => {
-    if (pageWestTarget !== undefined) return
-    fetchWestProjection()
-      .then(d => {
-        const target = westMonthTarget(d, monthKey(new Date()))
-        if (target) setWestTarget(target)
-      })
-      .catch(() => {})
-  }, [pageWestTarget])
-
-  const westTarget = pageWestTarget !== undefined ? pageWestTarget : fetchedWestTarget
+// "This month": are we OK? One verdict, the projected savings number, one bar
+// against the WEST plan (UX-02, UX-03, VIS-21). The 2026 goals live on the
+// Goals page — they are the same GBM pesos, so they never sit beside WEST.
+export function MonthProjectionCard({ projection, westPlan, monthLabel, monthEndLabel, dayOfMonth, daysInMonth, ownerSpend, highlightOwner }: Props) {
   if (!projection) return null
   const p = projection
-  const positive = p.projected_savings >= 0
-  const goalNeed = goalMonthlyNeeded && goalMonthlyNeeded > 0 ? goalMonthlyNeeded : null
-  const showOverlapNote = westTarget != null && goalNeed != null
+  const v = verdict(p, westPlan)
+  const received = p.income_received ?? p.expected_income
+  const scheduled = p.income_still_scheduled ?? 0
+  const stillExpected = Math.max(0, p.projected_spend - p.spent_so_far)
+  const daysLeft = dayOfMonth && daysInMonth ? daysInMonth - dayOfMonth + 1 : null
 
   return (
-    <div className={cn(
-      'relative overflow-hidden rounded-2xl border p-5 sm:p-6 shadow-[var(--shadow-elevate)]',
-      compact && 'overview-projection-card',
-      positive
-        ? 'border-emerald-400/20 bg-gradient-to-br from-emerald-500/[0.09] via-[hsl(var(--card))] to-blue-500/[0.07]'
-        : 'border-rose-400/30 bg-gradient-to-br from-rose-500/[0.10] via-[hsl(var(--card))] to-orange-500/[0.06]'
-    )}>
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(45% 90% at 95% 0%, hsl(211 90% 60% / 0.10), transparent 60%)' }}
-      />
-      <div className={cn("relative grid gap-4", !compact && "md:grid-cols-[1.1fr_1fr] md:items-center")}>
-        {/* The number */}
-        <div>
-          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">
-            <TrendingUp className="h-3.5 w-3.5" /> {compact ? 'At month end · projected' : `Projected savings · ${new Date().toLocaleDateString('en-US', { month: 'long' })}`}
+    <Card variant="hero" padding="none" className="overflow-hidden" aria-labelledby="month-hero-title">
+      <div className="grid gap-5 p-4 sm:gap-6 sm:p-6 lg:grid-cols-[1.05fr_1fr] lg:gap-10">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="month-hero-title" className="text-label font-semibold uppercase tracking-[0.08em] text-fg-tertiary">{monthLabel ? `${monthLabel} · this month` : 'This month'}</h2>
+            <StatusPill tone={v.tone} className="text-[0.75rem]">{v.pill}</StatusPill>
+          </div>
+          <p className="mt-2 text-[1.0625rem] font-medium leading-snug text-fg sm:mt-3">{v.text}</p>
+          <p className={cn('num-metric mt-1 text-[2.5rem] font-semibold leading-[2.75rem] tracking-[-0.025em] sm:text-5xl', p.projected_savings < 0 ? 'text-negative' : 'text-fg')} data-money>
+            {money(p.projected_savings)}
           </p>
-          <p className={cn('num-metric mt-1 text-3xl sm:text-4xl font-black tracking-tight', positive ? 'text-emerald-400' : 'text-rose-400')}>
-            {positive ? '' : '−'}${Math.abs(p.projected_savings).toLocaleString()}
-          </p>
-          <p className="mt-1 text-xs text-[hsl(var(--text-secondary))]">
-            ${p.expected_income.toLocaleString()} income − ${p.projected_spend.toLocaleString()} projected spend
-            {p.known_upcoming_treatment > 0 && <> · incl. ${p.known_upcoming_treatment.toLocaleString()} treatment</>}
-          </p>
-          {/* The hero shows income actually received and spend to date; this is
-              a month-end forecast. Naming both gaps makes a forecast that sits
-              above today's banked net self-explanatory rather than impossible. */}
-          <p className="mt-0.5 text-[11px] text-[hsl(var(--text-tertiary))]">
-            {(p.income_still_scheduled ?? 0) > 0 && (
-              <>${(p.income_received ?? 0).toLocaleString()} received · ${(p.income_still_scheduled ?? 0).toLocaleString()} still scheduled · </>
-            )}
-            ${p.spent_so_far.toLocaleString()} spent · ${Math.max(0, p.projected_spend - p.spent_so_far).toLocaleString()} more expected
+          <p className="mt-1 text-label text-fg-tertiary">
+            projected savings{monthEndLabel ? ` by ${monthEndLabel}` : ' at month end'}{daysLeft != null ? ` · ${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : ''}
           </p>
         </div>
 
-        {/* The finish lines — labelled, because they measure different asks */}
-        {westTarget != null || goalNeed != null ? (
-          <div className="space-y-2.5">
-            {westTarget != null && (
-              <TargetBar label="WEST transfer" target={westTarget} savings={p.projected_savings} />
-            )}
-            {goalNeed != null && (
-              <TargetBar label="All 2026 goals" target={goalNeed} savings={p.projected_savings} />
-            )}
-            {showOverlapNote && (
-              <p className="text-[10px] leading-snug text-[hsl(var(--text-tertiary))]">
-                Both draw on the same GBM pot — don’t add these targets.
-              </p>
-            )}
-          </div>
-        ) : <div className="hidden md:block" />}
+        <div className="min-w-0 lg:pt-1">
+          {westPlan === undefined ? (
+            <div aria-label="Loading WEST plan" className="space-y-2.5">
+              <div className="h-3 w-40 animate-pulse rounded bg-surface-3" />
+              <div className="h-2.5 w-full animate-pulse rounded-full bg-surface-3" />
+              <div className="h-3 w-56 animate-pulse rounded bg-surface-3" />
+            </div>
+          ) : westPlan ? (
+            <WestBar projected={p.projected_savings} plan={westPlan} />
+          ) : (
+            <p className="text-sm text-fg-tertiary">WEST plan unavailable right now. The projection above is live.</p>
+          )}
+          <Link href="/finance/investments?tab=Real%20Estate" className="mt-2 hidden min-h-9 items-center gap-1 text-label font-medium text-fg-secondary hover:text-fg sm:inline-flex">
+            WEST tracker <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+        </div>
       </div>
-    </div>
+
+      <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
+        <dl className="grid grid-cols-3 divide-x divide-border">
+          <div className="pr-4">
+            <dt className="text-label text-fg-tertiary">Income</dt>
+            <dd className="mt-0.5 text-left text-[0.9375rem] font-semibold tabular-nums text-fg" data-money>{compact(received)}</dd>
+            {scheduled > 0 && <dd className="text-micro text-fg-tertiary" data-money>+{compact(scheduled)} due</dd>}
+          </div>
+          <div className="px-4">
+            <dt className="text-label text-fg-tertiary">Spent</dt>
+            <dd className="mt-0.5 text-left text-[0.9375rem] font-semibold tabular-nums text-fg" data-money>{compact(p.spent_so_far)}</dd>
+          </div>
+          <div className="pl-4">
+            <dt className="text-label text-fg-tertiary">Still expected</dt>
+            <dd className="mt-0.5 text-left text-[0.9375rem] font-semibold tabular-nums text-fg" data-money>{compact(stillExpected)}</dd>
+          </div>
+        </dl>
+        {ownerSpend && <OwnerSplit ownerSpend={ownerSpend} highlightOwner={highlightOwner} />}
+      </div>
+    </Card>
   )
 }

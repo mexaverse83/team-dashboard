@@ -1,86 +1,96 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
 import { MonthProjectionCard } from '@/components/finance/month-projection-card'
-
-// The card reads the WEST monthly target from the shared client fetch.
-vi.mock('@/lib/west-projection-client', () => ({
-  fetchWestProjection: () => Promise.resolve({
-    savings_plan: { months: [{ month: '2026-07', target: 73098 }] },
-  }),
-  westMonthTarget: (west: unknown, month: string) =>
-    (west as { savings_plan: { months: Array<{ month: string; target: number }> } })
-      .savings_plan.months.find(m => m.month === month)?.target ?? null,
-}))
+import { resolveWestPlan, type HomeWestPlan } from '@/components/finance/command-center/west-plan'
 
 const projection = {
-  expected_income: 209917,
-  spent_so_far: 126300,
-  projected_spend: 134385,
-  known_upcoming_treatment: 0,
-  projected_savings: 75532,
+  expected_income: 208800,
+  income_received: 208800,
+  income_still_scheduled: 0,
+  spent_so_far: 116466,
+  projected_spend: 125264,
+  projected_savings: 83536,
   method: 'pace',
 }
 
-describe('MonthProjectionCard', () => {
-  beforeEach(() => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    vi.setSystemTime(new Date(2026, 6, 25, 19, 0, 0))
+const plan: HomeWestPlan = {
+  month_target: 152583,
+  capacity_target: 118129,
+  purchase_gap: 1442447,
+  furnishing_budget: 1000000,
+  months_to_delivery: 14,
+  funded_pct: 87,
+  cumulative_vs_capacity_since_jan: null,
+  source: 'projection',
+}
+
+describe('MonthProjectionCard (This month hero)', () => {
+  it('leads with a verdict and the projected savings figure', () => {
+    render(<MonthProjectionCard projection={projection} westPlan={plan} monthLabel="October" monthEndLabel="Oct 31" dayOfMonth={28} daysInMonth={31} />)
+    // Below capacity the headline names the shortfall, never "on track" beside "Below plan".
+    expect(screen.getByText('Saving 40% of income — $34.6k short of the WEST plan')).toBeInTheDocument()
+    expect(screen.queryByText(/On track/)).not.toBeInTheDocument()
+    expect(screen.getByText('$83,536')).toBeInTheDocument()
+    expect(screen.getByText(/projected savings by Oct 31 · 4 days left/)).toBeInTheDocument()
   })
 
-  afterEach(() => {
-    vi.useRealTimers()
+  it('measures one bar against the WEST capacity, amber below it, with the stretch as a marker', () => {
+    render(<MonthProjectionCard projection={projection} westPlan={plan} />)
+    const bar = screen.getByRole('progressbar', { name: 'Projected savings vs the WEST plan' })
+    expect(bar).toHaveAttribute('aria-valuemax', '118129')
+    expect(bar.firstElementChild).toHaveClass('bg-warning')
+    expect(within(bar).getByTestId('plan-marker')).toBeInTheDocument()
+    expect(screen.getByText('71% of the plan so far')).toBeInTheDocument()
+    expect(screen.getByText('Below plan')).toBeInTheDocument()
+    // The stretch is broken into its two gaps, never a second target to add.
+    expect(screen.getByText(/Stretch/)).toHaveTextContent('Stretch $152.6k/mo funds WEST fully · purchase gap $1.4M · furnishing $1M')
+    expect(screen.queryByText(/2026 goals/)).not.toBeInTheDocument()
   })
 
-  it('renders the projected savings figure', async () => {
-    render(<MonthProjectionCard projection={projection} />)
-    expect(screen.getByText('$75,532')).toBeInTheDocument()
-    await act(async () => {})
+  it('turns green once the projection reaches capacity', () => {
+    render(<MonthProjectionCard projection={{ ...projection, projected_savings: 120000 }} westPlan={plan} />)
+    expect(screen.getByRole('progressbar').firstElementChild).toHaveClass('bg-positive')
+    expect(screen.getByText('$1.9k ahead of the plan')).toBeInTheDocument()
+    expect(screen.getByText('On plan')).toBeInTheDocument()
+    expect(screen.getByText('On plan: saving 57% of income')).toBeInTheDocument()
   })
 
-  // The whole point of the sub-line: reconcile the hero's spend-to-date with a
-  // month-end forecast, so neither number looks like it contradicts the other.
-  it('names the spend still expected before month end', async () => {
-    render(<MonthProjectionCard projection={projection} />)
-    expect(screen.getByText(/\$126,300 spent · \$8,085 more expected/)).toBeInTheDocument()
-    await act(async () => {})
+  it('shows a skeleton while WEST loads and a note when it is unavailable', () => {
+    const { rerender } = render(<MonthProjectionCard projection={projection} westPlan={undefined} />)
+    expect(screen.getByLabelText('Loading WEST plan')).toBeInTheDocument()
+    rerender(<MonthProjectionCard projection={projection} westPlan={null} />)
+    expect(screen.getByText(/WEST plan unavailable/)).toBeInTheDocument()
   })
 
-  it('renders nothing without a projection', async () => {
-    const { container } = render(<MonthProjectionCard projection={null} />)
-    await act(async () => {})
+  it('splits spend by owner in any casing', () => {
+    render(<MonthProjectionCard projection={projection} westPlan={plan} ownerSpend={{ bernardo: 73500, Laura: 43000 }} />)
+    expect(screen.getByLabelText('Spent this month by owner')).toHaveTextContent('B$73.5kL$43k')
+    expect(screen.getByText('Still expected').nextElementSibling).toHaveTextContent('$8.8k')
+    // Values sit under their labels, not right-aligned by .num.
+    expect(screen.getByText('Still expected').nextElementSibling).toHaveClass('text-left')
+  })
+
+  it('renders nothing without a projection', () => {
+    const { container } = render(<MonthProjectionCard projection={null} westPlan={plan} />)
     expect(container).toBeEmptyDOMElement()
   })
+})
 
-  // The WEST transfer and the combined 2026 goals draw on the same GBM pot, so
-  // the card must name which ask each bar measures — an unlabelled "covered"
-  // read as a contradiction against the widget's over-committed warning.
-  it('labels both monthly asks separately', async () => {
-    render(<MonthProjectionCard projection={projection} goalMonthlyNeeded={103296} />)
-    await waitFor(() => expect(screen.getByText(/WEST transfer \$73,098/)).toBeInTheDocument())
-    expect(screen.getByText(/All 2026 goals \$103,296/)).toBeInTheDocument()
+describe('resolveWestPlan', () => {
+  const projectionPayload = {
+    target: 11204000,
+    months_to_delivery: 14,
+    projected_at_delivery: { total_projected: 9761553 },
+    savings_plan: { purchase_gap: 1442447, furnishing_budget: 1000000, months: [{ month: '2026-10', capacity: 118129, target: 152583 }] },
+  }
+
+  it('prefers summary.west_plan when present', () => {
+    const fromSummary = resolveWestPlan({ month_target: 1, capacity_target: 2, projected_savings: 0, pct_of_capacity: 0, pct_of_target: 0, purchase_gap: 3, furnishing_budget: 4, cumulative_vs_capacity_since_jan: -5, months_to_delivery: 6, funded_pct: 7 }, projectionPayload, '2026-10')
+    expect(fromSummary).toMatchObject({ capacity_target: 2, cumulative_vs_capacity_since_jan: -5, source: 'summary' })
   })
 
-  it('shows WEST ahead and goals short off the same projection', async () => {
-    render(<MonthProjectionCard projection={projection} goalMonthlyNeeded={103296} />)
-    await waitFor(() => expect(screen.getByText('+$2,434 ahead')).toBeInTheDocument())
-    expect(screen.getByText(/\$27,764 short · 73%/)).toBeInTheDocument()
-  })
-
-  it('warns that the two targets are not additive', async () => {
-    render(<MonthProjectionCard projection={projection} goalMonthlyNeeded={103296} />)
-    await waitFor(() => expect(screen.getByText(/don’t add these targets/)).toBeInTheDocument())
-  })
-
-  it('omits the overlap note when only one target is known', async () => {
-    render(<MonthProjectionCard projection={projection} />)
-    await waitFor(() => expect(screen.getByText(/WEST transfer \$73,098/)).toBeInTheDocument())
-    expect(screen.queryByText(/don’t add these targets/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/All 2026 goals/)).not.toBeInTheDocument()
-  })
-
-  it('ignores a zero or missing goal need', async () => {
-    render(<MonthProjectionCard projection={projection} goalMonthlyNeeded={0} />)
-    await waitFor(() => expect(screen.getByText(/WEST transfer \$73,098/)).toBeInTheDocument())
-    expect(screen.queryByText(/All 2026 goals/)).not.toBeInTheDocument()
+  it('falls back to the WEST projection for the month', () => {
+    expect(resolveWestPlan(undefined, projectionPayload, '2026-10')).toMatchObject({ capacity_target: 118129, month_target: 152583, funded_pct: 87, months_to_delivery: 14, source: 'projection' })
+    expect(resolveWestPlan(undefined, projectionPayload, '2026-12')).toBeNull()
   })
 })

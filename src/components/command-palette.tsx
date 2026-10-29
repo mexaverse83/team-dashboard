@@ -2,8 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, X, type LucideIcon } from 'lucide-react'
-import { financeToolSections, primaryFinanceSections, wolffNavItem } from '@/lib/finance-navigation'
+import { Search, X, type LucideIcon } from 'lucide-react'
+import {
+  financeActions,
+  homeNavItem,
+  moreFinanceSection,
+  paletteOnlyItems,
+  primaryFinanceSections,
+  requestQuickAdd,
+  type FinanceAction,
+} from '@/lib/finance-navigation'
 
 interface Destination {
   label: string
@@ -12,13 +20,17 @@ interface Destination {
   icon: LucideIcon
   description: string
   keywords?: string[]
+  action?: FinanceAction['id']
 }
 
+// Mirrors the sidebar tree (Home / Activity / Plan / Wealth / Mona / More),
+// plus actions and palette-only shortcuts such as Crypto.
 const DESTINATIONS: Destination[] = [
-  { label: 'New transaction', href: '/finance/transactions?add=1', group: 'Actions', icon: Plus, description: 'Record income or spending', keywords: ['add', 'expense', 'income'] },
-  { ...wolffNavItem, group: 'Actions' },
+  ...financeActions.map(({ id, ...action }) => ({ ...action, action: id, group: 'Actions' })),
+  { ...homeNavItem, group: 'Home' },
   ...primaryFinanceSections.flatMap(section => section.items.map(item => ({ ...item, group: section.label }))),
-  ...financeToolSections.flatMap(section => section.items.map(item => ({ ...item, group: section.label }))),
+  ...moreFinanceSection.items.map(item => ({ ...item, group: moreFinanceSection.label })),
+  ...paletteOnlyItems.map(item => ({ ...item, group: 'Shortcuts' })),
 ]
 
 export function CommandPalette() {
@@ -67,9 +79,11 @@ export function CommandPalette() {
   }, [close])
 
   const navigateTo = useCallback(
-    (href: string) => {
-      router.push(href)
+    (item: Destination) => {
       close()
+      // Quick add opens the global sheet in place; the deep link is the fallback.
+      if (item.action === 'add-expense' && requestQuickAdd()) return
+      router.push(item.href)
     },
     [router, close],
   )
@@ -142,7 +156,7 @@ export function CommandPalette() {
     } else if (e.key === 'Enter') {
       e.preventDefault()
       const item = filtered[selectedIndex]
-      if (item) navigateTo(item.href)
+      if (item) navigateTo(item)
     }
   }
 
@@ -177,7 +191,7 @@ export function CommandPalette() {
             onKeyDown={onInputKeyDown}
             className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-[hsl(var(--muted-foreground))]"
           />
-          <button type="button" onClick={closeAndRestoreFocus} aria-label="Close command palette" className="rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-white/5 hover:text-white"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={closeAndRestoreFocus} aria-label="Close command palette" className="flex h-11 w-11 items-center justify-center rounded-lg text-fg-tertiary hover:bg-surface-2 hover:text-fg"><X className="h-4 w-4" /></button>
         </div>
 
         <div className="max-h-[50vh] overflow-y-auto p-2">
@@ -188,7 +202,7 @@ export function CommandPalette() {
           ) : (
             grouped.map(({ group, items }, groupIdx) => (
               <div key={`${group}-${groupIdx}`}>
-                <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                <p className="px-3 pb-1 pt-2 text-micro font-semibold uppercase tracking-wider text-fg-tertiary">
                   {group}
                 </p>
                 {items.map(({ item, index }) => {
@@ -198,16 +212,14 @@ export function CommandPalette() {
                     <button
                       key={`${item.href}-${item.label}`}
                       type="button"
-                      onClick={() => navigateTo(item.href)}
+                      onClick={() => navigateTo(item)}
                       onMouseEnter={() => setSelectedIndex(index)}
-                      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                        selected
-                          ? 'bg-blue-500/12 text-blue-200'
-                          : 'text-[hsl(var(--foreground))]'
+                      className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                        selected ? 'bg-surface-3 text-fg' : 'text-fg'
                       }`}
                     >
                       <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                      <span className="min-w-0 flex-1"><span className="block truncate">{item.label}</span><span className="block truncate text-[10px] text-[hsl(var(--muted-foreground))]">{item.description}</span></span>
+                      <span className="min-w-0 flex-1"><span className="block truncate">{item.label}</span><span className="block truncate text-micro text-fg-tertiary">{item.description}</span></span>
                     </button>
                   )
                 })}
