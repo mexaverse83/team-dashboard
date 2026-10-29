@@ -62,6 +62,13 @@ const MONTHS: Record<BriefLang, string[]> = {
   es: ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'],
 }
 
+const MONTHS_LONG: Record<BriefLang, string[]> = {
+  en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  es: ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'],
+}
+
+// A negative room is the whole month's overspend (summary.variable.left), so
+// it is worded for the month, never as "this week" with a "$0/day" allowance.
 const T = {
   en: {
     pause: (cat: string, over: string) => `Pause ${cat} — ${over} over`,
@@ -71,10 +78,11 @@ const T = {
     west: (gap: string) => `WEST: ${gap} to go this month`,
     westDetail: (projected: string, capacity: string) => `Projected savings ${projected} vs ${capacity} capacity.`,
     onPlan: (left: string) => `On plan — ${left} left this week`,
-    overWeek: (over: string) => `Over plan — ${over} past this week's room`,
+    overWeek: (over: string, month: string) => `Over plan — everyday budgets ${over} over for ${month}`,
     weekTitle: (left: string) => `${left} left this week`,
-    weekOver: (over: string) => `${over} over this week`,
+    weekOver: (over: string, month: string) => `Everyday budgets ${over} over for ${month}`,
     weekDetail: (through: string, perDay: string) => `Through ${through} · about ${perDay}/day`,
+    overDetail: (through: string) => `Pause discretionary spend through ${through}`,
     householdTitle: (projected: string) => `Projected savings ${projected} this month`,
     householdWest: (pct: number, capacity: string) => `${pct}% of the ${capacity} WEST capacity.`,
     householdPlain: (income: string, spent: string) => `Income ${income} · spent ${spent} so far.`,
@@ -91,10 +99,11 @@ const T = {
     west: (gap: string) => `WEST: faltan ${gap} este mes`,
     westDetail: (projected: string, capacity: string) => `Ahorro proyectado ${projected} vs capacidad ${capacity}.`,
     onPlan: (left: string) => `En plan — quedan ${left} esta semana`,
-    overWeek: (over: string) => `Fuera de plan — ${over} arriba esta semana`,
+    overWeek: (over: string, month: string) => `Fuera de plan — presupuestos diarios ${over} arriba en ${month}`,
     weekTitle: (left: string) => `Quedan ${left} esta semana`,
-    weekOver: (over: string) => `${over} arriba esta semana`,
+    weekOver: (over: string, month: string) => `Presupuestos diarios ${over} arriba en ${month}`,
     weekDetail: (through: string, perDay: string) => `Hasta ${through} · ~${perDay}/día`,
+    overDetail: (through: string) => `Pausa el gasto discrecional hasta ${through}`,
     householdTitle: (projected: string) => `Ahorro proyectado ${projected} este mes`,
     householdWest: (pct: number, capacity: string) => `${pct}% de la capacidad WEST de ${capacity}.`,
     householdPlain: (income: string, spent: string) => `Ingreso ${income} · gastado ${spent}.`,
@@ -146,6 +155,8 @@ export function buildDeterministicBrief(summary: BriefSummary, { now = new Date(
   const today = `${mx.year}-${String(mx.month).padStart(2, '0')}-${String(mx.day).padStart(2, '0')}`
   const month = summary.current_month?.month || today.slice(0, 7)
   const room = weekRoom(summary, today, mx.dayOfWeek, lang)
+  const monthName = MONTHS_LONG[lang][Number(month.slice(5, 7)) - 1] || ''
+  const roomDetail = room.left >= 0 ? t.weekDetail(room.through, money(room.left / room.days)) : t.overDetail(room.through)
   const askUrl = (q: string) => `/finance/ask?prompt=${encodeURIComponent(q)}`
 
   // 1. Category well over budget.
@@ -194,8 +205,8 @@ export function buildDeterministicBrief(summary: BriefSummary, { now = new Date(
     } else {
       // 4. On plan.
       directive = {
-        title: room.left >= 0 ? t.onPlan(money(room.left)) : t.overWeek(money(-room.left)),
-        detail: t.weekDetail(room.through, money(Math.max(0, room.left) / room.days)),
+        title: room.left >= 0 ? t.onPlan(money(room.left)) : t.overWeek(money(-room.left), monthName),
+        detail: roomDetail,
         url: `/finance/budgets?month=${month}`,
         rule: 'on-plan',
         tone: room.left >= 0 ? 'positive' : 'negative',
@@ -217,8 +228,8 @@ export function buildDeterministicBrief(summary: BriefSummary, { now = new Date(
     directive,
     coach: { title: coachQuestion, url: askUrl(coachQuestion) },
     week: {
-      title: room.left >= 0 ? t.weekTitle(money(room.left)) : t.weekOver(money(-room.left)),
-      detail: t.weekDetail(room.through, money(Math.max(0, room.left) / room.days)),
+      title: room.left >= 0 ? t.weekTitle(money(room.left)) : t.weekOver(money(-room.left), monthName),
+      detail: roomDetail,
       left: room.left,
       through_label: room.through,
     },

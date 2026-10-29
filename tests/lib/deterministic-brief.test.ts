@@ -98,7 +98,11 @@ describe('buildDeterministicBrief', () => {
     expect(ok.week.through_label).toBe('Sun Nov 1')
 
     const over = buildDeterministicBrief(summary({ variable: { left: -5_486, through_label: 'Sat Oct 31', days_left: 4 } }), { now: NOW })
-    expect(over.directive.title).toBe('Over plan — $5,486 past this week\'s room')
+    // A negative room is the month's overspend: worded for the month, no "$0/day".
+    expect(over.directive.title).toBe('Over plan — everyday budgets $5,486 over for October')
+    expect(over.directive.detail).toBe('Pause discretionary spend through Sat Oct 31')
+    expect(over.week.title).toBe('Everyday budgets $5,486 over for October')
+    expect(over.week.detail).not.toMatch(/\/day/)
     expect(over.directive.tone).toBe('negative')
     expect(over.week.left).toBe(-5_486)
   })

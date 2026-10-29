@@ -47,8 +47,9 @@ export function DailySpendingPlan({ summary, westTarget, ownerSpent }: {
   const freeExtra = plan.safe_to_spend_day
 
   const items = [
-    { id: 'today', label: 'Today', value: money(today), note: weekLeft > 0 ? 'within your budgets' : 'week is over plan', primary: true, negative: false },
-    { id: 'week', label: 'This week', value: money(weekLeft), note: weekLeft < 0 ? `over plan through ${through}` : `left through ${through}`, primary: false, negative: weekLeft < 0 },
+    { id: 'today', label: 'Today', value: money(today), note: weekLeft > 0 ? 'within your budgets' : `pause extras until ${through}`, primary: true, negative: false },
+    // A negative room is the month's overspend (summary.variable.left), not this week's.
+    { id: 'week', label: weekLeft < 0 ? 'This month' : 'This week', value: money(weekLeft), note: weekLeft < 0 ? 'everyday budgets over' : `left through ${through}`, primary: false, negative: weekLeft < 0 },
     { id: 'extra', label: 'Free extra', value: freeExtra > 0 ? money(freeExtra) : EMPTY_VALUE, note: freeExtra > 0 ? 'per day, above the plan' : 'all slack goes to WEST', primary: false, negative: false },
   ]
 
@@ -76,9 +77,9 @@ export function DailySpendingPlan({ summary, westTarget, ownerSpent }: {
         <div id="daily-plan-explanation" className="border-t border-border bg-surface-2 px-4 py-3 text-label leading-relaxed text-fg-secondary sm:px-5">
           {expanded === 'today' && <p>{weekLeft > 0
             ? `This week’s ${money(weekLeft)} spread over its ${weekDays} day${weekDays === 1 ? '' : 's'}, today included. This spending is already in the plan.`
-            : `Everyday spending is already past this week’s room, so nothing more fits the plan today. Anything extra comes out of savings.`}</p>}
+            : `Everyday budgets are already over for the month, so nothing more fits the plan today. Anything extra comes out of savings.`}</p>}
           {expanded === 'week' && <p>{weekLeft < 0
-            ? `Everyday spending is ${money(-weekLeft)} past the room through ${through}. Anything more comes out of savings.`
+            ? `Everyday budgets are ${money(-weekLeft)} over for the whole month. Pause discretionary spend through ${through}; anything more comes out of savings.`
             : `${money(weekLeft)} of everyday budget left through ${through} (${weekDays} day${weekDays === 1 ? '' : 's'}, today included). It already includes today’s amount; don’t add the two.`}</p>}
           {expanded === 'extra' && <>
             <p>{money(room.income)} expected income − {money(room.spent)} spent − {money(room.reserved)} still reserved − {money(room.goalNeed)} for goals and WEST.</p>

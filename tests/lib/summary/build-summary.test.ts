@@ -186,8 +186,8 @@ describe('buildSummary on the October 2026 fixture', () => {
 
   it('one free-cash number: goal funding, cash flow and the year-end plan agree', async () => {
     const s = await build()
-    // Clean spend Jul 96,900 (75k clinic lump out), Aug 102,900, Sep 96,900 → 96,900.
-    expect(s.cash_flow.planned_spend).toBe(96900)
+    // Planned spend is income − free cash, so the on-screen subtraction reconciles.
+    expect(s.cash_flow.monthly_income - s.cash_flow.planned_spend).toBe(s.cash_flow.discretionary_available)
     expect(s.cash_flow.planned_spend_basis).toBe('median-clean-3mo')
     const y = s.year_end_goal_plan as Record<string, number>
     expect(s.goal_funding.discretionary_available).toBe(y.monthly_free_cash)

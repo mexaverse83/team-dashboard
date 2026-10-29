@@ -281,7 +281,9 @@ export async function buildSummary(
   // lumps out. Goal funding, the year-end plan and cash_flow all read it.
   const rr = householdRunRate(txRows, month)
   const hasHistory = rr.months_used > 0
-  const plannedMonthlySpend = hasHistory ? rr.typical_spend : fixedCommitments
+  // Income − planned spend must equal free cash on screen (medians don't
+  // subtract), so planned spend is derived from the two shown numbers.
+  const plannedMonthlySpend = hasHistory ? Math.max(0, Math.round(totalMonthlyIncome - rr.run_rate)) : fixedCommitments
   const discretionary = hasHistory ? rr.run_rate : totalMonthlyIncome - fixedCommitments
 
   const goalsBuild = buildGoals(goals, mx, cryptoQuantities(holdings))
@@ -404,7 +406,7 @@ export async function buildSummary(
       monthly_income: totalMonthlyIncome,
       // Budgets + MSI + debt minimums: what is budgeted, not what is spent.
       fixed_commitments: fixedCommitments,
-      // Median clean spend of the same 3 months the free-cash run rate uses.
+      // monthly_income − discretionary_available, so the subtraction on screen reconciles.
       planned_spend: plannedMonthlySpend,
       planned_spend_basis: hasHistory ? 'median-clean-3mo' : 'budgets',
       // Free cash per month: the run rate (== year_end_goal_plan.monthly_free_cash

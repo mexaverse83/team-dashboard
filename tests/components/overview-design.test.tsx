@@ -25,9 +25,10 @@ describe('Can we spend?', () => {
 
   it('shows the signed weekly room and through label from summary.variable', () => {
     render(<DailySpendingPlan summary={{ ...summary, variable: { budget: 20000, spent: 25486, left: -5486, days_left: 4, through_label: 'Sat Oct 31', status: 'over' } }} westTarget={null} />)
-    const week = screen.getByRole('button', { name: /This week/ })
+    // A negative room is the month's overspend, so the tile says so (not "this week").
+    const week = screen.getByRole('button', { name: /This month/ })
     expect(week).toHaveTextContent('−$5,486')
-    expect(week).toHaveTextContent('over plan through Sat Oct 31')
+    expect(week).toHaveTextContent('everyday budgets over')
     expect(week.querySelector('.num-metric')).toHaveClass('text-negative')
   })
 
@@ -45,10 +46,10 @@ describe('Can we spend?', () => {
       // Groceries has $4k left, Other is $12k over: the week is over plan.
       render(<DailySpendingPlan summary={october([{ category: 'Groceries', budget: 8000, spent: 4000 }, { category: 'Other', budget: 2000, spent: 14000 }])} westTarget={null} />)
       const today = screen.getByRole('button', { name: /^Today/ })
-      const week = screen.getByRole('button', { name: /This week/ })
+      const week = screen.getByRole('button', { name: /This month/ })
       expect(week).toHaveTextContent('−$8,000')
       expect(today).toHaveTextContent('$0')
-      expect(today).toHaveTextContent('week is over plan')
+      expect(today).toHaveTextContent('pause extras until')
     })
 
     it('spreads the same weekly room over its days', () => {
