@@ -15,15 +15,21 @@
 //   pool       = expected_income − target − (spent_so_far − spent) − committed
 //     target    = west_plan.capacity_target (the month's WEST savings target)
 //     committed = what the rest of the month still owes outside the everyday
-//                 categories: the larger of
-//                   scheduled_left — every subscription occurrence due this month
-//                     that has not posted (overdue ones too: the processor may be
-//                     behind), MSI payments until the processor has posted this
-//                     month's (any auto-msi row this month), and the treatment
-//                     and baby events still owed; and
+//                 categories:
+//                   max(subscriptions_left, fixed_left) + msi_left + plan_left
+//                   subscriptions_left — every subscription occurrence due this
+//                     month that has not posted (overdue ones too: the processor
+//                     may be behind);
 //                   fixed_left — the non-everyday budget rows' projected month
 //                     total minus what they have spent (Maintenance, Electricity…).
-//                 Never their sum: subscriptions sit inside those budget rows.
+//                     Only these two overlap (subscriptions sit inside those
+//                     budget rows), so only they take the larger;
+//                   msi_left — MSI payments until the processor has posted this
+//                     month's (any auto-msi row this month). They post in the
+//                     plan's own category, often an everyday one, so they are
+//                     added (the processor posts them all on its first run);
+//                   plan_left — the treatment and baby events still owed, which
+//                     the projection adds outside the budget rows too.
 //   reserve    = RESERVE_SHARE × max(0, pool − everyday budgets left this morning)
 //                (the cushion over target if the everyday budgets are used as
 //                planned; budgets left is signed like `variable` and floored at
@@ -40,14 +46,19 @@
 // Spending exactly the allowance every remaining day lands the month at
 // target + reserve.
 //
-// state: 'risk' when room ≤ 0 (even a no-spend day leaves the target short),
-// 'over' when spent > allowance, 'tight' when under TIGHT_SHARE of the
-// allowance is left, else 'ok'.
+// state: 'risk' when room − spent ≤ 0 (even spending nothing more this month
+// leaves the target short: a no-spend day is the recovery), 'over' when
+// spent > allowance, 'tight' when under TIGHT_SHARE of the allowance is left,
+// else 'ok'.
 //
-// Past days (week, streak, yesterday) rebuild that morning's pool from today's:
-// pool(d) = pool(today) + everyday spend from d to yesterday. Income, target
-// and the reserve are taken as today's, so earlier rooms are a close
-// approximation. Only this month's days count (the ledger read is this month).
+// Past days (week, streak, yesterday) and tomorrow rebuild that morning's pool
+// and reserve the same way: pool(d) = pool(today) + everyday spend from d to
+// yesterday (minus today's spend for tomorrow), budgets_left(d) likewise, and
+// reserve(d) from those, so each day's room is the one the phone showed (or
+// will show) that morning. Income, target and committed are taken as today's,
+// so earlier rooms are a close approximation. Only this month's days count
+// (the ledger read is this month), and the week is left empty until
+// WEEK_MIN_DAYS finished days exist (a lone ring on day 1 reads as missing data).
 //
 // Returns null without a target or projection, or when the ledger or category
 // read failed: without them today's spend is unknown, and a full-looking
@@ -65,6 +76,8 @@ export const TIGHT_SHARE = 0.25
 export const DUE_SOON_DAYS = 1
 /** On a no-spend day, the next bill within this many days is the nudge. */
 export const DUE_WEEK_DAYS = 7
+/** The week row needs at least this many finished days this month. */
+export const WEEK_MIN_DAYS = 3
 
 export type TodayState = 'ok' | 'tight' | 'over' | 'risk'
 
@@ -133,7 +146,7 @@ export interface WidgetToday {
   /** Finished days in a row this month at or under that day's room. */
   streak: number | null
   yesterday: { date: string; spent: number; room: number; diff: number } | null
-  /** Up to 7 days ending today (this month only). */
+  /** Up to 7 days ending today (this month only); empty until WEEK_MIN_DAYS finished days exist. */
   week: TodayDay[]
   nudge: TodayNudge | null
   goals: TodayGoalRow[]
@@ -206,23 +219,39 @@ function chargeDates(next: string | null | undefined, frequency: string, monthSt
 }
 
 /**
- * Charges the plan knows about this month that have not posted yet.
+ * Charges the plan knows about this month that have not posted yet, by kind.
  * MSI: the processor posts every active plan's payment for the month on its
  * first run (dated today when the due day is still ahead), so they are pending
  * only until this month's first auto-msi row exists.
  */
-export function scheduledLeft(summary: TodayInput['summary'], monthStart: string, monthEnd: string, msiPosted: boolean): number {
-  let total = 0
+export function scheduledParts(summary: TodayInput['summary'], monthStart: string, monthEnd: string, msiPosted: boolean) {
+  let subscriptions = 0, msi = 0
   for (const s of summary.subscriptions?.active || []) {
-    total += chargeDates(s.next_charge ?? s.last_charge, s.frequency, monthStart, monthEnd).length * Math.abs(num(s.amount))
+    subscriptions += chargeDates(s.next_charge ?? s.last_charge, s.frequency, monthStart, monthEnd).length * Math.abs(num(s.amount))
   }
   if (!msiPosted) {
     for (const m of summary.installments?.active || []) {
-      if (String(m.end_date || '').slice(0, 10) >= monthStart) total += Math.abs(num(m.monthly_payment))
+      if (String(m.end_date || '').slice(0, 10) >= monthStart) msi += Math.abs(num(m.monthly_payment))
     }
   }
-  total += num(summary.month_projection?.known_upcoming_treatment) + num(summary.month_projection?.known_upcoming_baby)
-  return round(total)
+  const plan = num(summary.month_projection?.known_upcoming_treatment) + num(summary.month_projection?.known_upcoming_baby)
+  return { subscriptions: round(subscriptions), msi: round(msi), plan: round(plan) }
+}
+
+/** Everything scheduled and unposted this month (subscriptions + MSI + plan events). */
+export function scheduledLeft(summary: TodayInput['summary'], monthStart: string, monthEnd: string, msiPosted: boolean): number {
+  const p = scheduledParts(summary, monthStart, monthEnd, msiPosted)
+  return p.subscriptions + p.msi + p.plan
+}
+
+/**
+ * What the rest of the month owes outside the everyday categories. Only the
+ * subscriptions overlap the fixed budget rows (they post inside them), so only
+ * those two take the larger; MSI and the treatment/baby events are added.
+ */
+export function committedLeft(summary: TodayInput['summary'], monthStart: string, monthEnd: string, msiPosted: boolean): number {
+  const p = scheduledParts(summary, monthStart, monthEnd, msiPosted)
+  return round(Math.max(p.subscriptions, fixedLeft(summary)) + p.msi + p.plan)
 }
 
 /**
@@ -326,50 +355,62 @@ export function buildToday(input: TodayInput): WidgetToday | null {
   const series = everydayByDay(transactions, input.categoryNames, month, day)
   const spentToday = series.perDay[day - 1]
   const msiPosted = transactions.some(t => String(t.transaction_date || '').startsWith(month) && hasTag(t, 'auto-msi'))
-  const scheduled = scheduledLeft(summary, monthStart, monthEnd, msiPosted)
-  const committed = Math.max(scheduled, fixedLeft(summary))
+  const committed = committedLeft(summary, monthStart, monthEnd, msiPosted)
   const projected = num(mp.projected_savings)
 
   const pool = round(num(mp.expected_income) - target - (num(mp.spent_so_far) - spentToday) - committed)
   // The everyday budgets still unspent this morning, signed like `variable`
   // (an overrun in one category eats the others' room).
-  const budgetLeft = Math.max(0, (cm.budget_vs_actual || [])
+  const budgetLeftSigned = (cm.budget_vs_actual || [])
     .filter(b => CONTROLLABLE.has(b.category) && !b.is_non_monthly)
-    .reduce((s, b) => s + num(b.budget) - (num(b.spent) - (series.todayByCategory.get(b.category) || 0)), 0))
-  const reserve = round(RESERVE_SHARE * Math.max(0, pool - budgetLeft))
+    .reduce((s, b) => s + num(b.budget) - (num(b.spent) - (series.todayByCategory.get(b.category) || 0)), 0)
+  // A morning's reserve from that morning's pool and signed budgets left.
+  const reserveFor = (poolD: number, budgetLeftD: number) => round(RESERVE_SHARE * Math.max(0, poolD - Math.max(0, budgetLeftD)))
+  const reserve = reserveFor(pool, budgetLeftSigned)
   const room = pool - reserve
   const allowance = room > 0 ? floor10(room / daysLeft) : 0
   const left = allowance - spentToday
-  const state: TodayState = room <= 0 ? 'risk' : spentToday > allowance ? 'over' : left < allowance * TIGHT_SHARE ? 'tight' : 'ok'
-  const tomorrow = daysLeft > 1 ? floor10((room - spentToday) / (daysLeft - 1)) : null
+  // Past the whole month's room (one purchase can do it): the target is short now, whatever the morning said.
+  const state: TodayState = room - spentToday <= 0 ? 'risk' : spentToday > allowance ? 'over' : left < allowance * TIGHT_SHARE ? 'tight' : 'ok'
+  // Tomorrow's morning: its own pool and reserve, as the phone will show it then.
+  const poolTomorrow = pool - spentToday
+  const roomTomorrow = poolTomorrow - reserveFor(poolTomorrow, budgetLeftSigned - spentToday)
+  const tomorrow = daysLeft > 1 ? floor10(roomTomorrow / (daysLeft - 1)) : null
 
   // What a no-spend day adds: one day of the everyday spend the projection still expects.
   const usual = Math.max(0, num(mp.projected_spend) - num(mp.spent_so_far) - committed) / daysLeft
   const pct = Math.round((projected / target) * 100)
   const buffer = projected - target
 
-  // Morning room of each earlier day, newest first.
+  // Morning room of each earlier day, newest first: that morning's pool,
+  // budgets left and reserve (the reserve shrinks with the pool once the
+  // everyday budgets are spent, so today's would misstate earlier rooms).
   const rooms: number[] = new Array(day).fill(0)
   rooms[day - 1] = allowance
-  let poolD = pool
+  let poolD = pool, budgetD = budgetLeftSigned
   for (let d = day - 1; d >= 1; d--) {
     poolD += series.perDay[d - 1]
-    rooms[d - 1] = floor10((poolD - reserve) / (daysIn - d + 1))
+    budgetD += series.perDay[d - 1]
+    const roomD = poolD - reserveFor(poolD, budgetD)
+    rooms[d - 1] = roomD > 0 ? floor10(roomD / (daysIn - d + 1)) : 0
   }
   const okOn = (d: number) => series.perDay[d - 1] <= rooms[d - 1]
   let streak = 0
   for (let d = day - 1; d >= 1 && okOn(d); d--) streak++
   const week: TodayDay[] = []
-  for (let d = Math.max(1, day - 6); d <= day; d++) {
-    const isToday = d === day
-    week.push({ date: `${month}-${pad2(d)}`, spent: series.perDay[d - 1], room: rooms[d - 1], ok: isToday ? null : okOn(d), ...(isToday ? { today: true } : {}) })
+  if (day - 1 >= WEEK_MIN_DAYS) {
+    for (let d = Math.max(1, day - 6); d <= day; d++) {
+      const isToday = d === day
+      week.push({ date: `${month}-${pad2(d)}`, spent: series.perDay[d - 1], room: rooms[d - 1], ok: isToday ? null : okOn(d), ...(isToday ? { today: true } : {}) })
+    }
   }
   const yesterday: WidgetToday['yesterday'] = day > 1
     ? { date: `${month}-${pad2(day - 1)}`, spent: series.perDay[day - 2], room: rooms[day - 2], diff: rooms[day - 2] - series.perDay[day - 2] }
     : null
 
   const stretch = input.stretchTarget && input.stretchTarget > 0 ? round(input.stretchTarget) : null
-  const goals = goalRows(input, month, pct, buffer, room, daysLeft)
+  // What the days left can still spend after today's purchases (the goal row's "free" line).
+  const goals = goalRows(input, month, pct, buffer, room - spentToday, daysLeft)
   return {
     date: today,
     basis: 'goal',

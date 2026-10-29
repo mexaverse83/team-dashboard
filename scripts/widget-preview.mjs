@@ -61,6 +61,12 @@ function boxFor(family, s) {
   return [257, 26, 0]
 }
 
+const bigBuy = { ...fixtures.overToday, today: { ...fixtures.overToday.today, spent: 9000, left: 1880 - 9000, tomorrow: 0 } }
+const fallbackPast = (() => {
+  const u = fixtures.underBudget, ds = [...u.daily_spend]
+  ds[ds.length - 1] += 6000
+  return { ...u, daily_spend: ds, variable: { ...u.variable, spent: u.variable.spent + 6000, left: u.variable.left - 6000 } }
+})()
 const FAMILIES = ['small', 'medium', 'large', 'accessoryRectangular', 'accessoryCircular', 'accessoryInline']
 const BOTH = ['light', 'dark']
 const cases = [
@@ -78,6 +84,13 @@ const cases = [
   { name: 'rect-risk', family: 'accessoryRectangular', fixture: fixtures.goalRisk, now: fixtures.NOW_TODAY, schemes: ['dark'] },
   { name: 'inline-over', family: 'accessoryInline', fixture: fixtures.overToday, now: fixtures.NOW_TODAY, schemes: ['dark'] },
   { name: 'rect-es-over', family: 'accessoryRectangular', param: 'lang=es', fixture: fixtures.overToday, now: fixtures.NOW_TODAY, schemes: ['dark'] },
+  // Past the whole month's room in one buy (older 'over' payload with tomorrow 0): a no-spend day.
+  ...['small', 'medium', 'accessoryRectangular', 'accessoryCircular'].map(family => ({ name: family.replace('accessoryRectangular', 'rect').replace('accessoryCircular', 'circ') + '-bigbuy', family, fixture: bigBuy, now: fixtures.NOW_TODAY, schemes: ['dark'] })),
+  // The everyday-budget fallback after today's share is spent.
+  ...['small', 'large', 'accessoryRectangular', 'accessoryInline'].map(family => ({ name: family.replace('accessoryRectangular', 'rect').replace('accessoryInline', 'inline') + '-fallback-past', family, fixture: fallbackPast, now: fixtures.NOW_WEEKDAY, schemes: ['light'] })),
+  // A same-day cache on the small lock screens.
+  { name: 'inline-offline-cache', family: 'accessoryInline', fail: true, cache: base, now: fixtures.NOW_TODAY, schemes: ['dark'] },
+  { name: 'circ-offline-cache', family: 'accessoryCircular', fail: true, cache: base, now: fixtures.NOW_TODAY, schemes: ['dark'] },
   { name: 'medium-lastday', family: 'medium', fixture: fixtures.lastDay, now: fixtures.NOW_LAST_DAY, schemes: ['light'] },
   { name: 'large-lastday', family: 'large', fixture: fixtures.lastDay, now: fixtures.NOW_LAST_DAY, schemes: ['dark'] },
   { name: 'medium-cached-yesterday', family: 'medium', fail: true, cache: base, now: '2026-10-30T08:00:00-06:00', schemes: ['light'] },

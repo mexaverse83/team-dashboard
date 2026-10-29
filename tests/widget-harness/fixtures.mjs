@@ -204,44 +204,44 @@ export const goalSafe = (() => {
     yesterday: {
       date: '2026-10-28',
       spent: 1923,
-      room: 1890,
-      diff: -33
+      room: 1790,
+      diff: -133
     },
     week: [
       {
         date: '2026-10-23',
         spent: 1006,
-        room: 1280,
+        room: 1160,
         ok: true
       },
       {
         date: '2026-10-24',
         spent: 308,
-        room: 1320,
+        room: 1200,
         ok: true
       },
       {
         date: '2026-10-25',
         spent: 2227,
-        room: 1460,
+        room: 1330,
         ok: false
       },
       {
         date: '2026-10-26',
         spent: 211,
-        room: 1340,
+        room: 1260,
         ok: true
       },
       {
         date: '2026-10-27',
         spent: 288,
-        room: 1570,
+        room: 1480,
         ok: true
       },
       {
         date: '2026-10-28',
         spent: 1923,
-        room: 1890,
+        room: 1790,
         ok: false
       },
       {
@@ -309,7 +309,7 @@ export const spentToday = (() => {
     spent: 640,
     left: 1240,
     days_left: 3,
-    tomorrow: 2500,
+    tomorrow: 2560,
     pool: 7050,
     reserve: 1410,
     room: 5640,
@@ -332,44 +332,44 @@ export const spentToday = (() => {
     yesterday: {
       date: '2026-10-28',
       spent: 1923,
-      room: 1890,
-      diff: -33
+      room: 1790,
+      diff: -133
     },
     week: [
       {
         date: '2026-10-23',
         spent: 1006,
-        room: 1280,
+        room: 1160,
         ok: true
       },
       {
         date: '2026-10-24',
         spent: 308,
-        room: 1320,
+        room: 1200,
         ok: true
       },
       {
         date: '2026-10-25',
         spent: 2227,
-        room: 1460,
+        room: 1330,
         ok: false
       },
       {
         date: '2026-10-26',
         spent: 211,
-        room: 1340,
+        room: 1260,
         ok: true
       },
       {
         date: '2026-10-27',
         spent: 288,
-        room: 1570,
+        room: 1480,
         ok: true
       },
       {
         date: '2026-10-28',
         spent: 1923,
-        room: 1890,
+        room: 1790,
         ok: false
       },
       {
@@ -392,7 +392,7 @@ export const spentToday = (() => {
         month: '2026-10',
         pct: 104,
         buffer: 3618,
-        room: 5640,
+        room: 5000,
         days_left: 3,
         url: '/finance/investments?tab=Real%20Estate'
       },
@@ -437,7 +437,7 @@ export const overToday = (() => {
     spent: 2600,
     left: -720,
     days_left: 3,
-    tomorrow: 1520,
+    tomorrow: 1780,
     pool: 7050,
     reserve: 1410,
     room: 5640,
@@ -460,44 +460,44 @@ export const overToday = (() => {
     yesterday: {
       date: '2026-10-28',
       spent: 1923,
-      room: 1890,
-      diff: -33
+      room: 1790,
+      diff: -133
     },
     week: [
       {
         date: '2026-10-23',
         spent: 1006,
-        room: 1280,
+        room: 1160,
         ok: true
       },
       {
         date: '2026-10-24',
         spent: 308,
-        room: 1320,
+        room: 1200,
         ok: true
       },
       {
         date: '2026-10-25',
         spent: 2227,
-        room: 1460,
+        room: 1330,
         ok: false
       },
       {
         date: '2026-10-26',
         spent: 211,
-        room: 1340,
+        room: 1260,
         ok: true
       },
       {
         date: '2026-10-27',
         spent: 288,
-        room: 1570,
+        room: 1480,
         ok: true
       },
       {
         date: '2026-10-28',
         spent: 1923,
-        room: 1890,
+        room: 1790,
         ok: false
       },
       {
@@ -520,7 +520,7 @@ export const overToday = (() => {
         month: '2026-10',
         pct: 102,
         buffer: 1658,
-        room: 5640,
+        room: 3040,
         days_left: 3,
         url: '/finance/investments?tab=Real%20Estate'
       },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildToday, fixedLeft, RESERVE_SHARE, scheduledLeft, type TodayInput, type TodayTransaction } from '@/lib/widget/today'
+import { buildToday, committedLeft, fixedLeft, RESERVE_SHARE, scheduledLeft, type TodayInput, type TodayTransaction } from '@/lib/widget/today'
 import { buildWidgetPayload } from '@/lib/widget/payload'
 import type { BudgetVsActualRow } from '@/lib/summary/types'
 
@@ -79,7 +79,27 @@ describe('buildToday (goal-safe daily allowance)', () => {
     expect(spend(1500, 1500)).toMatchObject({ state: 'tight', left: 380 })
     const over = spend(2600, 2600)
     expect(over).toMatchObject({ state: 'over', left: -720 })
-    expect(over.tomorrow).toBe(Math.floor((5640 - 2600) / 2 / 10) * 10)
+    // Tomorrow's morning gets its own reserve: pool 7,050 − 2,600 = 4,450, 20% held back.
+    expect(over.tomorrow).toBe(Math.floor((4450 - Math.round(RESERVE_SHARE * 4450)) / 2 / 10) * 10)
+    // The phone shows that same figure tomorrow morning.
+    const s = octSummary()
+    Object.assign(s.current_month, { day_of_month: 30 })
+    s.month_projection!.spent_so_far += 2600
+    s.current_month.budget_vs_actual[0].spent += 2600
+    const next = buildToday(input({ summary: s, transactions: [...octTxs(), { transaction_date: '2026-10-29', amount: 2600, category_id: 'other' }] }))!
+    expect(next.allowance).toBe(over.tomorrow)
+    // And yesterday's room, rebuilt the next morning, is the one shown on the day.
+    expect(next.yesterday).toMatchObject({ spent: 2600, room: base.allowance })
+  })
+
+  it('turns to a no-spend day when one purchase passes the whole month\'s room', () => {
+    const s = octSummary()
+    s.month_projection!.spent_so_far += 9000
+    s.current_month.budget_vs_actual[0].spent += 9000
+    const t = buildToday(input({ summary: s, transactions: [...octTxs(), { transaction_date: '2026-10-29', amount: 9000, category_id: 'other' }] }))!
+    expect(t).toMatchObject({ state: 'risk', spent: 9000, allowance: 1880, tomorrow: 0 })
+    // The goal row's free room is what is left after today's spend: nothing.
+    expect(t.goals[0]).toMatchObject({ kind: 'west_month', room: 0 })
   })
 
   it('never counts fixed bills, planned charges or savings moves as the day\'s spend', () => {
@@ -121,6 +141,20 @@ describe('buildToday (goal-safe daily allowance)', () => {
     expect(scheduledLeft(s, '2026-10-01', '2026-10-31', true)).toBe(4500)
   })
 
+  it('adds the baby, treatment and MSI amounts to the fixed rows (only subscriptions overlap them)', () => {
+    // Nov 10: subscriptions posted, Maintenance still expects 4,900, a $4,000 prenatal visit on the 15th.
+    const nov = octSummary()
+    Object.assign(nov.current_month, { month: '2026-11', day_of_month: 10, days_in_month: 30 })
+    nov.subscriptions!.active = [{ name: 'Rent', amount: 35000, frequency: 'monthly', monthly_equivalent: 35000, last_charge: '2026-12-01', next_charge: '2026-12-01' }]
+    nov.current_month.budget_vs_actual = [row('Maintenance', 0, 4900, { expected_remaining: 4900 }), row('Groceries', 4000, 13000)]
+    nov.month_projection = { ...nov.month_projection!, known_upcoming_baby: 4000 }
+    expect(committedLeft(nov, '2026-11-01', '2026-11-30', true)).toBe(4900 + 4000)
+    // Before the processor's first run the MSI payments are owed on top.
+    expect(committedLeft(nov, '2026-11-01', '2026-11-30', false)).toBe(4900 + 4000 + 989)
+    const t = buildToday(input({ summary: nov, transactions: [{ transaction_date: '2026-11-01', amount: 989, category_id: 'shop', tags: ['auto-msi'] }] }))!
+    expect(t.committed).toBe(8900)
+  })
+
   it('takes the larger of the scheduled charges and the fixed rows\' expected remaining, never their sum', () => {
     const s = octSummary()
     expect(fixedLeft(s)).toBe(332)
@@ -155,7 +189,9 @@ describe('buildToday (goal-safe daily allowance)', () => {
     const t = buildToday(input())!
     expect(t.week.map(d => d.date)).toEqual(['2026-10-23', '2026-10-24', '2026-10-25', '2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29'])
     // Yesterday's morning pool = today's + yesterday's everyday spend.
-    expect(t.week[5]).toEqual({ date: '2026-10-28', spent: 1923, room: Math.floor((7050 + 1923 - 1410) / 4 / 10) * 10, ok: false })
+    // Its reserve is that morning's (the budgets were already spent, so 20% of that pool).
+    expect(t.week[5]).toEqual({ date: '2026-10-28', spent: 1923, room: Math.floor((8973 - Math.round(RESERVE_SHARE * 8973)) / 4 / 10) * 10, ok: false })
+    expect(t.week[5].room).toBe(1790)
     expect(t.week[4]).toMatchObject({ date: '2026-10-27', spent: 288, ok: true })
     expect(t.week[6]).toMatchObject({ today: true, ok: null, room: t.allowance })
     expect(t.streak).toBe(0)
@@ -166,9 +202,14 @@ describe('buildToday (goal-safe daily allowance)', () => {
     const s = octSummary()
     s.current_month.day_of_month = 2
     const t = buildToday(input({ summary: s, transactions: [{ transaction_date: '2026-10-01', amount: 100, category_id: 'other' }, { transaction_date: '2026-09-30', amount: 9000, category_id: 'other' }] }))!
-    expect(t.week.map(d => d.date)).toEqual(['2026-10-01', '2026-10-02'])
-    expect(t.week[0].spent).toBe(100)
+    // Fewer than 3 finished days: no week row yet (a lone ring reads as missing data).
+    expect(t.week).toEqual([])
+    expect(t.yesterday).toMatchObject({ date: '2026-10-01', spent: 100 })
     expect(t.streak).toBe(1)
+    s.current_month.day_of_month = 4
+    const d4 = buildToday(input({ summary: s, transactions: [{ transaction_date: '2026-10-01', amount: 100, category_id: 'other' }, { transaction_date: '2026-09-30', amount: 9000, category_id: 'other' }] }))!
+    expect(d4.week.map(d => d.date)).toEqual(['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'])
+    expect(d4.week[0].spent).toBe(100)
   })
 
   it('is null when the ledger or category read failed (today\'s spend would be unknown)', () => {
