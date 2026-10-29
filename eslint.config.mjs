@@ -17,22 +17,8 @@ const NO_PUBLIC_SECRETS = {
 // Files that still carry the UTC pattern; their owners are removing it. Shrink
 // this list, never grow it.
 const LEGACY_UTC_DATE_FILES = [
-  "src/app/api/finance/forecast/route.ts",
-  "src/app/api/finance/net-worth/route.ts",
-  "src/app/api/finance/process-recurring/route.ts",
-  "src/app/api/finance/rules/route.ts",
-  "src/app/api/finance/widget-script/route.ts",
-  "src/app/api/finance/wolff-events/route.ts",
-  "src/components/finance/bills-timeline.tsx",
-  "src/components/finance/budget-builder-client.tsx",
-  "src/components/finance/debt-client.tsx",
-  "src/components/finance/insights-client.tsx",
-  "src/components/finance/installments-client.tsx",
-  "src/components/finance/subscriptions-client.tsx",
   "src/lib/finance-utils.ts",
   "src/lib/recurring-dates.ts",
-  "src/lib/server/summary.ts",
-  "src/lib/server/west.ts",
   // dates.ts owns the conversions
   "src/lib/dates.ts",
 ];
@@ -74,14 +60,6 @@ const config = [
     files: LEGACY_UTC_DATE_FILES,
     rules: {
       "no-restricted-syntax": ["error", NO_PUBLIC_SECRETS],
-    },
-  },
-  {
-    // safe-to-spend still sends NEXT_PUBLIC_FINANCE_API_KEY on a dead path
-    // (perf-17); its owner removes the header, then this override goes.
-    files: ["src/components/finance/safe-to-spend.tsx"],
-    rules: {
-      "no-restricted-syntax": ["error", NO_UTC_DATE_KEYS],
     },
   },
   {

@@ -413,9 +413,9 @@ export default function InsightsClient() {
                 <div className="relative">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500/20">
-                      <Target className="h-4 w-4 text-amber-500" />
+                      <Target className="h-4 w-4 text-warning" />
                     </div>
-                    <span className="text-xs font-semibold uppercase tracking-wider text-amber-600">Today&apos;s Priority</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-warning">Today&apos;s Priority</span>
                   </div>
                   <p className="text-lg font-semibold leading-relaxed">{insights[0].title}</p>
                   <MiniMarkdown text={insights[0].detail} className="text-sm text-[hsl(var(--text-secondary))] mt-2 leading-relaxed" />

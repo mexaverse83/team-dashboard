@@ -21,9 +21,10 @@ describe('GlassCard', () => {
     expect(screen.getByText('Hello')).toBeInTheDocument()
   })
 
-  it('applies glass class', () => {
+  it('renders with the token card surface (no legacy .glass)', () => {
     const { container } = render(<GlassCard>Test</GlassCard>)
-    expect(container.firstChild).toHaveClass('glass')
+    expect(container.firstChild).toHaveClass('bg-surface')
+    expect(container.firstChild).not.toHaveClass('glass')
   })
 
   it('applies custom className', () => {
@@ -31,18 +32,6 @@ describe('GlassCard', () => {
     expect(container.firstChild).toHaveClass('custom')
   })
 
-  it('applies glow animation when glowColor is set', () => {
-    const { container } = render(<GlassCard glowColor="red">Test</GlassCard>)
-    const el = container.firstChild as HTMLElement
-    expect(el.style.getPropertyValue('--glow-color')).toBe('red')
-    expect(el.style.animation).toContain('agentGlow')
-  })
-
-  it('does NOT apply glow when no glowColor', () => {
-    const { container } = render(<GlassCard>Test</GlassCard>)
-    const el = container.firstChild as HTMLElement
-    expect(el.style.animation).toBe('')
-  })
 })
 
 // ── TrendBadge ──

@@ -47,7 +47,7 @@ export function BbvaStatementCard({ transactions }: { transactions: CycleTransac
           </p>
           <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-sm font-semibold">
             <span className="whitespace-nowrap">Pay by {shortDate(cycle.due)}</span>
-            <span className={cn('whitespace-nowrap text-xs font-medium', !isOpen && daysToDue >= 0 && daysToDue <= 5 ? 'text-amber-400' : 'text-[hsl(var(--text-secondary))]')}>{status}</span>
+            <span className={cn('whitespace-nowrap text-xs font-medium', !isOpen && daysToDue >= 0 && daysToDue <= 5 ? 'text-warning' : 'text-[hsl(var(--text-secondary))]')}>{status}</span>
           </p>
           <p className="text-xs text-[hsl(var(--text-tertiary))]">Purchases {shortDate(cycle.start)} – {shortDate(cycle.cut)}</p>
         </div>

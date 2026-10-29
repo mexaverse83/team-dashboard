@@ -311,7 +311,7 @@ export default function GoalsClient() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Goals</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl sm:text-3xl font-bold tracking-tight"><span className="section-tick" aria-hidden />Goals &amp; WEST</h1>
           <p className="text-[hsl(var(--text-secondary))]">Track progress toward your financial & crypto targets</p>
         </div>
       </div>
@@ -518,9 +518,9 @@ export default function GoalsClient() {
                           return (
                             <div key={m} className="flex items-center gap-2">
                               <div className={cn("h-5 w-5 rounded-full flex items-center justify-center text-[10px]",
-                                reached ? "bg-emerald-500/20 text-emerald-600" : "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))]"
+                                reached ? "bg-emerald-500/20 text-positive" : "bg-[hsl(var(--bg-elevated))] text-[hsl(var(--text-tertiary))]"
                               )}>{reached ? '✓' : m}</div>
-                              <span className={cn("text-xs", reached ? "text-emerald-600 line-through" : "text-[hsl(var(--text-secondary))]")}>
+                              <span className={cn("text-xs", reached ? "text-positive line-through" : "text-[hsl(var(--text-secondary))]")}>
                                 {m}% — ${((goal.target_amount * m) / 100).toLocaleString()}
                               </span>
                             </div>
@@ -556,7 +556,7 @@ export default function GoalsClient() {
             </div>
             {lastTotal && (
               <div className="text-right">
-                <p className="text-lg font-bold text-emerald-600 tabular-nums">${Math.round(lastTotal.net_savings).toLocaleString()}</p>
+                <p className="text-lg font-bold text-positive tabular-nums">${Math.round(lastTotal.net_savings).toLocaleString()}</p>
                 <p className="text-xs text-[hsl(var(--text-tertiary))]">{lastTotal.savings_rate}% rate</p>
               </div>
             )}
@@ -602,7 +602,7 @@ export default function GoalsClient() {
                 )}>💰 Savings</button>
               <button type="button" onClick={() => setForm(f => ({ ...f, goal_type: 'crypto', crypto_symbol: f.crypto_symbol || 'BTC' }))}
                 className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
-                  form.goal_type === 'crypto' ? "border-orange-500 bg-orange-500/10 text-orange-600" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
+                  form.goal_type === 'crypto' ? "border-orange-500 bg-orange-500/10 text-[hsl(var(--orange))]" : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
                 )}>₿ Crypto</button>
             </div>
           </div>
@@ -641,7 +641,7 @@ export default function GoalsClient() {
                 <button key={name} type="button" onClick={() => setForm(f => ({ ...f, scope: 'personal', owner: name }))}
                   className={cn("flex-1 py-2 rounded-lg text-sm font-medium transition-all border",
                     form.scope === 'personal' && form.owner === name
-                      ? "border-blue-500 bg-blue-500/10 text-blue-600"
+                      ? "border-blue-500 bg-blue-500/10 text-info"
                       : "border-[hsl(var(--border))] text-[hsl(var(--text-secondary))]"
                   )}>
                   <span className="inline-block h-2 w-2 rounded-full mr-1" style={{ background: getOwnerColor(name) }} />{name}
@@ -709,7 +709,7 @@ export default function GoalsClient() {
           {form.target_amount && form.target_date && form.goal_type === 'crypto' && form.crypto_symbol && (
             <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))] text-center">
               <p className="text-xs text-[hsl(var(--text-secondary))]">You need to accumulate</p>
-              <p className="text-xl font-bold tabular-nums text-orange-600 font-mono">
+              <p className="text-xl font-bold tabular-nums text-[hsl(var(--orange))] font-mono">
                 {formMonthsLeft > 0 ? (Math.max(0, parseFloat(form.target_amount) - getCryptoQty(form.crypto_symbol)) / formMonthsLeft).toFixed(8).replace(/\.?0+$/, '') : '—'} {form.crypto_symbol}/mo
               </p>
               <p className="text-xs text-[hsl(var(--text-tertiary))] mt-0.5">{formMonthsLeft} months • Currently {getCryptoQty(form.crypto_symbol).toFixed(4)} {form.crypto_symbol}</p>

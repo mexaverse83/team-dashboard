@@ -45,39 +45,14 @@ const RAW_COLOR = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b|hsl\(\s*\d/g
 // slice/substring/substr/split all cut a UTC timestamp into a (wrong) local date key.
 const ISO_DATE_KEY = /toISOString\(\)\.(?:slice|substring|substr|split)\(/g
 
-// Baselines as of Mona v2 Wave 1 (files owned by other streams at the time).
-const PASTEL_BASELINE: Record<string, number> = {
-  'src/components/Sidebar.tsx': 2,
-  'src/components/finance/ask-wolff-client.tsx': 1,
-  'src/components/finance/budget-watch.tsx': 4,
-  'src/components/finance/card-statement.tsx': 1,
-  'src/components/finance/command-center-client.tsx': 4,
-  'src/components/finance/daily-spending-plan.tsx': 5,
-  'src/components/finance/month-projection-card.tsx': 2,
-  'src/components/finance/transactions-client.tsx': 17,
-  'src/components/finance/wolff-widget.tsx': 3,
-}
+// Baselines recomputed at the Mona v2 Wave 2 integration (2026-10-28).
+const PASTEL_BASELINE: Record<string, number> = {}
 
 const RAW_COLOR_BASELINE: Record<string, number> = {
-  'src/components/finance/command-center-client.tsx': 1,
-  'src/components/finance/family-tracker.tsx': 5,
-  'src/components/finance/goals-client.tsx': 8,
-  'src/components/finance/installments-client.tsx': 2,
-  'src/components/finance/investments-client.tsx': 5,
-  'src/components/finance/month-projection-card.tsx': 1,
-  'src/components/finance/overview-client.tsx': 5,
-  'src/components/finance/transactions-client.tsx': 2,
-  'src/components/finance/west-tracker.tsx': 10,
+  'src/components/finance/goals-client.tsx': 2,
 }
 
-const ISO_BASELINE: Record<string, number> = {
-  'src/components/finance/bills-timeline.tsx': 1,
-  'src/components/finance/budget-builder-client.tsx': 1,
-  'src/components/finance/crypto-client.tsx': 1,
-  'src/components/finance/installments-client.tsx': 2,
-  'src/components/finance/insights-client.tsx': 2,
-  'src/components/finance/subscriptions-client.tsx': 4,
-}
+const ISO_BASELINE: Record<string, number> = {}
 
 const components = walk(join(ROOT, 'src/components'), ['.tsx', '.ts'])
 const financeComponents = components.filter(f => f.replace(/\\/g, '/').includes('/src/components/finance/'))

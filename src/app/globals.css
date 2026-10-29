@@ -231,21 +231,6 @@ body {
   min-height: 100dvh;
 }
 
-/* Ambient depth — two faint brand washes anchored to the viewport so the
-   page reads as an airy lit space instead of flat white. Fixed + non-interactive. */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(70% 55% at 86% -12%, hsl(211 92% 56% / 0.14), transparent 65%),
-    radial-gradient(48% 42% at 4% 35%, hsl(151 72% 45% / 0.09), transparent 70%),
-    radial-gradient(42% 36% at 75% 100%, hsl(26 94% 55% / 0.045), transparent 72%),
-    repeating-linear-gradient(90deg, hsl(210 35% 90% / 0.012) 0 1px, transparent 1px 80px);
-}
-
 /* Headings and metric numerals speak in the display face */
 h1, h2, h3 {
   font-family: var(--font-display, var(--font-inter, 'Inter')), system-ui, sans-serif;
@@ -257,16 +242,6 @@ h1, h2, h3 {
   font-family: var(--font-display, var(--font-inter, 'Inter')), system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
-}
-
-/* Finance identity — emerald→teal gradient for hero numbers (dark shades
-   for contrast on light surfaces) */
-.text-hero-gradient {
-  background: linear-gradient(120deg, hsl(151 70% 58%) 0%, hsl(190 88% 62%) 55%, hsl(211 92% 68%) 115%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
 }
 
 /* Section accent tick — pairs with section/page titles */
@@ -328,12 +303,6 @@ a, button {
 [data-animate] > *:nth-child(11) { animation: fadeInUp 0.4s ease-out 500ms both; }
 [data-animate] > *:nth-child(12) { animation: fadeInUp 0.4s ease-out 550ms both; }
 
-/* Agent glow */
-@keyframes agentGlow {
-  0%, 100% { box-shadow: 0 0 0 0 var(--glow-color); }
-  50% { box-shadow: 0 0 20px 2px var(--glow-color); }
-}
-
 /* Shimmer skeleton */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
@@ -345,16 +314,11 @@ a, button {
   animation: shimmer 1.5s infinite;
 }
 
-/* Slow spin for busy agents */
-.animate-spin-slow {
-  animation: spin 4s linear infinite;
-}
-
 /* Status pulse */
 .status-online { animation: pulse 2s infinite; }
 
 /* Smooth chart transitions */
-.chart-bar, .progress-ring {
+.progress-ring {
   transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -370,22 +334,6 @@ select option:checked {
 select option:hover {
   background-color: hsl(var(--bg-elevated));
 }
-
-/* Surface card — dark glass with restrained translucency and blue elevation. */
-.glass {
-  background: linear-gradient(145deg, hsl(222 31% 11% / 0.96), hsl(224 32% 9% / 0.92));
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid hsl(216 24% 22% / 0.86);
-  box-shadow: var(--shadow-elevate);
-}
-
-.glass:hover {
-  border-color: hsl(211 70% 48% / 0.42);
-  box-shadow: 0 1px 0 hsl(210 35% 92% / 0.04) inset, 0 24px 58px -36px hsl(211 90% 42% / 0.42);
-}
-
-.finance-card { border-radius: 1rem; }
 
 /* Product shell --------------------------------------------------------- */
 .app-sidebar {
@@ -439,46 +387,6 @@ select option:hover {
   background: linear-gradient(145deg, hsl(211 88% 30%), hsl(158 52% 18%));
 }
 
-/* Overview hero --------------------------------------------------------- */
-.wealth-hero {
-  color: hsl(214 30% 97%);
-  background:
-    linear-gradient(118deg, hsl(225 45% 10%), hsl(215 48% 16%) 52%, hsl(158 42% 16%));
-  border: 1px solid hsl(211 72% 56% / 0.26);
-  box-shadow: 0 28px 74px -40px hsl(211 90% 36% / 0.48), inset 0 1px hsl(210 40% 95% / 0.08);
-}
-.wealth-hero-orbit {
-  background:
-    radial-gradient(55% 150% at 96% 0%, hsl(211 92% 65% / 0.18), transparent 62%),
-    radial-gradient(35% 90% at 5% 105%, hsl(151 72% 50% / 0.14), transparent 70%),
-    repeating-linear-gradient(105deg, transparent 0 62px, hsl(210 40% 95% / 0.025) 63px 64px);
-}
-.wealth-hero .text-hero-gradient {
-  background: linear-gradient(115deg, hsl(151 70% 64%), hsl(190 90% 70%) 52%, hsl(211 92% 72%) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-}
-.wealth-hero .text-\[hsl\(var\(--text-secondary\)\)\] { color: hsl(42 25% 88% / 0.72); }
-.wealth-hero .text-\[hsl\(var\(--text-tertiary\)\)\] { color: hsl(42 20% 84% / 0.52); }
-.wealth-hero .bg-emerald-600 { background: hsl(151 68% 48%); color: hsl(225 45% 6%); box-shadow: 0 12px 26px -14px hsl(151 85% 35% / 0.75); }
-.wealth-hero .bg-emerald-600:hover { background: hsl(151 72% 56%); }
-.wealth-hero .bg-\[hsl\(var\(--bg-elevated\)\)\] { background: hsl(42 20% 95% / 0.14); }
-
-/* Tailwind semantic shades are authored for white surfaces in older screens.
-   Keep their meaning while lifting contrast on the midnight canvas. */
-.finance-app .text-emerald-700,
-.finance-app .text-emerald-600 { color: hsl(151 70% 55%); }
-.finance-app .text-rose-700,
-.finance-app .text-rose-600 { color: hsl(354 82% 68%); }
-.finance-app .text-amber-700,
-.finance-app .text-amber-600,
-.finance-app .text-amber-500 { color: hsl(45 96% 64%); }
-.finance-app .text-orange-700,
-.finance-app .text-orange-600 { color: hsl(26 96% 65%); }
-.finance-app .text-blue-700,
-.finance-app .text-blue-600 { color: hsl(211 94% 70%); }
-.finance-app .text-teal-700 { color: hsl(181 72% 58%); }
-
 /* Wolff is the overview's command layer: blue intelligence, green action,
    and a subtle warm edge where a human decision is needed. */
 .wolff-command {
@@ -489,26 +397,9 @@ select option:hover {
   border: 1px solid hsl(211 72% 58% / 0.34);
   box-shadow: 0 1px 0 hsl(210 50% 96% / 0.06) inset, 0 28px 80px -42px hsl(211 92% 44% / 0.56);
 }
-.wolff-command-grid {
-  background-image:
-    linear-gradient(hsl(210 40% 90% / 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, hsl(210 40% 90% / 0.025) 1px, transparent 1px);
-  background-size: 34px 34px;
-  mask-image: linear-gradient(to bottom right, black, transparent 75%);
-}
-.signal-blue { color: hsl(211 94% 70%); background: hsl(211 92% 60% / 0.10); border-color: hsl(211 92% 60% / 0.22); }
-.signal-green { color: hsl(151 72% 60%); background: hsl(151 68% 48% / 0.10); border-color: hsl(151 68% 48% / 0.22); }
-.signal-red { color: hsl(354 84% 70%); background: hsl(354 78% 58% / 0.10); border-color: hsl(354 78% 58% / 0.24); }
-.signal-yellow { color: hsl(45 98% 67%); background: hsl(45 96% 58% / 0.10); border-color: hsl(45 96% 58% / 0.23); }
-.signal-orange { color: hsl(26 96% 67%); background: hsl(26 94% 58% / 0.10); border-color: hsl(26 94% 58% / 0.23); }
 
 input, textarea, select {
   border-radius: 0.75rem;
-}
-
-@media (max-width: 639px) {
-  .wealth-hero { border-radius: 1.25rem; }
-  .glass { border-radius: 1rem; }
 }
 
 /* Mobile interaction contract: page controls use a consistent finger-sized
@@ -542,9 +433,6 @@ input, textarea, select {
 /* 320–359px phones need slightly tighter cards and metrics. The information
    hierarchy stays intact without forcing one-column KPI stacks. */
 @media (max-width: 359px) {
-  .finance-app main .glass {
-    padding: 0.875rem;
-  }
   .finance-app main .grid-cols-2 {
     column-gap: 0.75rem;
     row-gap: 0.75rem;
@@ -566,12 +454,12 @@ input, textarea, select {
 .transaction-entry-surface {
   isolation: isolate;
   overscroll-behavior: none;
-  background: #080d19;
+  background: hsl(var(--background));
 }
 .transaction-entry-body {
   background:
     radial-gradient(80% 45% at 100% 0%, hsl(211 92% 58% / 0.08), transparent 70%),
-    #080d19;
+    hsl(var(--background));
   scrollbar-width: none;
 }
 .transaction-entry-body::-webkit-scrollbar { display: none; }
@@ -653,31 +541,6 @@ input, textarea, select {
   html { scroll-behavior: auto; }
 }
 
-/* Overview: strong answers, quiet supporting surfaces. */
-.overview-primary-action {
-  color: hsl(224 40% 8%);
-  background: hsl(153 70% 59%);
-  box-shadow: 0 4px 18px -8px hsl(153 70% 40% / .5);
-}
-.overview-primary-action:hover { background: hsl(153 75% 68%); }
-.overview-balance-card {
-  background:
-    radial-gradient(ellipse at 100% 0%, hsl(164 58% 29% / .22), transparent 65%),
-    linear-gradient(135deg, hsl(216 33% 15%), hsl(224 35% 10%));
-  border: 1px solid hsl(164 35% 36% / .32);
-  box-shadow: inset 0 1px hsl(160 50% 85% / .04);
-}
-.overview-projection-card {
-  background: linear-gradient(135deg, hsl(216 35% 14%), hsl(225 33% 10%));
-  border-color: hsl(211 42% 39% / .4);
-}
-.overview-daily-plan { background: hsl(222 30% 11%); }
-.overview-mona-card {
-  border: 1px solid hsl(212 36% 33% / .45);
-  background: linear-gradient(125deg, hsl(215 34% 15% / .8), hsl(226 32% 10%));
-}
-.overview-quiet-card { border: 1px solid hsl(var(--border)); background: hsl(224 29% 10%); }
-
 /* Native iPhone focus zoom also affects forms that do not use inputCls,
    including portaled investment dialogs and the chat composer. */
 @media (max-width: 767px) {
@@ -733,22 +596,7 @@ input, textarea, select {
   .animate-fade-up { animation: none; }
 }
 
-/* Light theme: hard-coded midnight surfaces (shell, hero, sheets) mapped onto
-   tokens. Component-level colours migrate to tokens in Wave 1 (WS1). */
-[data-theme='light'] body::before { display: none; }
-[data-theme='light'] .glass {
-  background: hsl(var(--surface));
-  border: 1px solid hsl(var(--border));
-  box-shadow: var(--elevation-card);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-[data-theme='light'] .glass:hover { border-color: hsl(var(--border-strong)); box-shadow: var(--elevation-card); }
-[data-theme='light'] .text-hero-gradient {
-  background: linear-gradient(120deg, hsl(158 64% 30%) 0%, hsl(190 80% 32%) 60%, hsl(217 70% 42%) 110%);
-  -webkit-background-clip: text;
-  background-clip: text;
-}
+/* Light theme: the hard-coded midnight shell surfaces mapped onto tokens. */
 [data-theme='light'] .app-sidebar {
   color: hsl(var(--foreground));
   background: hsl(var(--surface));
@@ -782,63 +630,14 @@ input, textarea, select {
   box-shadow: 0 10px 24px -16px hsl(var(--shadow-color) / 0.45);
 }
 [data-theme='light'] .mobile-dock-wolff.mobile-dock-link-active { color: hsl(var(--btn-primary-fg)); background: hsl(var(--btn-primary-bg)); }
-[data-theme='light'] .wealth-hero {
-  color: hsl(var(--foreground));
-  background: linear-gradient(135deg, hsl(var(--surface)), hsl(158 40% 96%));
-  border: 1px solid hsl(var(--border));
-  box-shadow: var(--elevation-card);
-}
-[data-theme='light'] .wealth-hero-orbit { background: none; }
-[data-theme='light'] .wealth-hero .text-\[hsl\(var\(--text-secondary\)\)\] { color: hsl(var(--text-secondary)); }
-[data-theme='light'] .wealth-hero .text-\[hsl\(var\(--text-tertiary\)\)\] { color: hsl(var(--text-tertiary)); }
-[data-theme='light'] .wealth-hero .bg-emerald-600 { background: hsl(var(--btn-primary-bg)); color: hsl(var(--btn-primary-fg)); box-shadow: none; }
-[data-theme='light'] .wealth-hero .bg-\[hsl\(var\(--bg-elevated\)\)\] { background: hsl(var(--surface-2)); }
-[data-theme='light'] .finance-app .text-emerald-700,
-[data-theme='light'] .finance-app .text-emerald-600 { color: hsl(var(--positive)); }
-[data-theme='light'] .finance-app .text-rose-700,
-[data-theme='light'] .finance-app .text-rose-600 { color: hsl(var(--negative)); }
-[data-theme='light'] .finance-app .text-amber-700,
-[data-theme='light'] .finance-app .text-amber-600,
-[data-theme='light'] .finance-app .text-amber-500 { color: hsl(var(--warning)); }
-[data-theme='light'] .finance-app .text-orange-700,
-[data-theme='light'] .finance-app .text-orange-600 { color: hsl(var(--orange)); }
-[data-theme='light'] .finance-app .text-blue-700,
-[data-theme='light'] .finance-app .text-blue-600 { color: hsl(217 80% 45%); }
-[data-theme='light'] .finance-app .text-teal-700 { color: hsl(178 70% 28%); }
 [data-theme='light'] .wolff-command {
   background: linear-gradient(140deg, hsl(var(--surface)), hsl(var(--surface-2)));
   border: 1px solid hsl(var(--border));
   box-shadow: var(--elevation-card);
 }
-[data-theme='light'] .wolff-command-grid { background-image: none; }
-[data-theme='light'] .signal-blue { color: hsl(217 80% 42%); background: hsl(217 80% 50% / 0.08); border-color: hsl(217 80% 50% / 0.2); }
-[data-theme='light'] .signal-green { color: hsl(var(--positive)); background: hsl(var(--positive-bg)); border-color: hsl(var(--positive) / 0.22); }
-[data-theme='light'] .signal-red { color: hsl(var(--negative)); background: hsl(var(--negative-bg)); border-color: hsl(var(--negative) / 0.22); }
-[data-theme='light'] .signal-yellow { color: hsl(var(--warning)); background: hsl(var(--warning-bg)); border-color: hsl(var(--warning) / 0.25); }
-[data-theme='light'] .signal-orange { color: hsl(var(--orange)); background: hsl(var(--orange) / 0.1); border-color: hsl(var(--orange) / 0.25); }
-[data-theme='light'] .overview-primary-action { color: hsl(var(--btn-primary-fg)); background: hsl(var(--btn-primary-bg)); box-shadow: none; }
-[data-theme='light'] .overview-primary-action:hover { background: hsl(var(--btn-primary-bg-hover)); }
-[data-theme='light'] .overview-balance-card,
-[data-theme='light'] .overview-projection-card,
-[data-theme='light'] .overview-mona-card {
-  background: hsl(var(--surface));
-  border: 1px solid hsl(var(--border));
-  box-shadow: var(--elevation-card);
-}
-[data-theme='light'] .overview-daily-plan,
-[data-theme='light'] .overview-quiet-card { background: hsl(var(--surface)); border-color: hsl(var(--border)); }
 [data-theme='light'] .transaction-entry-surface,
 [data-theme='light'] .transaction-entry-body { background: hsl(var(--surface)); }
 [data-theme='light'] .finance-app .text-white { color: hsl(var(--foreground)); }
 [data-theme='light'] .finance-app .btn-primary.text-white,
 [data-theme='light'] .finance-app .bg-emerald-600.text-white,
 [data-theme='light'] .finance-app .bg-emerald-500.text-white { color: hsl(0 0% 100%); }
-/* Pastel 200–400 text shades were authored for the midnight canvas; on white
-   they fail contrast, so the light theme maps them onto the semantic tokens. */
-[data-theme='light'] .finance-app :is([class*='text-emerald-2'], [class*='text-emerald-3'], [class*='text-emerald-4'], [class*='text-green-3'], [class*='text-green-4'], [class*='text-teal-3'], [class*='text-teal-4']) { color: hsl(var(--positive)); }
-[data-theme='light'] .finance-app :is([class*='text-blue-3'], [class*='text-blue-4'], [class*='text-sky-3'], [class*='text-sky-4'], [class*='text-cyan-3'], [class*='text-cyan-4']) { color: hsl(217 80% 45%); }
-[data-theme='light'] .finance-app :is([class*='text-amber-2'], [class*='text-amber-3'], [class*='text-amber-4'], [class*='text-yellow-3'], [class*='text-yellow-4']) { color: hsl(var(--warning)); }
-[data-theme='light'] .finance-app :is([class*='text-orange-3'], [class*='text-orange-4']) { color: hsl(var(--orange)); }
-[data-theme='light'] .finance-app :is([class*='text-rose-3'], [class*='text-rose-4'], [class*='text-red-3'], [class*='text-red-4'], [class*='text-pink-3'], [class*='text-pink-4']) { color: hsl(var(--negative)); }
-[data-theme='light'] .finance-app :is([class*='text-violet-3'], [class*='text-violet-4'], [class*='text-purple-3'], [class*='text-purple-4'], [class*='text-indigo-3'], [class*='text-indigo-4'], [class*='text-fuchsia-3'], [class*='text-fuchsia-4']) { color: hsl(var(--owner-shared)); }
-[data-theme='light'] .finance-app :is([class*='text-slate-3'], [class*='text-slate-4'], [class*='text-gray-3'], [class*='text-gray-4'], [class*='text-zinc-4'], [class*='text-blue-1'], [class*='text-blue-2'], [class*='text-white/']) { color: hsl(var(--text-secondary)); }
