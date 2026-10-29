@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import dynamic from 'next/dynamic'
 import { Home, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,16 +12,12 @@ import { ErrorState } from '@/components/ui/error-state'
 import { formatDelta, formatMoney, formatPct } from '@/lib/format'
 import { diffDaysKey, localDateKey } from '@/lib/dates'
 import { OWNERS } from '@/lib/owners'
+import { WestTracker } from '@/components/finance/west-tracker'
 import { HoldingFormModal, type HoldingField } from './holding-form-modal'
 import { KV, OwnerSplitCards } from './shared'
-import { TabSkeleton } from './tab-skeleton'
 import { propertyEquity, type Portfolio } from './portfolio'
 import type { RealEstateProperty } from './types'
 
-const WestTracker = dynamic(() => import('@/components/finance/west-tracker').then(m => m.WestTracker), {
-  ssr: false,
-  loading: () => <TabSkeleton rows={1} />,
-})
 
 const RE_FIELDS: Array<HoldingField<RealEstateProperty>> = [
   { kind: 'text', key: 'name', label: 'Name', placeholder: 'Departamento Monterrey', required: true },

@@ -1,6 +1,5 @@
 'use client'
 
-import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Bitcoin, BarChart3, Home, Landmark, Lock, Shield } from 'lucide-react'
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, AreaChart, Area, XAxis, YAxis } from 'recharts'
@@ -10,18 +9,15 @@ import { MoneyText } from '@/components/ui/money-text'
 import { ChartFigure, chartTooltipProps, moneyTooltipFormatter } from '@/components/ui/finance-chart'
 import { OwnerBar } from '@/components/finance/owner-dot'
 import { FamilyFutureStrip, type FamilyFutureBaby } from '@/components/finance/family-tracker'
+// Static: this whole tab is already a dynamic chunk, so WEST and recharts share it
+import { WestProjectionWithScenarios } from '@/components/finance/west-tracker'
 import { formatDateShort, formatDelta, formatMoney, formatPct, EMPTY_VALUE } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ASSET_COLOR } from './shared'
-import { TabSkeleton } from './tab-skeleton'
 import type { Portfolio } from './portfolio'
 import type { InvestmentSource, InvestmentsTab } from './types'
 import type { NetWorthData } from './use-investments-data'
 
-const WestProjectionWithScenarios = dynamic(
-  () => import('@/components/finance/west-tracker').then(m => m.WestProjectionWithScenarios),
-  { ssr: false, loading: () => <TabSkeleton rows={1} /> },
-)
 
 interface Props {
   portfolio: Portfolio
