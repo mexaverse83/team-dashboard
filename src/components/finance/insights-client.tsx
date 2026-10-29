@@ -153,6 +153,9 @@ export default function InsightsClient() {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [generatedAt, setGeneratedAt] = useState<string | null>(null)
+  // When the API serves the live plan, generated_at is the live rebuild; the
+  // archived AI brief carries its own date in llm_generated_at.
+  const [llmGeneratedAt, setLlmGeneratedAt] = useState<string | null>(null)
   const [cached, setCached] = useState(false)
   const [stale, setStale] = useState(false)
   const [showRawData, setShowRawData] = useState(true)
@@ -239,6 +242,7 @@ export default function InsightsClient() {
 
       setInsights(loadedInsights)
       setGeneratedAt(loadedAt)
+      setLlmGeneratedAt(insightsData.llm_generated_at ?? null)
       setCached(insightsData.cached || false)
       setStale(insightsData.stale || false)
       setArchived(Array.isArray(insightsData.archived) ? insightsData.archived : [])
@@ -278,7 +282,8 @@ export default function InsightsClient() {
   const live = !llmUsable && summary?.current_month ? buildDeterministicBrief(summary as BriefSummary) : null
   // The old brief never joins the live sections; it renders dated and muted in its own panel.
   const visibleInsights = shown
-  const lastDate = generatedAt ? formatDateShort(new Date(generatedAt)) : null
+  const lastBriefAt = liveSource ? llmGeneratedAt : (llmGeneratedAt ?? generatedAt)
+  const lastDate = lastBriefAt ? formatDateShort(new Date(lastBriefAt)) : null
   const freshness = insightFreshnessLevel(generatedAt)
 
   const alerts = visibleInsights.filter(i => i.type === 'alert')

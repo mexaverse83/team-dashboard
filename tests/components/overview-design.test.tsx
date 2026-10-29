@@ -104,12 +104,24 @@ describe("Mona's take", () => {
     expect(screen.getByText('Keep groceries inside the monthly plan')).toBeInTheDocument()
   })
 
+  it('dates the archived brief by llm_generated_at, not the live rebuild time', () => {
+    const live = {
+      source: 'live' as const, expired: true, insights: [],
+      archived: fixture.insights.insights,
+      generated_at: '2026-10-28T17:59:00Z',
+      llm_generated_at: '2026-09-04T13:30:53Z',
+    }
+    render(<WolffWidget now={now} summary={liveSummary} insights={live} proactive={null} />)
+    expect(screen.getByRole('button', { name: 'Show last brief (Sep 4)' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Oct 28/ })).not.toBeInTheDocument()
+  })
+
   it('carries suggested questions into chat and labels the proactive review', () => {
     render(<WolffWidget now={now} summary={liveSummary} insights={fixture.insights} proactive={{ content: 'Saw **$1,840** at Monita.', created_at: '2026-10-27T15:00:00Z' }} />)
     const link = screen.getByRole('link', { name: /Plan a date night/ })
     expect(new URL(link.getAttribute('href')!, 'http://localhost').searchParams.get('prompt')).toContain('date night')
     fireEvent.click(screen.getByText('Mona noticed · this week'))
-    expect(screen.getByText('$1,840').tagName).toBe('STRONG')
+    expect(screen.getByText('$1,840').closest('strong')).not.toBeNull()
   })
 
   it('reads both wolff-chat shapes', () => {

@@ -11,7 +11,7 @@ import { useFinanceData } from '@/hooks/use-finance-data'
 import { buildDeterministicBrief, type BriefSummary } from '@/lib/deterministic-brief'
 import { insightFreshnessLevel, isInsightUsable, type FreshnessLevel } from '@/lib/insight-freshness'
 import { formatDateShort } from '@/lib/format'
-import { MiniMarkdown } from '@/lib/mini-markdown'
+import { MiniMarkdown, withMoneySpans } from '@/lib/mini-markdown'
 import { cn } from '@/lib/utils'
 
 export interface WolffInsight {
@@ -29,6 +29,8 @@ export interface InsightsPayload {
   insights?: WolffInsight[]
   archived?: WolffInsight[]
   generated_at?: string | null
+  /** Date of the last AI brief; differs from generated_at when source is 'live'. */
+  llm_generated_at?: string | null
   stale?: boolean
   expired?: boolean
   source?: 'llm' | 'live'
@@ -138,7 +140,11 @@ function WolffWidgetView({ insights, proactive, summary, loading = false, now = 
   // The brief we are NOT showing as current: archived items (v2) or the stale LLM set.
   const lastItems = llmUsable ? [] : (insights?.archived?.length ? insights.archived : insights?.source === 'live' ? [] : items)
   const lastBrief = pickDirective(lastItems)
-  const lastDate = generatedAt ? formatDateShort(new Date(generatedAt)) : null
+  // A live payload's generated_at is today's rebuild, not when the archived brief was written.
+  const lastBriefAt = insights?.source === 'live' || insights?.archived?.length
+    ? insights?.llm_generated_at ?? null
+    : insights?.llm_generated_at ?? generatedAt
+  const lastDate = lastBriefAt ? formatDateShort(new Date(lastBriefAt)) : null
 
   // When the overrun is already a Needs attention row, Mona offers the coaching
   // question instead of restating it.
@@ -173,7 +179,7 @@ function WolffWidgetView({ insights, proactive, summary, loading = false, now = 
         <div className="mt-4 flex-1">
           {live && <StatusPill tone="positive" className="mb-2 text-[0.75rem]">Live plan</StatusPill>}
           <h3 className="text-lg font-semibold leading-snug tracking-tight text-fg">
-            {directive?.title || (failed ? 'Your numbers are ready. The brief can wait.' : 'Mona’s brief is out of date.')}
+            {directive?.title ? withMoneySpans(directive.title) : (failed ? 'Your numbers are ready. The brief can wait.' : 'Mona’s brief is out of date.')}
           </h3>
           {directive?.detail
             ? <MiniMarkdown text={directive.detail} className="mt-2 line-clamp-3 text-sm leading-relaxed text-fg-secondary" />
@@ -192,7 +198,7 @@ function WolffWidgetView({ insights, proactive, summary, loading = false, now = 
           {showLast && (
             <div id="mona-last-brief" className="border-t border-border px-3 py-2.5 text-label leading-relaxed text-fg-secondary">
               <p className="text-micro text-fg-tertiary">Written {lastDate ?? 'earlier'} · its figures may be out of date</p>
-              <p className="mt-1 font-medium text-fg">{lastBrief.title}</p>
+              <p className="mt-1 font-medium text-fg">{withMoneySpans(lastBrief.title)}</p>
               <MiniMarkdown text={lastBrief.detail} className="mt-0.5" />
             </div>
           )}
@@ -223,7 +229,7 @@ function WolffWidgetView({ insights, proactive, summary, loading = false, now = 
                 <MiniMarkdown text={proactive.content} />
               </div>
             )}
-            {week && <p><span className="mb-1 block font-semibold text-fg">{week.title}</span>{week.detail}</p>}
+            {week && <p><span className="mb-1 block font-semibold text-fg">{withMoneySpans(week.title)}</span>{withMoneySpans(week.detail)}</p>}
           </div>
         </details>
       )}
