@@ -276,6 +276,13 @@ export async function buildSummary(
     knownLumps: west?.schedule.lump_sum_month && west.schedule.lump_sum_amount > 0
       ? [{ month: west.schedule.lump_sum_month, amount: west.schedule.lump_sum_amount, label: 'WEST balloon payment' }]
       : [],
+    knownInflows: incomeSources
+      .filter(s => s.frequency === 'yearly' && s.amount > 0)
+      .map(s => {
+        const payMonth = Math.min(Math.max(Number((s as { pay_month?: number }).pay_month) || 12, 1), 12)
+        const year = payMonth >= mx.month ? mx.year : mx.year + 1
+        return { month: `${year}-${String(payMonth).padStart(2, '0')}`, amount: s.amount, label: s.name }
+      }),
     wantsBudgets,
   })
 

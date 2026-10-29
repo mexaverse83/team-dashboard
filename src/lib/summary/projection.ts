@@ -65,11 +65,12 @@ export function plannedSpend(historyTxs: TxRow[], { beforeMonth, months = 3, exc
  * Can the household reach its goals by the end of their target year? This
  * month contributes its projected savings; each later month the median clean
  * net of the last 3 complete months (plus income that starts later), minus
- * known lumps (WEST balloon) and baby events in the window. Goals past their
+ * known lumps (WEST balloon) and baby events, plus once-a-year income
+ * (aguinaldo) in the window. Goals past their
  * date and crypto goals are out; the finished fertility plan adds nothing.
  */
 export function buildYearEndPlan({
-  goals, targetYear, month, projectedSavings, runRate, futureIncome, babyEvents, babyRoutine = 0, knownLumps, wantsBudgets,
+  goals, targetYear, month, projectedSavings, runRate, futureIncome, babyEvents, babyRoutine = 0, knownLumps, knownInflows = [], wantsBudgets,
 }: {
   /** Monthly baby spend already reflected in the run rate. */
   babyRoutine?: number
@@ -81,6 +82,8 @@ export function buildYearEndPlan({
   futureIncome: Array<{ start_date: string; monthly_amount: number }>
   babyEvents: PlanEvent[]
   knownLumps: Array<{ month: string; amount: number; label: string }>
+  /** Once-a-year income the run rate can't see yet (aguinaldo). */
+  knownInflows?: Array<{ month: string; amount: number; label: string }>
   wantsBudgets: CutCandidate[]
 }) {
   const yearEnd = `${targetYear}-12`
@@ -95,6 +98,7 @@ export function buildYearEndPlan({
     .filter(e => e.month > month && e.month <= yearEnd)
     .reduce((s, e) => s + Math.max(0, e.amount - babyRoutine), 0))
   const lumps = knownLumps.filter(l => l.month > month && l.month <= yearEnd)
+  const inflows = knownInflows.filter(l => l.month > month && l.month <= yearEnd)
   const [y, m] = month.split('-').map(Number)
   const monthsRemaining = Math.max(1, (targetYear - y) * 12 + (12 - m) + 1)
 
@@ -105,7 +109,7 @@ export function buildYearEndPlan({
     const extra = futureIncome.filter(r => r.start_date <= start).reduce((s, r) => s + r.monthly_amount, 0)
     projectedFreeCash += Math.max(0, runRate + extra)
   }
-  projectedFreeCash -= lumps.reduce((s, l) => s + l.amount, 0)
+  projectedFreeCash += inflows.reduce((s, l) => s + l.amount, 0) - lumps.reduce((s, l) => s + l.amount, 0)
   projectedFreeCash = Math.round(projectedFreeCash)
 
   const totalNeeded = goalRemaining + babyRemaining
@@ -119,6 +123,7 @@ export function buildYearEndPlan({
     treatment_remaining: 0,
     baby_remaining_this_year: babyRemaining,
     known_lumps: lumps,
+    known_inflows: inflows,
     total_needed_by_december: totalNeeded,
     months_remaining: monthsRemaining,
     monthly_free_cash: runRate,

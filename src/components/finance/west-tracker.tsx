@@ -12,6 +12,7 @@ import { OWNERS } from '@/lib/owners'
 import { fetchWestProjection } from '@/lib/west-projection-client'
 import { projectWest, type WestSchedule } from '@/lib/west-projection'
 import { mexicoCityToday } from '@/lib/dates'
+import { formatCompact } from '@/lib/format'
 
 function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' ') }
 function fmt(n: number, d = 0) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n) }
@@ -120,19 +121,19 @@ function WestSavingsPlanCard({ data }: { data: WestData }) {
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="rounded-lg border border-[hsl(var(--border))] p-3">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Purchase gap</p>
-          <p className="num-metric text-lg font-bold tabular-nums">{fmtShort(plan.purchase_gap ?? plan.gap_to_close)}</p>
+          <p className="num-metric text-lg font-bold tabular-nums">{formatCompact(plan.purchase_gap ?? plan.gap_to_close)}</p>
           <p className="text-[11px] text-[hsl(var(--text-tertiary))]">financing if nothing extra is saved</p>
         </div>
         <div className="rounded-lg border border-[hsl(var(--border))] p-3">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Furnishing</p>
-          <p className="num-metric text-lg font-bold tabular-nums">{fmtShort(plan.furnishing_budget ?? 0)}</p>
+          <p className="num-metric text-lg font-bold tabular-nums">{formatCompact(plan.furnishing_budget ?? 0)}</p>
           <p className="text-[11px] text-[hsl(var(--text-tertiary))]">budget on top of the purchase</p>
         </div>
       </div>
 
       {!feasible && shortfall > 0 && (
         <div className="mb-4 rounded-lg bg-amber-500/10 px-3 py-2.5 text-xs text-[hsl(var(--text-secondary))]">
-          <p className="font-semibold text-amber-600">Saving at capacity, delivery arrives {fmtShort(shortfall)} short of purchase + furnishing.</p>
+          <p className="font-semibold text-amber-600">Saving at capacity, delivery arrives {formatCompact(shortfall)} short of purchase + furnishing.</p>
           {plan.options && plan.options.length > 0 && (
             <p className="mt-1">Options: {plan.options.map(o => o.label).join(' · ')}</p>
           )}

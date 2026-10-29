@@ -4,6 +4,7 @@ import { getUnpaidTreatmentEventsForMonth, FERTILITY_TREATMENT_PLAN } from '@/li
 import { BABY_PLAN, looksLikeBabySpend } from '@/lib/baby-plan'
 import { buildBudgetVsActual } from '@/lib/summary/budgets'
 import { buildUpcoming, nextInstallmentDate } from '@/lib/summary/upcoming'
+import { buildYearEndPlan } from '@/lib/summary/projection'
 import type { FinanceTransaction } from '@/lib/finance-types'
 
 const oct28 = { year: 2026, month: 10, day: 28 }
@@ -93,5 +94,21 @@ describe('upcoming', () => {
     // Nov 15 (prenatal) and Dec 1 (balloon) are beyond the 14-day window.
     expect(items).toHaveLength(1)
     expect(items[0]).toMatchObject({ date: '2026-11-01', label: 'Rent + 1 more', amount: 45000, kind: 'bill', count: 2, items: ['Rent', 'WEST'] })
+  })
+})
+
+describe('year-end plan', () => {
+  it('adds the aguinaldo, subtracts the WEST balloon and only the excess of baby events', () => {
+    const plan = buildYearEndPlan({
+      goals: [{ name: 'B', target: 300000, current: 100000, pct: 33, monthly_needed: 0, on_track: false, target_date: '2026-12-31', months_remaining: 3, overdue: false, is_crypto: false, unit: 'MXN', owner: null, scope: null }],
+      targetYear: 2026, month: '2026-10', projectedSavings: 80000, runRate: 85000, futureIncome: [],
+      babyEvents: [{ month: '2026-11', amount: 4000 }, { month: '2026-12', amount: 10000 }], babyRoutine: 4000,
+      knownLumps: [{ month: '2026-12', amount: 90000, label: 'WEST balloon payment' }],
+      knownInflows: [{ month: '2026-12', amount: 37400, label: 'Aguinaldo' }],
+      wantsBudgets: [],
+    })
+    expect(plan.projected_free_cash_by_december).toBe(80000 + 2 * 85000 + 37400 - 90000)
+    expect(plan.total_needed_by_december).toBe(200000 + 6000)
+    expect(plan.months_remaining).toBe(3)
   })
 })

@@ -67,8 +67,9 @@ function KpiTile({ label, value, hint, tone = 'neutral' }: { label: string; valu
       <span className="block text-label font-medium text-[hsl(var(--text-secondary))]">{label}</span>
       <p className="num-metric mt-1 truncate text-2xl font-semibold tabular-nums" data-money="">{value}</p>
       {hint && (
-        <p className={cn('mt-0.5 truncate text-label',
-          tone === 'positive' ? 'text-positive' : tone === 'warning' ? 'text-warning' : tone === 'negative' ? 'text-negative' : 'text-[hsl(var(--text-tertiary))]')}>
+        // Plain concatenation: tailwind-merge reads text-label and text-warning
+        // as two font sizes and drops the label size.
+        <p className={`mt-0.5 truncate text-label ${tone === 'positive' ? 'text-positive' : tone === 'warning' ? 'text-warning' : tone === 'negative' ? 'text-negative' : 'text-[hsl(var(--text-tertiary))]'}`}>
           {hint}
         </p>
       )}
@@ -277,7 +278,7 @@ export default function GoalsClient() {
 
       {overdue.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--surface))] px-4 py-3 text-sm">
-          <StatusPill tone="negative">{overdue.length} past due</StatusPill>
+          <span className="text-xs"><StatusPill tone="negative">{overdue.length} past due</StatusPill></span>
           <span className="text-[hsl(var(--text-secondary))]">
             {overdue.map(g => g.name).join(', ')} passed {overdue.length === 1 ? 'its' : 'their'} date with {compact(overdue.reduce((s, g) => s + g.target_amount - g.current_amount, 0))} to go — roll the balance into new goals. They no longer count in the monthly need.
           </span>
@@ -288,7 +289,7 @@ export default function GoalsClient() {
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(170px,1fr))]">
         <KpiTile label="Saved" value={compact(totalSaved)} hint={`${overallPct}% of ${compact(totalTarget)}`} />
         <KpiTile label="Monthly needed" value={compact(totalMonthlyNeeded)}
-          hint={totalMonthlyNeeded > 0 ? `contributing ${compact(totalContributing)}/mo` : openPeso.length > 0 ? 'all open goals funded' : 'no open peso goals'}
+          hint={totalMonthlyNeeded > 0 ? `contributing ${formatCompact(totalContributing)}/mo` : openPeso.length > 0 ? 'all open goals funded' : 'no open peso goals'}
           tone={neededTone} />
         {lastTotal && (
           <KpiTile label="Last month net" value={compact(lastTotal.net_savings)}
@@ -332,7 +333,7 @@ export default function GoalsClient() {
                   <h4 className="truncate text-sm font-semibold">{g.name}</h4>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  {status && <StatusPill tone={status.tone}>{status.label}</StatusPill>}
+                  {status && <span className="text-xs"><StatusPill tone={status.tone}>{status.label}</StatusPill></span>}
                   <div className="relative">
                     <button type="button" aria-label={`Actions for ${g.name}`} aria-haspopup="menu" aria-expanded={menuFor === g.id}
                       onClick={e => { e.stopPropagation(); setMenuFor(menuFor === g.id ? null : g.id) }}
