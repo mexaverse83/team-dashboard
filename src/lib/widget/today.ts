@@ -481,7 +481,7 @@ export function buildToday(input: TodayInput): WidgetToday | null {
       pct,
       buffer: round(buffer),
       plan_pct: Math.round(((target + Math.max(0, room > 0 ? reserve : 0)) / target) * 100),
-      no_spend_pct: Math.round(((target + poolTomorrow) / target) * 100),
+      no_spend_pct: Math.max(0, Math.round(((target + poolTomorrow) / target) * 100)),
       stretch_target: stretch,
       stretch_pct: stretch ? Math.round((projected / stretch) * 100) : null,
     },
