@@ -13,7 +13,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { ErrorState } from '@/components/ui/error-state'
 import { OwnerFilterControl } from '@/components/finance/investments/shared'
 import { TabSkeleton } from '@/components/finance/investments/tab-skeleton'
-import { cryptoCostMXN, cryptoValueMXN, usdMxnRate } from '@/components/finance/investments/portfolio'
+import { coinsWithoutBasis, cryptoCostMXN, cryptoValueMXN, hasCostBasis, usdMxnRate } from '@/components/finance/investments/portfolio'
 import { OWNERS, ownersEqual } from '@/lib/owners'
 import { localDateKey } from '@/lib/dates'
 import { formatCoinPrice, formatDateShort, formatDelta, formatMoney, formatPct } from '@/lib/format'
@@ -209,7 +209,11 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
   const totalMXN = filtered.reduce((s, h) => s + getValueMXN(h, prices), 0)
   const totalUSD = filtered.reduce((s, h) => s + h.quantity * (prices?.[h.symbol]?.usd ?? 0), 0)
   const totalCostMXN = filtered.reduce((s, h) => s + getCostMXN(h, usdToMxn), 0)
-  const totalPL = totalCostMXN > 0 ? totalMXN - totalCostMXN : null
+  // P&L compares cost with the value of the SAME coins: a coin with no basis
+  // (e.g. ETH) would otherwise count its whole value as gain.
+  const valueOnCostMXN = filtered.filter(hasCostBasis).reduce((s, h) => s + getValueMXN(h, prices), 0)
+  const noBasis = coinsWithoutBasis(filtered)
+  const totalPL = totalCostMXN > 0 ? valueOnCostMXN - totalCostMXN : null
   const totalPLPct = totalPL !== null && totalCostMXN > 0 ? (totalPL / totalCostMXN) * 100 : null
 
   // Per-owner totals with per-coin breakdown (always from the full set)
@@ -218,7 +222,8 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
       const owned = holdings.filter(h => ownersEqual(h.owner, owner))
       const mxn = owned.reduce((s, h) => s + getValueMXN(h, prices), 0)
       const cost = owned.reduce((s, h) => s + getCostMXN(h, usdToMxn), 0)
-      const pl = cost > 0 ? mxn - cost : null
+      const valueOnCost = owned.filter(hasCostBasis).reduce((s, h) => s + getValueMXN(h, prices), 0)
+      const pl = cost > 0 ? valueOnCost - cost : null
       const plPct = pl !== null && cost > 0 ? (pl / cost) * 100 : null
       const coins = owned.map(h => ({
         symbol: h.symbol,
@@ -226,7 +231,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
         valueMXN: getValueMXN(h, prices),
         costMXN: getCostMXN(h, usdToMxn),
       })).filter(c => c.qty > 0).sort((a, b) => b.valueMXN - a.valueMXN)
-      return { mxn, cost, pl, plPct, coins, count: owned.filter(h => h.quantity > 0).length }
+      return { mxn, cost, pl, plPct, coins, noBasis: coinsWithoutBasis(owned), count: owned.filter(h => h.quantity > 0).length }
     }
     return Object.fromEntries(OWNERS.map(o => [o, calc(o)]))
   }, [holdings, prices, usdToMxn])
@@ -386,6 +391,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
               <Stat money label="Cost basis" value={totalCostMXN > 0 ? formatMoney(totalCostMXN) : '—'} />
               <Stat money label="P&L" value={totalPL !== null ? formatMoney(totalPL, { sign: 'always' }) : '—'}
                 delta={totalPLPct !== null ? formatDelta(totalPLPct, { unit: 'pct', decimals: 1 }) : undefined}
+                hint={totalPL !== null && noBasis.length > 0 ? `excl. ${noBasis.join(', ')}, no cost basis` : undefined}
                 tone={totalPL === null ? 'neutral' : totalPL >= 0 ? 'positive' : 'negative'} />
             </div>
             {filtered.length > 0 && totalMXN > 0 && (
@@ -424,6 +430,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
                     <p className="text-label text-fg-secondary">
                       Cost {o.cost > 0 ? formatMoney(o.cost) : '—'}
                       {o.pl !== null && <> · P&amp;L <span className={o.pl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(o.pl, { sign: 'always' })}</span></>}
+                      {o.pl !== null && o.noBasis.length > 0 && <span className="text-fg-tertiary"> (excl. {o.noBasis.join(', ')}, no cost basis)</span>}
                     </p>
                     <ul className="mt-3 space-y-1.5 border-t border-border pt-3">
                       {o.coins.map(c => (
@@ -485,6 +492,12 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
                       )}
                       <div className="flex justify-between gap-3 border-t border-border pt-1.5"><dt className="text-fg-secondary">Value</dt><dd className="font-semibold"><MoneyText value={valueMXN} /></dd></div>
                       <div className="flex justify-between gap-3"><dt className="text-fg-secondary">Value (USD)</dt><dd className="tabular-nums" data-money="">{usd(valueUSD)}</dd></div>
+                      {pl === null && h.quantity > 0 && !hasCostBasis(h) && (
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-fg-secondary">P&amp;L</dt>
+                          <dd className="text-fg-tertiary" title="No cost basis recorded: log the buy to see P&L">— <span className="text-label">no cost basis</span></dd>
+                        </div>
+                      )}
                       {pl !== null && (
                         <div className="flex justify-between gap-3">
                           <dt className="text-fg-secondary">P&amp;L</dt>

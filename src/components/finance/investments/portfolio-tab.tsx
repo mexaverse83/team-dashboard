@@ -32,7 +32,7 @@ interface Props {
 type AssetName = keyof typeof ASSET_COLOR
 
 export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, onOpenTab, onRetry }: Props) {
-  const { totals, positions, byOwner, pl, plPct } = portfolio
+  const { totals, positions, byOwner, pl, plPct, cryptoNoBasis } = portfolio
   const anyError = Object.keys(errors).length > 0
 
   const classes: Array<{ name: AssetName; tab: InvestmentsTab; icon: typeof Bitcoin; value: number; source: InvestmentSource; count: number; noun: string; split?: { a: number; b: number }; locked?: boolean; note?: string }> = [
@@ -61,7 +61,7 @@ export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, o
             label={ownerFilter === 'All' ? 'Invested assets' : `${ownerFilter}'s invested assets`}
             value={anyError ? <span title="Some holdings didn't load">{formatMoney(totals.total)}<span className="text-fg-tertiary">*</span></span> : formatMoney(totals.total)}
             delta={pl !== null ? `${formatDelta(pl)} (${formatPct(plPct ?? 0, { decimals: 1, sign: 'always' })})` : undefined}
-            hint={pl !== null ? 'on crypto, stocks & fixed income cost' : undefined}
+            hint={pl !== null ? `on crypto, stocks & fixed income cost${cryptoNoBasis.length > 0 ? ` (excl. ${cryptoNoBasis.join(', ')}: no cost basis)` : ''}` : undefined}
             tone={pl === null ? 'neutral' : pl >= 0 ? 'positive' : 'negative'}
           />
           {latest && ownerFilter === 'All' && (

@@ -71,6 +71,22 @@ describe('investments portfolio math (F12)', () => {
     expect(p.pl).toBeCloseTo(p.totals.fixedIncome - p.totals.fixedIncomeCost, 6)
   })
 
+  it('leaves coins without a cost basis out of P&L and counts distinct coins', () => {
+    const prices = { BTC: { usd: 100, mxn: 2000 }, ETH: { usd: 50, mxn: 1000 } }
+    const crypto = [
+      { owner: 'Bernardo', symbol: 'BTC', quantity: 1, avg_cost_basis_usd: 120, cost_currency: 'USD' },
+      { owner: 'Laura', symbol: 'BTC', quantity: 1, avg_cost_basis_usd: 120, cost_currency: 'USD' },
+      { owner: 'Bernardo', symbol: 'ETH', quantity: 10, avg_cost_basis_usd: null, cost_currency: 'USD' },
+    ]
+    const p = computePortfolio({ stocks: [], fixedIncome: [], realEstate: [], retirement: [], crypto, prices, ownerFilter: 'All' })
+    // BTC: value 4,000 vs cost 2 × 120 × 20 = 4,800 → −800; ETH's 10,000 is NOT a gain
+    expect(p.pl).toBeCloseTo(-800, 6)
+    expect(p.totals.crypto).toBe(14000)
+    expect(p.cryptoNoBasis).toEqual(['ETH'])
+    expect(p.positions.crypto).toBe(2)
+    expect(p.byOwner.crypto.aCount).toBe(2)
+  })
+
   it('counts only AFORE as locked retirement; Infonavit is earmarked for WEST', () => {
     const p = computePortfolio({ ...base, retirement: [
       { owner: 'bernardo', current_balance: 1000000, instrument_type: 'afore' },

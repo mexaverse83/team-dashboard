@@ -41,6 +41,21 @@ export function cryptoValueMXN(h: CryptoHoldingLite, prices: CryptoPrices | null
   return h.quantity * (prices?.[h.symbol]?.mxn ?? 0)
 }
 
+/** A coin with no recorded cost basis can't have a P&L: leave its value out of P&L math. */
+export function hasCostBasis(h: Pick<CryptoHoldingLite, 'avg_cost_basis_usd'>): boolean {
+  return (h.avg_cost_basis_usd ?? 0) > 0
+}
+
+/** Distinct symbols held (> 0) — the same coin held by both owners counts once. */
+export function distinctCoins(rows: readonly Pick<CryptoHoldingLite, 'symbol' | 'quantity'>[]): number {
+  return new Set(rows.filter(h => h.quantity > 0).map(h => h.symbol)).size
+}
+
+/** Held symbols (> 0) that have no cost basis, for the "excl. ETH, no cost basis" caption. */
+export function coinsWithoutBasis(rows: readonly CryptoHoldingLite[]): string[] {
+  return [...new Set(rows.filter(h => h.quantity > 0 && !hasCostBasis(h)).map(h => h.symbol))].sort()
+}
+
 export function cryptoCostMXN(h: CryptoHoldingLite, usdToMxn: number): number {
   if (!h.avg_cost_basis_usd) return 0
   return h.quantity * (h.cost_currency === 'USD' ? h.avg_cost_basis_usd * usdToMxn : h.avg_cost_basis_usd)
@@ -116,6 +131,9 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
   const reTotal = re.reduce((s, p) => s + propertyEquity(p, west), 0)
   const cryptoTotal = coins.reduce((s, h) => s + cryptoValueMXN(h, prices), 0)
   const cryptoCost = coins.reduce((s, h) => s + cryptoCostMXN(h, fxRate), 0)
+  // Value of the coins that HAVE a cost basis — the only value P&L can compare to cost.
+  const cryptoValueOnCost = coins.filter(hasCostBasis).reduce((s, h) => s + cryptoValueMXN(h, prices), 0)
+  const cryptoNoBasis = coinsWithoutBasis(coins)
   const retirementTotal = ret.reduce((s, r) => s + (r.current_balance || 0), 0)
   // Only AFORE is locked until 65; Infonavit is earmarked for WEST
   const retirementLocked = ret.filter(r => r.instrument_type !== 'infonavit').reduce((s, r) => s + (r.current_balance || 0), 0)
@@ -123,7 +141,7 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
   const total = cryptoTotal + stocksTotal + fiTotal + reTotal + retirementTotal
   // P&L only over classes with a real cost basis (crypto, public stocks, FI)
   const costBase = cryptoCost + publicTotal + fiCost
-  const valueOnCost = cryptoTotal + publicTotal + fiTotal
+  const valueOnCost = cryptoValueOnCost + publicTotal + fiTotal
   const pl = costBase > 0 ? valueOnCost - costBase : null
   const plPct = pl !== null && costBase > 0 ? (pl / costBase) * 100 : null
 
@@ -139,17 +157,18 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
     fiGroups,
     totals: { crypto: cryptoTotal, stocks: stocksTotal, publicStocks: publicTotal, privateEquity: peTotal, fixedIncome: fiTotal, fixedIncomeCost: fiCost, realEstate: reTotal, retirement: retirementTotal, retirementLocked, total },
     cryptoCost,
+    cryptoNoBasis,
     pl,
     plPct,
     positions: {
-      crypto: coins.filter(h => h.quantity > 0).length,
+      crypto: distinctCoins(coins),
       stocks: ownedStocks.length,
       fixedIncome: fiGroups.length,
       realEstate: re.length,
       retirement: ret.length,
     },
     byOwner: {
-      crypto: split([...crypto], h => cryptoValueMXN(h, prices), rows => rows.filter(h => h.quantity > 0).length),
+      crypto: split([...crypto], h => cryptoValueMXN(h, prices), distinctCoins),
       stocks: split([...stocks], h => stockValueMXN(h, fxRate)),
       fixedIncome: split([...fixedIncome], i => accruedValue(i, now), rows => new Set(rows.map(fiKey)).size),
       realEstate: split([...realEstate], p => propertyEquity(p, west)),
