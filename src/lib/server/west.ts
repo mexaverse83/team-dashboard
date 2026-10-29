@@ -335,7 +335,9 @@ export function gbmCommissionMilestone(
   }
   const savedK = Math.round(Math.max(0, balance * (current - GBM_TARGET_COMMISSION)) / 1000)
   const from = `${(current * 100).toFixed(2)}%`
+  // Past its date but not confirmed: an action for the household, never the
+  // "next" milestone (it would hide the real next event behind a past date).
   return dateStatus === 'done'
-    ? { date, label: `GBM commission ${from} → 0.82% — pending: confirm with GBM (~$${savedK}K/yr)`, status: 'pending' }
+    ? { date, label: `Confirm GBM commission ${from} → 0.82% (~$${savedK}K/yr)`, status: 'action' }
     : { date, label: `GBM commission ${from} → 0.82% (~$${savedK}K/yr)`, status: 'pending' }
 }
