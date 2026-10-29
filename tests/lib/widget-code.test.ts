@@ -1,44 +1,53 @@
-import { describe, expect, it } from 'vitest'
-import { readFileSync, statSync } from 'node:fs'
+// @vitest-environment node
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { NextRequest } from 'next/server'
+import { describe, expect, it, vi } from 'vitest'
 
-const routePath = resolve(process.cwd(), 'src/app/api/finance/widget-code/route.ts')
-const source = readFileSync(routePath, 'utf8')
+vi.mock('@/lib/finance-api-auth', () => ({ authorizeFinanceRequest: async () => ({ ok: true }) }))
+import { GET } from '@/app/api/finance/widget-code/route'
 
-function embeddedScript() {
-  const startMarker = 'const script = `'
-  const endMarker = '`\n\n  return new NextResponse(script'
-  const start = source.indexOf(startMarker)
-  const end = source.indexOf(endMarker, start + startMarker.length)
-  expect(start).toBeGreaterThan(-1)
-  expect(end).toBeGreaterThan(start)
-  return source.slice(start + startMarker.length, end)
-}
+const source = readFileSync(resolve(process.cwd(), 'src/widget/finance-widget.js'), 'utf8')
 
-describe('medium Scriptable widget', () => {
-  it('keeps the generated Scriptable payload syntactically valid', () => {
-    const script = embeddedScript()
-    expect(() => new Function(`return (async () => {\n${script}\n})`)).not.toThrow()
+describe('widget-code route', () => {
+  it('serves the widget script raw, with an ETag', async () => {
+    const res = await GET(new NextRequest('https://finance.autonomis.co/api/finance/widget-code'))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toContain('text/javascript')
+    expect(await res.text()).toBe(source)
+    expect(res.headers.get('ETag')).toMatch(/^"[0-9a-f]{16}"$/)
   })
 
-  it('prioritizes the household decision hierarchy', () => {
-    const script = embeddedScript()
-    const directive = script.indexOf("TODAY'S MOVE")
-    const extra = script.indexOf('EXTRA TODAY')
-    const week = script.indexOf('THROUGH SUNDAY')
-    const goal = script.indexOf("west ? 'WEST PACE' : 'GOAL PACE'")
+  it('answers 304 when the phone already has this version', async () => {
+    const first = await GET(new NextRequest('https://finance.autonomis.co/api/finance/widget-code'))
+    const etag = first.headers.get('ETag') as string
+    const res = await GET(new NextRequest('https://finance.autonomis.co/api/finance/widget-code', { headers: { 'if-none-match': etag } }))
+    expect(res.status).toBe(304)
+    expect(await res.text()).toBe('')
+  })
+})
 
-    expect(script).toContain('function mediumScreen')
-    expect(directive).toBeGreaterThan(-1)
-    expect(extra).toBeGreaterThan(directive)
-    expect(week).toBeGreaterThan(extra)
-    expect(goal).toBeGreaterThan(week)
-    expect(script).toContain('mediumScreen(w, d, avatar)')
+describe('widget script source', () => {
+  it('the bundled string matches finance-widget.js (run: node src/widget/sync-source.mjs)', async () => {
+    const { renderSourceModule } = await import('../../src/widget/sync-source.mjs')
+    const generated = readFileSync(resolve(process.cwd(), 'src/widget/finance-widget.source.ts'), 'utf8')
+    expect(generated).toBe(renderSourceModule(source))
   })
 
-  it('ships a lightweight dedicated Wolff avatar', () => {
-    const avatar = resolve(process.cwd(), 'public/brand/wolff-widget.png')
-    expect(statSync(avatar).size).toBeLessThan(100_000)
-    expect(embeddedScript()).toContain('/brand/wolff-widget.png')
+  it('the route reads nothing from disk', () => {
+    const route = readFileSync(resolve(process.cwd(), 'src/app/api/finance/widget-code/route.ts'), 'utf8')
+    expect(route).not.toMatch(/readFileSync|node:fs/)
+  })
+
+  it('stays valid inside the loader\'s async wrapper', () => {
+    expect(() => new Function(`return (async () => {\n${source}\n})`)).not.toThrow()
+  })
+
+  it('keeps the v1-loader marker and drops the retired v1 metrics and avatar', () => {
+    // Loaders downloaded before v2 only accept code containing this word.
+    expect(source).toContain('smartScreen')
+    expect(source).not.toMatch(/EXTRA TODAY|PROTECT THE PLAN|THROUGH SUNDAY/)
+    expect(source).not.toContain('wolff-widget.png')
+    expect(source).not.toMatch(/APP_URL\.replace\(['"]/)
   })
 })

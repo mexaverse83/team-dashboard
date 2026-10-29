@@ -1,61 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
+import { localDateKey } from '@/lib/dates'
+import { widgetTokenForLoader } from '@/lib/widget-auth'
 
 // Serves the personalized Scriptable LOADER as a downloadable Finance.js.
-// The loader fetches the actual widget logic from /api/finance/widget-code on
-// every run (cached locally for offline), so design changes deploy without
-// the phones ever re-downloading. Auth: logged-in session or api key.
+// The loader caches the widget logic from /api/finance/widget-code and
+// re-checks it at most every 6h (ETag → 304), so design changes deploy
+// without re-downloads. It embeds a read-only WIDGET_READ_TOKENS entry
+// (?slot=N picks one per phone), never the read/write FINANCE_API_KEY —
+// except while WIDGET_READ_TOKENS is unset, when it keeps the legacy key so
+// re-downloads keep working (W12, NU-5/6).
 export async function GET(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
 
-  const apiKey = process.env.FINANCE_API_KEY || ''
   const origin = process.env.NEXT_PUBLIC_APP_ORIGIN || 'https://finance.autonomis.co'
+  const token = widgetTokenForLoader(req.nextUrl.searchParams.get('slot'))
+  const legacyKey = token ? '' : process.env.FINANCE_API_KEY || ''
+  if (!token) console.warn('[widget-script] WIDGET_READ_TOKENS is unset; the loader falls back to FINANCE_API_KEY')
 
-  const script = `// Finance widget loader (Scriptable) — self-updating, generated ${new Date().toISOString().slice(0, 10)}
-// The widget's design/logic lives on the server and refreshes automatically.
-
-const API_URL = '${origin}/api/finance/widget'
-const API_KEY = '${apiKey}'
-const APP_URL = '${origin}/finance'
-const CODE_URL = '${origin}/api/finance/widget-code'
-
-const fm = FileManager.local()
-const cachePath = fm.joinPath(fm.libraryDirectory(), 'wolff-widget-code.js')
-
-let code = null
-try {
-  const r = new Request(CODE_URL)
-  r.headers = { 'x-api-key': API_KEY }
-  r.timeoutInterval = 15
-  const t = await r.loadString()
-  if (t && t.indexOf('smartScreen') !== -1) {
-    code = t
-    try { fm.writeString(cachePath, t) } catch (e) { /* cache write is best-effort */ }
-  }
-} catch (e) { /* offline — fall back to cache */ }
-
-if (!code && fm.fileExists(cachePath)) {
-  code = fm.readString(cachePath)
-}
-
-if (!code) {
-  const w = new ListWidget()
-  w.backgroundColor = new Color('#0d1f1a')
-  const t = w.addText('\\u{1F43A} Finance')
-  t.textColor = new Color('#d1fae5')
-  t.font = Font.boldSystemFont(12)
-  w.addSpacer(4)
-  const d = w.addText('First run needs internet to fetch the widget.')
-  d.textColor = new Color('#8aa39a')
-  d.font = Font.mediumSystemFont(9)
-  if (config.runsInWidget) Script.setWidget(w)
-  Script.complete()
-} else {
-  await eval('(async () => {' + code + '\\n})()')
-}
-`
-
+  const script = buildLoader({ origin, token, legacyKey, generated: localDateKey() })
   return new NextResponse(script, {
     headers: {
       'Content-Type': 'text/javascript; charset=utf-8',
@@ -63,4 +27,83 @@ if (!code) {
       'Cache-Control': 'no-store',
     },
   })
+}
+
+function buildLoader({ origin, token, legacyKey, generated }: { origin: string; token: string | null; legacyKey: string; generated: string }) {
+  const q = (s: string) => JSON.stringify(s)
+  return `// Mona widget loader (Scriptable), generated ${generated}.
+// Parameters (long-press › Edit widget › Parameter): goals, coach, spend,
+// quickadd, lang=es. The widget's design lives on the server.
+
+const API_URL = ${q(`${origin}/api/finance/widget`)}
+const APP_URL = ${q(`${origin}/finance`)}
+const CODE_URL = ${q(`${origin}/api/finance/widget-code`)}
+const WIDGET_TOKEN = ${q(token || '')}
+const API_KEY = ${q(legacyKey)}
+const CODE_TTL_MS = 6 * 60 * 60 * 1000
+
+const fm = FileManager.local()
+const codePath = fm.joinPath(fm.libraryDirectory(), 'mona-widget-code.js')
+const metaPath = fm.joinPath(fm.libraryDirectory(), 'mona-widget-code.json')
+const authHeaders = WIDGET_TOKEN ? { 'x-widget-token': WIDGET_TOKEN } : { 'x-api-key': API_KEY }
+
+let meta = {}
+try { if (fm.fileExists(metaPath)) meta = JSON.parse(fm.readString(metaPath)) || {} } catch (e) { meta = {} }
+let code = fm.fileExists(codePath) ? fm.readString(codePath) : null
+let codeStatus = 0
+
+const due = !code || !config.runsInWidget || Date.now() - (meta.checked_at || 0) > CODE_TTL_MS
+if (due) {
+  try {
+    const r = new Request(CODE_URL)
+    r.headers = Object.assign({}, authHeaders, code && meta.etag ? { 'If-None-Match': meta.etag } : {})
+    r.timeoutInterval = 10
+    const t = await r.loadString()
+    const res = r.response || {}
+    codeStatus = res.statusCode || 0
+    const h = res.headers || {}
+    if (codeStatus === 200 && t && t.indexOf('Script.complete') !== -1) {
+      code = t
+      fm.writeString(codePath, t)
+      meta.etag = h.ETag || h.Etag || h.etag || null
+    }
+    if (codeStatus === 200 || codeStatus === 304) {
+      meta.checked_at = Date.now()
+      fm.writeString(metaPath, JSON.stringify(meta))
+    }
+  } catch (e) { /* offline: use the cached code */ }
+}
+
+function notice(title, body) {
+  const w = new ListWidget()
+  w.url = APP_URL
+  const accessory = String(config.widgetFamily || '').indexOf('accessory') === 0
+  const t = w.addText(title)
+  t.font = Font.boldSystemFont(13)
+  if (!accessory) t.textColor = Color.dynamic(new Color('#0F172A'), new Color('#F3F4F6'))
+  w.addSpacer(4)
+  const d = w.addText(body)
+  d.font = Font.mediumSystemFont(12)
+  d.minimumScaleFactor = 0.8
+  if (!accessory) {
+    d.textColor = Color.dynamic(new Color('#475569'), new Color('#A3AAB5'))
+    w.backgroundColor = Color.dynamic(new Color('#FFFFFF'), new Color('#16181D'))
+  }
+  if (config.runsInWidget) Script.setWidget(w)
+  else w.presentMedium()
+  Script.complete()
+}
+
+if (!code) {
+  if (codeStatus === 401 || codeStatus === 403) notice('Mona', 'Re-install the widget from Family › Phone widget')
+  else notice('Mona', 'Connect once to load the widget')
+} else {
+  try {
+    await eval('(async () => {' + code + '\\n})()')
+  } catch (e) {
+    try { fm.writeString(metaPath, '{}') } catch (e2) { /* force a fresh code check next run */ }
+    notice('Mona', 'Widget error, retrying soon: ' + String(e && e.message || e).slice(0, 80))
+  }
+}
+`
 }
