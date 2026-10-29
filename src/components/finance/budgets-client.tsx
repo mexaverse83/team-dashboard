@@ -324,7 +324,8 @@ export default function BudgetsClient() {
                     label={`${name} budget`} valueText={`${status.pct}% — ${detail}`} />
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <p className={cn('pointer-events-none text-xs', status.tone === 'negative' ? 'font-medium text-negative' : 'text-fg-secondary')}>
-                      {detail}{b.projected != null && status.tone !== 'negative' && b.projected > b.amount && <span className="text-warning"> · on pace for {formatMoney(b.projected)}</span>}
+                      {status.label === 'Paid' ? 'Paid' : <><MoneyText value={Math.abs(left)} /> {left >= 0 ? 'left' : 'over'}</>}
+                      {b.projected != null && status.tone !== 'negative' && b.projected > b.amount && <span className="text-warning"> · on pace for <MoneyText value={b.projected} /></span>}
                     </p>
                     <div className="relative z-10 -my-1.5 -mr-1.5 flex shrink-0 items-center opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
                       <Button variant="ghost" size="icon" aria-label={`Edit ${name} budget`} onClick={() => openEdit(b)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></Button>

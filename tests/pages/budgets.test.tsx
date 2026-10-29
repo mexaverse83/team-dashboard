@@ -106,7 +106,9 @@ describe('Budgets page', () => {
   it('colours by the shared budget tone: over is red, fixed at 100% is a neutral "Paid"', async () => {
     await renderBudgets()
     expect(within(card('Groceries')).getByRole('progressbar')).toHaveAttribute('data-tone', 'negative')
-    expect(within(card('Groceries')).getByText('$2,000 over')).toBeInTheDocument()
+    // Footer: the amount is a privacy-blurred span, the word stays readable.
+    const footer = within(card('Groceries')).getByText((_, el) => el?.tagName === 'P' && el.textContent === '$2,000 over')
+    expect(footer.querySelector('[data-money]')?.textContent).toBe('$2,000')
     expect(within(card('Rent/Mortgage')).getByRole('progressbar')).toHaveAttribute('data-tone', 'neutral')
     expect(within(card('Rent/Mortgage')).getAllByText('Paid').length).toBeGreaterThan(0)
     expect(within(card('Dining Out')).getByRole('progressbar')).toHaveAttribute('data-tone', 'positive')

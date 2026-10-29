@@ -63,7 +63,7 @@ export function ForecastChart({ data, height = 240, showBalance = true, showFlow
               interval="preserveStartEnd"
               minTickGap={40}
             />
-            <YAxis {...chartAxisProps} className="money-axis" tickFormatter={(v: number) => formatCompact(v)} width={48} tickCount={4} />
+            <YAxis {...chartAxisProps} tick={{ ...chartAxisProps.tick, className: 'money-tick' }} className="money-axis" tickFormatter={(v: number) => formatCompact(v)} width={48} tickCount={4} />
             <Tooltip
               {...chartTooltipProps}
               labelFormatter={(label) => formatDateShort(String(label))}

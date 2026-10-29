@@ -22,7 +22,12 @@ export function BudgetWatch({ summary, exclude = [] }: {
   const pace = month.days_in_month > 0 ? month.day_of_month / month.days_in_month : null
   // "How are the rest pacing": furthest ahead of today's pace first.
   const paceRatio = (b: { spent: number; budget: number }) => b.spent / (b.budget * (pace || 1))
-  const shown = budgets.filter(b => !exclude.includes(b.category)).sort((a, b) => paceRatio(b) - paceRatio(a)).slice(0, MAX_ROWS)
+  // A fixed bill already paid has no pace to watch (the Budgets page still lists it): sort those last.
+  const isPaid = (b: (typeof budgets)[number]) =>
+    describeBudget({ actual: b.spent, budget: b.budget, projected: b.projected_month_total, isFixed: b.is_fixed }).label === 'Paid'
+  const shown = budgets.filter(b => !exclude.includes(b.category))
+    .sort((a, b) => Number(isPaid(a)) - Number(isPaid(b)) || paceRatio(b) - paceRatio(a))
+    .slice(0, MAX_ROWS)
 
   return (
     <Card>

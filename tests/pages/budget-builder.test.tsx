@@ -218,7 +218,9 @@ describe('Budget Builder', () => {
     expect(screen.getAllByText('+$4,000').length).toBeGreaterThan(0)
     expect(screen.getByRole('status', { name: '' }).className).toContain('bg-negative-bg')
     expect(screen.getByText('1 category over budget')).toBeInTheDocument()
-    expect(screen.getByText('Groceries $4,000 over.')).toBeInTheDocument()
+    // The amount is its own privacy-blurred span inside the sentence.
+    const overLine = screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === 'Groceries $4,000 over.')
+    expect(overLine.querySelector('[data-money]')?.textContent).toBe('$4,000')
     expect(screen.queryByText('Budget looks healthy!')).not.toBeInTheDocument()
   })
 

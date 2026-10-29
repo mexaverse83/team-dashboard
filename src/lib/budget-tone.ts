@@ -3,7 +3,8 @@
 //   red    (negative) — actual spend is over budget
 //   amber  (warning)  — only the projection is over, or usage is 85–100%
 //   green  (positive) — comfortably under plan
-//   neutral           — a fixed category paid at exactly its budget ("Paid"),
+//   neutral           — a fixed category paid at (or, when nothing more is
+//                       projected, under) its budget ("Paid"),
 //                       or a row with no budget to judge against
 export type Tone = 'positive' | 'warning' | 'negative' | 'neutral'
 
@@ -29,6 +30,9 @@ export function getBudgetTone({ actual, budget, projected, isFixed = false }: Bu
   if (limit <= 0) return 'neutral'
   const tolerance = Math.max(FIXED_TOLERANCE_ABS, limit * FIXED_TOLERANCE_RATIO)
   if (isFixed && Math.abs(spent - limit) <= tolerance) return 'neutral'
+  // A fixed bill already paid for the month (projection = what's been charged)
+  // has nothing left to pace, even if it came in under budget: "Paid".
+  if (isFixed && spent > 0 && spent <= limit && projected != null && Number(projected) <= spent + tolerance) return 'neutral'
   if (spent > limit) return 'negative'
   if (spent / limit >= BUDGET_WARNING_RATIO) return 'warning'
   if (projected != null && Number(projected) > limit) return 'warning'

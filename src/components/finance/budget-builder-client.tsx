@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { Plus, Pencil, Trash2, CheckCircle2, AlertTriangle, Briefcase, Laptop, Moon, Hammer, TrendingUp, Wallet } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { fetchAllRows } from '@/lib/supabase-fetch-all'
@@ -15,7 +15,7 @@ import { useResumeRefresh } from '@/hooks/use-resume-refresh'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { describeBudget, type Tone } from '@/lib/budget-tone'
-import { formatDelta, formatMoney } from '@/lib/format'
+import { formatDelta } from '@/lib/format'
 import { addMonthsKey, localDateKey, monthEndKey } from '@/lib/dates'
 import { DEFAULT_CATEGORIES, defaultBudgetType, allocatedAmount, monthKey } from '@/lib/finance-utils'
 import { categoryMonthSpend, fetchBudgetTransactions, type BudgetTx } from '@/components/finance/budgets-client'
@@ -218,19 +218,21 @@ export default function BudgetBuilderClient() {
 
   // Action items (auto-generated)
   const actions = useMemo(() => {
-    const items: { title: string; description: string; priority: 'high' | 'medium' | 'low'; monthlySavings: number }[] = []
+    const items: { title: React.ReactNode; description: React.ReactNode; priority: 'high' | 'medium' | 'low'; monthlySavings: number }[] = []
     if (overRows.length > 0) {
-      const names = overRows.slice(0, 3).map(r => `${r.name} ${formatMoney(r.actual - r.budget)} over`).join(', ')
+      const names = overRows.slice(0, 3).map((r, i) => (
+        <React.Fragment key={r.categoryId}>{i > 0 && ', '}{r.name} <MoneyText value={r.actual - r.budget} /> over</React.Fragment>
+      ))
       items.push({
         title: `${overRows.length} ${overRows.length === 1 ? 'category' : 'categories'} over budget`,
-        description: `${names}${overRows.length > 3 ? `, and ${overRows.length - 3} more` : ''}.`,
+        description: <>{names}{overRows.length > 3 ? `, and ${overRows.length - 3} more` : ''}.</>,
         priority: 'high',
         monthlySavings: Math.round(overRows.reduce((s, r) => s + r.actual - r.budget, 0)),
       })
     }
     if (treatmentReserve > 0) {
       items.push({
-        title: `Reserve ${formatMoney(treatmentReserve)} for fertility treatment`,
+        title: <>Reserve <MoneyText value={treatmentReserve} /> for fertility treatment</>,
         description: 'Temporary May-July commitment; protect active goal contributions first, then cut wants.',
         priority: 'high',
         monthlySavings: treatmentReserve,
@@ -376,13 +378,14 @@ export default function BudgetBuilderClient() {
                 {incomeSources.map(src => {
                   const Icon = INCOME_ICONS[src.type] || Wallet
                   return (
-                    <li key={src.id} className={cn('group flex items-center gap-3 rounded-xl bg-surface-2 p-2.5', !src.is_active && 'opacity-60')}>
+                    <li key={src.id} className={cn('group relative flex items-center gap-3 rounded-xl bg-surface-2 p-2.5', !src.is_active && 'opacity-60')}>
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-3 text-fg-secondary"><Icon className="h-4 w-4" aria-hidden="true" /></span>
                       <div className="min-w-0 flex-1">
                         <p className="flex min-w-0 items-center gap-2 text-sm font-medium text-fg"><span className="truncate">{src.name}</span>{!src.is_active && <StatusPill tone="neutral" className="shrink-0 text-xs">Inactive</StatusPill>}</p>
                         <p className="text-xs text-fg-tertiary"><span className="capitalize">{src.frequency}</span> · <MoneyText value={toMonthly(src.amount, src.frequency)} className="text-fg-secondary" />/mo</p>
                       </div>
-                      <div className="flex shrink-0 items-center opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+                      {/* Hover actions float over the row on sm+ so they don't steal width from the name. */}
+                      <div className="flex shrink-0 items-center opacity-100 transition-opacity sm:absolute sm:inset-y-0 sm:right-1 sm:rounded-r-xl sm:bg-surface-2 sm:pl-1 sm:opacity-0 sm:pointer-events-none sm:group-focus-within:pointer-events-auto sm:group-focus-within:opacity-100 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100">
                         <Button variant="ghost" size="icon" aria-label={`Edit ${src.name}`} onClick={() => openEditIncome(src)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></Button>
                         {deleteConfirm === src.id ? (
                           <>
@@ -420,11 +423,11 @@ export default function BudgetBuilderClient() {
                         <tr key={row.categoryId} className="border-b border-border last:border-0">
                           <td className="px-3 py-2.5"><div className="flex items-center gap-2"><CategoryIcon name={row.name} emoji={row.icon} colorIndex={row.sortOrder} size={24} /><span className="text-sm font-medium text-fg">{row.name}</span></div></td>
                           <td className="px-3 py-2.5"><StatusPill tone={TYPE_TONE[row.budgetType]} className="text-xs capitalize">{row.budgetType}</StatusPill></td>
-                          <td className="num px-3 py-2.5 text-sm text-fg-secondary">{row.budget ? formatMoney(row.budget) : '—'}</td>
-                          <td className="num px-3 py-2.5 text-sm text-fg">{formatMoney(row.actual)}</td>
+                          <td className="num px-3 py-2.5 text-sm text-fg-secondary">{row.budget ? <MoneyText value={row.budget} /> : '—'}</td>
+                          <td className="num px-3 py-2.5 text-sm text-fg"><MoneyText value={row.actual} /></td>
                           <td className="num px-3 py-2.5 text-sm text-fg-secondary">{row.pctOfIncome}%</td>
                           <td className={cn('num px-3 py-2.5 text-sm font-medium', row.budget > 0 && row.variance > 0 ? 'text-negative' : 'text-fg-secondary')}>
-                            {row.budget > 0 ? formatDelta(row.variance, { mode: 'full' }) : '—'}
+                            {row.budget > 0 ? <span data-money="">{formatDelta(row.variance, { mode: 'full' })}</span> : '—'}
                           </td>
                         </tr>
                       ))}
@@ -441,8 +444,8 @@ export default function BudgetBuilderClient() {
                           <MoneyText value={row.actual} className="shrink-0 text-sm font-semibold text-fg" />
                         </div>
                         <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-fg-tertiary">
-                          <span className="capitalize">{row.budgetType} · budget {row.budget ? formatMoney(row.budget) : '—'}</span>
-                          {row.budget > 0 && <span className={row.variance > 0 ? 'font-medium text-negative' : ''}>{formatDelta(row.variance, { mode: 'full' })}</span>}
+                          <span className="capitalize">{row.budgetType} · budget {row.budget ? <MoneyText value={row.budget} /> : '—'}</span>
+                          {row.budget > 0 && <span data-money="" className={row.variance > 0 ? 'font-medium text-negative' : ''}>{formatDelta(row.variance, { mode: 'full' })}</span>}
                         </div>
                       </div>
                     </li>

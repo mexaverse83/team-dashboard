@@ -63,7 +63,7 @@ export function EducationProjectionWithScenarios() {
               </defs>
               <ChartGrid />
               <XAxis dataKey="year" {...chartAxisProps} interval="preserveStartEnd" />
-              <YAxis {...chartAxisProps} className="money-axis" width={44} tickCount={4} tickFormatter={moneyTick} />
+              <YAxis {...chartAxisProps} tick={{ ...chartAxisProps.tick, className: 'money-tick' }} className="money-axis" width={44} tickCount={4} tickFormatter={moneyTick} />
               <Tooltip {...chartTooltipProps} formatter={(val, name) => [moneyTooltipFormatter(val), String(name)]} labelFormatter={y => `Year ${y}`} />
               <Area type="monotone" dataKey="fund" stroke={SERIES.fund} strokeWidth={CHART.strokeWidth} fill="url(#eduFundGrad)" name="Fund value" isAnimationActive={false} />
               <Line type="monotone" dataKey="contributed" stroke={SERIES.contributed} strokeDasharray={CHART.dash.budget} strokeWidth={1.5} dot={false} name="Contributed" isAnimationActive={false} />

@@ -80,7 +80,15 @@ export function moneyTooltipFormatter(value: unknown): string {
 export const chartXAxisMonthProps = { ...chartAxisProps, tickFormatter: monthTick } as const
 /** Class for value axes that print money, so privacy mode blurs their ticks (globals.css). */
 export const MONEY_AXIS_CLASS = 'money-axis'
-export const chartYAxisMoneyProps = { ...chartAxisProps, width: 44, tickCount: 4, tickFormatter: moneyTick, className: MONEY_AXIS_CLASS } as const
+/**
+ * Class put on each money tick's <text>. Recharts 3 renders tick labels in a
+ * separate layer outside the axis <g>, so the axis className alone can't reach
+ * them; a className on the `tick` object lands on every tick text element.
+ */
+export const MONEY_TICK_CLASS = 'money-tick'
+/** Tick config for money axes: shared look + the privacy class. */
+export const moneyTickProps = { ...tick, className: MONEY_TICK_CLASS } as const
+export const chartYAxisMoneyProps = { ...chartAxisProps, tick: moneyTickProps, width: 44, tickCount: 4, tickFormatter: moneyTick, className: MONEY_AXIS_CLASS } as const
 
 export function prefersReducedMotion(): boolean {
   try {

@@ -414,7 +414,9 @@ input, textarea, select {
     min-height: var(--tap-min);
     touch-action: manipulation;
   }
-  .finance-app main input:not([type='checkbox']):not([type='radio']),
+  /* Range inputs keep their own track height: a 44px min-height on a
+     painted <input type=range> renders as a tall grey block on phones. */
+  .finance-app main input:not([type='checkbox']):not([type='radio']):not([type='range']),
   .finance-app main select {
     min-height: var(--tap-min);
     max-width: 100%;
@@ -593,7 +595,8 @@ input, textarea, select {
 .privacy-on .num-metric:not([data-privacy-exempt]),
 .privacy-on [data-money],
 .privacy-on [data-privacy-scope] .tabular-nums,
-.privacy-on .money-axis .recharts-cartesian-axis-tick-value {
+.privacy-on .money-axis .recharts-cartesian-axis-tick-value,
+.privacy-on .recharts-cartesian-axis-tick-value.money-tick {
   filter: blur(6px);
   transition: filter 0.15s ease;
 }
