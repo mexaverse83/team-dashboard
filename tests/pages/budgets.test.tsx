@@ -141,3 +141,48 @@ describe('Budgets page', () => {
     expect(screen.getByText('February 2026')).toBeInTheDocument()
   })
 })
+
+describe('budget spend helpers', () => {
+  const bill = (id: string, date: string, amount: number) => ({ id, type: 'expense' as const, amount_mxn: amount, category_id: 'cat-elec', transaction_date: date, coverage_start: null, coverage_end: null })
+
+  it('normalises a bimonthly Electricity bill to one bill per two months, ending today', async () => {
+    const { categoryMonthSpend, budgetAsOfKey } = await import('@/components/finance/budgets-client')
+    // Bills every other month; the October 1 fetch used to sweep Aug–Oct (three bills) into a two-month window.
+    const txs = [bill('e1', '2026-06-20', 3000), bill('e2', '2026-08-20', 3100), bill('e3', '2026-10-20', 2968)]
+    expect(budgetAsOfKey('2026-10', '2026-10-28')).toBe('2026-10-28')
+    expect(budgetAsOfKey('2026-09', '2026-10-28')).toBe('2026-09-30')
+    expect(categoryMonthSpend(txs, 'cat-elec', 'bimonthly', '2026-10', '2026-10-28')).toBe(2968 / 2)
+    expect(categoryMonthSpend(txs, 'cat-elec', 'bimonthly', '2026-09', '2026-10-28')).toBe(3100 / 2)
+    // Window is (asOf − 2 months, asOf]: a bill on the lower edge belongs to the previous cycle.
+    expect(categoryMonthSpend([bill('e4', '2026-08-28', 3000)], 'cat-elec', 'bimonthly', '2026-10', '2026-10-28')).toBe(0)
+    // Future-dated rows in the month don't count yet.
+    expect(categoryMonthSpend([bill('e5', '2026-10-30', 3000)], 'cat-elec', 'bimonthly', '2026-10', '2026-10-28')).toBe(0)
+  })
+
+  it('reads budgets for the selected month only', async () => {
+    setupSupabaseMock()
+    const budgetCalls: string[][] = []
+    const original = vi.mocked(supabase.from).getMockImplementation()!
+    vi.mocked(supabase.from).mockImplementation(((table: string) => {
+      const api = (original as any)(table)
+      if (table !== 'finance_budgets') return api
+      return { ...api, select: vi.fn(() => makeChain({ data: CURRENT_MONTH_BUDGETS, error: null }, budgetCalls)) }
+    }) as unknown as typeof supabase.from)
+    await renderBudgets()
+    expect(budgetCalls).toContainEqual(['gte', 'month'])
+    expect(budgetCalls).toContainEqual(['lte', 'month'])
+  })
+
+  it('shows an error instead of "No budgets" when a read fails', async () => {
+    setupSupabaseMock()
+    const original = vi.mocked(supabase.from).getMockImplementation()!
+    vi.mocked(supabase.from).mockImplementation(((table: string) => {
+      const api = (original as any)(table)
+      if (table !== 'finance_budgets') return api
+      return { ...api, select: vi.fn(() => makeChain({ data: null, error: { message: 'boom' } }, [])) }
+    }) as unknown as typeof supabase.from)
+    await renderBudgets()
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not load this month')
+    expect(screen.queryByText('No budgets for this month')).not.toBeInTheDocument()
+  })
+})

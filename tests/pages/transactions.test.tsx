@@ -109,6 +109,33 @@ describe('Transactions page', () => {
     expect(screen.getByText('All Categories')).toBeInTheDocument()
   })
 
+  it('re-runs a refresh requested while a fetch is in flight, so a mid-load save is not lost', async () => {
+    let release!: () => void
+    const gate = new Promise<void>(r => { release = r })
+    let rows: FinanceTransaction[] = [todayTx]
+    vi.mocked(supabase.from).mockImplementation(((table: string) => {
+      const chain: any = {}
+      for (const m of ['select', 'order', 'eq', 'gte', 'lte', 'range', 'limit']) chain[m] = vi.fn(() => chain)
+      chain.then = (ok: any, err: any) => {
+        const snapshot = table === 'finance_transactions' ? rows : table === 'finance_categories' ? SEED_CATEGORIES : []
+        return gate.then(() => ({ data: snapshot, error: null })).then(ok, err)
+      }
+      return chain
+    }) as unknown as typeof supabase.from)
+    const Comp = (await import('@/components/finance/transactions-client')).default
+    render(<Comp />)
+    await act(async () => {})
+    rows = [{ ...todayTx, id: 'saved-mid-load', merchant: 'Starbucks' }, todayTx]
+    act(() => { window.dispatchEvent(new CustomEvent('finance:data-changed')) })
+    await act(async () => { release() })
+    expect(await screen.findByRole('button', { name: /Edit Starbucks/ })).toBeInTheDocument()
+  })
+
+  it('keeps Import disabled until the whole ledger has loaded (dedupe needs it)', async () => {
+    await renderPage()
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Import transactions' })).toBeEnabled())
+  })
+
   it('groups rows under local-date day headers with totals', async () => {
     await renderPage()
     const today = screen.getByRole('heading', { name: /^Today/ })
@@ -233,6 +260,20 @@ describe('Quick-add sheet', () => {
     expect(sheet.getByLabelText('Where did you spend?')).toHaveValue('Heb')
     expect(sheet.getByRole('button', { name: /Groceries/ })).toHaveAttribute('aria-pressed', 'true')
     expect(window.location.search).toBe('')
+  })
+
+  it('a deep link without a category picks the merchant\'s usual one, so Save is ready', async () => {
+    setupSupabaseMock([{ ...todayTx, id: 'heb-1', merchant: 'HEB', category_id: 'cat-groc', amount: 640, amount_mxn: 640 }, todayTx, ...SEED_TRANSACTIONS])
+    window.history.replaceState(null, '', '/finance/transactions?add=1&m=heb&a=250')
+    await renderPage()
+    const sheet = within(await screen.findByTestId('modal'))
+    await waitFor(() => expect(sheet.getByRole('button', { name: /Groceries/ })).toHaveAttribute('aria-pressed', 'true'))
+    // Retyping the merchant drops the auto-picked category; a manual pick is kept.
+    fireEvent.change(sheet.getByLabelText('Where did you spend?'), { target: { value: 'Somewhere new' } })
+    expect(sheet.getByRole('button', { name: /Groceries/ })).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(sheet.getByRole('button', { name: /Groceries/ }))
+    fireEvent.change(sheet.getByLabelText('Where did you spend?'), { target: { value: 'Somewhere else' } })
+    expect(sheet.getByRole('button', { name: /Groceries/ })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('orders amount → merchant → category and keeps notes/tags behind More details', async () => {

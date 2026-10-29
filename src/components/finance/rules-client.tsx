@@ -18,7 +18,7 @@ import { OWNERS } from '@/lib/owners'
 
 import { inputCls } from '@/lib/form-style'
 
-const labelCls = 'text-xs text-[hsl(var(--text-secondary))] mb-1 block'
+const labelCls = 'text-xs text-fg-secondary mb-1 block'
 
 interface RuleForm {
   merchant_pattern: string
@@ -206,8 +206,8 @@ export default function RulesClient() {
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-8 w-48 rounded bg-[hsl(var(--muted))] animate-pulse" />
-        <div className="h-64 rounded-xl bg-[hsl(var(--muted))] animate-pulse" />
+        <div className="h-8 w-48 rounded bg-surface-2 animate-pulse" />
+        <div className="h-64 rounded-xl bg-surface-2 animate-pulse" />
       </div>
     )
   }
@@ -234,7 +234,7 @@ export default function RulesClient() {
           />
         ) : (
           <GlassCard>
-            <div className="hidden sm:grid grid-cols-12 gap-3 text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-secondary))] pb-3 border-b border-[hsl(var(--border))]">
+            <div className="hidden sm:grid grid-cols-12 gap-3 text-[0.6875rem] font-semibold uppercase tracking-wider text-fg-secondary pb-3 border-b border-border">
               <div className="col-span-4">Merchant pattern</div>
               <div className="col-span-3">Category</div>
               <div className="col-span-1 text-center">Owner</div>
@@ -247,26 +247,26 @@ export default function RulesClient() {
               return (
                 <div
                   key={rule.id}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 items-center py-3 border-b border-[hsl(var(--border))] last:border-0 text-sm sm:grid-cols-12 sm:gap-3"
+                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 items-center py-3 border-b border-border last:border-0 text-sm sm:grid-cols-12 sm:gap-3"
                 >
                   <div className="col-start-1 row-span-2 row-start-1 min-w-0 sm:col-span-4 sm:col-start-auto sm:row-span-1 sm:row-start-auto">
                     <p className="font-medium flex min-w-0 items-center gap-2">
-                      <code className="min-w-0 truncate px-1.5 py-0.5 rounded bg-[hsl(var(--muted))] text-xs font-mono">{rule.merchant_pattern}</code>
+                      <code className="min-w-0 truncate px-1.5 py-0.5 rounded bg-surface-2 text-xs font-mono">{rule.merchant_pattern}</code>
                       {rule.learned && (
-                        <span className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-600">
+                        <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-info/10 px-1.5 py-0.5 text-[0.6875rem] font-medium text-info">
                           <Sparkles className="h-2.5 w-2.5" /> Learned
                         </span>
                       )}
                     </p>
-                    <p className="text-[10px] text-[hsl(var(--text-tertiary))] mt-0.5">
+                    <p className="text-[0.6875rem] text-fg-tertiary mt-0.5">
                       {rule.match_mode}
                       {rule.amount_min != null && ` · min $${rule.amount_min}`}
                       {rule.amount_max != null && ` · max $${rule.amount_max}`}
                       {rule.notes && ` · ${rule.notes}`}
                     </p>
-                    <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-[hsl(var(--text-secondary))] sm:hidden">
-                      {cat ? <span className="min-w-0 truncate">{cat.name}</span> : <span className="text-[hsl(var(--text-tertiary))]">—</span>}
-                      <span className="shrink-0 text-[hsl(var(--text-tertiary))]">· {rule.owner || 'all'} · {rule.match_count} matches</span>
+                    <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-fg-secondary sm:hidden">
+                      {cat ? <span className="min-w-0 truncate">{cat.name}</span> : <span className="text-fg-tertiary">—</span>}
+                      <span className="shrink-0 text-fg-tertiary">· {rule.owner || 'all'} · {rule.match_count} matches</span>
                     </p>
                   </div>
                   <div className="hidden sm:block col-span-3">
@@ -276,13 +276,13 @@ export default function RulesClient() {
                         <span>{cat.name}</span>
                       </span>
                     ) : (
-                      <span className="text-[hsl(var(--text-tertiary))]">—</span>
+                      <span className="text-fg-tertiary">—</span>
                     )}
                   </div>
                   <div className="hidden sm:block col-span-1 text-center text-xs">
-                    {rule.owner || <span className="text-[hsl(var(--text-tertiary))]">all</span>}
+                    {rule.owner || <span className="text-fg-tertiary">all</span>}
                   </div>
-                  <div className="hidden sm:block col-span-1 text-right tabular-nums text-xs text-[hsl(var(--text-secondary))]">
+                  <div className="hidden sm:block col-span-1 text-right tabular-nums text-xs text-fg-secondary">
                     {rule.match_count}
                   </div>
                   <div className="col-start-2 row-start-1 flex justify-end sm:col-span-1 sm:col-start-auto sm:row-start-auto sm:justify-center">
@@ -296,12 +296,12 @@ export default function RulesClient() {
                     >
                       <span className={cn(
                         'relative block h-5 w-9 rounded-full transition-colors',
-                        rule.is_active ? 'bg-emerald-500/30' : 'bg-[hsl(var(--muted))]'
+                        rule.is_active ? 'bg-positive' : 'bg-surface-3'
                       )}>
                         <span
                           className={cn(
-                            'absolute top-0.5 h-4 w-4 rounded-full transition-all',
-                            rule.is_active ? 'left-4 bg-emerald-400' : 'left-0.5 bg-[hsl(var(--text-tertiary))]'
+                            'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all',
+                            rule.is_active ? 'left-4' : 'left-0.5'
                           )}
                         />
                       </span>
@@ -311,14 +311,10 @@ export default function RulesClient() {
                     <Button variant="ghost" size="icon" onClick={() => openEdit(rule)} aria-label={`Edit rule ${rule.merchant_pattern}`}>
                       <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                     </Button>
-                    <button
-                      type="button"
-                      onClick={() => remove(rule.id)}
-                      className="flex h-10 w-10 items-center justify-center rounded-xl text-fg-secondary hover:bg-negative-bg hover:text-negative"
-                      aria-label={`Delete rule ${rule.merchant_pattern}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <Button variant="ghost" size="icon" onClick={() => remove(rule.id)} className="hover:bg-negative-bg hover:text-negative"
+                      aria-label={`Delete rule ${rule.merchant_pattern}`}>
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
                   </div>
                 </div>
               )
@@ -407,19 +403,10 @@ export default function RulesClient() {
               />
             </div>
             <div className="flex items-center gap-2 pt-2 justify-end">
-              <button
-                onClick={() => setModalOpen(false)}
-                className="px-4 py-2 rounded-lg border border-[hsl(var(--border))] text-sm hover:bg-[hsl(var(--muted))]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={save}
-                disabled={saving || !form.merchant_pattern || !form.category_id}
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
+              <Button onClick={save} disabled={saving || !form.merchant_pattern || !form.category_id}>
                 {saving ? 'Saving…' : editingId ? 'Save' : 'Create rule'}
-              </button>
+              </Button>
             </div>
           </div>
         </Modal>
@@ -432,12 +419,12 @@ export default function RulesClient() {
         >
           <div className="space-y-3">
             {proposals.length === 0 ? (
-              <p className="text-sm text-[hsl(var(--text-tertiary))] text-center py-6">
+              <p className="text-sm text-fg-tertiary text-center py-6">
                 No new patterns found. Either you don&apos;t have enough transaction history, or rules already exist for the consistent merchants.
               </p>
             ) : (
               <>
-                <p className="text-xs text-[hsl(var(--text-secondary))]">
+                <p className="text-xs text-fg-secondary">
                   Patterns where ≥ 3 transactions share the same category at ≥ 80% confidence. Toggle off any you don&apos;t want.
                 </p>
                 <div className="max-h-[50vh] overflow-y-auto space-y-2">
@@ -447,26 +434,28 @@ export default function RulesClient() {
                       <button
                         key={p.merchant_pattern}
                         onClick={() => toggleProposal(p.merchant_pattern)}
+                        type="button"
+                        aria-pressed={selected}
                         className={cn(
-                          'w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors',
-                          selected ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-[hsl(var(--border))] bg-[hsl(var(--muted))]/30'
+                          'w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors',
+                          selected ? 'border-primary/50 bg-primary/10' : 'border-border bg-surface-2'
                         )}
                       >
                         <div
                           className={cn(
                             'h-5 w-5 rounded shrink-0 flex items-center justify-center',
-                            selected ? 'bg-emerald-500' : 'bg-[hsl(var(--muted))] border border-[hsl(var(--border))]'
+                            selected ? 'btn-primary' : 'border border-border-strong bg-surface'
                           )}
                         >
-                          {selected && <Check className="h-3 w-3 text-white" />}
+                          {selected && <Check className="h-3 w-3" aria-hidden="true" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium">
-                            <code className="px-1.5 py-0.5 rounded bg-[hsl(var(--bg-elevated))] text-xs">{p.merchant_pattern}</code>
-                            <span className="text-[hsl(var(--text-secondary))] ml-2">→</span>{' '}
+                            <code className="px-1.5 py-0.5 rounded bg-surface-2 text-xs">{p.merchant_pattern}</code>
+                            <span className="text-fg-secondary ml-2">→</span>{' '}
                             {p.category && <span>{p.category.icon} {p.category.name}</span>}
                           </p>
-                          <p className="text-[10px] text-[hsl(var(--text-tertiary))] mt-1">
+                          <p className="text-[0.6875rem] text-fg-tertiary mt-1">
                             {p.occurrences} matches · {Math.round(p.confidence * 100)}% confidence
                           </p>
                         </div>
@@ -475,23 +464,14 @@ export default function RulesClient() {
                   })}
                 </div>
                 <div className="flex items-center justify-between pt-2">
-                  <p className="text-xs text-[hsl(var(--text-secondary))]">
+                  <p className="text-xs text-fg-secondary">
                     {selectedProposals.size} of {proposals.length} selected
                   </p>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setLearnModalOpen(false)}
-                      className="px-4 py-2 rounded-lg border border-[hsl(var(--border))] text-sm hover:bg-[hsl(var(--muted))]"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={applyLearned}
-                      disabled={learning || selectedProposals.size === 0}
-                      className="px-4 py-2 rounded-lg bg-violet-500 text-white text-sm font-medium hover:bg-violet-600 disabled:opacity-50"
-                    >
+                    <Button variant="secondary" onClick={() => setLearnModalOpen(false)}>Cancel</Button>
+                    <Button onClick={applyLearned} disabled={learning || selectedProposals.size === 0}>
                       {learning ? 'Creating…' : `Create ${selectedProposals.size} rule${selectedProposals.size !== 1 ? 's' : ''}`}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </>

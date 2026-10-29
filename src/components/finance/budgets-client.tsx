@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -20,8 +20,8 @@ import { describeBudget } from '@/lib/budget-tone'
 import { formatMoney } from '@/lib/format'
 import { addMonthsKey, daysInMonth, localDateKey, monthEndKey } from '@/lib/dates'
 import { dispatchFinanceEvent, FINANCE_EVENTS } from '@/lib/finance-events'
-import type { FinanceCategory, FinanceTransaction, FinanceBudget } from '@/lib/finance-types'
-import { enrichBudgets, DEFAULT_CATEGORIES, cycleBudgetComparison, CYCLE_LABELS, CYCLE_MONTHS, allocatedMonthlySpend, monthKey } from '@/lib/finance-utils'
+import type { FinanceCategory, FinanceTransaction, FinanceBudget, BillingCycle } from '@/lib/finance-types'
+import { enrichBudgets, DEFAULT_CATEGORIES, CYCLE_LABELS, CYCLE_MONTHS, allocatedMonthlySpend, monthKey } from '@/lib/finance-utils'
 import { inputCls } from '@/lib/form-style'
 
 // Charged at a fixed amount: exactly 100% reads "Paid", not a warning (VIS-03).
@@ -30,7 +30,39 @@ const TX_COLUMNS = 'id,type,amount_mxn,category_id,transaction_date,coverage_sta
 // Longest billing cycle (annual) plus the selected month.
 const LOOKBACK_MONTHS = Math.max(...Object.values(CYCLE_MONTHS))
 
-type BudgetTx = Pick<FinanceTransaction, 'id' | 'type' | 'amount_mxn' | 'category_id' | 'transaction_date' | 'coverage_start' | 'coverage_end'>
+export type BudgetTx = Pick<FinanceTransaction, 'id' | 'type' | 'amount_mxn' | 'category_id' | 'transaction_date' | 'coverage_start' | 'coverage_end'>
+
+/** Spend is measured up to today in the current month, or to month end for past months. */
+export function budgetAsOfKey(month: string, todayKey: string = localDateKey()): string {
+  const end = monthEndKey(month)
+  return todayKey < end ? todayKey : end
+}
+
+function shiftMonthsKey(dateKey: string, n: number): string {
+  const month = addMonthsKey(dateKey.slice(0, 7), n)
+  const [y, m] = month.split('-').map(Number)
+  const day = Math.min(Number(dateKey.slice(8, 10)), daysInMonth(y, m))
+  return `${month}-${String(day).padStart(2, '0')}`
+}
+
+/**
+ * Monthly-equivalent spend for a non-monthly billing cycle: expenses dated in
+ * (asOf − cycle months, asOf] on local date keys, divided by the cycle length.
+ * A bimonthly electricity bill counts once per two months (UX-06 #4).
+ */
+export function cycleMonthlySpend(txs: BudgetTx[], categoryId: string, cycleMonths: number, asOfKey: string): number {
+  const from = shiftMonthsKey(asOfKey, -cycleMonths)
+  const total = txs
+    .filter(t => t.category_id === categoryId && t.type === 'expense' && t.transaction_date > from && t.transaction_date <= asOfKey)
+    .reduce((s, t) => s + t.amount_mxn, 0)
+  return total / Math.max(1, cycleMonths)
+}
+
+/** One figure for a category's spend in `month`, shared by Budgets and Budget Builder. */
+export function categoryMonthSpend(txs: BudgetTx[], categoryId: string, cycle: BillingCycle, month: string, todayKey: string = localDateKey()): number {
+  if (cycle === 'monthly') return allocatedMonthlySpend(txs as FinanceTransaction[], categoryId, month)
+  return cycleMonthlySpend(txs, categoryId, CYCLE_MONTHS[cycle], budgetAsOfKey(month, todayKey))
+}
 
 function monthFromUrl(): Date {
   const now = new Date()
@@ -48,7 +80,7 @@ function monthFromUrl(): Date {
  * Expense rows that can affect `month`: dated in the 12-month lookback window,
  * plus older/newer rows whose coverage window overlaps it (perf-08, F15, CH-11).
  */
-async function fetchBudgetTransactions(month: string): Promise<BudgetTx[]> {
+export async function fetchBudgetTransactions(month: string): Promise<BudgetTx[]> {
   const windowStart = `${addMonthsKey(month, -LOOKBACK_MONTHS)}-01`
   const monthStart = `${month}-01`
   const monthEnd = monthEndKey(month)
@@ -72,6 +104,7 @@ export default function BudgetsClient() {
   const [currentMonth, setCurrentMonth] = useState(monthFromUrl)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -82,22 +115,28 @@ export default function BudgetsClient() {
 
   const monthStr = monthKey(currentMonth)
 
+  const requestId = useRef(0)
   const fetchData = useCallback(async () => {
+    const id = ++requestId.current
     try {
       const [catRes, txs, budRes] = await Promise.all([
         supabase.from('finance_categories').select('*').order('sort_order'),
         fetchBudgetTransactions(monthStr),
-        supabase.from('finance_budgets').select('*'),
+        supabase.from('finance_budgets').select('*').gte('month', `${monthStr}-01`).lte('month', monthEndKey(monthStr)),
       ])
+      if (id !== requestId.current) return
+      if (catRes.error || budRes.error) throw new Error((catRes.error || budRes.error)!.message)
       const cats = (catRes.data && catRes.data.length > 0) ? catRes.data : DEFAULT_CATEGORIES
       setCategories(cats)
       setTransactions(txs)
       setBudgets(enrichBudgets(budRes.data || [], cats))
       setLoadError('')
+      setLoadedMonth(monthStr)
     } catch {
-      setLoadError('Could not load every transaction for this month, so totals are hidden rather than shown wrong.')
+      if (id !== requestId.current) return
+      setLoadError('Could not load this month, so budgets are hidden rather than shown wrong.')
     } finally {
-      setLoading(false)
+      if (id === requestId.current) setLoading(false)
     }
   }, [monthStr])
 
@@ -125,13 +164,9 @@ export default function BudgetsClient() {
     const cat = categories.find(c => c.id === b.category_id)
     const cycle = cat?.billing_cycle || 'monthly'
     const isFixed = FIXED_CATEGORIES.has(cat?.name || '')
-    if (cycle === 'monthly') {
-      const spent = allocatedMonthlySpend(asFull, b.category_id, monthStr)
-      const projected = isCurrentMonth && !isFixed && elapsed >= 0.2 ? spent / elapsed : null
-      return { ...b, cat, cycle, isFixed, spent, projected, pct: b.amount > 0 ? (spent / b.amount) * 100 : 0 }
-    }
-    const comparison = cycleBudgetComparison(asFull, b.category_id, b.amount, cycle, currentMonth)
-    return { ...b, cat, cycle, isFixed, spent: comparison.monthlyAvg, projected: null, pct: comparison.pct }
+    const spent = categoryMonthSpend(transactions, b.category_id, cycle, monthStr, todayKey)
+    const projected = cycle === 'monthly' && isCurrentMonth && !isFixed && elapsed >= 0.2 ? spent / elapsed : null
+    return { ...b, cat, cycle, isFixed, spent, projected, pct: b.amount > 0 ? (spent / b.amount) * 100 : 0 }
   }).sort((a, b) => b.pct - a.pct)
 
   const expenseCats = categories.filter(c => c.type === 'expense' || c.type === 'both')
@@ -141,7 +176,7 @@ export default function BudgetsClient() {
   const totalBudgeted = monthBudgets.reduce((s, b) => s + b.amount, 0)
   const budgetedSpent = budgetCards.reduce((s, b) => s + b.spent, 0)
   const unbudgetedSpend = unbudgetedCats
-    .map(c => ({ cat: c, spent: allocatedMonthlySpend(asFull, c.id, monthStr) }))
+    .map(c => ({ cat: c, spent: categoryMonthSpend(transactions, c.id, c.billing_cycle || 'monthly', monthStr, todayKey) }))
     .filter(row => row.spent >= 1)
     .sort((a, b) => b.spent - a.spent)
   const uncategorized = asFull
@@ -205,7 +240,13 @@ export default function BudgetsClient() {
 
         {loadError && <div role="alert" className="rounded-xl border border-warning/40 bg-warning-bg px-3 py-2 text-sm text-fg">{loadError} <button type="button" onClick={() => void fetchData()} className="font-semibold underline">Retry</button></div>}
 
-        {!loadError && (
+        {!loadError && loadedMonth !== monthStr && (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label={`Loading ${monthLabel}`}>
+            {[0, 1, 2].map(i => <div key={i} className="h-32 animate-pulse rounded-2xl bg-surface-2" />)}
+          </div>
+        )}
+
+        {!loadError && loadedMonth === monthStr && (
           <section className="grid gap-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             <div className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
               <div className="flex items-start justify-between gap-3">
@@ -231,19 +272,19 @@ export default function BudgetsClient() {
                   {unbudgetedSpend.slice(0, 6).map(row => (
                     <li key={row.cat.id}>
                       <Link href={`/finance/transactions?category=${row.cat.id}&month=${monthStr}`}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 text-xs font-medium text-fg-secondary hover:text-fg">
+                        className="inline-flex h-11 items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 text-xs font-medium text-fg-secondary hover:text-fg">
                         {row.cat.name} <MoneyText value={row.spent} mode="compact" className="text-fg" />
                       </Link>
                     </li>
                   ))}
-                  {uncategorized > 0 && <li className="inline-flex h-8 items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 text-xs text-fg-secondary">Uncategorized <MoneyText value={uncategorized} mode="compact" className="text-fg" /></li>}
+                  {uncategorized > 0 && <li className="inline-flex h-11 items-center gap-1.5 rounded-full border border-dashed border-border px-2.5 text-xs text-fg-secondary">Uncategorized <MoneyText value={uncategorized} mode="compact" className="text-fg" /></li>}
                 </ul>
               ) : <p className="mt-2 text-sm text-fg-secondary">Every peso this month landed in a budgeted category.</p>}
             </div>
           </section>
         )}
 
-        {budgetCards.length === 0 ? (
+        {loadError || loadedMonth !== monthStr ? null : budgetCards.length === 0 ? (
           <div className="rounded-2xl border border-border bg-surface">
             <EmptyState icon="chart" title="No budgets for this month" description="Set a monthly limit for a category to track it here." action={<Button onClick={openAdd}><Plus className="h-4 w-4" aria-hidden="true" /> Add budget</Button>} />
           </div>

@@ -43,3 +43,16 @@ export function groupByDay<T extends Groupable>(rows: T[], now: Date = new Date(
   }
   return groups
 }
+
+/** Per-day totals over the whole (filtered) list, so a day split across chunks shows its full total. */
+export function dayTotals(rows: Groupable[]): Map<string, { spent: number; received: number }> {
+  const totals = new Map<string, { spent: number; received: number }>()
+  for (const row of rows) {
+    const date = row.transaction_date.slice(0, 10)
+    const t = totals.get(date) ?? { spent: 0, received: 0 }
+    if (row.type === 'expense') t.spent += row.amount_mxn
+    else t.received += row.amount_mxn
+    totals.set(date, t)
+  }
+  return totals
+}

@@ -3,7 +3,7 @@ import {
   parseLocalDateKey, parseEntryAmount, localDateKey, prioritizeCategories, recentMerchantSuggestions, relativeLocalDateKey,
   rankMerchantSuggestions, suggestsBabyTag, categoryMonthlyMedian, looksLikeOneOff, spreadCoverage,
 } from '@/lib/transaction-entry'
-import { groupByDay, dayLabel } from '@/components/finance/transactions/day-groups'
+import { groupByDay, dayLabel, dayTotals } from '@/components/finance/transactions/day-groups'
 import type { FinanceCategory, FinanceTransaction } from '@/lib/finance-types'
 
 const history = [
@@ -116,5 +116,21 @@ describe('day groups', () => {
     ]
     const groups = groupByDay(rows, now)
     expect(groups.map(g => [g.label, g.spent, g.received, g.items.length])).toEqual([['Today', 200, 500, 3], ['Yesterday', 40, 0, 1]])
+  })
+})
+
+describe('dayTotals', () => {
+  it('totals every row of a day, not just the visible chunk', () => {
+    const rows = [
+      { transaction_date: '2026-10-28', type: 'expense' as const, amount_mxn: 100 },
+      { transaction_date: '2026-10-28', type: 'income' as const, amount_mxn: 50 },
+      { transaction_date: '2026-10-28', type: 'expense' as const, amount_mxn: 25 },
+      { transaction_date: '2026-10-27', type: 'expense' as const, amount_mxn: 10 },
+    ]
+    const totals = dayTotals(rows)
+    expect(totals.get('2026-10-28')).toEqual({ spent: 125, received: 50 })
+    // The first chunk only holds one row of the 28th, but the header uses the full-day total.
+    expect(groupByDay(rows.slice(0, 1))[0].spent).toBe(100)
+    expect(totals.get('2026-10-27')).toEqual({ spent: 10, received: 0 })
   })
 })

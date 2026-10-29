@@ -58,7 +58,9 @@ export default function TransactionsClient() {
   const [importOpen, setImportOpen] = useState(false)
   const [defaultOwner, setDefaultOwner] = useState('')
   const refreshInFlight = useRef(false)
+  const refreshQueued = useRef(false)
   const fullLoaded = useRef(false)
+  const [ledgerComplete, setLedgerComplete] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setDefaultOwner(getOwnerName(data.user?.email ?? undefined)))
@@ -78,23 +80,27 @@ export default function TransactionsClient() {
   }
 
   // Full ledger (strict paging, id tiebreaker) — the list, search and the statement card need all of it.
-  const fetchAll = useCallback(async () => {
-    if (refreshInFlight.current) return
+  const fetchAll = useCallback(async (): Promise<void> => {
+    // A save or delete that lands mid-fetch must not be lost: run once more afterwards.
+    if (refreshInFlight.current) { refreshQueued.current = true; return }
     refreshInFlight.current = true
-    try {
-      const [cats, rows] = await Promise.all([
-        fetchCategories(),
-        fetchAllRows<FinanceTransaction>((from, to) => transactionsQuery().range(from, to), 1000, 20000, true),
-      ])
-      fullLoaded.current = true
-      applyData(cats, rows)
-      setDataError('')
-    } catch {
-      setDataError('Could not refresh transactions. Your last loaded list is still shown.')
-    } finally {
-      refreshInFlight.current = false
+    do {
+      refreshQueued.current = false
+      try {
+        const [cats, rows] = await Promise.all([
+          fetchCategories(),
+          fetchAllRows<FinanceTransaction>((from, to) => transactionsQuery().range(from, to), 1000, 20000, true),
+        ])
+        fullLoaded.current = true
+        applyData(cats, rows)
+        setLedgerComplete(true)
+        setDataError('')
+      } catch {
+        setDataError('Could not refresh transactions. Your last loaded list is still shown.')
+      }
       setLoading(false)
-    }
+    } while (refreshQueued.current)
+    refreshInFlight.current = false
   }, [applyData])
 
   // First paint from the newest rows, then the rest in the background (MOB-08).
@@ -190,7 +196,9 @@ export default function TransactionsClient() {
           title="Transactions"
           description="Capture spending fast. Keep every peso accountable."
           actions={<>
-            <Button variant="secondary" onClick={() => setImportOpen(true)} aria-label="Import transactions">
+            {/* Dedupe needs the whole ledger: a statement covers dates older than the first 200 rows. */}
+            <Button variant="secondary" onClick={() => setImportOpen(true)} aria-label="Import transactions" disabled={!ledgerComplete}
+              title={ledgerComplete ? undefined : 'Loading full history…'}>
               <Upload className="h-4 w-4" aria-hidden="true" /><span className="hidden sm:inline">Import</span>
             </Button>
             <Button variant="ghost" size="icon" onClick={exportCsv} aria-label="Export transactions" className="hidden sm:inline-flex">
@@ -205,7 +213,7 @@ export default function TransactionsClient() {
         {dataError && (
           <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning-bg px-3 py-2 text-sm text-fg">
             <span>{dataError}</span>
-            <button type="button" onClick={() => void fetchAll()} className="h-10 shrink-0 rounded-lg px-3 font-semibold underline">Retry</button>
+            <button type="button" onClick={() => void fetchAll()} className="h-11 shrink-0 rounded-lg px-3 font-semibold underline">Retry</button>
           </div>
         )}
 

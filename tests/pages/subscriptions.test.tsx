@@ -41,7 +41,18 @@ function makeChain(res: any) {
   return chain
 }
 
+const writes: Array<{ table: string; op: string; payload?: unknown; eq?: unknown[] }> = []
+
+function writeChain(table: string, op: string, payload: unknown, res: any) {
+  const entry: { table: string; op: string; payload?: unknown; eq?: unknown[] } = { table, op, payload }
+  writes.push(entry)
+  const chain = makeChain(res)
+  chain.eq = vi.fn((...args: unknown[]) => { entry.eq = args; return chain })
+  return chain
+}
+
 function setupSupabaseMock() {
+  writes.length = 0
   const tables: Record<string, any> = {
     finance_categories: { data: SEED_CATEGORIES, error: null },
     finance_recurring: { data: RECURRING, error: null },
@@ -50,9 +61,9 @@ function setupSupabaseMock() {
   }
   vi.mocked(supabase.from).mockImplementation(((table: string) => ({
     select: vi.fn(() => makeChain(tables[table] || { data: [], error: null })),
-    insert: vi.fn(() => makeChain({ data: null, error: null })),
-    update: vi.fn(() => makeChain({ data: null, error: null })),
-    delete: vi.fn(() => makeChain({ data: null, error: null })),
+    insert: vi.fn((payload: unknown) => writeChain(table, 'insert', payload, { data: { id: 'tx-new' }, error: null })),
+    update: vi.fn((payload: unknown) => writeChain(table, 'update', payload, { data: null, error: null })),
+    delete: vi.fn(() => writeChain(table, 'delete', null, { data: null, error: null })),
   })) as unknown as typeof supabase.from)
 }
 
@@ -68,7 +79,7 @@ describe('Subscriptions page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setupSupabaseMock()
-    fetchMock = vi.fn(() => Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ total_created: 2, errors: [] }) }))
+    fetchMock = vi.fn(() => Promise.resolve({ ok: true, status: 200, statusText: 'OK', json: () => Promise.resolve({ processed_at: '2026-10-28T12:00:00Z', results: { subscriptions: 2, income: 0, installments: 0, errors: [] }, total_created: 2, ok: true }) }))
     vi.stubGlobal('fetch', fetchMock)
   })
 
@@ -121,6 +132,27 @@ describe('Subscriptions page', () => {
     await waitFor(() => expect(vi.mocked(supabase.from).mock.calls.filter(([t]) => t === 'finance_recurring').length).toBeGreaterThan(before))
   })
 
+  it('logging a due payment advances next_due_date so the processor does not re-post it, and undo reverts both', async () => {
+    await renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Log YouTube Premium payment' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Logged YouTube Premium'))
+    expect(writes.find(w => w.table === 'finance_transactions' && w.op === 'insert')).toBeTruthy()
+    const advanced = advanceDueDate(TODAY, 'monthly')
+    expect(writes).toContainEqual({ table: 'finance_recurring', op: 'update', payload: { next_due_date: advanced }, eq: ['id', 'r-due'] })
+    expect(screen.getByRole('status')).toHaveTextContent('Next due')
+
+    fireEvent.click(within(screen.getByRole('status')).getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(writes).toContainEqual({ table: 'finance_transactions', op: 'delete', payload: null, eq: ['id', 'tx-new'] }))
+    await waitFor(() => expect(writes).toContainEqual({ table: 'finance_recurring', op: 'update', payload: { next_due_date: TODAY }, eq: ['id', 'r-due'] }))
+  })
+
+  it('logging a payment far from its due date leaves the schedule alone', async () => {
+    await renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Log Netflix payment' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Logged Netflix'))
+    expect(writes.some(w => w.table === 'finance_recurring' && w.op === 'update')).toBe(false)
+  })
+
   it('uses contextual labels for row actions', async () => {
     await renderPage()
     expect(screen.getByRole('button', { name: 'Log Netflix payment' })).toBeInTheDocument()
@@ -132,12 +164,16 @@ describe('Subscriptions page', () => {
 describe('subscription helpers', () => {
   it('shows errors and warnings from a partial 503 instead of "Service Unavailable"', () => {
     const outcome = describeProcessResult({ ok: false, statusText: 'Service Unavailable' }, {
-      total_created: 3, errors: ['Sub Hulu: foreign-currency posting requires an explicit MXN conversion', 'Month close deferred until recurring processing succeeds'], item_warnings: ['Sub X: unsupported recurrence'],
+      total_created: 3, ok: false, results: { errors: ['Sub Hulu: foreign-currency posting requires an explicit MXN conversion', 'Month close deferred until recurring processing succeeds'] }, item_warnings: ['Sub X: unsupported recurrence'],
     })
     expect(outcome.tone).toBe('warning')
     expect(outcome.title).toBe('Posted 3 transactions; 2 items need attention')
     expect(outcome.details).toHaveLength(2)
     expect(describeProcessResult({ ok: false, statusText: 'Service Unavailable' }, {}).tone).toBe('negative')
+    const full = describeProcessResult({ ok: false, statusText: 'Service Unavailable' }, { total_created: 0, ok: false, results: { errors: ['Sub Hulu: insert failed'] } })
+    expect(full.tone).toBe('negative')
+    expect(full.title).toBe('Could not post due items; 1 error')
+    expect(full.details).toEqual(['Sub Hulu: insert failed'])
     expect(describeProcessResult({ ok: true }, { total_created: 0 }).title).toBe('Nothing was due')
   })
 

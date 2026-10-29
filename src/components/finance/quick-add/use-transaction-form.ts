@@ -115,6 +115,8 @@ export function useTransactionForm({ data, defaultOwner, request }: { data: Quic
   const [ruleRejectedFor, setRuleRejectedFor] = useState('')
   const methodTouched = useRef(!!editing)
   const saveInFlight = useRef(false)
+  // Category picked from the merchant's history (not by the person), so a new merchant can replace it.
+  const [historyCategory, setHistoryCategory] = useState('')
   const draftId = useRef<string | null>(editing ? null : crypto.randomUUID())
 
   const categories = useMemo(() => data?.categories ?? [], [data])
@@ -131,6 +133,7 @@ export function useTransactionForm({ data, defaultOwner, request }: { data: Quic
   }
 
   const updateForm = useCallback((patch: Partial<TxForm>) => {
+    if ('category_id' in patch) setHistoryCategory('')
     setConfirmDuplicate(false)
     setForm(f => ({ ...f, ...patch }))
   }, [])
@@ -159,6 +162,28 @@ export function useTransactionForm({ data, defaultOwner, request }: { data: Quic
     if (match) {
       setForm({ ...form, category_id: match.category_id })
       setAppliedRuleId(match.rule_id)
+    }
+  }
+
+  // A known merchant (deep link, typed or picked) brings its usual category when no rule
+  // decided one, so `?add=1&m=Heb&a=250` is ready to save (MOB-01). Once per merchant.
+  const merchantCategories = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const s of rankMerchantSuggestions(history, form.type, { limit: 1000 })) {
+      if (s.categoryId) map.set(s.merchant.toLocaleLowerCase(), s.categoryId)
+    }
+    return map
+  }, [history, form.type])
+  const historyKey = editingId || form.category_id || !form.merchant.trim() ? '' : `${form.type}|${form.merchant.trim().toLocaleLowerCase()}|${merchantCategories.size}`
+  const [lastHistoryKey, setLastHistoryKey] = useState('')
+  if (historyKey !== lastHistoryKey) {
+    setLastHistoryKey(historyKey)
+    const merchantKey = form.merchant.trim().toLocaleLowerCase()
+    const categoryId = historyKey && merchantKey !== ruleRejectedFor ? merchantCategories.get(merchantKey) : undefined
+    const ruleWouldMatch = categoryId && applyRules(rules, { merchant: form.merchant, amount_mxn: Number.isFinite(entryAmount) ? entryAmount : 0, owner: form.owner })
+    if (categoryId && !ruleWouldMatch && categories.some(c => c.id === categoryId)) {
+      setHistoryCategory(categoryId)
+      setForm({ ...form, category_id: categoryId })
     }
   }
 
@@ -219,7 +244,8 @@ export function useTransactionForm({ data, defaultOwner, request }: { data: Quic
   }
 
   const setMerchant = (merchant: string) => {
-    updateForm({ merchant, ...(appliedRuleId ? { category_id: '' } : {}) })
+    const autoCategory = !!appliedRuleId || (!!historyCategory && form.category_id === historyCategory)
+    updateForm({ merchant, ...(autoCategory ? { category_id: '' } : {}) })
     if (appliedRuleId) setAppliedRuleId(null)
   }
 

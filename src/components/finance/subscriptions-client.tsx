@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Trash2, Power, CreditCard, Check, TrendingUp } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PageTransition } from '@/components/page-transition'
@@ -68,20 +68,25 @@ export function latestPriceChanges(rows: Array<{ recurring_id: string | null; am
 
 interface ProcessResponse {
   total_created?: number
+  results?: { errors?: string[]; item_warnings?: string[] }
   errors?: string[]
   item_warnings?: string[]
   error?: string
+  ok?: boolean
 }
 
 interface ProcessOutcome { tone: 'positive' | 'warning' | 'negative'; title: string; details: string[] }
 
 export function describeProcessResult(res: { ok: boolean; statusText?: string }, data: ProcessResponse): ProcessOutcome {
   const created = data.total_created || 0
-  const errors = (data.errors || []).filter(e => !/^Month close deferred/.test(e))
-  const warnings = data.item_warnings || []
+  const errors = (data.results?.errors ?? data.errors ?? []).filter(e => !/^Month close deferred/.test(e))
+  const warnings = data.item_warnings ?? data.results?.item_warnings ?? []
   const details = [...errors, ...warnings]
   if (!res.ok && created === 0 && details.length === 0) {
     return { tone: 'negative', title: `Could not post due items: ${data.error || res.statusText || 'server error'}`, details: [] }
+  }
+  if (!res.ok && created === 0) {
+    return { tone: 'negative', title: `Could not post due items; ${details.length} error${details.length === 1 ? '' : 's'}`, details }
   }
   const posted = created > 0 ? `Posted ${created} transaction${created === 1 ? '' : 's'}` : 'Nothing was due'
   if (details.length === 0) return { tone: 'positive', title: posted, details: [] }
@@ -103,6 +108,11 @@ interface SubForm {
 }
 
 interface Debt { id: string; name: string; balance: number }
+interface LoggedPayment { subId: string; name: string; txId: string; prevDue: string | null; newDue: string | null }
+
+/** Logging up to this many days before the due date counts as paying that period. */
+const LOG_ADVANCE_DAYS = 3
+const UNDO_LOG_MS = 5000
 
 const emptyForm: SubForm = { name: '', amount: '', currency: 'MXN', category_id: '', frequency: 'monthly', next_due_date: '', merchant: '', notes: '', owner: '', debt_id: '', payment_method: '' }
 const label = 'mb-1 block text-xs font-medium text-fg-secondary'
@@ -121,7 +131,9 @@ export default function SubscriptionsClient() {
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [defaultOwner, setDefaultOwner] = useState('')
   const [logAlso, setLogAlso] = useState(true)
-  const [loggedId, setLoggedId] = useState<string | null>(null)
+  const [lastLog, setLastLog] = useState<LoggedPayment | null>(null)
+  const logTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (logTimer.current) clearTimeout(logTimer.current) }, [])
   const [confirmProcess, setConfirmProcess] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [processResult, setProcessResult] = useState<ProcessOutcome | null>(null)
@@ -258,7 +270,8 @@ export default function SubscriptionsClient() {
   }
 
   const logPayment = async (sub: FinanceRecurring) => {
-    await supabase.from('finance_transactions').insert({
+    const todayKey = localDateKey()
+    const { data, error } = await supabase.from('finance_transactions').insert({
       type: 'expense',
       amount: sub.amount,
       currency: sub.currency,
@@ -266,15 +279,36 @@ export default function SubscriptionsClient() {
       category_id: sub.category_id,
       merchant: sub.merchant || sub.name,
       description: `${sub.name} (${sub.frequency})`,
-      transaction_date: localDateKey(),
+      transaction_date: todayKey,
       is_recurring: true,
       recurring_id: sub.id,
       owner: canonicalOwner(sub.owner),
       payment_method: sub.payment_method || null,
-    })
+    }).select('id').single()
+    if (error || !data) {
+      setProcessResult({ tone: 'negative', title: `Could not log ${sub.name}: ${error?.message || 'unknown error'}`, details: [] })
+      return
+    }
+    // A charge logged on/near its due date settles that period, so the processor must not post it again.
+    const prevDue = sub.next_due_date || null
+    const newDue = prevDue && prevDue <= addDaysKey(todayKey, LOG_ADVANCE_DAYS) ? advanceDueDate(prevDue, sub.frequency) : null
+    if (newDue) await supabase.from('finance_recurring').update({ next_due_date: newDue }).eq('id', sub.id)
     dispatchFinanceEvent(FINANCE_EVENTS.dataChanged, { source: 'finance_transactions' })
-    setLoggedId(sub.id)
-    setTimeout(() => setLoggedId(null), 2000)
+    if (logTimer.current) clearTimeout(logTimer.current)
+    setLastLog({ subId: sub.id, name: sub.name, txId: data.id, prevDue, newDue })
+    logTimer.current = setTimeout(() => setLastLog(null), UNDO_LOG_MS)
+    if (newDue) void fetchData()
+  }
+
+  const undoLog = async () => {
+    const log = lastLog
+    if (!log) return
+    if (logTimer.current) clearTimeout(logTimer.current)
+    setLastLog(null)
+    await supabase.from('finance_transactions').delete().eq('id', log.txId)
+    if (log.newDue) await supabase.from('finance_recurring').update({ next_due_date: log.prevDue }).eq('id', log.subId)
+    dispatchFinanceEvent(FINANCE_EVENTS.dataChanged, { source: 'finance_transactions' })
+    void fetchData()
   }
 
   const toggleActive = async (sub: FinanceRecurring) => {
@@ -317,7 +351,7 @@ export default function SubscriptionsClient() {
             processResult.tone === 'positive' ? 'border-positive/30 bg-positive-bg' : processResult.tone === 'warning' ? 'border-warning/40 bg-warning-bg' : 'border-negative/40 bg-negative-bg')}>
             <div className="flex items-start justify-between gap-3">
               <p className="font-medium">{processResult.title}</p>
-              <button type="button" onClick={() => setProcessResult(null)} className="-my-2 h-10 shrink-0 rounded-lg px-2 text-xs font-semibold text-fg-secondary hover:text-fg">Dismiss</button>
+              <button type="button" onClick={() => setProcessResult(null)} className="-my-2.5 h-11 shrink-0 rounded-lg px-2 text-xs font-semibold text-fg-secondary hover:text-fg">Dismiss</button>
             </div>
             {processResult.details.length > 0 && (
               <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-fg-secondary">
@@ -379,8 +413,8 @@ export default function SubscriptionsClient() {
                           {sub.currency !== 'MXN' && <span className="block text-[0.6875rem] text-fg-tertiary">{sub.currency}</span>}
                         </span>
                       </button>
-                      {loggedId === sub.id ? (
-                        <span className="flex h-10 w-10 items-center justify-center text-positive" role="status" aria-label="Payment logged"><Check className="h-4 w-4" aria-hidden="true" /></span>
+                      {lastLog?.subId === sub.id ? (
+                        <span className="flex h-11 w-11 items-center justify-center text-positive" aria-label="Payment logged"><Check className="h-4 w-4" aria-hidden="true" /></span>
                       ) : (
                         <Button variant="ghost" size="icon" aria-label={`Log ${sub.name} payment`} title="Log payment as expense" onClick={() => logPayment(sub)}>
                           <CreditCard className="h-4 w-4" aria-hidden="true" />
@@ -524,6 +558,16 @@ export default function SubscriptionsClient() {
             </div>
           </form>
         </Modal>
+
+        {lastLog && (
+          <div role="status" className="animate-fade-up fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-4 right-4 z-[60] flex items-center gap-3 rounded-2xl border border-border bg-surface p-2 pl-4 shadow-card sm:bottom-6 sm:left-auto sm:right-6 sm:w-96">
+            <span className="min-w-0 flex-1 text-sm text-fg">
+              <span className="block truncate">Logged <strong>{lastLog.name}</strong></span>
+              {lastLog.newDue && <span className="block truncate text-xs text-fg-secondary">Next due {formatDateShort(lastLog.newDue)}</span>}
+            </span>
+            <button type="button" onClick={() => void undoLog()} className="h-11 rounded-xl px-3 text-sm font-semibold text-primary hover:bg-primary/10">Undo</button>
+          </div>
+        )}
       </Page>
     </PageTransition>
   )

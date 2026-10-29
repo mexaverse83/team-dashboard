@@ -208,6 +208,29 @@ describe('Budget Builder', () => {
     await waitFor(() => expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Spending is at 500% of budget this month'))
     expect(screen.getByText('45 pts under 50% target')).toBeInTheDocument()
     expect(screen.getAllByText('+$4,000').length).toBeGreaterThan(0)
+    expect(screen.getByRole('status', { name: '' }).className).toContain('bg-negative-bg')
+    expect(screen.getByText('1 category over budget')).toBeInTheDocument()
+    expect(screen.getByText('Groceries $4,000 over.')).toBeInTheDocument()
+    expect(screen.queryByText('Budget looks healthy!')).not.toBeInTheDocument()
+  })
+
+  it('allocates spread (coverage) rows like the Budgets page', async () => {
+    const month = monthKey(new Date())
+    const { addMonthsKey } = await import('@/lib/dates')
+    setupSupabaseMock({
+      finance_budgets: { data: [{ id: 'b1', category_id: 'cat-groc', month: `${month}-01`, amount: 2000, owner: null }], error: null },
+      finance_transactions: { data: [
+        { id: 'x1', type: 'expense', amount_mxn: 1500, category_id: 'cat-groc', transaction_date: `${month}-01`, coverage_start: null, coverage_end: null },
+        { id: 'x2', type: 'expense', amount_mxn: 12000, category_id: 'cat-groc', transaction_date: `${addMonthsKey(month, -2)}-05`, coverage_start: `${addMonthsKey(month, -2)}-01`, coverage_end: `${addMonthsKey(month, 9)}-28` },
+      ], error: null },
+      finance_recurring_income: { data: [{ amount: 100000, recurrence: 'monthly', active: true, start_date: null }], error: null },
+      finance_income_sources: { data: [], error: null },
+      finance_goals: { data: [], error: null },
+      finance_installments: { data: [], error: null },
+    })
+    const Comp = (await import('@/components/finance/budget-builder-client')).default
+    render(<Comp />)
+    await waitFor(() => expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Spending is at 125% of budget this month'))
   })
 })
 

@@ -12,7 +12,7 @@ import { MoneyText } from '@/components/ui/money-text'
 import { formatDateShort, formatMoney } from '@/lib/format'
 import { getPaymentMethod } from '@/lib/payment-methods'
 import { cn } from '@/lib/utils'
-import { groupByDay } from './day-groups'
+import { dayTotals, groupByDay } from './day-groups'
 
 export const PAGE_CHUNK = 50
 const SWIPE_REVEAL = 88
@@ -102,7 +102,7 @@ function TransactionRow({ tx, open, onOpenChange, onEdit, onDelete }: RowProps) 
           </span>
         </button>
         <button type="button" onClick={() => onDelete(tx)} aria-label={`Delete ${name}`}
-          className="mr-2 hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg text-fg-tertiary opacity-0 transition hover:bg-negative-bg hover:text-negative focus-visible:opacity-100 group-hover:opacity-100 sm:flex">
+          className="mr-1 hidden h-11 w-11 shrink-0 items-center justify-center rounded-lg text-fg-tertiary opacity-0 transition hover:bg-negative-bg hover:text-negative focus-visible:opacity-100 group-hover:opacity-100 sm:flex">
           <Trash2 className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
@@ -131,6 +131,7 @@ export function TransactionList({ transactions, resetKey, onEdit, onDelete }: Tr
 
   const shown = useMemo(() => transactions.slice(0, visible), [transactions, visible])
   const groups = useMemo(() => groupByDay(shown), [shown])
+  const totals = useMemo(() => dayTotals(transactions), [transactions])
   const hasMore = visible < transactions.length
 
   useEffect(() => {
@@ -145,27 +146,31 @@ export function TransactionList({ transactions, resetKey, onEdit, onDelete }: Tr
 
   return (
     <div>
-      {groups.map(group => (
-        <section key={group.date} aria-labelledby={`day-${group.date}`}>
-          <header className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-[5] flex items-baseline justify-between gap-3 border-b border-border bg-surface/95 px-3 py-2 backdrop-blur sm:px-4 md:top-0">
-            <h3 id={`day-${group.date}`} className="text-xs font-semibold text-fg">
-              {group.label}{group.sublabel && <span className="font-normal text-fg-tertiary"> · {group.sublabel}</span>}
-            </h3>
-            <span className="text-xs text-fg-tertiary">
-              {group.spent > 0 && <MoneyText value={group.spent} className="text-fg-secondary" />}
-              {group.spent > 0 && group.received > 0 && ' · '}
-              {group.received > 0 && <MoneyText value={group.received} sign="always" className="text-positive" />}
-            </span>
-          </header>
-          <ul className="divide-y divide-border">
-            {group.items.map(tx => (
-              <TransactionRow key={tx.id} tx={tx} open={openRow === tx.id}
-                onOpenChange={o => setOpenRow(o ? tx.id : null)} onEdit={onEdit}
-                onDelete={t => { setOpenRow(null); onDelete(t) }} />
-            ))}
-          </ul>
-        </section>
-      ))}
+      {groups.map(group => {
+        const { spent, received } = totals.get(group.date) ?? group
+        return (
+          <section key={group.date} aria-labelledby={`day-${group.date}`}>
+            {/* sm:pr-16 lines the total up with row amounts (px-4 + the 48px hover-delete column). */}
+            <header className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-[5] flex items-baseline justify-between gap-3 border-b border-border bg-surface/95 px-3 py-2 backdrop-blur sm:pl-4 sm:pr-16 md:top-0">
+              <h3 id={`day-${group.date}`} className="text-xs font-semibold text-fg">
+                {group.label}{group.sublabel && <span className="font-normal text-fg-tertiary"> · {group.sublabel}</span>}
+              </h3>
+              <span className="text-xs text-fg-tertiary">
+                {spent > 0 && <MoneyText value={spent} className="text-fg-secondary" />}
+                {spent > 0 && received > 0 && ' · '}
+                {received > 0 && <MoneyText value={received} sign="always" className="text-positive" />}
+              </span>
+            </header>
+            <ul className="divide-y divide-border">
+              {group.items.map(tx => (
+                <TransactionRow key={tx.id} tx={tx} open={openRow === tx.id}
+                  onOpenChange={o => setOpenRow(o ? tx.id : null)} onEdit={onEdit}
+                  onDelete={t => { setOpenRow(null); onDelete(t) }} />
+              ))}
+            </ul>
+          </section>
+        )
+      })}
       <div ref={sentinel} className="flex items-center justify-between gap-3 border-t border-border px-3 py-3 text-xs text-fg-tertiary sm:px-4">
         <span>{hasMore ? `Showing ${shown.length} of ${transactions.length}` : `${transactions.length} transaction${transactions.length === 1 ? '' : 's'}`}</span>
         {hasMore && (

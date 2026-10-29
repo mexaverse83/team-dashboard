@@ -16,15 +16,17 @@ import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { describeBudget, type Tone } from '@/lib/budget-tone'
 import { formatDelta, formatMoney } from '@/lib/format'
-import { addMonthsKey, localDateKey } from '@/lib/dates'
-import { DEFAULT_CATEGORIES, defaultBudgetType, rollingMonthlyAverage, monthKey } from '@/lib/finance-utils'
+import { addMonthsKey, localDateKey, monthEndKey } from '@/lib/dates'
+import { DEFAULT_CATEGORIES, defaultBudgetType, allocatedAmount, monthKey } from '@/lib/finance-utils'
+import { categoryMonthSpend, fetchBudgetTransactions, type BudgetTx } from '@/components/finance/budgets-client'
 import { getNextTreatmentEvent, getTreatmentEventForMonth } from '@/lib/fertility-plan'
 import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceIncomeSource } from '@/lib/finance-types'
 
 import { inputCls } from '@/lib/form-style'
 
 const INCOME_ICONS: Record<string, typeof Wallet> = { salary: Briefcase, freelance: Laptop, passive: Moon, side_hustle: Hammer, investment: TrendingUp, other: Wallet }
-const TX_COLUMNS = 'id,type,amount_mxn,category_id,transaction_date'
+const INCOME_COLUMNS = 'id,type,amount_mxn,category_id,transaction_date'
+type IncomeTx = Pick<FinanceTransaction, 'id' | 'type' | 'amount_mxn' | 'category_id' | 'transaction_date'>
 const card = 'rounded-2xl border border-border bg-surface p-4 sm:p-5'
 
 /** '12 pts under 50% target' — plain words, no arrows (VIS-16). */
@@ -50,7 +52,8 @@ const emptyIncomeForm: IncomeForm = { name: '', type: 'salary', amount: '', freq
 
 export default function BudgetBuilderClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
-  const [transactions, setTransactions] = useState<FinanceTransaction[]>([])
+  const [expenses, setExpenses] = useState<BudgetTx[]>([])
+  const [incomeTxs, setIncomeTxs] = useState<IncomeTx[]>([])
   const [budgets, setBudgets] = useState<FinanceBudget[]>([])
   const [incomeSources, setIncomeSources] = useState<FinanceIncomeSource[]>([])
   // Salaries live in finance_recurring_income (the income source of truth);
@@ -70,25 +73,29 @@ export default function BudgetBuilderClient() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   const [now] = useState(() => new Date())
+  const todayKey = localDateKey(now)
   const monthStr = monthKey(now)
 
   const fetchData = useCallback(async () => {
-    const [catRes, txRes, budRes, incRes, goalsRes, instRes, riRes] = await Promise.all([
+    const [catRes, expRes, incTxRes, budRes, incRes, goalsRes, instRes, riRes] = await Promise.all([
       supabase.from('finance_categories').select('*').order('sort_order'),
-      // 13 months covers the trailing income average and annual-cycle rolling averages (F15, CH-11).
-      fetchAllRows<Pick<FinanceTransaction, 'id' | 'type' | 'amount_mxn' | 'category_id' | 'transaction_date'>>((from, to) => supabase.from('finance_transactions').select(TX_COLUMNS)
-        .gte('transaction_date', `${addMonthsKey(monthStr, -12)}-01`)
+      // Same rows and allocation as the Budgets page, so both pages agree (VIS-03d, CH-11).
+      fetchBudgetTransactions(monthStr).then(rows => rows, () => null),
+      // Trailing three full months of income for the 50/30/20 denominator.
+      fetchAllRows<IncomeTx>((from, to) => supabase.from('finance_transactions').select(INCOME_COLUMNS)
+        .eq('type', 'income').gte('transaction_date', `${addMonthsKey(monthStr, -3)}-01`)
         .order('transaction_date', { ascending: false }).order('id').range(from, to), 1000, 20000, true)
-        .then(rows => ({ data: rows as FinanceTransaction[] | null }), () => ({ data: null as FinanceTransaction[] | null })),
-      supabase.from('finance_budgets').select('*'),
+        .then(rows => rows, () => null),
+      supabase.from('finance_budgets').select('*').gte('month', `${monthStr}-01`).lte('month', monthEndKey(monthStr)),
       supabase.from('finance_income_sources').select('*').order('created_at'),
       supabase.from('finance_goals').select('*'),
       supabase.from('finance_installments').select('*').eq('is_active', true),
       supabase.from('finance_recurring_income').select('amount, recurrence, active, start_date').eq('active', true),
     ])
     setCategories((catRes.data?.length ? catRes.data : DEFAULT_CATEGORIES))
-    setTxError(txRes.data == null)
-    setTransactions(txRes.data || [])
+    setTxError(expRes == null || incTxRes == null)
+    setExpenses(expRes || [])
+    setIncomeTxs(incTxRes || [])
     setBudgets(budRes.data || [])
     setIncomeSources(incRes.data || [])
     setRecurringIncome(riRes.data || [])
@@ -121,19 +128,19 @@ export default function BudgetBuilderClient() {
     // Trailing 3 prior full months (exclude the current, possibly-partial month)
     const months = [1, 2, 3].map(i => addMonthsKey(monthKey(ref), -i))
     const totals = months
-      .map(m => transactions.filter(t => t.type === 'income' && t.transaction_date.startsWith(m)).reduce((s, t) => s + t.amount_mxn, 0))
+      .map(m => incomeTxs.filter(t => t.type === 'income' && t.transaction_date.startsWith(m)).reduce((s, t) => s + t.amount_mxn, 0))
       .filter(v => v > 0)
     if (totals.length === 0) return 0
     return totals.reduce((a, b) => a + b, 0) / totals.length
-  }, [transactions])
+  }, [incomeTxs])
 
   const totalIncome = actualMonthlyIncome > 0 ? actualMonthlyIncome : configuredIncome
   const incomeIsActual = actualMonthlyIncome > 0
 
-  // Current month expenses by category
+  // Expenses that land in this month, including spread (coverage) rows.
   const monthTxs = useMemo(() =>
-    transactions.filter(t => t.transaction_date.startsWith(monthStr) && t.type === 'expense'),
-    [transactions, monthStr]
+    expenses.filter(t => t.type === 'expense' && allocatedAmount(t as FinanceTransaction, monthStr) > 0),
+    [expenses, monthStr]
   )
 
   // Budget rows with 50/30/20 classification
@@ -149,10 +156,7 @@ export default function BudgetBuilderClient() {
       if (!cat) return null
       const budget = monthBudgets.find(b => b.category_id === catId)
       const cycle = cat.billing_cycle || 'monthly'
-      // For non-monthly cycles, use rolling average instead of single month
-      const actual = cycle === 'monthly'
-        ? monthTxs.filter(t => t.category_id === catId).reduce((s, t) => s + t.amount_mxn, 0)
-        : rollingMonthlyAverage(transactions, catId, cycle)
+      const actual = categoryMonthSpend(expenses, catId, cycle, monthStr, todayKey)
       const budgetAmt = budget?.amount || 0
       const budgetType = (budget as unknown as Record<string, unknown>)?.budget_type as string || defaultBudgetType(cat.name)
       return {
@@ -168,7 +172,7 @@ export default function BudgetBuilderClient() {
         variance: actual - budgetAmt,
       }
     }).filter((r): r is NonNullable<typeof r> => r !== null)
-  }, [budgets, monthTxs, categories, monthStr, totalIncome, transactions])
+  }, [budgets, monthTxs, categories, monthStr, totalIncome, expenses, todayKey])
 
   // 50/30/20 totals (MSI installments count as committed "needs" spending)
   const needsTotal = budgetRows.filter(r => r.budgetType === 'needs').reduce((s, r) => s + r.actual, 0) + msiCommitment
@@ -196,6 +200,7 @@ export default function BudgetBuilderClient() {
   const budgetedRows = budgetRows.filter(r => r.budget > 0)
   const budgetStatus = describeBudget({ actual: budgetedRows.reduce((s, r) => s + r.actual, 0), budget: budgetedRows.reduce((s, r) => s + r.budget, 0) })
   const overBudget = budgetStatus.tone === 'negative'
+  const overRows = budgetedRows.filter(r => r.actual > r.budget).sort((a, b) => (b.actual - b.budget) - (a.actual - a.budget))
   const isHealthy = needsPct <= 55 && wantsPct <= 35 && savingsPct >= 15 && !overBudget
   const healthMessage = overBudget
     ? `Spending is at ${budgetStatus.pct}% of budget this month`
@@ -209,6 +214,15 @@ export default function BudgetBuilderClient() {
   // Action items (auto-generated)
   const actions = useMemo(() => {
     const items: { title: string; description: string; priority: 'high' | 'medium' | 'low'; monthlySavings: number }[] = []
+    if (overRows.length > 0) {
+      const names = overRows.slice(0, 3).map(r => `${r.name} ${formatMoney(r.actual - r.budget)} over`).join(', ')
+      items.push({
+        title: `${overRows.length} ${overRows.length === 1 ? 'category' : 'categories'} over budget`,
+        description: `${names}${overRows.length > 3 ? `, and ${overRows.length - 3} more` : ''}.`,
+        priority: 'high',
+        monthlySavings: Math.round(overRows.reduce((s, r) => s + r.actual - r.budget, 0)),
+      })
+    }
     if (treatmentReserve > 0) {
       items.push({
         title: `Reserve ${formatMoney(treatmentReserve)} for fertility treatment`,
@@ -220,9 +234,9 @@ export default function BudgetBuilderClient() {
     if (needsPct > 50) items.push({ title: `Bring needs down ${needsPct - 50} pts`, description: 'Look for housing, insurance, or utility savings', priority: 'high', monthlySavings: Math.round((needsTotal - totalIncome * 0.5)) })
     if (wantsPct > 30) items.push({ title: `Bring wants down ${wantsPct - 30} pts`, description: 'Review dining, entertainment, and shopping', priority: 'medium', monthlySavings: Math.round((wantsTotal - totalIncome * 0.3)) })
     if (savingsPct < 20) items.push({ title: `Boost savings to 20%`, description: 'Set up auto-transfer on payday', priority: 'low', monthlySavings: Math.round(totalIncome * 0.2 - savingsTotal) })
-    if (items.length === 0) items.push({ title: 'Budget looks healthy!', description: 'Keep it up — you\'re within the 50/30/20 targets', priority: 'low', monthlySavings: 0 })
+    if (items.length === 0 && !overBudget) items.push({ title: 'Budget looks healthy!', description: 'Keep it up — you\'re within the 50/30/20 targets', priority: 'low', monthlySavings: 0 })
     return items
-  }, [needsPct, wantsPct, savingsPct, needsTotal, wantsTotal, savingsTotal, totalIncome, treatmentReserve])
+  }, [needsPct, wantsPct, savingsPct, needsTotal, wantsTotal, savingsTotal, totalIncome, treatmentReserve, overRows, overBudget])
 
   // Income CRUD
   const openAddIncome = () => { setEditingIncome(null); setIncomeForm(emptyIncomeForm); setIncomeModal(true) }
@@ -315,10 +329,10 @@ export default function BudgetBuilderClient() {
               </div>
             </div>
           </div>
-          <div role="status" className={cn('mt-4 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm', isHealthy ? 'bg-positive-bg text-fg' : 'bg-warning-bg text-fg')}>
+          <div role="status" className={cn('mt-4 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-fg', overBudget ? 'bg-negative-bg' : isHealthy ? 'bg-positive-bg' : 'bg-warning-bg')}>
             {isHealthy
               ? <CheckCircle2 className="h-4 w-4 shrink-0 text-positive" aria-hidden="true" />
-              : <AlertTriangle className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />}
+              : <AlertTriangle className={cn('h-4 w-4 shrink-0', overBudget ? 'text-negative' : 'text-warning')} aria-hidden="true" />}
             {healthMessage}
           </div>
         </section>

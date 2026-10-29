@@ -84,7 +84,7 @@ export function QuickAddSheet({ open, request, data, defaultOwner, onClose, onSa
               </button>
             )}
             <button type="submit" form="tx-form" disabled={f.saving || !form.amount || !form.category_id || !form.transaction_date}
-              className="btn-primary h-12 flex-1 rounded-xl text-base font-semibold transition-colors disabled:opacity-50">
+              className="btn-primary h-12 flex-1 rounded-xl text-base font-semibold transition-colors disabled:!bg-surface-3 disabled:!text-fg-tertiary disabled:!shadow-none">
               {saveLabel}
             </button>
           </div>
@@ -161,8 +161,8 @@ export function QuickAddSheet({ open, request, data, defaultOwner, onClose, onSa
           <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-2 py-1 pl-3 pr-1 text-sm">
             <span aria-hidden="true">👶</span>
             <span className="min-w-0 flex-1 text-fg-secondary">Prenatal or baby purchase?</span>
-            <button type="button" onClick={() => f.toggleTag(QUICK_TAGS[0].value)} className={cn(chip, 'h-10 border-transparent px-3 text-primary hover:bg-primary/10')}>Tag as Baby</button>
-            <button type="button" aria-label="Dismiss baby suggestion" onClick={f.dismissBaby} className="flex h-10 w-10 items-center justify-center rounded-lg text-fg-tertiary hover:text-fg">
+            <button type="button" onClick={() => f.toggleTag(QUICK_TAGS[0].value)} className={cn(chip, 'h-11 border-transparent px-3 text-primary hover:bg-primary/10')}>Tag as Baby</button>
+            <button type="button" aria-label="Dismiss baby suggestion" onClick={f.dismissBaby} className="flex h-11 w-11 items-center justify-center rounded-lg text-fg-tertiary hover:text-fg">
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
@@ -172,7 +172,7 @@ export function QuickAddSheet({ open, request, data, defaultOwner, onClose, onSa
           <div className="flex items-center gap-2 rounded-xl border border-info/30 bg-info-bg py-1 pl-3 pr-1 text-sm text-fg">
             <Sparkles className="h-4 w-4 shrink-0 text-info" aria-hidden="true" />
             <span className="flex-1">Category picked by your rules</span>
-            <button type="button" onClick={f.clearAppliedRule} className="h-10 rounded-lg px-3 font-semibold text-info hover:bg-info/10">Change</button>
+            <button type="button" onClick={f.clearAppliedRule} className="h-11 rounded-lg px-3 font-semibold text-info hover:bg-info/10">Change</button>
           </div>
         )}
 
@@ -293,9 +293,9 @@ export function QuickAddSheet({ open, request, data, defaultOwner, onClose, onSa
                   if (!form.transaction_date) return
                   const s = suggestCoveragePeriod(form.transaction_date, cycle)
                   f.updateForm({ coverage_start: s.start, coverage_end: s.end })
-                }} className="h-10 rounded-lg px-2 text-sm font-semibold text-info">Auto-fill</button>
+                }} className="h-11 rounded-lg px-2 text-sm font-semibold text-info">Auto-fill</button>
               ) : (
-                <button type="button" onClick={() => f.updateForm({ coverage_start: '', coverage_end: '' })} className="h-10 rounded-lg px-2 text-sm font-semibold text-fg-secondary hover:text-fg">Undo spread</button>
+                <button type="button" onClick={() => f.updateForm({ coverage_start: '', coverage_end: '' })} className="h-11 rounded-lg px-2 text-sm font-semibold text-fg-secondary hover:text-fg">Undo spread</button>
               )}
             </div>
             <div className="grid grid-cols-2 gap-2">
