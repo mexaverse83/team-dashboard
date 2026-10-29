@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import AskWolffClient, { detectLang, mergeMessages } from '@/components/finance/ask-wolff-client'
+import AskWolffClient, { detectLang, mergeMessages, noteStamp } from '@/components/finance/ask-wolff-client'
 
 vi.mock('@/components/brand-logo', () => ({ WolffAvatar: ({ className }: { className?: string }) => <span data-testid="mona-avatar" className={className} /> }))
 
@@ -37,9 +37,19 @@ describe('Ask Mona', () => {
 
   it('labels the proactive review and marks Spanish bubbles', async () => {
     render(<AskWolffClient />)
-    const label = await screen.findByText('Mona noticed')
+    const label = await screen.findByText(/^Mona noticed/)
     expect(label.parentElement).toHaveAttribute('lang', 'es')
+    // Stacked notes carry their time so older ones read as older.
+    expect(label.textContent).toMatch(/^Mona noticed · \S/)
     expect(screen.queryByText('tx 123')).not.toBeInTheDocument()
+  })
+
+  it('stamps proactive notes with their age', () => {
+    const now = new Date('2026-10-29T18:00:00Z')
+    expect(noteStamp('2026-10-29T15:00:00Z', now)).toEqual({ label: 'today 9:00 AM', today: true })
+    expect(noteStamp('2026-10-28T21:02:00Z', now)).toEqual({ label: 'yesterday 3:02 PM', today: false })
+    expect(noteStamp('2026-10-26T15:00:00Z', now)).toEqual({ label: 'Mon 9:00 AM', today: false })
+    expect(noteStamp('2026-10-01T15:00:00Z', now).label).toBe('Oct 1')
   })
 
   it('keeps suggestion chips visible after the conversation starts', async () => {

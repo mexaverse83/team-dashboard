@@ -5,6 +5,23 @@ import { Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { WolffAvatar } from '@/components/brand-logo'
 import { MiniMarkdown } from '@/lib/mini-markdown'
+import { MX_TIME_ZONE, diffDaysKey, mexicoCityToday } from '@/lib/dates'
+
+const noteTime = new Intl.DateTimeFormat('en-US', { timeZone: MX_TIME_ZONE, hour: 'numeric', minute: '2-digit' })
+const noteWeekday = new Intl.DateTimeFormat('en-US', { timeZone: MX_TIME_ZONE, weekday: 'short' })
+const noteDate = new Intl.DateTimeFormat('en-US', { timeZone: MX_TIME_ZONE, month: 'short', day: 'numeric' })
+
+/** "today 9:00 AM", "yesterday 3:02 PM", "Mon 9:00 AM" this week, else "Oct 21" — so stacked notes show their age. */
+export function noteStamp(iso: string, now: Date = new Date()): { label: string; today: boolean } {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return { label: '', today: false }
+  const day = mexicoCityToday(d)
+  const age = diffDaysKey(day, mexicoCityToday(now))
+  if (age <= 0) return { label: `today ${noteTime.format(d)}`, today: true }
+  if (age === 1) return { label: `yesterday ${noteTime.format(d)}`, today: false }
+  if (age < 7) return { label: `${noteWeekday.format(d)} ${noteTime.format(d)}`, today: false }
+  return { label: noteDate.format(d), today: false }
+}
 
 interface ChatMessage {
   id: string
@@ -158,6 +175,7 @@ export default function AskWolffClient() {
           visibleMessages.map(m => {
             const proactive = m.role === 'wolff' && Boolean(m.reply_to && monitorIds.has(m.reply_to))
             const mona = m.role === 'wolff'
+            const stamp = proactive ? noteStamp(m.created_at) : null
             return (
               <div key={m.id} className={cn('flex items-end gap-2', mona ? 'justify-start' : 'justify-end')}>
                 {mona && <WolffAvatar className="mb-0.5 h-6 w-6 shrink-0" />}
@@ -165,9 +183,14 @@ export default function AskWolffClient() {
                   'max-w-[88%] break-words rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed [overflow-wrap:anywhere] sm:max-w-[80%]',
                   !mona && 'whitespace-pre-wrap rounded-br-md bg-primary text-primary-fg',
                   mona && !proactive && 'rounded-bl-md border border-border bg-surface-2 text-fg',
-                  proactive && 'rounded-bl-md border-l-2 border-warning bg-surface-2 text-fg',
+                  proactive && 'rounded-bl-md border-l-2 bg-surface-2 text-fg',
+                  proactive && (stamp?.today ? 'border-warning' : 'border-border text-fg-secondary'),
                 )}>
-                  {proactive && <span className="mb-1 block text-label font-semibold text-warning">Mona noticed</span>}
+                  {proactive && (
+                    <span className={cn('mb-1 block text-label font-semibold', stamp?.today ? 'text-warning' : 'text-fg-tertiary')}>
+                      Mona noticed{stamp?.label ? <span className="font-normal"> · {stamp.label}</span> : null}
+                    </span>
+                  )}
                   {mona ? <MiniMarkdown text={m.content} /> : m.content}
                   {!mona && m.status === 'failed' && (
                     <span className="mt-1 block text-label opacity-90">Mona couldn&apos;t answer this one. Try again.</span>

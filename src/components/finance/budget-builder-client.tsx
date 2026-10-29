@@ -277,6 +277,10 @@ export default function BudgetBuilderClient() {
     { key: 'wants', label: 'Wants', pct: wantsPct, total: wantsTotal, target: 30, over: wantsPct > 30, bar: 'bg-cat-4' },
     { key: 'savings', label: 'Savings', pct: savingsPct, total: savingsTotal, target: 20, over: savingsPct < 20, bar: 'bg-cat-1' },
   ]
+  // What's left of income after needs, wants and savings: shown as its own
+  // segment so the bar visibly adds up to income.
+  const unallocated = totalIncome - needsTotal - wantsTotal - savingsTotal
+  const unallocatedPct = totalIncome > 0 ? Math.max(0, 100 - needsPct - wantsPct - savingsPct) : 0
   const TYPE_TONE: Record<string, Tone> = { needs: 'neutral', wants: 'neutral', savings: 'positive' }
   const priorityTone: Record<'high' | 'medium' | 'low', Tone> = { high: 'negative', medium: 'warning', low: 'positive' }
   const priorityWord: Record<'high' | 'medium' | 'low', string> = { high: 'Now', medium: 'Soon', low: 'Later' }
@@ -314,16 +318,30 @@ export default function BudgetBuilderClient() {
             <div>
               <div className="mb-1.5 flex items-center justify-between text-xs">
                 <span className="font-medium text-fg">Your month</span>
-                <span className="text-fg-tertiary">{needsPct} / {wantsPct} / {savingsPct}</span>
+                <span className="text-fg-tertiary">{needsPct} / {wantsPct} / {savingsPct}{unallocatedPct > 0 ? ` / ${unallocatedPct} unallocated` : ''}</span>
               </div>
               <div className="flex h-8 overflow-hidden rounded-lg bg-surface-2 sm:h-10" role="img"
-                aria-label={`Needs ${needsPct}%, wants ${wantsPct}%, savings ${savingsPct}% of income`}>
+                aria-label={`Needs ${needsPct}%, wants ${wantsPct}%, savings ${savingsPct}%${unallocatedPct > 0 ? `, unallocated ${unallocatedPct}%` : ''} of income`}>
                 {totalIncome > 0 && split.map((item, i) => (
                   <motion.div key={item.key} className={cn('flex items-center justify-center', item.bar)} initial={{ width: 0 }} animate={{ width: `${Math.min(100, item.pct)}%` }} transition={{ duration: 0.8, delay: i * 0.1 }}>
                     {item.pct > 10 && <span className="truncate whitespace-nowrap px-1 text-xs font-semibold text-[hsl(var(--background))]">{item.pct >= 20 ? `${item.label} ` : ''}{item.pct}%</span>}
                   </motion.div>
                 ))}
+                {unallocatedPct > 0 && (
+                  <div data-testid="unallocated-segment" title={`Unallocated: ${unallocatedPct}% of income`}
+                    className="flex min-w-0 items-center justify-center border-l border-border text-fg-tertiary"
+                    style={{ width: `${unallocatedPct}%`, backgroundImage: 'repeating-linear-gradient(135deg, hsl(var(--text-tertiary) / 0.22) 0 4px, transparent 4px 8px)' }}>
+                    {unallocatedPct >= 8 && <span className="truncate px-1 text-xs font-medium">{unallocatedPct}%</span>}
+                  </div>
+                )}
               </div>
+              {totalIncome > 0 && Math.abs(unallocated) >= 1 && (
+                <p className="mt-1.5 text-xs text-fg-tertiary" data-testid="unallocated-caption">
+                  {unallocated > 0
+                    ? <>Unallocated {unallocatedPct}%: <MoneyText value={unallocated} /> of income not spent or assigned to savings yet</>
+                    : <>Spending and savings run <MoneyText value={-unallocated} /> past income this month</>}
+                </p>
+              )}
             </div>
             <div>
               <div className="mb-1.5 flex items-center justify-between text-xs text-fg-tertiary">

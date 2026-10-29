@@ -268,8 +268,8 @@ export function FamilyClient() {
 
         <BabyTagReview onTagged={() => { void fetchData() }} />
 
-        {/* ── Schedule + Action items ── */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* ── Schedule + Action items ── (items-start: a short Planned Spend card keeps its own height) */}
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
           <GlassCard className="p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-4">
               <CalendarClock className="h-4 w-4 text-sky-600" />
