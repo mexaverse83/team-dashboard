@@ -13,7 +13,7 @@ import { OWNERS } from '@/lib/owners'
 import { fetchWestProjection } from '@/lib/west-projection-client'
 import { projectWest, type WestSchedule } from '@/lib/west-projection'
 import { mexicoCityToday } from '@/lib/dates'
-import { formatCompact } from '@/lib/format'
+import { formatCompact, formatMonthShort } from '@/lib/format'
 
 function cn(...c: (string | false | null | undefined)[]) { return c.filter(Boolean).join(' ') }
 function fmt(n: number, d = 0) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n) }
@@ -394,19 +394,43 @@ export function WestTracker() {
   const rateCaption = data.assumptions.investment_return_basis === 'gbm-net' && gross != null && commission != null
     ? `GBM today: ${(gross * 100).toFixed(2)}% gross − ${(commission * 100).toFixed(2)}% commission = ${serverRate.toFixed(2)}% net`
     : `Base case ${serverRate.toFixed(1)}% net of commission`
-  const projectedGrowth = Math.max(0, projectedTotal - amountPaid - investmentValue - cryptoValue - (data.current_status.infonavit_laura || 350000))
+  const infonavit = data.current_status.infonavit_laura || 350000
+  const projectedGrowth = Math.max(0, projectedTotal - amountPaid - investmentValue - cryptoValue - infonavit)
 
-  const paidPct = (amountPaid / target) * 100
-  const investmentPct = (investmentValue / target) * 100
-  const growthPct = Math.min((projectedGrowth / target) * 100, 100 - paidPct - investmentPct)
+  // Every funding source gets a segment (same colours as Funding Sources), so
+  // the segments plus the gap make up the target.
+  const pctOf = (v: number) => Math.max(0, (v / target) * 100)
+  const segments = (() => {
+    let room = 100
+    return [
+      { key: 'paid', label: 'Paid', value: amountPaid, color: 'bg-emerald-500' },
+      { key: 'investments', label: 'GBM', value: investmentValue, color: 'bg-blue-500' },
+      { key: 'crypto', label: 'Crypto', value: cryptoValue, color: 'bg-amber-500' },
+      { key: 'infonavit', label: 'Infonavit', value: infonavit, color: 'bg-pink-500' },
+      { key: 'growth', label: 'Projected growth', value: projectedGrowth, color: 'bg-violet-500/60', striped: true },
+    ].map(seg => {
+      const width = Math.min(pctOf(seg.value), room)
+      room -= width
+      return { ...seg, width }
+    })
+  })()
   const fundedPct = (projectedTotal / target) * 100
   const gapPct = gap > 0 ? (gap / target) * 100 : 0
 
+  // Calendar countdown: whole months, then the days left after them.
   const deliveryDate = new Date(data.delivery_date)
   const now = new Date()
-  const totalDays = Math.max(0, Math.ceil((deliveryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-  const monthsRemaining = data.months_to_delivery
-  const daysRemaining = totalDays % 30
+  const countdown = (() => {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const end = new Date(deliveryDate.getFullYear(), deliveryDate.getMonth(), deliveryDate.getDate())
+    if (end <= start) return { months: 0, days: 0 }
+    let months = (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth()
+    const anchor = (m: number) => new Date(start.getFullYear(), start.getMonth() + m, Math.min(start.getDate(), new Date(start.getFullYear(), start.getMonth() + m + 1, 0).getDate()))
+    if (anchor(months) > end) months -= 1
+    return { months, days: Math.round((end.getTime() - anchor(months).getTime()) / 86_400_000) }
+  })()
+  const monthsRemaining = countdown.months
+  const daysRemaining = countdown.days
 
   // Funding sources
   const lastProj = projection.months[projection.months.length - 1]
@@ -447,24 +471,24 @@ export function WestTracker() {
               <div className="h-8 w-px bg-[hsl(var(--border))]" />
               <div className="text-center">
                 <p className="num-metric text-2xl sm:text-3xl font-bold tabular-nums text-positive">{fundedPct.toFixed(1)}%</p>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">Funded</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[hsl(var(--text-tertiary))]">At delivery</p>
               </div>
             </div>
           </div>
 
           {/* Progress bar */}
           <div className="space-y-2">
-            <div className="flex h-4 sm:h-5 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))]">
-              <div className="h-full bg-emerald-500 transition-all duration-700" style={{ width: `${paidPct}%` }} title={`Paid: ${fmtMXN(amountPaid)}`} />
-              <div className="h-full bg-blue-500 transition-all duration-700" style={{ width: `${investmentPct}%` }} title={`Investments: ${fmtMXN(investmentValue)}`} />
-              <div className="h-full bg-amber-500/60 transition-all duration-700"
-                style={{ width: `${growthPct}%`, backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 6px)' }}
-                title={`Projected Growth: ${fmtMXN(projectedGrowth)}`} />
+            <div className="flex h-4 sm:h-5 w-full rounded-full overflow-hidden bg-[hsl(var(--bg-elevated))]" role="img"
+              aria-label={`Projected at delivery ${fundedPct.toFixed(1)}% of target; gap ${fmtMXN(gap)}`}>
+              {segments.map(seg => (
+                <div key={seg.key} className={cn('h-full transition-all duration-700', seg.color)} title={`${seg.label}: ${fmtMXN(seg.value)}`}
+                  style={{ width: `${seg.width}%`, ...(seg.striped ? { backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 3px, rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 6px)' } : {}) }} />
+              ))}
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1">
-              <LegendItem color="bg-emerald-500" label="Paid" value={fmtMXN(amountPaid)} />
-              <LegendItem color="bg-blue-500" label="Investments" value={fmtMXN(investmentValue)} />
-              <LegendItem color="bg-amber-500/60" label="Projected Growth" value={fmtMXN(projectedGrowth)} striped />
+              {segments.filter(seg => seg.value > 0).map(seg => (
+                <LegendItem key={seg.key} color={seg.color} label={seg.label} value={fmtMXN(seg.value)} striped={seg.striped} />
+              ))}
               <LegendItem color="bg-[hsl(var(--bg-elevated))]" label="Gap" value={fmtMXN(gap)} border />
             </div>
           </div>
@@ -611,7 +635,7 @@ export function WestTracker() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={m => m.slice(5)} interval="preserveStartEnd" />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(m: string) => formatMonthShort(m, { withYear: true })} interval="preserveStartEnd" />
               <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
@@ -624,7 +648,7 @@ export function WestTracker() {
               <Area type="monotone" dataKey="crypto" stackId="1" stroke="hsl(var(--chart-5))" strokeWidth={1} fill="url(#westCryptoGrad)" name="Crypto" isAnimationActive={false} />
               <Line type="monotone" dataKey="property_value" stroke="hsl(var(--chart-1))" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" isAnimationActive={false} />
               <ReferenceLine y={target} stroke="hsl(var(--chart-6))" strokeDasharray="6 4" strokeWidth={1.5}
-                label={{ value: `Target ${fmtShort(target)}`, position: 'right', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
+                label={{ value: `Target ${fmtShort(target)}`, position: 'insideTopRight', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
               {saleMonthIn(data, projection.months) && (
                 <ReferenceLine x={saleMonthIn(data, projection.months) as string} stroke={CHART.cursor} strokeDasharray="3 3"
                   label={{ value: '📍 Apt. sale', position: 'top', fill: CHART.axis, fontSize: 10 }} />
@@ -910,7 +934,7 @@ export function WestProjectionWithScenarios() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(m: string) => m.slice(5)} interval="preserveStartEnd" />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(m: string) => formatMonthShort(m, { withYear: true })} interval="preserveStartEnd" />
               <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
@@ -924,7 +948,7 @@ export function WestProjectionWithScenarios() {
               <Area type="monotone" dataKey="crypto" stackId="1" stroke="hsl(var(--chart-5))" strokeWidth={1} fill="url(#pcCryptoGrad)" name="Crypto" isAnimationActive={false} />
               <Line type="monotone" dataKey="property_value" stroke="hsl(var(--chart-1))" strokeDasharray="6 4" strokeWidth={1.5} dot={false} name="Property Value" isAnimationActive={false} />
               <ReferenceLine y={target} stroke="hsl(var(--chart-6))" strokeDasharray="6 4" strokeWidth={1.5}
-                label={{ value: `Target ${fmtShort(target)}`, position: 'right', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
+                label={{ value: `Target ${fmtShort(target)}`, position: 'insideTopRight', fill: 'hsl(var(--chart-6))', fontSize: 11, fontWeight: 600 }} />
               {saleMonthIn(data, projection.months) && (
                 <ReferenceLine x={saleMonthIn(data, projection.months) as string} stroke={CHART.cursor} strokeDasharray="3 3"
                   label={{ value: '📍 Apt. sale', position: 'top', fill: CHART.axis, fontSize: 10 }} />

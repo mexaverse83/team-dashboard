@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { GlassCard } from '@/components/ui/glass-card'
-import { Lock, ShieldAlert } from 'lucide-react'
+import { ShieldAlert } from 'lucide-react'
+import { BrandLogo } from '@/components/brand-logo'
 import { ALLOWED_EMAILS } from '@/lib/auth'
 
 export function LoginClient() {
@@ -75,24 +76,22 @@ export function LoginClient() {
       <div className="w-full max-w-sm">
         <GlassCard className="p-6 sm:p-8">
           <div className="flex flex-col items-center text-center mb-6">
-            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mb-4">
-              <Lock className="h-7 w-7 text-white" />
-            </div>
-            <h1 className="text-xl font-bold">Finance Dashboard</h1>
+            <BrandLogo className="mb-4 h-14 w-14" />
+            <h1 className="text-xl font-bold">Mona Finance</h1>
             <p className="text-sm text-[hsl(var(--text-secondary))] mt-1">Sign in to access your finances</p>
           </div>
 
           {error === 'unauthorized' && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 mb-4">
-              <ShieldAlert className="h-4 w-4 text-red-600 shrink-0" />
-              <p className="text-xs text-red-600">Access denied. Your email is not authorized.</p>
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-negative-bg border border-negative/30 mb-4">
+              <ShieldAlert className="h-4 w-4 text-negative shrink-0" />
+              <p className="text-xs text-negative">Access denied. Your email is not authorized.</p>
             </div>
           )}
 
           <button
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg bg-white hover:bg-gray-100 text-gray-800 font-medium text-sm transition-colors disabled:opacity-50"
+            className="w-full flex min-h-11 items-center justify-center gap-3 px-4 py-3 rounded-lg border border-border-strong bg-surface text-fg shadow-sm hover:bg-surface-2 font-medium text-sm transition-colors disabled:opacity-50 [[data-theme=dark]_&]:border-transparent [[data-theme=dark]_&]:bg-white [[data-theme=dark]_&]:text-gray-800 [[data-theme=dark]_&]:hover:bg-gray-100"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />

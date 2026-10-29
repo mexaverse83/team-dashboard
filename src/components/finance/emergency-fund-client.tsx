@@ -337,6 +337,16 @@ export default function EmergencyFundClient() {
           </div>
         </div>
 
+        {balanceStale && !(surplus > 0 && monthsCovered > targetMonths) && (
+          <div role="status" className="mt-5 flex flex-col gap-3 rounded-xl border border-warning/40 bg-warning-bg p-4 sm:flex-row sm:items-center sm:justify-between" data-testid="ef-stale">
+            <p className="text-sm text-fg">
+              {confirmedDay
+                ? <>Balance last confirmed {formatDateShort(confirmedDay)} — <span className="font-semibold">{ageLabel(confirmedAgeDays!)}</span>. These months only hold if it is still right.</>
+                : <>The balance has never been confirmed, so these months may not hold.</>}
+            </p>
+            <Button className="shrink-0" variant="secondary" onClick={() => openSettings()}>Confirm balance</Button>
+          </div>
+        )}
         {surplus > 0 && monthsCovered > targetMonths && (balanceStale || basis === 'manual') && (
           <div className="mt-5 flex flex-col gap-3 rounded-xl border border-border bg-surface-2 p-4 sm:flex-row sm:items-center sm:justify-between" data-testid="ef-confirm-first">
             <p className="text-sm text-fg-secondary">

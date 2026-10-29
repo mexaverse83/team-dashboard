@@ -87,7 +87,7 @@ describe('Subscriptions page', () => {
     await renderPage()
     expect(screen.getByText('Recurring charges and subscription tracking')).toBeInTheDocument()
     expect(screen.getByText('Monthly burn')).toBeInTheDocument()
-    expect(screen.getByText('Annual projection')).toBeInTheDocument()
+    expect(screen.getByText('Per year')).toBeInTheDocument()
     expect(screen.getByText('Next 30 days')).toBeInTheDocument()
   })
 

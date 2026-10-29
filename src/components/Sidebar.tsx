@@ -282,30 +282,31 @@ function SidebarNav() {
         </button>
       </nav>
 
-      <aside className="app-sidebar sticky top-0 hidden h-screen min-h-screen w-60 shrink-0 flex-col overflow-y-auto px-4 py-5 md:flex lg:w-[264px]">
-        <div className="mb-5 flex items-center gap-3 px-2">
+      {/* The nav is the scrolling region; the footer (theme, automation status) stays pinned in view. */}
+      <aside className="app-sidebar sticky top-0 hidden h-screen min-h-screen w-60 shrink-0 flex-col overflow-hidden px-4 py-5 md:flex lg:w-[264px]">
+        <div className="mb-5 flex shrink-0 items-center gap-3 px-2">
           <BrandLogo className="h-12 w-12" />
           <div className="min-w-0"><h2 className="text-[15px] font-semibold tracking-tight text-fg">Bernardo + Laura</h2><p className="text-micro font-medium text-fg-tertiary">Our goals, together</p></div>
         </div>
 
         <button type="button" onClick={quickAdd} data-testid="quick-add-desktop"
-          className="btn-primary mb-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold">
+          className="btn-primary mb-3 flex min-h-10 w-full shrink-0 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold">
           <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />Add transaction
         </button>
 
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-4 flex shrink-0 items-center gap-2">
           <button type="button" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))} className="sidebar-search flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-xl px-3 text-xs">
             <Search className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /><span className="truncate">Search or jump…</span><kbd className="ml-auto rounded-md border border-border px-1.5 py-0.5 font-mono text-micro">⌘K</kbd>
           </button>
           <PrivacyButton className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border text-fg-secondary hover:text-fg" />
         </div>
 
-        <nav aria-label="Primary finance navigation">
+        <nav aria-label="Primary finance navigation" className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-2">
           <NavSections pathname={pathname} compact />
           <MoreGroup pathname={pathname} compact />
         </nav>
 
-        <div className="sidebar-footer mt-auto space-y-3 border-t border-border pt-4">
+        <div className="sidebar-footer mt-auto shrink-0 space-y-3 border-t border-border pt-4">
           <FinanceAuthBadge collapsed={false} />
           <div className="flex items-center justify-between gap-2 px-1">
             <span className="text-label text-fg-secondary">Theme</span>

@@ -329,7 +329,7 @@ export default function SubscriptionsClient() {
 
   if (loading) return <div className="h-8 w-48 animate-pulse rounded bg-surface-2" />
 
-  const kpis: Array<[string, number]> = [['Monthly burn', monthlyBurn], ['Annual projection', monthlyBurn * 12], ['Next 30 days', next30]]
+  const kpis: Array<[string, number]> = [['Monthly burn', monthlyBurn], ['Per year', monthlyBurn * 12], ['Next 30 days', next30]]
 
   return (
     <PageTransition>
@@ -402,8 +402,8 @@ export default function SubscriptionsClient() {
                               </StatusPill>
                             )}
                           </span>
-                          <span className="mt-0.5 block truncate text-xs text-fg-tertiary">
-                            {/* Date first: it's what matters on a phone where the line truncates. */}
+                          {/* Wraps on phones (two icon actions share the row) so cycle and card stay readable. */}
+                          <span className="mt-0.5 block text-xs text-fg-tertiary sm:truncate">
                             {due && sub.is_active && <span className={cn(due < today && 'font-medium text-warning')}>{formatDateShort(due)} · {formatRelativeDue(due)} · </span>}
                             {FREQUENCY_LABEL[sub.frequency] ?? sub.frequency}{method ? ` · ${method.short}` : ''}
                           </span>
