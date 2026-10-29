@@ -314,6 +314,7 @@ export function buildWidgetPayload(input: WidgetPayloadInput): WidgetPayloadV2 {
   const todayPlan = buildToday({
     summary,
     transactions: input.transactions,
+    categoryNames: input.categoryNames,
     target,
     stretchTarget: stretch,
     upcoming,

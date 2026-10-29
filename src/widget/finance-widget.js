@@ -58,61 +58,73 @@ const DINING = /dining|restaurant|comida|eating|cena/i
 const STR = {
   en: {
     today: 'Today', canSpend: 'You can spend today', leftToday: 'Left today', overToday: 'Past today’s room',
-    tomorrowUpTo: 'Tomorrow, up to', upTo: day => day + ': up to', lastMonth: 'Last month',
-    leftShort: 'left today', overShort: 'over today', todayShort: 'today', overWord: 'over',
+    tomorrowUpTo: 'Tomorrow, up to', upTo: day => day + ': up to', lastMonth: 'Last month', oldRoom: day => day + '’s room, not today’s',
+    leftShort: 'left today', tomorrowShort: 'tomorrow', todayShort: 'today',
     ofSpent: (s, a) => s + ' of ' + a + ' spent', overBy: v => v + ' over today',
-    keeps: g => g + ' stays on target', stillSafe: g => g + ' is still on target', atPct: (g, p) => g + ' at ' + p + '%',
-    keepsBudget: 'within everyday budgets', budgetUsed: 'everyday budgets used up',
-    noSpend: 'No-spend day', noSpendKeeps: (g, p) => 'keeps ' + g + ' at ' + p + '%',
-    streak: n => n + '-day streak', onTrack: 'On track', tight: 'Tight', overChip: 'Over today', saveDay: 'Save day',
+    // The hero names the target it protects: the month's WEST target, not every goal.
+    keeps: g => g + ' target safe', reaches: g => 'Gets ' + g + ' to target', stillSafe: g => g + ' target still safe', atPct: (g, p) => g + ' at ' + p + '%',
+    keepsBudget: 'within everyday budgets', essentials: 'Essentials only', budgetSpent: 'Everyday budgets are spent',
+    noSpend: 'No-spend day', noSpendLine: (g, p, lifts) => (lifts ? 'lifts ' + g + ' to ' : 'keeps ' + g + ' at ') + p + '%',
+    streak: n => n + '-day streak', onTrack: 'On track', tight: 'Tight', overChip: 'Over today',
     daysLeft: n => n === 1 ? 'last day' : n + ' days left',
-    ahead: v => v + ' ahead', short: v => v + ' short', of: 'of',
+    ahead: v => v + ' ahead', short: v => v + ' short', of: 'of', target: v => 'Target ' + v,
+    free: (v, n) => n <= 1 ? v + ' free today' : v + ' free for ' + n + ' days',
     yesterdayUnder: v => '✓ Yesterday ' + v + ' under', yesterdayOver: v => 'Yesterday ' + v + ' over',
     thisWeek: 'This week', onPlanOf: (a, b) => a + ' of ' + b + ' on plan', comingUp: 'Coming up', tomorrowDay: 'Tomorrow', todayDay: 'Today',
     more: n => ' +' + n,
     west: 'WEST', westHome: 'WEST home', yearGoals: y => y + ' goals', emergency: 'Emergency fund',
-    moToKeys: n => n + ' mo to keys', moCovered: n => n + ' mo covered', coveredBy: p => p + '% covered by Dec', onTrackDec: 'on track for Dec', funded: 'funded',
+    moToKeys: n => n + ' mo to keys', moCovered: n => n + ' mo covered', onTrackDec: 'on track for Dec', funded: 'funded',
+    shortByDec: v => v + ' short by Dec',
     baby: n => n + ' mo to baby',
+    cat: c => c,
     nudge: {
-      due: (l, a, days) => l + (days <= 0 ? ' is due today' : ' is due tomorrow') + ' · ' + a + '. Keep it in the account.',
+      due: (l, a, when) => l + ' is due ' + when + ' · ' + a + '. Keep it in the account.',
+      dueToday: 'today', dueTomorrow: 'tomorrow', dueOn: wd => wd,
       skip: c => c + ' is past its budget. Keep it at $0 today.',
       easyDining: (c, v, n) => c + ' has ' + v + ' for ' + n + ' days. Cook at home tonight.',
       easy: (c, v, n) => c + ' has ' + v + ' for ' + n + ' days. Go easy today.',
       fitsDining: (c, v) => c + ' has ' + v + ' left. Dinner out tonight fits.',
       fits: (c, v) => c + ' has ' + v + ' left. There’s room for it today.',
-      ahead: v => 'WEST is ' + v + ' ahead this month. Keep it going.',
-      short: v => 'WEST is ' + v + ' short this month. Skip extras today.',
+      ahead: v => 'At your usual pace WEST ends ' + v + ' ahead. Keep it going.',
+      short: v => 'At your usual pace WEST ends ' + v + ' short. Today’s room closes it.',
+      year: (y, v) => 'The ' + y + ' goals are ' + v + ' short. What today doesn’t spend goes there.',
     },
     asOf: t => 'As of ' + t, noCacheTitle: 'Mona', noCache: 'Connect once to load your numbers',
     reinstall: 'Re-install the widget from Family › Phone widget', offline: 'Offline', open: 'Open Mona ›',
     letters: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
   },
   es: {
-    today: 'Hoy', canSpend: 'Hoy puedes gastar', leftToday: 'Te queda hoy', overToday: 'Arriba de lo de hoy',
-    tomorrowUpTo: 'Mañana, hasta', upTo: day => day + ': hasta', lastMonth: 'Mes pasado',
-    leftShort: 'quedan hoy', overShort: 'arriba hoy', todayShort: 'hoy', overWord: 'arriba',
-    ofSpent: (s, a) => s + ' de ' + a + ' gastado', overBy: v => v + ' arriba hoy',
-    keeps: g => g + ' sigue en meta', stillSafe: g => g + ' sigue en meta', atPct: (g, p) => g + ' en ' + p + '%',
-    keepsBudget: 'dentro del presupuesto', budgetUsed: 'presupuesto diario agotado',
-    noSpend: 'Día sin gastos', noSpendKeeps: (g, p) => 'deja ' + g + ' en ' + p + '%',
-    streak: n => n + ' días en plan', onTrack: 'En plan', tight: 'Justo', overChip: 'Pasado hoy', saveDay: 'Día de ahorro',
+    today: 'Hoy', canSpend: 'Hoy puedes gastar', leftToday: 'Te queda hoy', overToday: 'Pasaste lo de hoy',
+    tomorrowUpTo: 'Mañana, hasta', upTo: day => day + ': hasta', lastMonth: 'Mes pasado', oldRoom: day => 'Lo del ' + day + ', no el de hoy',
+    leftShort: 'quedan hoy', tomorrowShort: 'mañana', todayShort: 'hoy',
+    ofSpent: (s, a) => s + ' de ' + a + ' gastado', overBy: v => v + ' de más hoy',
+    keeps: g => 'Meta ' + g + ' a salvo', reaches: g => 'Lleva ' + g + ' a la meta', stillSafe: g => 'Meta ' + g + ' sigue a salvo', atPct: (g, p) => g + ' en ' + p + '%',
+    keepsBudget: 'dentro del presupuesto', essentials: 'Solo lo esencial', budgetSpent: 'Presupuesto diario agotado',
+    noSpend: 'Día sin gastos', noSpendLine: (g, p, lifts) => (lifts ? 'sube ' + g + ' a ' : 'deja ' + g + ' en ') + p + '%',
+    streak: n => n + ' días en plan', onTrack: 'En plan', tight: 'Justo', overChip: 'Pasado hoy',
     daysLeft: n => n === 1 ? 'último día' : 'quedan ' + n + ' días',
-    ahead: v => v + ' arriba', short: v => 'faltan ' + v, of: 'de',
-    yesterdayUnder: v => '✓ Ayer ' + v + ' abajo', yesterdayOver: v => 'Ayer ' + v + ' arriba',
+    ahead: v => v + ' a favor', short: v => 'faltan ' + v, of: 'de', target: v => 'Meta ' + v,
+    free: (v, n) => n <= 1 ? v + ' libres hoy' : v + ' libres en ' + n + ' días',
+    yesterdayUnder: v => '✓ Ayer, ' + v + ' por debajo', yesterdayOver: v => 'Ayer, ' + v + ' de más',
     thisWeek: 'Esta semana', onPlanOf: (a, b) => a + ' de ' + b + ' en plan', comingUp: 'Próximos cargos', tomorrowDay: 'Mañana', todayDay: 'Hoy',
     more: n => ' +' + n,
     west: 'WEST', westHome: 'Depa WEST', yearGoals: y => 'Metas ' + y, emergency: 'Fondo de emergencia',
-    moToKeys: n => 'entrega en ' + n + ' meses', moCovered: n => n + ' meses cubiertos', coveredBy: p => p + '% cubierto a dic', onTrackDec: 'en camino a dic', funded: 'cubierto',
+    moToKeys: n => 'entrega en ' + n + ' meses', moCovered: n => n + ' meses cubiertos', onTrackDec: 'en camino a dic', funded: 'cubierto',
+    shortByDec: v => 'faltan ' + v + ' a dic',
     baby: n => n + ' meses para el bebé',
+    // Budget names are stored in English; the everyday ones read natively.
+    cat: c => ({ Other: 'Otros', 'Dining Out': 'Comer fuera', Groceries: 'Súper', Transport: 'Transporte', Entertainment: 'Entretenimiento', Shopping: 'Compras', Travel: 'Viajes', Gifts: 'Regalos' })[c] || c,
     nudge: {
-      due: (l, a, days) => l + (days <= 0 ? ' vence hoy' : ' vence mañana') + ' · ' + a + '. Déjalo en la cuenta.',
+      due: (l, a, when) => l + ' vence ' + when + ' · ' + a + '. Déjalo en la cuenta.',
+      dueToday: 'hoy', dueTomorrow: 'mañana', dueOn: wd => 'el ' + wd,
       skip: c => c + ' ya pasó su presupuesto. Hoy déjalo en $0.',
       easyDining: (c, v, n) => c + ' tiene ' + v + ' para ' + n + ' días. Hoy cocinen en casa.',
       easy: (c, v, n) => c + ' tiene ' + v + ' para ' + n + ' días. Hoy con calma.',
       fitsDining: (c, v) => c + ' tiene ' + v + '. Una cena fuera hoy cabe.',
       fits: (c, v) => c + ' tiene ' + v + '. Hoy hay espacio.',
-      ahead: v => 'WEST va ' + v + ' arriba este mes. Sigan así.',
-      short: v => 'A WEST le faltan ' + v + ' este mes. Hoy sin extras.',
+      ahead: v => 'A su ritmo, WEST cierra el mes con ' + v + ' a favor. Sigan así.',
+      short: v => 'A su ritmo, a WEST le faltarían ' + v + '. Respetar lo de hoy lo cierra.',
+      year: (y, v) => 'A las metas ' + y + ' les faltan ' + v + '. Lo que no gasten hoy va para allá.',
     },
     asOf: t => 'Al ' + t, noCacheTitle: 'Mona', noCache: 'Conéctate una vez para cargar tus números',
     reinstall: 'Reinstala el widget desde Family › Phone widget', offline: 'Sin conexión', open: 'Abrir Mona ›',
@@ -351,9 +363,11 @@ function ringImage(size, frac, fill, track, lw, big, small) {
 function fromLastMonth(d) {
   return !!d.__stale && !!d.month && d.month !== formatter('yyyy-MM').string(new Date())
 }
-/** The date the plan was made for (payload.today.date, else the payload's own day). */
+/** The date the plan was made for (payload.today.date, else the day the payload was fetched). */
 function planDate(d) {
   if (d.today && d.today.date) return d.today.date
+  const t = new Date(d.updated_at)
+  if (!isNaN(t.getTime())) return formatter('yyyy-MM-dd').string(t)
   return String(d.month || '') + '-' + String(d.day || 1).padStart(2, '0')
 }
 /** A cached plan from another day is not today's room. */
@@ -394,6 +408,8 @@ function planOf(d) {
     const p = Object.assign({ basis: 'goal', state: 'ok', week: [], goals: [], streak: null, yesterday: null, nudge: null, tomorrow: null }, t)
     p.goal = t.goal || goalFromWest
     p.left = Number.isFinite(t.left) ? t.left : t.allowance - (t.spent || 0)
+    // What the days left can spend (older v3 payloads carry only pool and reserve).
+    p.room = Number.isFinite(t.room) ? t.room : Number.isFinite(t.pool) ? t.pool - (t.reserve || 0) : null
     p.state = stateOf(p)
     return p
   }
@@ -402,12 +418,16 @@ function planOf(d) {
   const spentToday = ds.length && ds.length === d.day ? ds[ds.length - 1] || 0 : 0
   const daysLeft = Math.max(1, v.days_left || 1)
   const allowance = Math.max(0, Math.floor((v.left + spentToday) / daysLeft / 10) * 10)
+  // Older servers measured WEST against the stretch target, and early in the
+  // month the forecast is mostly empty: the fallback shows the goal neutral,
+  // and without a % before day 5 (or before anything is projected).
+  const goal = goalFromWest ? Object.assign({ neutral: true, hidePct: (d.day || 1) < 5 || !(goalFromWest.projected > 0) }, goalFromWest) : null
   const goals = []
-  if (goalFromWest) goals.push({ kind: 'west_month', month: wm.month, pct: wm.pct, buffer: goalFromWest.buffer })
+  if (goal) goals.push({ kind: 'west_month', month: wm.month, pct: wm.pct, buffer: goal.buffer, neutral: true, hidePct: goal.hidePct, target: goal.target })
   if (ms.west_funded_pct != null) goals.push({ kind: 'west_home', pct: ms.west_funded_pct, months: ms.west_months_to_delivery })
   const p = {
-    basis: 'budget', allowance, spent: spentToday, left: allowance - spentToday, days_left: daysLeft, tomorrow: null,
-    goal: goalFromWest, streak: null, yesterday: null, week: [], goals,
+    basis: 'budget', allowance, spent: spentToday, left: allowance - spentToday, days_left: daysLeft, tomorrow: null, room: null,
+    goal, streak: null, yesterday: null, week: [], goals,
     // The one nudge an older payload can still give: the category past its budget.
     nudge: d.top_over && d.top_over.name ? { kind: 'skip', category: d.top_over.name, url: '/finance/budgets' } : null,
   }
@@ -422,67 +442,97 @@ function stateOf(p) {
   if (p.allowance > 0 && p.left < p.allowance * 0.25) return 'tight'
   return 'ok'
 }
+/** The everyday budgets are spent on an older payload: nothing more fits, said calmly. */
+const budgetSpent = p => p.basis === 'budget' && p.allowance <= 0
 const TONE = {
   good: { color: C.good, fill: FILL.good, chip: C.chip.good },
   warn: { color: C.warn, fill: FILL.warn, chip: C.chip.warn },
+  neutral: { color: C.sub, fill: FILL.accent },
 }
-/** The month's goal: green at or past target, amber short of it (never red: it is a forecast). */
-const goalTone = g => (!g || g.pct >= 100 ? TONE.good : TONE.warn)
-const goalName = (p, d) => STR.west + ((p.goal && p.goal.month) || (d.west_month && d.west_month.month) ? ' · ' + monthLabel((p.goal && p.goal.month) || d.west_month.month) : '')
+/** The month's goal: green at or past target, amber short of it (never red: it is a forecast); neutral on the fallback. */
+const goalTone = g => (g && g.neutral ? TONE.neutral : !g || g.pct >= 100 ? TONE.good : TONE.warn)
+const goalPct = g => (g && g.hidePct ? '–' : pct(g.pct))
+const goalFrac = g => (g && g.hidePct ? 0 : g.pct / 100)
+const goalMonth = (p, d) => monthLabel((p.goal && p.goal.month) || (d.west_month && d.west_month.month) || d.month)
+const goalName = (p, d) => STR.west + (goalMonth(p, d) ? ' · ' + goalMonth(p, d) : '')
+/** "WEST Oct": the month target the hero protects. */
+const goalShort = (p, d) => STR.west + (goalMonth(p, d) ? ' ' + goalMonth(p, d) : '')
+/** Live plan for today (not a cached day or month). */
+const isCurrent = d => !planIsOld(d) && !fromLastMonth(d)
+/** The goal's second line: what the days left can spend (the allowance's source), else ahead/short. */
+function goalDetail(p, d, g) {
+  // Fallback: the old server's target may be the stretch one, so no "short" verdict.
+  if (g.hidePct || g.neutral) return g.target > 0 ? STR.target(moneyShort(g.target)) : ''
+  if (p.basis === 'goal' && isCurrent(d) && p.room != null && p.room > 0) return STR.free(moneyShort(p.room), p.days_left)
+  const buf = Number(g.buffer)
+  if (!Number.isFinite(buf) || Math.abs(buf) < 50) return ''
+  return buf >= 0 ? STR.ahead(moneyShort(buf)) : STR.short(moneyShort(-buf))
+}
 
 /** The hero: label, number (or word) and the line that ties it to the goal. */
 function heroOf(p, d) {
-  const g = STR.west
+  const g = goalShort(p, d)
   const goal = p.goal
   if (fromLastMonth(d)) {
-    return { label: STR.lastMonth, value: money(Math.max(0, p.left)), dim: true, line: p.basis === 'goal' ? STR.keeps(STR.west) : STR.keepsBudget, lineColor: C.faint }
+    // Last month's result, not a day's room.
+    const buf = goal ? Number(goal.buffer) || 0 : 0
+    return {
+      label: STR.lastMonth + (goal ? ' · ' + STR.west : ''), value: goal ? pct(goal.pct) : '–', dim: true,
+      line: goal ? (buf >= 0 ? STR.ahead(moneyShort(buf)) : STR.short(moneyShort(-buf))) : '', lineColor: C.faint,
+    }
   }
   if (planIsOld(d)) {
     // The header already carries the amber stamp; the line keeps the goal in view.
-    return { label: STR.upTo(weekday(planDate(d))), value: money(p.allowance), dim: true, line: p.basis === 'goal' ? STR.keeps(STR.west) : STR.keepsBudget, lineColor: C.faint }
+    const day = weekday(planDate(d))
+    return { label: STR.upTo(day), value: money(p.allowance), dim: true, line: STR.oldRoom(day), lineColor: C.faint }
   }
   if (p.state === 'risk') {
     const at = goal && goal.no_spend_pct != null ? goal.no_spend_pct : goal ? goal.pct : 0
-    return { label: STR.today, value: STR.noSpend, isWord: true, line: STR.noSpendKeeps(g, at), lineColor: C.warn }
+    return { label: STR.today, value: STR.noSpend, isWord: true, line: STR.noSpendLine(STR.west, at, !!goal && at > goal.pct), lineColor: C.warn }
   }
   if (p.basis === 'budget') {
-    if (p.state === 'over') return { label: STR.today, value: money(0), line: STR.budgetUsed, lineColor: C.sub }
+    if (budgetSpent(p)) return { label: STR.today, value: STR.essentials, isWord: true, line: STR.budgetSpent, lineColor: C.sub }
     if (!p.spent) return { label: STR.canSpend, value: money(p.allowance), line: STR.keepsBudget, lineColor: C.sub }
-    return { label: STR.leftToday, value: money(p.left), line: STR.ofSpent(moneyShort(p.spent), moneyShort(p.allowance)), lineColor: p.state === 'tight' ? C.warn : C.sub }
+    return { label: STR.leftToday, value: money(p.left), line: STR.ofSpent(moneyShort(p.spent), moneyShort(p.allowance)), lineColor: p.state === 'tight' || p.state === 'over' ? C.warn : C.sub }
   }
+  const short = !!goal && goal.pct < 100
   if (p.state === 'over') {
     if (p.tomorrow != null) return { label: STR.tomorrowUpTo, value: money(p.tomorrow), line: STR.overBy(moneyShort(-p.left)), lineColor: C.warn }
-    return {
-      label: STR.overToday, value: money(-p.left),
-      line: goal && goal.pct < 100 ? STR.atPct(g, goal.pct) : STR.stillSafe(g), lineColor: goal && goal.pct < 100 ? C.warn : C.good,
-    }
+    return { label: STR.overToday, value: money(-p.left), line: short ? STR.atPct(STR.west, goal.pct) : STR.stillSafe(g), lineColor: short ? C.warn : C.good }
   }
-  if (!p.spent) return { label: STR.canSpend, value: money(p.allowance), line: STR.keeps(g), lineColor: C.good }
+  // Following today's room lands the month at or above target: on a short
+  // forecast that is a recovery ("gets WEST to target"), not "stays".
+  if (!p.spent) return { label: STR.canSpend, value: money(p.allowance), line: short ? STR.reaches(g) : STR.keeps(g), lineColor: short ? C.warn : C.good }
   return { label: STR.leftToday, value: money(p.left), line: STR.ofSpent(moneyShort(p.spent), moneyShort(p.allowance)), lineColor: p.state === 'tight' ? C.warn : C.sub }
 }
 
 /** Today's one nudge, worded on the phone from its kind. */
 function nudgeOf(p, d) {
   const n = p.nudge
-  if (!n || planIsOld(d) || fromLastMonth(d)) return null
+  if (!n || !isCurrent(d)) return null
+  // A no-spend day already says it all: no category advice on top (older payloads).
+  if (p.state === 'risk' && n.kind !== 'due') return null
   const N = STR.nudge
-  const cat = String(n.category || '')
+  const cat = STR.cat(String(n.category || ''))
   let title = null
-  if (n.kind === 'due') title = N.due(String(n.label || '') + (n.count > 1 ? STR.more(n.count - 1) : ''), moneyShort(n.amount || 0), n.days)
-  else if (n.kind === 'skip') title = N.skip(cat)
-  else if (n.kind === 'easy') title = (DINING.test(cat) ? N.easyDining : N.easy)(cat, moneyShort(n.left || 0), n.days || p.days_left)
-  else if (n.kind === 'fits') title = (DINING.test(cat) ? N.fitsDining : N.fits)(cat, moneyShort(n.left || 0))
+  if (n.kind === 'due') {
+    const days = n.date ? daysUntil(n.date) : n.days
+    const when = days <= 0 ? N.dueToday : days === 1 ? N.dueTomorrow : N.dueOn(n.date ? weekday(n.date) : String(days))
+    title = N.due(String(n.label || '') + (n.count > 1 ? STR.more(n.count - 1) : ''), moneyShort(n.amount || 0), when)
+  } else if (n.kind === 'skip') title = N.skip(cat)
+  else if (n.kind === 'easy') title = (DINING.test(n.category || '') ? N.easyDining : N.easy)(cat, moneyShort(n.left || 0), n.days || p.days_left)
+  else if (n.kind === 'fits') title = (DINING.test(n.category || '') ? N.fitsDining : N.fits)(cat, moneyShort(n.left || 0))
   else if (n.kind === 'ahead') title = N.ahead(moneyShort(n.amount || 0))
   else if (n.kind === 'short') title = N.short(moneyShort(n.amount || 0))
+  else if (n.kind === 'year') title = N.year(n.year || '', moneyShort(n.amount || 0))
   if (!title) return null
-  const fallback = n.kind === 'due' ? URLS.bills : n.kind === 'ahead' || n.kind === 'short' ? URLS.west : URLS.budgets
+  const fallback = n.kind === 'due' ? URLS.bills : n.kind === 'ahead' || n.kind === 'short' ? URLS.west : n.kind === 'year' ? URLS.goals : URLS.budgets
   return { title, url: appLink(n.url, fallback) }
 }
 
-/** Header chip: a streak when there is one, else the day's status word. */
+/** Header chip: a streak when there is one, else the day's status word (none on a no-spend day: the hero says it). */
 function chipOf(p, d) {
-  if (d.__stale || p.basis !== 'goal') return null
-  if (p.state === 'risk') return { text: STR.saveDay, tone: TONE.warn }
+  if (d.__stale || p.basis !== 'goal' || p.state === 'risk') return null
   if (p.state === 'over') return { text: STR.overChip, tone: TONE.warn }
   if (p.streak >= 2) return { text: STR.streak(p.streak), tone: TONE.good }
   if (p.state === 'tight') return { text: STR.tight, tone: TONE.warn }
@@ -491,7 +541,7 @@ function chipOf(p, d) {
 
 function yesterdayLine(p, d) {
   const y = p.yesterday
-  if (!y || d.__stale) return null
+  if (!y || !isCurrent(d)) return null
   if (y.diff >= 0) return { text: STR.yesterdayUnder(moneyShort(y.diff)), color: C.good }
   return { text: STR.yesterdayOver(moneyShort(-y.diff)), color: C.faint }
 }
@@ -563,7 +613,7 @@ function heroBlock(stack, d, p, size, maxW) {
   txt(stack, h.value, h.isWord ? wordSize : size, C.text, 'hero', { msf: 0.55, opacity: h.dim ? 0.5 : 1 })
   txt(stack, h.line, 11, h.lineColor, 'semibold', { msf: 0.9 })
 }
-/** Goal block: name + % on one line, runway, how far ahead or short. */
+/** Goal block: name + % on one line, runway, then what the days left can spend. */
 function goalBlock(stack, d, p, width, opts) {
   const o = opts || {}
   const g = p.goal
@@ -573,16 +623,15 @@ function goalBlock(stack, d, p, width, opts) {
   r.centerAlignContent()
   txt(r, goalName(p, d), 12, C.text, 'semibold')
   r.addSpacer()
-  txt(r, pct(g.pct), o.pctSize || 13, tone.color, 'hero')
+  txt(r, goalPct(g), o.pctSize || 13, tone.color, 'hero')
   stack.addSpacer(3)
-  addRunway(stack, width, o.barH || 6, g.pct / 100, tone.fill)
+  addRunway(stack, width, o.barH || 6, goalFrac(g), tone.fill)
   if (o.detail !== false) {
-    stack.addSpacer(2)
-    const buf = Number(g.buffer)
-    const lead = moneyShort(g.projected) + ' ' + STR.of + ' ' + moneyShort(g.target)
-    const tail = Number.isFinite(buf) && Math.abs(buf) >= 50 ? (buf >= 0 ? STR.ahead(moneyShort(buf)) : STR.short(moneyShort(-buf))) : ''
-    // Narrow columns keep the part that matters today: how far ahead or short.
-    txt(stack, tail ? (width < 140 ? tail : lead + ' · ' + tail) : lead, 11, C.faint, 'medium', { msf: 0.9 })
+    const detail = goalDetail(p, d, g)
+    if (detail) {
+      stack.addSpacer(2)
+      txt(stack, detail, 11, C.faint, 'medium', { msf: 0.9 })
+    }
   }
 }
 /** The nudge in a soft card, plain text (not a link colour). */
@@ -617,7 +666,7 @@ function small(w, d, m) {
   heroBlock(h, d, p, m.small >= 155 ? 32 : 28, cw)
   w.addSpacer()
   const g = p.goal
-  if (!g) return
+  if (!g || fromLastMonth(d)) return
   const foot = w.addStack()
   foot.layoutVertically()
   foot.url = URLS.west
@@ -625,17 +674,24 @@ function small(w, d, m) {
   r.centerAlignContent()
   txt(r, goalName(p, d), 11, C.sub, 'semibold')
   r.addSpacer()
-  txt(r, pct(g.pct), 12, goalTone(g).color, 'hero')
+  txt(r, goalPct(g), 12, goalTone(g).color, 'hero')
   foot.addSpacer(3)
-  addRunway(foot, cw, 5, g.pct / 100, goalTone(g).fill)
+  addRunway(foot, cw, 5, goalFrac(g), goalTone(g).fill)
 }
-/** Small, "goals" parameter: the month's goal as the hero, today's room below. */
+/** Small, "goals" parameter: the month's goal as the hero, what it leaves for the days left, today's room below. */
 function smallGoals(w, d, p, cw) {
   w.url = URLS.west
   const g = p.goal
   txt(w, goalName(p, d), 12, C.sub, 'semibold')
-  txt(w, g ? pct(g.pct) : '–', 34, g ? goalTone(g).color : C.text, 'hero', { msf: 0.6 })
-  if (g) addRunway(w, cw, 6, g.pct / 100, goalTone(g).fill)
+  txt(w, g ? goalPct(g) : '–', 34, g ? goalTone(g).color : C.text, 'hero', { msf: 0.6 })
+  if (g) {
+    addRunway(w, cw, 6, goalFrac(g), goalTone(g).fill)
+    const detail = goalDetail(p, d, g)
+    if (detail) {
+      w.addSpacer(4)
+      txt(w, detail, 11, C.faint, 'medium', { msf: 0.9 })
+    }
+  }
   w.addSpacer()
   const h = heroOf(p, d)
   txt(w, h.label, 11, C.faint, 'semibold')
@@ -680,6 +736,7 @@ function large(w, d, m) {
   const cw = m.mediumW - 30
   const compact = m.largeH < 350
   const p = planOf(d)
+  const hasWeek = (p.week || []).length > 0 && isCurrent(d)
   w.url = URLS.home
   header(w, d, p)
   w.addSpacer(compact ? 6 : 10)
@@ -692,20 +749,27 @@ function large(w, d, m) {
   heroBlock(left, d, p, compact ? 30 : 34, Math.round(cw * 0.5))
   body.addSpacer()
   const n = nudgeOf(p, d)
-  if (n) nudgeCard(body, n, 3, Math.round(cw * 0.46))
-  w.addSpacer(compact ? 10 : 14)
+  // With a week row the nudge sits beside the hero; without one it gets the full width below it.
+  if (n && hasWeek) nudgeCard(body, n, 3, Math.round(cw * 0.46))
+  if (n && !hasWeek) {
+    w.addSpacer(8)
+    nudgeCard(w, n, 2)
+  }
+  w.addSpacer()
 
   goalGrid(w, d, p, cw, compact)
-  // The slack splits evenly between the sections.
   w.addSpacer()
-  weekStrip(w, d, p, cw)
-  // Without a week to show (older payloads), the bills get the room.
-  coming(w, d, p, compact ? 1 : (p.week || []).length && !d.__stale ? 2 : 3)
+  if (hasWeek) {
+    weekStrip(w, d, p)
+    w.addSpacer()
+  } else milestones(w, d, p)
+  // Without a week to show, the bills get the room.
+  coming(w, d, p, compact ? (hasWeek ? 1 : 2) : hasWeek ? 2 : 3)
 }
 
-/** Goals as a 2×2 grid: the month's WEST runway (status colour, target tick), then neutral progress. */
+/** Goals as a 2×2 grid: the month's WEST runway (status colour, target tick), then the rest. */
 function goalGrid(w, d, p, cw, compact) {
-  const rows = (p.goals || []).slice(0, 4)
+  const rows = (p.goals || []).filter(g => !(fromLastMonth(d) && g.kind === 'west_month')).slice(0, 4)
   if (!rows.length) return
   const gap = 14
   const cell = Math.floor((cw - gap) / 2)
@@ -713,25 +777,27 @@ function goalGrid(w, d, p, cw, compact) {
     const line = w.addStack()
     for (let j = i; j < Math.min(i + 2, rows.length); j++) {
       if (j > i) line.addSpacer(gap)
-      goalCell(line, d, rows[j], cell)
+      goalCell(line, d, p, rows[j], cell)
     }
     if (i + 2 < rows.length) w.addSpacer(compact ? 8 : 11)
   }
 }
-function goalCell(line, d, g, width) {
+function goalCell(line, d, p, g, width) {
   const c = line.addStack()
   c.layoutVertically()
   c.size = new Size(width, 0)
-  let label = '', note = '', url = URLS.goals, isMonth = false
+  let label = '', note = '', url = URLS.goals, isMonth = false, tone = null
   if (g.kind === 'west_month') {
     isMonth = true
     label = STR.west + ' · ' + monthLabel(g.month || d.month)
-    const b = Number(g.buffer) || 0
-    note = b >= 0 ? STR.ahead(moneyShort(b)) : STR.short(moneyShort(-b))
+    tone = goalTone(g)
+    note = goalDetail(p, d, Object.assign({}, g, { target: g.target || (p.goal && p.goal.target) }))
     url = URLS.west
   } else if (g.kind === 'year') {
     label = STR.yearGoals(g.year)
-    note = g.on_track ? STR.onTrackDec : g.covered_pct != null ? STR.coveredBy(g.covered_pct) : ''
+    // Off track is said in words and amber, never a neutral "covered" share.
+    if (g.on_track) note = STR.onTrackDec
+    else if (g.shortfall > 0) { note = STR.shortByDec(moneyShort(g.shortfall)); tone = TONE.warn }
   } else if (g.kind === 'west_home') {
     label = STR.westHome
     note = g.months != null ? STR.moToKeys(g.months) : STR.funded
@@ -742,38 +808,41 @@ function goalCell(line, d, g, width) {
     url = URLS.home
   } else return
   c.url = appLink(g.url, url)
-  const tone = isMonth ? goalTone(g) : null
   const r = c.addStack()
   r.centerAlignContent()
   txt(r, label, 12, C.text, 'semibold', { msf: 0.92 })
   r.addSpacer(4)
   r.addSpacer()
-  txt(r, pct(g.pct), 12, isMonth ? tone.color : C.sub, 'num')
+  txt(r, isMonth ? goalPct(g) : pct(g.pct), 12, tone ? tone.color : C.sub, 'num')
   c.addSpacer(4)
-  if (isMonth) addRunway(c, width, 5, g.pct / 100, tone.fill)
-  else addBar(c, width, 5, g.pct / 100, FILL.accent)
+  if (isMonth) addRunway(c, width, 5, goalFrac(g), tone.fill)
+  else addBar(c, width, 5, g.pct / 100, tone ? tone.fill : FILL.accent)
   if (note) {
     c.addSpacer(isMonth ? 1 : 4)
-    txt(c, note, 11, C.faint, 'medium', { msf: 0.9 })
+    txt(c, note, 11, tone && !isMonth ? tone.color : C.faint, 'medium', { msf: 0.9 })
   }
 }
 
+/** One line of what's ahead in life, when there is no week to show (the WEST cell already counts the months to keys). */
+function milestones(w, d, p) {
+  const ms = d.milestones || {}
+  const keysShown = (p.goals || []).some(g => g.kind === 'west_home' && g.months != null)
+  const bits = []
+  if (ms.baby_months != null) bits.push('👶 ' + STR.baby(ms.baby_months))
+  if (ms.west_months_to_delivery != null && !keysShown) bits.push('🏠 ' + STR.moToKeys(ms.west_months_to_delivery))
+  if (!bits.length) return
+  txt(w, bits.join('   '), 12, C.sub, 'semibold', { msf: 0.9 })
+  w.addSpacer()
+}
+
 /** The week as dots: green on plan, grey past that day's room, a ring for today. */
-function weekStrip(w, d, p, cw) {
+function weekStrip(w, d, p) {
   const week = (p.week || []).slice(-7)
-  if (!week.length || d.__stale) {
-    const ms = d.milestones || {}
-    const bits = []
-    if (ms.baby_months != null) bits.push('👶 ' + STR.baby(ms.baby_months))
-    if (ms.west_months_to_delivery != null) bits.push('🏠 ' + STR.moToKeys(ms.west_months_to_delivery))
-    if (bits.length) txt(w, bits.join('   '), 12, C.sub, 'semibold', { msf: 0.9 })
-    return
-  }
   const box = w.addStack()
   box.layoutVertically()
   box.url = URLS.transactions
   const done = week.filter(x => !x.today && x.ok != null)
-  txt(box, STR.thisWeek + ' · ' + STR.onPlanOf(done.filter(x => x.ok).length, done.length), 11, C.faint, 'semibold', { msf: 0.9 })
+  txt(box, STR.thisWeek + (done.length ? ' · ' + STR.onPlanOf(done.filter(x => x.ok).length, done.length) : ''), 11, C.faint, 'semibold', { msf: 0.9 })
   box.addSpacer(5)
   const row = box.addStack()
   row.centerAlignContent()
@@ -798,7 +867,6 @@ function coming(w, d, p, max) {
   const today = todayKey()
   const items = (d.upcoming || []).filter(u => u && String(u.date) >= today).slice(0, max)
   if (!items.length) return
-  w.addSpacer()
   const box = w.addStack()
   box.layoutVertically()
   box.url = URLS.bills
@@ -823,54 +891,84 @@ function coming(w, d, p, max) {
 }
 
 // ── Lock screen: white only, no backgrounds ──
-function lockLead(p) {
+/**
+ * The lock screens' one figure. Calm in every state: past today's room it is
+ * tomorrow's figure; a cached plan from another day is labelled with its day;
+ * last month's cache shows the month's WEST result, never a day's room.
+ */
+function lockLead(p, d) {
+  if (fromLastMonth(d)) {
+    const g = p.goal
+    return { value: g ? STR.west + ' ' + goalMonth(p, d) + ' ' + pct(g.pct) : '–', unit: '', old: true }
+  }
+  if (planIsOld(d)) return { pre: STR.upTo(weekday(planDate(d))), value: moneyFit(p.allowance), unit: '', old: true }
   if (p.state === 'risk') return { value: STR.noSpend, unit: '' }
-  if (p.state === 'over') return { value: moneyFit(-p.left), unit: STR.overShort }
+  if (p.state === 'over') {
+    if (p.basis === 'goal' && p.tomorrow != null) return { value: moneyFit(p.tomorrow), unit: STR.tomorrowShort }
+    return { value: moneyFit(0), unit: STR.leftShort }
+  }
   return { value: moneyFit(Math.max(0, p.left)), unit: STR.leftShort }
+}
+/** Today's room as a fuel gauge (0–1): full in the morning, emptying as you spend; tomorrow's (full) once past today's. */
+function roomGauge(p) {
+  if (p.state === 'risk' || budgetSpent(p)) return 0
+  if (p.state === 'over') return p.basis === 'goal' && p.tomorrow != null ? 1 : 0
+  return p.allowance > 0 ? Math.max(0, p.left) / p.allowance : 0
 }
 function lockRect(w, d, m) {
   const p = planOf(d)
   const cw = m.rect - 4
   w.url = hasParam('quickadd') ? URLS.quickAdd : URLS.home
-  const lead = lockLead(p)
+  const lead = lockLead(p, d)
   const top = w.addStack()
   top.bottomAlignContent()
-  txt(top, lead.value, lead.unit ? 17 : 15, WHITE, 'hero', { msf: 0.7, opacity: d.__stale ? 0.7 : 1 })
-  if (lead.unit && !d.__stale) {
+  if (lead.pre) {
+    txt(top, lead.pre, 12, whiteA(0.8), 'semibold')
+    top.addSpacer(4)
+  }
+  txt(top, lead.value, lead.unit || lead.pre ? 17 : 15, WHITE, 'hero', { msf: 0.7, opacity: lead.old ? 0.7 : 1 })
+  if (lead.unit) {
     top.addSpacer(4)
     txt(top, lead.unit, 12, whiteA(0.8), 'semibold')
   }
   top.addSpacer()
-  if (d.__stale) txt(top, '⚠︎ ' + stampTime(d.updated_at), 11, whiteA(0.75), 'medium')
   const g = p.goal
-  if (g) {
+  // Line 2: the stamp when cached, else the goal (the streak when there's room).
+  let line = ''
+  if (d.__stale) line = '⚠︎ ' + stampTime(d.updated_at) + (g && !fromLastMonth(d) ? ' · ' + STR.west + ' ' + goalPct(g) : '')
+  else if (p.state === 'risk' && g) {
+    const at = g.no_spend_pct != null ? g.no_spend_pct : g.pct
+    line = STR.noSpendLine(STR.west, at, at > g.pct)
+  } else if (g) line = STR.west + ' ' + goalPct(g) + (p.streak >= 2 && cw >= 160 ? ' · ' + STR.streak(p.streak) : '')
+  if (line) {
     w.addSpacer(3)
-    // Narrow lock screens (SE) keep the goal and drop the streak.
-    const line = p.state === 'risk'
-      ? STR.noSpendKeeps(STR.west, g.no_spend_pct != null ? g.no_spend_pct : g.pct)
-      : STR.west + ' ' + pct(g.pct) + (p.streak >= 2 && cw >= 160 && !d.__stale ? ' · ' + STR.streak(p.streak) : '')
     txt(w, line, 11, whiteA(0.85), 'semibold')
-    w.addSpacer(2)
-    addRunway(w, cw, 5, g.pct / 100, WHITE, whiteA(0.25), whiteA(0.9))
+  }
+  // The bar is today's room (like the circular ring); the goal stays in words above.
+  if (!lead.old) {
+    w.addSpacer(3)
+    addBar(w, cw, 5, roomGauge(p), WHITE, whiteA(0.25))
   }
 }
 function lockCirc(w, d) {
   w.addAccessoryWidgetBackground = true
   w.url = hasParam('quickadd') ? URLS.quickAdd : URLS.home
   const p = planOf(d)
+  const g = p.goal
   let img
-  if (hasParam('goals')) {
-    const g = p.goal
-    img = ringImage(58, g ? g.pct / 100 : 0, WHITE, whiteA(0.25), 5, g ? pct(g.pct) : '–', STR.west)
-  } else if (p.state === 'risk') {
-    img = ringImage(58, 0, WHITE, whiteA(0.25), 5, '$0', STR.todayShort)
-  } else if (p.state === 'over') {
-    // Over: the overflow drawn as its own arc, so the ring never reads as empty.
-    img = ringImage(58, Math.min(1, -p.left / Math.max(1, p.allowance)), whiteA(0.6), whiteA(0.25), 5, moneyShort(-p.left), STR.overWord)
+  if (hasParam('goals') || fromLastMonth(d)) {
+    const old = fromLastMonth(d)
+    img = ringImage(58, g ? goalFrac(g) : 0, old ? whiteA(0.5) : WHITE, whiteA(0.25), 5, g ? goalPct(g) : '–', old ? '⚠︎ ' + goalMonth(p, d) : STR.west)
+  } else if (planIsOld(d)) {
+    // Another day's room: an empty ring, the figure and that day's name.
+    img = ringImage(58, 0, WHITE, whiteA(0.25), 5, moneyShort(p.allowance), '⚠︎ ' + weekday(planDate(d)))
+  } else if (p.state === 'over' && p.basis === 'goal' && p.tomorrow != null) {
+    // Past today's room: tomorrow's fresh gauge, never an overflow arc.
+    // Labelled with tomorrow's weekday: "tomorrow" doesn't fit the ring at 11pt.
+    img = ringImage(58, 1, WHITE, whiteA(0.25), 5, moneyShort(p.tomorrow), weekday(formatter('yyyy-MM-dd').string(new Date(dateOf(todayKey()).getTime() + 86400000))))
   } else {
     // Today's room as a fuel gauge: full in the morning, emptying as you spend.
-    const frac = p.allowance > 0 ? Math.max(0, p.left) / p.allowance : 0
-    img = ringImage(58, frac, WHITE, whiteA(0.25), 5, moneyShort(Math.max(0, p.left)), STR.todayShort)
+    img = ringImage(58, roomGauge(p), WHITE, whiteA(0.25), 5, moneyShort(Math.max(0, p.state === 'risk' ? 0 : p.left)), STR.todayShort)
   }
   const s = w.addImage(img)
   s.imageSize = new Size(58, 58)
@@ -879,8 +977,10 @@ function lockCirc(w, d) {
 function lockInline(w, d) {
   const p = planOf(d)
   const g = p.goal
-  const lead = lockLead(p)
-  txt(w, lead.value + (lead.unit ? ' ' + lead.unit : '') + (g ? ' · ' + STR.west + ' ' + pct(g.pct) : ''), 13, WHITE, 'semibold')
+  const lead = lockLead(p, d)
+  const main = (lead.pre ? lead.pre + ' ' : '') + lead.value + (lead.unit ? ' ' + lead.unit : '')
+  const goal = g && !fromLastMonth(d) ? ' · ' + STR.west + ' ' + goalPct(g) : ''
+  txt(w, (lead.old ? '⚠︎ ' : '') + main + goal, 13, WHITE, 'semibold')
 }
 
 function messageWidget(w, family, title, body, url) {

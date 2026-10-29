@@ -1,44 +1,58 @@
-// The widget's daily plan (payload.today, v3): what today can take while the
-// month's goal (the WEST savings plan) stays on target.
+// The widget's daily plan (payload.today, v3): what today's everyday spending
+// can take while the month's WEST savings target (the capacity target, not the
+// stretch target and not the 2026 goals) stays on target.
 //
-// Pure: buildWidgetPayload() hands in the summary and this month's expense
-// rows. The phone writes every sentence itself (EN/ES) from the kinds and
-// numbers here, so nothing in this block is pre-worded.
+// Pure: buildWidgetPayload() hands in the summary, this month's expense rows
+// and the category names. The phone writes every sentence itself (EN/ES) from
+// the kinds and numbers here, so nothing in this block is pre-worded.
 //
 // ── Definition (all MXN, Mexico City dates) ──
+//   today's spend ("spent") = expense rows dated today in an everyday
+//       (controllable) category, minus the planned tags (auto-recurring,
+//       auto-msi, fertility, baby). The same set as payload.daily_spend, so
+//       fixed bills, utilities and savings transfers never count as the day's spend.
 //   days_left  = days_in_month − day + 1                         (today included)
-//   pool       = expected_income − target − spent_before_today − scheduled_left
-//     target              = west_plan.capacity_target (the month's WEST savings goal)
-//     spent_before_today  = month_projection.spent_so_far − every expense dated today
-//     scheduled_left      = charges the plan already knows about from today to month
-//                           end that are not posted yet (subscriptions, MSI, the
-//                           treatment and baby events still owed), plus the planned
-//                           rows (auto-recurring, auto-msi, fertility, baby) that
-//                           posted today, since they were still pending this morning
-//   reserve    = RESERVE_SHARE × max(0, cushion), cushion = projected_savings + spent − target
-//                (the morning's cushion over target; part of it is held back so
-//                following the allowance every day still lands above target)
-//   allowance  = max(0, floor((pool − reserve) / days_left / 10) × 10)
-//   spent      = discretionary expenses dated today (every expense row minus the
-//                planned tags above: those are in scheduled_left, not in the day)
+//   pool       = expected_income − target − (spent_so_far − spent) − committed
+//     target    = west_plan.capacity_target (the month's WEST savings target)
+//     committed = what the rest of the month still owes outside the everyday
+//                 categories: the larger of
+//                   scheduled_left — every subscription occurrence due this month
+//                     that has not posted (overdue ones too: the processor may be
+//                     behind), MSI payments until the processor has posted this
+//                     month's (any auto-msi row this month), and the treatment
+//                     and baby events still owed; and
+//                   fixed_left — the non-everyday budget rows' projected month
+//                     total minus what they have spent (Maintenance, Electricity…).
+//                 Never their sum: subscriptions sit inside those budget rows.
+//   reserve    = RESERVE_SHARE × max(0, pool − everyday budgets left this morning)
+//                (the cushion over target if the everyday budgets are used as
+//                planned; budgets left is signed like `variable` and floored at
+//                0 in total, so with the budgets spent the whole pool is cushion.
+//                Every input is fixed for the day, so the allowance doesn't
+//                drift as the day's spending comes in)
+//   room       = pool − reserve
+//   allowance  = max(0, floor(room / days_left / 10) × 10)
 //   left       = allowance − spent
 //
-// pool equals the cushion over target plus the spend the projection still
-// expects this month; dividing only the cushion by the days left would count
-// the expected spend twice. The allowance is fixed from the morning's numbers,
-// so it doesn't move as the day's spending comes in. Spending exactly the
-// allowance every remaining day lands the month at target + reserve.
+// A planned bill posting today moves the same amount from `committed` into
+// spent_so_far, so the pool holds. Spend outside the everyday categories that
+// no plan expected (an unbudgeted lump) lowers the pool once it posts.
+// Spending exactly the allowance every remaining day lands the month at
+// target + reserve.
 //
-// state: 'risk' when pool − reserve ≤ 0 (even a no-spend day leaves the goal
-// short), 'over' when spent > allowance, 'tight' when under TIGHT_SHARE of the
+// state: 'risk' when room ≤ 0 (even a no-spend day leaves the target short),
+// 'over' when spent > allowance, 'tight' when under TIGHT_SHARE of the
 // allowance is left, else 'ok'.
 //
 // Past days (week, streak, yesterday) rebuild that morning's pool from today's:
-// pool(d) = pool(today) + discretionary spend from d to yesterday (the planned
-// rows that posted in between were in scheduled_left that morning). Income and
-// target are taken as today's, so earlier rooms are a close approximation.
-// Only this month's days count (the ledger read is this month).
-import { addDaysKey, parseLocalDateKey } from '@/lib/dates'
+// pool(d) = pool(today) + everyday spend from d to yesterday. Income, target
+// and the reserve are taken as today's, so earlier rooms are a close
+// approximation. Only this month's days count (the ledger read is this month).
+//
+// Returns null without a target or projection, or when the ledger or category
+// read failed: without them today's spend is unknown, and a full-looking
+// allowance would quietly shrink as the day's purchases land in spent_so_far.
+import { addDaysKey, addMonthsKey, parseLocalDateKey } from '@/lib/dates'
 import { CONTROLLABLE } from '@/lib/controllable-categories'
 import { UNTRENDED_TAGS } from '@/lib/summary/projection'
 import type { SummaryResponse } from '@/lib/summary/types'
@@ -49,6 +63,8 @@ export const RESERVE_SHARE = 0.2
 export const TIGHT_SHARE = 0.25
 /** A bill this close (days) becomes today's nudge. */
 export const DUE_SOON_DAYS = 1
+/** On a no-spend day, the next bill within this many days is the nudge. */
+export const DUE_WEEK_DAYS = 7
 
 export type TodayState = 'ok' | 'tight' | 'over' | 'risk'
 
@@ -69,10 +85,11 @@ export type TodayNudge =
   | { kind: 'fits'; category: string; left: number; url: string }
   | { kind: 'ahead'; amount: number; url: string }
   | { kind: 'short'; amount: number; url: string }
+  | { kind: 'year'; year: number; amount: number; url: string }
 
 export type TodayGoalRow =
-  | { kind: 'west_month'; month: string; pct: number; buffer: number; url: string }
-  | { kind: 'year'; year: number; pct: number; covered_pct: number | null; on_track: boolean; url: string }
+  | { kind: 'west_month'; month: string; pct: number; buffer: number; room: number; days_left: number; url: string }
+  | { kind: 'year'; year: number; pct: number; covered_pct: number | null; on_track: boolean; shortfall: number; monthly_extra: number; url: string }
   | { kind: 'west_home'; pct: number; months: number | null; url: string }
   | { kind: 'emergency'; pct: number; months: number; url: string }
 
@@ -89,16 +106,25 @@ export interface WidgetToday {
   /** The room before the reserve (can be negative). */
   pool: number
   reserve: number
-  /** The month's usual remaining spend per day (projection), for the no-spend estimate. */
+  /** pool − reserve: what the days left can spend (allowance ≈ room ÷ days_left). */
+  room: number
+  /** What the rest of the month still owes outside the everyday categories. */
+  committed: number
+  /** The month's usual remaining everyday spend per day (projection), for the no-spend estimate. */
   usual: number
   goal: {
     label: 'WEST'
+    /** Which WEST figure `target` is: the month's capacity target. */
+    basis: 'capacity'
     month: string
     target: number
     projected: number
+    /** Forecast at the usual pace (projected ÷ target). */
     pct: number
-    /** projected − target: + ahead, − short. */
+    /** projected − target at the usual pace: + ahead, − short. */
     buffer: number
+    /** Where the month lands if every day spends exactly its allowance (target + reserve). */
+    plan_pct: number
     /** Where the month lands after a no-spend day. */
     no_spend_pct: number
     stretch_target: number | null
@@ -117,6 +143,8 @@ export interface TodayInput {
   summary: Partial<SummaryResponse> & Pick<SummaryResponse, 'current_month'>
   /** This month's expense rows; null when the ledger read failed. */
   transactions: TodayTransaction[] | null
+  /** category_id → name, to tell everyday spend from bills and savings moves. */
+  categoryNames: Map<string, string> | Record<string, string>
   /** The month's goal: west_plan.capacity_target, or the WEST plan's capacity. */
   target: number | null
   stretchTarget: number | null
@@ -136,68 +164,107 @@ const num = (n: unknown) => Number(n) || 0
 const round = (n: number) => Math.round(num(n))
 const floor10 = (n: number) => Math.max(0, Math.floor(n / 10) * 10)
 const amountOf = (t: TodayTransaction) => num(t.amount_mxn || t.amount)
-const isPlanned = (t: TodayTransaction) => Array.isArray(t.tags) && t.tags.some(tag => UNTRENDED_TAGS.includes(tag))
+const hasTag = (t: TodayTransaction, ...tags: string[]) => Array.isArray(t.tags) && t.tags.some(tag => tags.includes(tag))
+const isPlanned = (t: TodayTransaction) => hasTag(t, ...UNTRENDED_TAGS)
 const pad2 = (n: number) => String(n).padStart(2, '0')
+const daysBetween = (a: string, b: string) => Math.round((parseLocalDateKey(b).getTime() - parseLocalDateKey(a).getTime()) / 86400000)
 
-/** Next charge dates of a subscription inside [from, to] (weekly plans repeat). */
-function chargeDates(next: string | null | undefined, frequency: string, from: string, to: string): string[] {
+function lookup(names: TodayInput['categoryNames'], id: string | null | undefined): string | undefined {
+  if (!id) return undefined
+  return names instanceof Map ? names.get(id) : names[id]
+}
+const namesSize = (names: TodayInput['categoryNames']) => (names instanceof Map ? names.size : Object.keys(names || {}).length)
+
+/** Months between charges for month-based plans; weekly plans are handled in days. */
+const MONTH_STEP: Record<string, number> = {
+  monthly: 1, bimonthly: 2, quarterly: 3, 'semi-annual': 6, semiannual: 6, yearly: 12, annual: 12,
+}
+
+/**
+ * Unposted charge dates of a subscription inside this month. `next` is the
+ * next charge the processor has not posted yet, so an occurrence dated before
+ * today is overdue (the processor is behind), not paid: it still counts.
+ */
+function chargeDates(next: string | null | undefined, frequency: string, monthStart: string, monthEnd: string): string[] {
   let due = String(next || '').slice(0, 10)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return []
-  const step = /^bi-?weekly$/i.test(frequency) ? 14 : /^weekly$/i.test(frequency) ? 7 : 0
+  const f = String(frequency || '').toLowerCase()
+  const days = /^bi-?weekly$/.test(f) ? 14 : /^weekly$/.test(f) ? 7 : 0
+  const months = days ? 0 : MONTH_STEP[f] || 1
+  const dueDay = Number(due.slice(8, 10))
   const out: string[] = []
-  for (let guard = 0; guard < 6 && due <= to; guard++) {
-    if (due >= from) out.push(due)
-    if (!step) break
-    due = addDaysKey(due, step)
+  for (let guard = 0; guard < 60 && due <= monthEnd; guard++) {
+    if (due >= monthStart) out.push(due)
+    if (days) due = addDaysKey(due, days)
+    else {
+      const m = addMonthsKey(due.slice(0, 7), months)
+      const last = new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0).getDate()
+      due = `${m}-${pad2(Math.min(dueDay, last))}`
+    }
   }
   return out
 }
 
-/** An MSI plan's charge this month: its end date's day of month, if still ahead and not past the end. */
-function installmentDate(endDate: string, from: string, to: string): string | null {
-  const end = String(endDate || '').slice(0, 10)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(end)) return null
-  const lastDay = Number(to.slice(8, 10))
-  const key = `${from.slice(0, 7)}-${pad2(Math.min(Number(end.slice(8, 10)), lastDay))}`
-  return key >= from && key <= to && key <= end ? key : null
-}
-
-/** Charges the plan knows about from `from` to month end that are not posted yet. */
-export function scheduledLeft(summary: TodayInput['summary'], from: string, monthEnd: string): number {
+/**
+ * Charges the plan knows about this month that have not posted yet.
+ * MSI: the processor posts every active plan's payment for the month on its
+ * first run (dated today when the due day is still ahead), so they are pending
+ * only until this month's first auto-msi row exists.
+ */
+export function scheduledLeft(summary: TodayInput['summary'], monthStart: string, monthEnd: string, msiPosted: boolean): number {
   let total = 0
   for (const s of summary.subscriptions?.active || []) {
-    total += chargeDates(s.next_charge ?? s.last_charge, s.frequency, from, monthEnd).length * Math.abs(num(s.amount))
+    total += chargeDates(s.next_charge ?? s.last_charge, s.frequency, monthStart, monthEnd).length * Math.abs(num(s.amount))
   }
-  for (const m of summary.installments?.active || []) {
-    if (installmentDate(m.end_date, from, monthEnd)) total += Math.abs(num(m.monthly_payment))
+  if (!msiPosted) {
+    for (const m of summary.installments?.active || []) {
+      if (String(m.end_date || '').slice(0, 10) >= monthStart) total += Math.abs(num(m.monthly_payment))
+    }
   }
   total += num(summary.month_projection?.known_upcoming_treatment) + num(summary.month_projection?.known_upcoming_baby)
   return round(total)
 }
 
-/** Discretionary and planned spend per day of the month (index 0 = day 1). */
-function spendByDay(transactions: TodayTransaction[], month: string, days: number) {
-  const discretionary = new Array(days).fill(0) as number[]
-  const planned = new Array(days).fill(0) as number[]
-  for (const t of transactions) {
-    const date = String(t.transaction_date || '')
-    if (!date.startsWith(month)) continue
-    const d = Number(date.slice(8, 10))
-    if (!(d >= 1 && d <= days)) continue
-    if (isPlanned(t)) planned[d - 1] += amountOf(t)
-    else discretionary[d - 1] += amountOf(t)
-  }
-  return { discretionary: discretionary.map(round), planned: planned.map(round) }
+/**
+ * Still to come in the budget rows outside the everyday categories (fixed
+ * bills, utilities, non-monthly cycles): the projection's expected remaining.
+ * Savings-type categories are not budget rows (the summary moves them out).
+ */
+export function fixedLeft(summary: TodayInput['summary']): number {
+  return round((summary.current_month.budget_vs_actual || [])
+    .filter(b => !CONTROLLABLE.has(b.category))
+    .reduce((s, b) => s + Math.max(0, b.expected_remaining ?? num(b.projected_month_total ?? b.budget) - num(b.spent)), 0))
 }
 
-function pickNudge(input: TodayInput, state: TodayState, allowance: number, daysLeft: number, today: string, buffer: number): TodayNudge | null {
+/** Everyday (controllable, untagged) spend per day of the month (index 0 = day 1), plus today's by category. */
+function everydayByDay(transactions: TodayTransaction[], names: TodayInput['categoryNames'], month: string, days: number) {
+  const perDay = new Array(days).fill(0) as number[]
+  const todayByCategory = new Map<string, number>()
+  for (const t of transactions) {
+    const date = String(t.transaction_date || '')
+    if (!date.startsWith(month) || isPlanned(t)) continue
+    const name = lookup(names, t.category_id)
+    if (!name || !CONTROLLABLE.has(name)) continue
+    const d = Number(date.slice(8, 10))
+    if (!(d >= 1 && d <= days)) continue
+    perDay[d - 1] += amountOf(t)
+    if (d === days) todayByCategory.set(name, (todayByCategory.get(name) || 0) + amountOf(t))
+  }
+  return { perDay: perDay.map(round), todayByCategory }
+}
+
+function pickNudge(input: TodayInput, state: TodayState, allowance: number, daysLeft: number, today: string, buffer: number, year: TodayGoalRow | undefined): TodayNudge | null {
   const { summary, upcoming } = input
+  const dueNudge = (u: TodayInput['upcoming'][number]): TodayNudge =>
+    ({ kind: 'due', label: u.label, count: u.count, amount: round(u.amount), date: u.date, days: daysBetween(today, u.date), url: URL_BILLS })
+  // A no-spend day already says "spend nothing": the nudge is the next bill to keep the money for.
+  if (state === 'risk') {
+    const next = upcoming.find(u => u.date >= today && u.date <= addDaysKey(today, DUE_WEEK_DAYS) && u.amount >= 500)
+    return next ? dueNudge(next) : null
+  }
   // A big bill tomorrow (or today) is today's job: keep the money in the account.
   const soon = upcoming.find(u => u.date >= today && u.date <= addDaysKey(today, DUE_SOON_DAYS) && u.amount >= Math.max(500, allowance))
-  if (soon) {
-    const days = Math.round((parseLocalDateKey(soon.date).getTime() - parseLocalDateKey(today).getTime()) / 86400000)
-    return { kind: 'due', label: soon.label, count: soon.count, amount: round(soon.amount), date: soon.date, days, url: URL_BILLS }
-  }
+  if (soon) return dueNudge(soon)
   const rows = (summary.current_month.budget_vs_actual || [])
     .filter(b => CONTROLLABLE.has(b.category) && !b.is_non_monthly && num(b.budget) > 0)
     .map(b => ({ name: b.category, left: round(num(b.budget) - num(b.spent)), budget: num(b.budget) }))
@@ -209,13 +276,15 @@ function pickNudge(input: TodayInput, state: TodayState, allowance: number, days
     const roomy = rows.filter(r => r.left >= Math.max(allowance, 1)).sort((a, b) => b.left - a.left)[0]
     if (roomy) return { kind: 'fits', category: roomy.name, left: roomy.left, url: URL_BUDGETS }
   }
-  if (buffer >= 0) return { kind: 'ahead', amount: round(buffer), url: URL_WEST }
-  return { kind: 'short', amount: round(-buffer), url: URL_WEST }
+  if (buffer < 0) return { kind: 'short', amount: round(-buffer), url: URL_WEST }
+  // The month is fine; when the year's goals are not, say where today's savings go.
+  if (year && year.kind === 'year' && !year.on_track && year.shortfall > 0) return { kind: 'year', year: year.year, amount: year.shortfall, url: URL_GOALS }
+  return { kind: 'ahead', amount: round(buffer), url: URL_WEST }
 }
 
-function goalRows(input: TodayInput, month: string, pct: number, buffer: number): TodayGoalRow[] {
+function goalRows(input: TodayInput, month: string, pct: number, buffer: number, room: number, daysLeft: number): TodayGoalRow[] {
   const { summary } = input
-  const rows: TodayGoalRow[] = [{ kind: 'west_month', month, pct, buffer: round(buffer), url: URL_WEST }]
+  const rows: TodayGoalRow[] = [{ kind: 'west_month', month, pct, buffer: round(buffer), room: round(Math.max(0, room)), days_left: daysLeft, url: URL_WEST }]
   // One line for the year-end goals (never their monthly needs next to the
   // WEST target: they are the same GBM pesos, and adding them double-counts).
   const plan = (summary.year_end_goal_plan || {}) as Record<string, unknown>
@@ -228,6 +297,8 @@ function goalRows(input: TodayInput, month: string, pct: number, buffer: number)
       pct: Math.round((num(plan.current_saved) / goalTarget) * 100),
       covered_pct: needed > 0 ? Math.min(100, Math.round((num(plan.projected_free_cash_by_december) / needed) * 100)) : null,
       on_track: plan.on_track === true,
+      shortfall: round(num(plan.shortfall_by_december)),
+      monthly_extra: round(num(plan.monthly_extra_needed)),
       url: URL_GOALS,
     })
   }
@@ -237,67 +308,68 @@ function goalRows(input: TodayInput, month: string, pct: number, buffer: number)
   return rows
 }
 
-/** payload.today, or null when the month has no goal or projection to measure against. */
+/** payload.today, or null when there is no goal or projection to measure against, or the ledger read failed. */
 export function buildToday(input: TodayInput): WidgetToday | null {
-  const { summary, target } = input
+  const { summary, target, transactions } = input
   const cm = summary.current_month
   const mp = summary.month_projection
   if (!mp || !target || !(target > 0)) return null
+  if (!transactions || !namesSize(input.categoryNames)) return null
   const daysIn = num(cm.days_in_month) || 30
   const day = Math.min(daysIn, Math.max(1, num(cm.day_of_month) || 1))
   const month = cm.month
   const today = `${month}-${pad2(day)}`
+  const monthStart = `${month}-01`
   const monthEnd = `${month}-${pad2(daysIn)}`
   const daysLeft = daysIn - day + 1
 
-  const series = input.transactions ? spendByDay(input.transactions, month, day) : null
-  const spentToday = series ? series.discretionary[day - 1] : 0
-  const plannedToday = series ? series.planned[day - 1] : 0
-  const spentBefore = num(mp.spent_so_far) - spentToday - plannedToday
-  const scheduledFuture = scheduledLeft(summary, today, monthEnd)
-  const scheduled = scheduledFuture + plannedToday
+  const series = everydayByDay(transactions, input.categoryNames, month, day)
+  const spentToday = series.perDay[day - 1]
+  const msiPosted = transactions.some(t => String(t.transaction_date || '').startsWith(month) && hasTag(t, 'auto-msi'))
+  const scheduled = scheduledLeft(summary, monthStart, monthEnd, msiPosted)
+  const committed = Math.max(scheduled, fixedLeft(summary))
   const projected = num(mp.projected_savings)
 
-  const pool = round(num(mp.expected_income) - target - spentBefore - scheduled)
-  const cushion = projected + spentToday - target
-  const reserve = round(RESERVE_SHARE * Math.max(0, cushion))
+  const pool = round(num(mp.expected_income) - target - (num(mp.spent_so_far) - spentToday) - committed)
+  // The everyday budgets still unspent this morning, signed like `variable`
+  // (an overrun in one category eats the others' room).
+  const budgetLeft = Math.max(0, (cm.budget_vs_actual || [])
+    .filter(b => CONTROLLABLE.has(b.category) && !b.is_non_monthly)
+    .reduce((s, b) => s + num(b.budget) - (num(b.spent) - (series.todayByCategory.get(b.category) || 0)), 0))
+  const reserve = round(RESERVE_SHARE * Math.max(0, pool - budgetLeft))
   const room = pool - reserve
   const allowance = room > 0 ? floor10(room / daysLeft) : 0
   const left = allowance - spentToday
   const state: TodayState = room <= 0 ? 'risk' : spentToday > allowance ? 'over' : left < allowance * TIGHT_SHARE ? 'tight' : 'ok'
   const tomorrow = daysLeft > 1 ? floor10((room - spentToday) / (daysLeft - 1)) : null
 
-  // What a no-spend day adds: one day of the spend the projection still expects.
-  const usual = Math.max(0, num(mp.projected_spend) - num(mp.spent_so_far) - scheduledFuture) / daysLeft
+  // What a no-spend day adds: one day of the everyday spend the projection still expects.
+  const usual = Math.max(0, num(mp.projected_spend) - num(mp.spent_so_far) - committed) / daysLeft
   const pct = Math.round((projected / target) * 100)
   const buffer = projected - target
 
-  const week: TodayDay[] = []
-  let streak: number | null = null
-  let yesterday: WidgetToday['yesterday'] = null
-  if (series) {
-    // Morning room of each earlier day, newest first.
-    const rooms: number[] = new Array(day).fill(0)
-    rooms[day - 1] = allowance
-    let poolD = pool
-    for (let d = day - 1; d >= 1; d--) {
-      poolD += series.discretionary[d - 1]
-      rooms[d - 1] = floor10((poolD - reserve) / (daysIn - d + 1))
-    }
-    const okOn = (d: number) => series.discretionary[d - 1] <= rooms[d - 1]
-    streak = 0
-    for (let d = day - 1; d >= 1 && okOn(d); d--) streak++
-    for (let d = Math.max(1, day - 6); d <= day; d++) {
-      const isToday = d === day
-      week.push({ date: `${month}-${pad2(d)}`, spent: series.discretionary[d - 1], room: rooms[d - 1], ok: isToday ? null : okOn(d), ...(isToday ? { today: true } : {}) })
-    }
-    if (day > 1) {
-      const d = day - 1
-      yesterday = { date: `${month}-${pad2(d)}`, spent: series.discretionary[d - 1], room: rooms[d - 1], diff: rooms[d - 1] - series.discretionary[d - 1] }
-    }
+  // Morning room of each earlier day, newest first.
+  const rooms: number[] = new Array(day).fill(0)
+  rooms[day - 1] = allowance
+  let poolD = pool
+  for (let d = day - 1; d >= 1; d--) {
+    poolD += series.perDay[d - 1]
+    rooms[d - 1] = floor10((poolD - reserve) / (daysIn - d + 1))
   }
+  const okOn = (d: number) => series.perDay[d - 1] <= rooms[d - 1]
+  let streak = 0
+  for (let d = day - 1; d >= 1 && okOn(d); d--) streak++
+  const week: TodayDay[] = []
+  for (let d = Math.max(1, day - 6); d <= day; d++) {
+    const isToday = d === day
+    week.push({ date: `${month}-${pad2(d)}`, spent: series.perDay[d - 1], room: rooms[d - 1], ok: isToday ? null : okOn(d), ...(isToday ? { today: true } : {}) })
+  }
+  const yesterday: WidgetToday['yesterday'] = day > 1
+    ? { date: `${month}-${pad2(day - 1)}`, spent: series.perDay[day - 2], room: rooms[day - 2], diff: rooms[day - 2] - series.perDay[day - 2] }
+    : null
 
   const stretch = input.stretchTarget && input.stretchTarget > 0 ? round(input.stretchTarget) : null
+  const goals = goalRows(input, month, pct, buffer, room, daysLeft)
   return {
     date: today,
     basis: 'goal',
@@ -309,14 +381,18 @@ export function buildToday(input: TodayInput): WidgetToday | null {
     tomorrow,
     pool,
     reserve,
+    room,
+    committed,
     usual: round(usual),
     goal: {
       label: 'WEST',
+      basis: 'capacity',
       month,
       target: round(target),
       projected: round(projected),
       pct,
       buffer: round(buffer),
+      plan_pct: Math.round(((target + Math.max(0, room > 0 ? reserve : 0)) / target) * 100),
       no_spend_pct: Math.round(((projected + usual) / target) * 100),
       stretch_target: stretch,
       stretch_pct: stretch ? Math.round((projected / stretch) * 100) : null,
@@ -324,7 +400,7 @@ export function buildToday(input: TodayInput): WidgetToday | null {
     streak,
     yesterday,
     week,
-    nudge: pickNudge(input, state, allowance, daysLeft, today, buffer),
-    goals: goalRows(input, month, pct, buffer),
+    nudge: pickNudge(input, state, allowance, daysLeft, today, buffer, goals.find(g => g.kind === 'year')),
+    goals,
   }
 }
