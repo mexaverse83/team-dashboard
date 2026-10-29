@@ -23,7 +23,7 @@ export function NeedsAttention({ items }: { items: AttentionItem[] }) {
               <Link href={item.href} className="flex min-h-14 items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2 sm:px-5">
                 <span aria-hidden="true" className={cn('h-2 w-2 shrink-0 rounded-full', TONE_FILL_CLASS[item.tone])} />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium leading-snug text-fg">{item.title}</span>
+                  <span className="block text-sm font-medium leading-snug text-fg">{renderTitle(item)}</span>
                   {item.detail && <span className="mt-0.5 block text-label text-fg-tertiary" {...(item.detail.includes('$') ? { 'data-money': '' } : {})}>{item.detail}</span>}
                 </span>
                 <span className="flex shrink-0 items-center gap-0.5 text-label font-semibold text-fg-secondary">{item.cta}<ChevronRight className="h-4 w-4" aria-hidden="true" /></span>
@@ -34,4 +34,12 @@ export function NeedsAttention({ items }: { items: AttentionItem[] }) {
       )}
     </Card>
   )
+}
+
+/** Wraps the title's amount in data-money so privacy mode blurs it. */
+function renderTitle(item: AttentionItem) {
+  const money = item.titleMoney
+  const at = money ? item.title.indexOf(money) : -1
+  if (!money || at < 0) return item.title
+  return <>{item.title.slice(0, at)}<span data-money>{money}</span>{item.title.slice(at + money.length)}</>
 }

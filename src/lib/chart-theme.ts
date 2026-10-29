@@ -78,7 +78,9 @@ export function moneyTooltipFormatter(value: unknown): string {
 }
 
 export const chartXAxisMonthProps = { ...chartAxisProps, tickFormatter: monthTick } as const
-export const chartYAxisMoneyProps = { ...chartAxisProps, width: 44, tickCount: 4, tickFormatter: moneyTick } as const
+/** Class for value axes that print money, so privacy mode blurs their ticks (globals.css). */
+export const MONEY_AXIS_CLASS = 'money-axis'
+export const chartYAxisMoneyProps = { ...chartAxisProps, width: 44, tickCount: 4, tickFormatter: moneyTick, className: MONEY_AXIS_CLASS } as const
 
 export function prefersReducedMotion(): boolean {
   try {

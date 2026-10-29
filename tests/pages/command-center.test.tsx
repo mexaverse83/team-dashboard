@@ -90,7 +90,7 @@ describe('home', () => {
     await waitFor(() => expect(within(mona).getByText('Live plan')).toBeInTheDocument())
     expect(screen.queryByText(/Protege/)).not.toBeInTheDocument()
     fireEvent.click(within(mona).getByRole('button', { name: /Show last brief/ }))
-    expect(within(mona).getByText(/Protege \$108,231/)).toBeInTheDocument()
+    expect(within(mona).getByText((_, el) => el?.tagName === 'P' && /Protege \$108,231/.test(el.textContent || ''))).toBeInTheDocument()
     expect(within(mona).getByText(/may be out of date/)).toBeInTheDocument()
   })
 
@@ -130,7 +130,7 @@ describe('home', () => {
     ] } }
     stubFetch({ summary: over })
     render(<CommandCenter />)
-    expect(await screen.findByText('Other is $12k over budget')).toBeInTheDocument()
+    expect(await screen.findByText((_, el) => el?.tagName === 'SPAN' && el.textContent === 'Other is $12k over budget')).toBeInTheDocument()
     const mona = screen.getByRole('heading', { name: 'Mona’s take' }).closest('[aria-labelledby="wolff-command-title"]') as HTMLElement
     expect(within(mona).queryByText(/Pause Other/)).not.toBeInTheDocument()
     expect(within(mona).getByText('How do we get Other back on budget?')).toBeInTheDocument()

@@ -10,6 +10,8 @@ export interface AttentionItem {
   id: string
   tone: Tone
   title: string
+  /** Amount inside `title` that privacy mode must blur; rendered as its own span. */
+  titleMoney?: string
   detail?: string
   href: string
   cta: string
@@ -46,11 +48,13 @@ export function buildAttentionItems(summary: AttentionSummary, todayKey: string)
   if (over[0]) {
     const top = over[0]
     const more = over.length - 1
+    const overBy = formatCompact(top.spent - top.budget)
     items.push({
       id: `over-${top.category}`,
       category: top.category,
       tone: 'negative',
-      title: `${top.category} is ${formatCompact(top.spent - top.budget)} over budget`,
+      title: `${top.category} is ${overBy} over budget`,
+      titleMoney: overBy,
       detail: `${formatMoney(top.spent)} of ${formatMoney(top.budget)}${more > 0 ? ` · ${more} more categor${more === 1 ? 'y' : 'ies'} over` : ''}`,
       href: top.category_id ? `/finance/transactions?category=${top.category_id}&month=${month}` : `/finance/budgets?month=${month}`,
       cta: 'Review',

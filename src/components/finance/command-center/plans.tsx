@@ -71,7 +71,7 @@ export function BabyProgressCard({ plan }: { plan: Summary['baby_plan'] }) {
     <PlanCard href="/finance/family" icon={Baby} title="Baby" meta={`${plan.months_to_birth} mo to go`}>
       <div className="flex items-baseline justify-between gap-2">
         <p className="num-metric text-2xl font-semibold text-fg" data-money>{compact(spent)}</p>
-        <p className="text-label text-fg-tertiary">spent of {compact(plan.planning_total)} envelope</p>
+        <p className="text-label text-fg-tertiary">spent of <span data-money>{compact(plan.planning_total)}</span> envelope</p>
       </div>
       <ProgressBar className="mt-2" value={spent} max={plan.planning_total} tone="neutral" label="Baby envelope spent" valueText={`${compact(spent)} of ${compact(plan.planning_total)} spent`} />
       <p className="mt-2 truncate text-label text-fg-secondary">

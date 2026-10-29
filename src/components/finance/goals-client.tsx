@@ -482,7 +482,7 @@ export default function GoalsClient() {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
                         <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} />
-                        <YAxis tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                        <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                         <Tooltip {...tooltipStyle} formatter={(val) => [`$${Number(val).toLocaleString()}`]} />
                         <Area type="monotone" dataKey="projected" stroke="hsl(var(--chart-3))" fill="url(#goalGrad)" strokeWidth={2} />
                         <ReferenceLine y={goal.target_amount} stroke="hsl(var(--chart-1))" strokeDasharray="5 5" />
@@ -572,7 +572,7 @@ export default function GoalsClient() {
               <BarChart data={savingsChart} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
                 <XAxis dataKey="label" tick={{ fill: CHART.axis, fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: CHART.axis, fontSize: 11 }} axisLine={false} tickLine={false}
+                <YAxis className="money-axis" tick={{ fill: CHART.axis, fontSize: 11 }} axisLine={false} tickLine={false}
                   tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                 <Tooltip
                   contentStyle={CHART_TOOLTIP_STYLE}

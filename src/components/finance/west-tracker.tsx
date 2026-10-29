@@ -612,7 +612,7 @@ export function WestTracker() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={m => m.slice(5)} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
+              <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={v => `$${(Number(v) / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
 
@@ -911,7 +911,7 @@ export function WestProjectionWithScenarios() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(m: string) => m.slice(5)} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
+              <YAxis className="money-axis" tick={{ fontSize: 10, fill: CHART.axis }} tickFormatter={(v: number) => `$${(v / 1e6).toFixed(1)}M`} />
               <Tooltip
                 contentStyle={CHART_TOOLTIP_STYLE}
 

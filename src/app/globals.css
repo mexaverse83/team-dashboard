@@ -217,8 +217,12 @@
   }
 }
 
-* {
-  border-color: hsl(var(--border));
+/* Default border colour lives in the base layer (Tailwind v4 preflight pattern)
+   so coloured border utilities (border-primary, border-warning/40 …) win. */
+@layer base {
+  *, ::before, ::after {
+    border-color: hsl(var(--border));
+  }
 }
 
 body {
@@ -587,7 +591,8 @@ input, textarea, select {
 /* Privacy mode (MOB-OPP-3): body.privacy-on blurs every amount. Non-money
    metrics (<Stat money={false}>: '4 days', '55%') opt out via data-privacy-exempt. */
 .privacy-on .num-metric:not([data-privacy-exempt]),
-.privacy-on [data-money] {
+.privacy-on [data-money],
+.privacy-on .money-axis .recharts-cartesian-axis-tick-value {
   filter: blur(6px);
   transition: filter 0.15s ease;
 }

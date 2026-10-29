@@ -69,12 +69,12 @@ export function BbvaStatementCard({ transactions }: { transactions: CycleTransac
             <p className="flex items-center gap-1.5 truncate text-xs text-[hsl(var(--text-secondary))]">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: getOwnerColor(owner) }} />{owner}
             </p>
-            <p className="mt-0.5 truncate text-base font-bold tabular-nums">{money(amount)}</p>
+            <p className="mt-0.5 truncate text-base font-bold tabular-nums" data-money>{money(amount)}</p>
           </div>
         ))}
         <div className="min-w-0 border-l border-[hsl(var(--border))] bg-[hsl(var(--bg-elevated))]/40 px-2.5 py-2.5 sm:px-3">
           <p className="truncate text-xs text-[hsl(var(--text-secondary))]">Total</p>
-          <p className="mt-0.5 truncate text-base font-bold tabular-nums text-rose-500">{money(summary.total)}</p>
+          <p className="mt-0.5 truncate text-base font-bold tabular-nums text-negative" data-money>{money(summary.total)}</p>
         </div>
       </div>
       <p className="mt-2 text-[11px] text-[hsl(var(--text-tertiary))]">

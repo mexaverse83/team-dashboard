@@ -7,6 +7,23 @@ import { Fragment, type ReactNode } from 'react'
 
 const INLINE = /(\*\*[^*\n]+?\*\*|\*[^*\s][^*\n]*?\*)/g
 const BULLET = /^\s*(?:[-*•])\s+(.*)$/
+// Money amounts ($5,569 · −$105k · $1.2M) get data-money so privacy mode blurs them.
+const MONEY = /[−-]?\$\s?\d[\d,]*(?:\.\d+)?\s?[kKM]?/g
+
+/** Splits plain text so each money amount is its own blurrable span. */
+export function withMoneySpans(text: string, keyPrefix = 'm'): ReactNode[] {
+  const out: ReactNode[] = []
+  let last = 0
+  let n = 0
+  for (const match of text.matchAll(MONEY)) {
+    const start = match.index ?? 0
+    if (start > last) out.push(text.slice(last, start))
+    out.push(<span key={`${keyPrefix}-${n++}`} data-money>{match[0]}</span>)
+    last = start + match[0].length
+  }
+  if (last < text.length) out.push(text.slice(last))
+  return out.length ? out : [text]
+}
 
 /** Inline pass: bold and italic spans inside one line. */
 export function renderInline(text: string, keyPrefix = 'i'): ReactNode[] {
@@ -16,16 +33,16 @@ export function renderInline(text: string, keyPrefix = 'i'): ReactNode[] {
   for (const match of text.matchAll(INLINE)) {
     const token = match[0]
     const start = match.index ?? 0
-    if (start > last) out.push(text.slice(last, start))
+    if (start > last) out.push(...withMoneySpans(text.slice(last, start), `${keyPrefix}-t${n}`))
     const key = `${keyPrefix}-${n++}`
     if (token.startsWith('**')) {
-      out.push(<strong key={key} className="font-semibold">{token.slice(2, -2)}</strong>)
+      out.push(<strong key={key} className="font-semibold">{withMoneySpans(token.slice(2, -2), key)}</strong>)
     } else {
-      out.push(<em key={key}>{token.slice(1, -1)}</em>)
+      out.push(<em key={key}>{withMoneySpans(token.slice(1, -1), key)}</em>)
     }
     last = start + token.length
   }
-  if (last < text.length) out.push(text.slice(last))
+  if (last < text.length) out.push(...withMoneySpans(text.slice(last), `${keyPrefix}-t${n}`))
   return out
 }
 
