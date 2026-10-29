@@ -79,6 +79,7 @@ export function InstallmentsClient() {
   const [categories, setCategories] = useState<FinanceCategory[]>([])
   const [incomeSources, setIncomeSources] = useState<FinanceIncomeSource[]>([])
   const [recurringIncome, setRecurringIncome] = useState<IncomeRow[]>([])
+  const [salariesKnown, setSalariesKnown] = useState(true)
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
@@ -99,12 +100,14 @@ export function InstallmentsClient() {
       supabase.from('finance_categories').select('*').order('sort_order'),
       supabase.from('finance_income_sources').select('*').eq('is_active', true),
       // Server route: the browser key can't read finance_recurring_income under RLS (the Income page uses it too).
-      fetch('/api/finance/recurring-income').then(r => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] })),
+      // null = the salaries couldn't be read, so the MSI-share banner must not run on extras alone.
+      fetch('/api/finance/recurring-income').then(r => r.ok ? r.json() : null).catch(() => null),
     ])
     setInstallments(instRes.data ?? [])
     setCategories(catRes.data?.length ? catRes.data : DEFAULT_CATEGORIES as unknown as FinanceCategory[])
     setIncomeSources(incRes.data ?? [])
-    setRecurringIncome(((riRes.data ?? []) as IncomeRow[]).filter(r => r.active))
+    setSalariesKnown(Boolean(riRes))
+    setRecurringIncome(((riRes?.data ?? []) as IncomeRow[]).filter(r => r.active))
     setLoading(false)
   }, [])
 
@@ -117,25 +120,25 @@ export function InstallmentsClient() {
   const totalMonthlyCommitment = useMemo(() => active.reduce((s, i) => s + i.installment_amount, 0), [active])
   const totalRemaining = useMemo(() => active.reduce((s, i) => s + (i.installment_count - i.payments_made) * i.installment_amount, 0), [active])
   const monthlyIncome = useMemo(() => monthlyIncomeFrom(incomeSources, recurringIncome), [incomeSources, recurringIncome])
-  const msiIncomeRatio = monthlyIncome > 0 ? (totalMonthlyCommitment / monthlyIncome) * 100 : 0
+  // Only meaningful when the salaries loaded: extras alone would make MSI look huge.
+  const msiIncomeRatio = salariesKnown && recurringIncome.length > 0 && monthlyIncome > 0 ? (totalMonthlyCommitment / monthlyIncome) * 100 : 0
 
   const nextToFinish = useMemo(() => {
     if (active.length === 0) return null
     return active.reduce((earliest, i) => i.end_date < earliest.end_date ? i : earliest)
   }, [active])
 
-  // Timeline data: horizontal bars per installment
+  // Timeline data: horizontal bars per installment, from payments_made — the
+  // same source as the list, the KPIs and the remaining balance.
   const timelineData = useMemo(() => {
-    const now = new Date()
     return active.map(inst => {
-      const start = parseLocalDateKey(inst.start_date)
       const totalMonths = inst.installment_count
-      const elapsed = Math.max(0, (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth())
-      const remaining = Math.max(0, totalMonths - elapsed)
+      const paid = Math.min(Math.max(0, inst.payments_made), totalMonths)
+      const remaining = Math.max(0, totalMonths - paid)
       return {
         name: inst.name.length > 20 ? inst.name.slice(0, 18) + '…' : inst.name,
         fullName: inst.name,
-        paid: Math.min(elapsed, totalMonths),
+        paid,
         remaining,
         total: totalMonths,
         monthlyAmt: inst.installment_amount,
@@ -304,14 +307,14 @@ export function InstallmentsClient() {
                       name === 'paid' ? [`${value} months paid`, 'Paid'] : [`${value} months left (ends ${props?.payload?.endDate ?? ''})`, 'Left']}
                     labelFormatter={(l: unknown) => timelineData.find(d => d.name === l)?.fullName || String(l)}
                   />
-                  <Bar dataKey="paid" stackId="a" fill={CHART.series.budget} radius={[4, 0, 0, 4]} name="paid" maxBarSize={CHART.bar.maxBarSize} />
-                  <Bar dataKey="remaining" stackId="a" fill={CHART.series.info} radius={[0, 4, 4, 0]} name="remaining" maxBarSize={CHART.bar.maxBarSize} />
+                  <Bar dataKey="paid" stackId="a" fill={CHART.series.income} radius={[4, 0, 0, 4]} name="paid" maxBarSize={CHART.bar.maxBarSize} />
+                  <Bar dataKey="remaining" stackId="a" fill={CHART.series.budget} radius={[0, 4, 4, 0]} name="remaining" maxBarSize={CHART.bar.maxBarSize} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
             <div className="mt-2 flex items-center gap-4 text-xs text-fg-tertiary">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-fg-tertiary" aria-hidden="true" /> Paid</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-info" aria-hidden="true" /> Months left</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-positive" aria-hidden="true" /> Paid</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-fg-tertiary" aria-hidden="true" /> Months left</span>
             </div>
           </section>
         )}

@@ -125,7 +125,7 @@ export function suggestCoveragePeriod(paymentDate: string, cycle: BillingCycle):
   }
 }
 
-const NEEDS_CATS = ['Rent/Mortgage', 'Groceries', 'Utilities', 'Transport', 'Health', 'Maintenance']
+const NEEDS_CATS = ['Rent/Mortgage', 'Groceries', 'Utilities', 'Electricity', 'Internet', 'Phone', 'Transport', 'Health', 'Maintenance']
 const SAVINGS_CATS = ['Investments']
 
 export function defaultBudgetType(catName: string): BudgetType {

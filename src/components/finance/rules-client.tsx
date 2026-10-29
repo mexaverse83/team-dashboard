@@ -9,6 +9,7 @@ import { Page, PageHeader } from '@/components/ui/page'
 import { Button } from '@/components/ui/button'
 import { CategoryIcon } from '@/components/ui/category-icon'
 import { AlertCard } from '@/components/ui/alert-card'
+import { ErrorState } from '@/components/ui/error-state'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import type { FinanceCategory } from '@/lib/finance-types'
@@ -70,12 +71,15 @@ export default function RulesClient() {
   const [learning, setLearning] = useState(false)
   const [selectedProposals, setSelectedProposals] = useState<Set<string>>(new Set())
 
+  // A failed read is an error, never "No rules yet" (which invites re-creating them).
+  const [loadError, setLoadError] = useState(false)
   const fetchData = async () => {
     const [rulesRes, catsRes] = await Promise.all([
-      fetch('/api/finance/rules').then(r => r.ok ? r.json() : { rules: [] }),
+      fetch('/api/finance/rules').then(r => r.ok ? r.json() : null).catch(() => null),
       supabase.from('finance_categories').select('*').order('sort_order'),
     ])
-    setRules(rulesRes.rules || [])
+    setLoadError(!rulesRes)
+    setRules(rulesRes?.rules || [])
     setCategories((catsRes.data && catsRes.data.length > 0) ? catsRes.data : DEFAULT_CATEGORIES)
     setLoading(false)
   }
@@ -226,7 +230,9 @@ export default function RulesClient() {
           </>}
         />
 
-        {rules.length === 0 ? (
+        {loadError ? (
+          <GlassCard><ErrorState compact title="Couldn't load your rules" body="Your rules are safe; this page just couldn't read them." onRetry={() => { void fetchData() }} /></GlassCard>
+        ) : rules.length === 0 ? (
           <AlertCard
             severity="info"
             title="No rules yet"

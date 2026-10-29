@@ -86,6 +86,13 @@ beforeEach(() => {
   ))
 })
 
+// Salaries come from the server route (RLS hides finance_recurring_income from the browser key).
+function stubRecurringIncome(rows: unknown[]) {
+  vi.stubGlobal('fetch', vi.fn((url: string) => String(url).includes('/api/finance/recurring-income')
+    ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ data: rows }), text: () => Promise.resolve('') })
+    : Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}), text: () => Promise.resolve('') })))
+}
+
 function setupSupabaseMock(overrides: Record<string, any> = {}) {
   const defaults: Record<string, any> = {
     finance_categories: { data: SEED_CATEGORIES, error: null },
@@ -198,14 +205,15 @@ describe('Budget Builder', () => {
     setupSupabaseMock({
       finance_budgets: { data: [{ id: 'b1', category_id: 'cat-groc', month: `${month}-01`, amount: 1000, owner: null }], error: null },
       finance_transactions: { data: [{ id: 'x1', type: 'expense', amount_mxn: 5000, category_id: 'cat-groc', transaction_date: `${month}-01` }], error: null },
-      finance_recurring_income: { data: [{ amount: 100000, recurrence: 'monthly', active: true, start_date: null }], error: null },
       finance_income_sources: { data: [], error: null },
       finance_goals: { data: [], error: null },
       finance_installments: { data: [], error: null },
     })
+    stubRecurringIncome([{ id: 'ri1', name: 'Freelance', amount: 100000, recurrence: 'monthly', active: true, start_date: null }])
     const Comp = (await import('@/components/finance/budget-builder-client')).default
     render(<Comp />)
     await waitFor(() => expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Spending is at 500% of budget this month'))
+    expect(screen.getByRole('list', { name: 'Salaries' })).toHaveTextContent('Freelance')
     expect(screen.getByText('45 pts under 50% target')).toBeInTheDocument()
     expect(screen.getAllByText('+$4,000').length).toBeGreaterThan(0)
     expect(screen.getByRole('status', { name: '' }).className).toContain('bg-negative-bg')
@@ -223,11 +231,11 @@ describe('Budget Builder', () => {
         { id: 'x1', type: 'expense', amount_mxn: 1500, category_id: 'cat-groc', transaction_date: `${month}-01`, coverage_start: null, coverage_end: null },
         { id: 'x2', type: 'expense', amount_mxn: 12000, category_id: 'cat-groc', transaction_date: `${addMonthsKey(month, -2)}-05`, coverage_start: `${addMonthsKey(month, -2)}-01`, coverage_end: `${addMonthsKey(month, 9)}-28` },
       ], error: null },
-      finance_recurring_income: { data: [{ amount: 100000, recurrence: 'monthly', active: true, start_date: null }], error: null },
       finance_income_sources: { data: [], error: null },
       finance_goals: { data: [], error: null },
       finance_installments: { data: [], error: null },
     })
+    stubRecurringIncome([{ amount: 100000, recurrence: 'monthly', active: true, start_date: null }])
     const Comp = (await import('@/components/finance/budget-builder-client')).default
     render(<Comp />)
     await waitFor(() => expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Spending is at 125% of budget this month'))

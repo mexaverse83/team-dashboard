@@ -73,9 +73,16 @@ describe('Installments page', () => {
   })
 
   it('warns when MSI really is a large share of income', async () => {
+    setup({ finance_installments: [PLAN], finance_categories: SEED_CATEGORIES, finance_income_sources: [{ id: 's1', amount: 6000, frequency: 'monthly', is_active: true }],
+      finance_recurring_income: [{ id: 'r1', amount: 3000, recurrence: 'monthly', active: true, start_date: null }] })
+    await renderPage()
+    expect(screen.getByRole('status')).toHaveTextContent('MSI takes 44% of monthly income')
+  })
+
+  it('raises no MSI-share warning when the salaries could not be read', async () => {
     setup({ finance_installments: [PLAN], finance_categories: SEED_CATEGORIES, finance_income_sources: [{ id: 's1', amount: 6000, frequency: 'monthly', is_active: true }] })
     await renderPage()
-    expect(screen.getByRole('status')).toHaveTextContent('MSI takes 67% of monthly income')
+    expect(screen.queryByText(/MSI takes/)).not.toBeInTheDocument()
   })
 
   it('shows neutral amounts, plain progress copy and labelled actions (no emoji markers)', async () => {

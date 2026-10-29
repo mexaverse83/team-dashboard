@@ -23,6 +23,10 @@ import { getNextTreatmentEvent, getTreatmentEventForMonth } from '@/lib/fertilit
 import type { FinanceCategory, FinanceTransaction, FinanceBudget, FinanceIncomeSource } from '@/lib/finance-types'
 
 import { inputCls } from '@/lib/form-style'
+import Link from 'next/link'
+
+/** finance_recurring_income: the salaries (source of truth), posted automatically. */
+interface RecurringIncomeRow { id?: string; name?: string; owner?: string; amount: number; recurrence: string; active: boolean; start_date: string | null }
 
 const INCOME_ICONS: Record<string, typeof Wallet> = { salary: Briefcase, freelance: Laptop, passive: Moon, side_hustle: Hammer, investment: TrendingUp, other: Wallet }
 const INCOME_COLUMNS = 'id,type,amount_mxn,category_id,transaction_date'
@@ -59,7 +63,7 @@ export default function BudgetBuilderClient() {
   // Salaries live in finance_recurring_income (the income source of truth);
   // finance_income_sources only holds extras. Income must combine both, or the
   // 50/30/20 ratios divide by a tiny number and blow up to thousands of %.
-  const [recurringIncome, setRecurringIncome] = useState<{ amount: number; recurrence: string; active: boolean; start_date: string | null }[]>([])
+  const [recurringIncome, setRecurringIncome] = useState<RecurringIncomeRow[]>([])
   const [goals, setGoals] = useState<{ id: string; target_amount: number; current_amount: number; target_date: string | null; monthly_contribution?: number; is_active?: boolean; is_completed?: boolean }[]>([])
   const [msiCommitment, setMsiCommitment] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -90,7 +94,8 @@ export default function BudgetBuilderClient() {
       supabase.from('finance_income_sources').select('*').order('created_at'),
       supabase.from('finance_goals').select('*'),
       supabase.from('finance_installments').select('*').eq('is_active', true),
-      supabase.from('finance_recurring_income').select('amount, recurrence, active, start_date').eq('active', true),
+      // Server route: the browser key can't read finance_recurring_income under RLS (salaries live there).
+      fetch('/api/finance/recurring-income', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null),
     ])
     setCategories((catRes.data?.length ? catRes.data : DEFAULT_CATEGORIES))
     setTxError(expRes == null || incTxRes == null)
@@ -98,7 +103,7 @@ export default function BudgetBuilderClient() {
     setIncomeTxs(incTxRes || [])
     setBudgets(budRes.data || [])
     setIncomeSources(incRes.data || [])
-    setRecurringIncome(riRes.data || [])
+    setRecurringIncome(((riRes?.data || []) as RecurringIncomeRow[]).filter(r => r.active))
     setGoals(goalsRes.data || [])
     setMsiCommitment((instRes.data || []).reduce((s: number, i: { installment_amount: number }) => s + i.installment_amount, 0))
     setLoading(false)
@@ -343,6 +348,24 @@ export default function BudgetBuilderClient() {
               <h2 className="text-base font-semibold text-fg">Income Sources</h2>
               <Button variant="ghost" size="icon" aria-label="Add income source" onClick={openAddIncome}><Plus className="h-4 w-4" aria-hidden="true" /></Button>
             </div>
+            {recurringIncome.length > 0 && (
+              <ul className="mb-3 space-y-2" aria-label="Salaries">
+                {recurringIncome.map((r, i) => (
+                  <li key={r.id || i} className="flex items-center gap-3 rounded-xl bg-surface-2 p-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-3 text-fg-secondary"><Briefcase className="h-4 w-4" aria-hidden="true" /></span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-fg">{r.name || 'Salary'}</p>
+                      <p className="text-xs text-fg-tertiary">
+                        {r.start_date && r.start_date > localDateKey() ? `Starts ${r.start_date.slice(0, 7)} · ` : 'Posts automatically · '}
+                        <MoneyText value={r.amount / ({ monthly: 1, bimonthly: 2, annual: 12 } as Record<string, number>)[r.recurrence] || r.amount} className="text-fg-secondary" />/mo
+                      </p>
+                    </div>
+                  </li>
+                ))}
+                <li><Link href="/finance/income" className="text-xs font-medium text-fg-secondary hover:text-fg">Edit salaries on Income</Link></li>
+              </ul>
+            )}
+            {recurringIncome.length > 0 && <p className="mb-2 text-xs font-medium text-fg-tertiary">Extras</p>}
             {incomeSources.length === 0 ? (
               <div className="py-6 text-center">
                 <p className="text-sm text-fg-secondary">No extra income sources yet</p>
@@ -353,11 +376,11 @@ export default function BudgetBuilderClient() {
                 {incomeSources.map(src => {
                   const Icon = INCOME_ICONS[src.type] || Wallet
                   return (
-                    <li key={src.id} className="group flex items-center gap-3 rounded-xl bg-surface-2 p-2.5">
+                    <li key={src.id} className={cn('group flex items-center gap-3 rounded-xl bg-surface-2 p-2.5', !src.is_active && 'opacity-60')}>
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-3 text-fg-secondary"><Icon className="h-4 w-4" aria-hidden="true" /></span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-fg">{src.name}</p>
-                        <p className="text-xs capitalize text-fg-tertiary">{src.frequency} · <MoneyText value={toMonthly(src.amount, src.frequency)} className="normal-case text-fg-secondary" />/mo</p>
+                        <p className="flex items-center gap-2 truncate text-sm font-medium text-fg">{src.name}{!src.is_active && <StatusPill tone="neutral" className="text-xs">Inactive</StatusPill>}</p>
+                        <p className="text-xs text-fg-tertiary"><span className="capitalize">{src.frequency}</span> · <MoneyText value={toMonthly(src.amount, src.frequency)} className="text-fg-secondary" />/mo</p>
                       </div>
                       <div className="flex shrink-0 items-center opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
                         <Button variant="ghost" size="icon" aria-label={`Edit ${src.name}`} onClick={() => openEditIncome(src)}><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></Button>
