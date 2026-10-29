@@ -123,6 +123,9 @@ export function buildBudgetVsActual({
       billing_cycle: billingCycle,
       spent: Math.round(spent),
       cycle_window_spent: Math.round(windowSpent),
+      // Budgets-page figure (cycle window ÷ cycle months), kept to centavos so a
+      // total is rounded once — the same rule Budgets uses.
+      monthly_equivalent_spent: Math.round((isNonMonthly ? windowSpent / cycleMonths : spent) * 100) / 100,
       budget: effectiveBudget,
       monthly_budget: monthlyBudget,
       pct_used: pctUsed,

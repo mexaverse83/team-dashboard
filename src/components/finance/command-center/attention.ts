@@ -23,7 +23,7 @@ export interface AttentionItem {
 export interface AttentionSummary {
   current_month?: {
     month?: string
-    budget_vs_actual: Array<{ category: string; spent: number; budget: number; projected_month_total: number; is_non_monthly: boolean; is_fixed?: boolean; category_id?: string }>
+    budget_vs_actual: Array<{ category: string; spent: number; budget: number; projected_month_total: number; is_non_monthly: boolean; is_fixed?: boolean; category_id?: string; status?: string }>
   } | null
   baby_plan?: {
     checklist?: Array<{ id: string; title: string; window_end: string }>
@@ -41,13 +41,16 @@ export function buildAttentionItems(summary: AttentionSummary, todayKey: string)
   const month = summary.current_month?.month || todayKey.slice(0, 7)
 
   // 1. Monthly, non-fixed budgets already past their limit.
-  const over = (summary.current_month?.budget_vs_actual || [])
+  const rows = summary.current_month?.budget_vs_actual || []
+  const over = rows
     .filter(b => !b.is_non_monthly && !b.is_fixed && b.budget > 0
       && getBudgetTone({ actual: b.spent, budget: b.budget, projected: b.projected_month_total }) === 'negative')
     .sort((a, b) => (b.spent - b.budget) - (a.spent - a.budget))
   if (over[0]) {
     const top = over[0]
-    const more = over.length - 1
+    // "N more" counts every over-budget row Budgets and the Brief list
+    // (bimonthly/fixed bills too), not just the everyday ones that can lead.
+    const more = rows.filter(b => b !== top && (over.includes(b) || b.status === 'over')).length
     const overBy = formatCompact(top.spent - top.budget)
     items.push({
       id: `over-${top.category}`,

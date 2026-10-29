@@ -172,13 +172,14 @@ describe('needs attention', () => {
 
   it('caps at three rows, worst budget first, and skips fixed or non-monthly rows', () => {
     const items = buildAttentionItems({
-      current_month: { month: '2026-10', budget_vs_actual: [row('Transport', 5767, 5500), row('Other', 16961, 5000), row('Rent', 46000, 45000, { is_fixed: true }), row('Electricity', 6067, 5000, { is_non_monthly: true })] },
+      current_month: { month: '2026-10', budget_vs_actual: [row('Transport', 5767, 5500), row('Other', 16961, 5000), row('Rent', 46000, 45000, { is_fixed: true }), row('Electricity', 6067, 5000, { is_non_monthly: true, status: 'over' })] },
       baby_plan: { checklist: [{ id: 'imss', title: 'Confirm IMSS weeks', window_end: '2026-10-31' }], untagged_candidates: 4 },
       goal_funding: { overdue_goals: [{ name: 'Car' }] },
     }, '2026-10-28')
     expect(items).toHaveLength(3)
     expect(items[0].title).toBe('Other is $12k over budget')
-    expect(items[0].detail).toContain('1 more category over')
+    // Electricity (bimonthly, status 'over') never leads but is counted, as Budgets lists it.
+    expect(items[0].detail).toContain('2 more categories over')
     expect(items[1].title).toMatch(/BBVA Infinite: pay by Oct 29/)
     expect(items[2].title).toBe('Confirm IMSS weeks')
   })

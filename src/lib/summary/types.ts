@@ -16,6 +16,8 @@ export interface BudgetVsActualRow {
   icon: string
   billing_cycle?: string
   spent: number
+  /** Monthly-equivalent spend (non-monthly: cycle window ÷ cycle months), unrounded to centavos. */
+  monthly_equivalent_spent?: number
   budget: number
   monthly_budget?: number
   pct_used: number

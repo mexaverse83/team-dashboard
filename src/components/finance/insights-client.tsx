@@ -17,6 +17,11 @@ import { MiniMarkdown, withMoneySpans } from '@/lib/mini-markdown'
 import { fetchLatestNetWorth, netWorthRows, PE_AT_COST_NOTE, privateEquityAtCost, type NetWorthSnapshotRow } from '@/lib/net-worth-rows'
 import Link from 'next/link'
 
+/** Budgeted-category total on the Budgets page's rule: monthly equivalents, rounded once. */
+function budgetedMonthlyTotal(rows: Array<{ spent: number; is_non_monthly?: boolean; cycle_months?: number; monthly_equivalent_spent?: number }>): number {
+  return Math.round(rows.reduce((s, b) => s + (b.monthly_equivalent_spent ?? (b.is_non_monthly ? b.spent / (b.cycle_months || 1) : b.spent)), 0))
+}
+
 function fmtMXN(n: number) { return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(n)} MXN` }
 
 interface WestSnapshot {
@@ -489,7 +494,7 @@ export default function InsightsClient() {
                   {summary?.current_month && (
                     <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-[hsl(var(--bg-elevated))] font-semibold">
                       <div className="col-span-3">Total</div>
-                      <div className="col-span-2 text-right tabular-nums" data-money>${formatMXN(Math.round(bva.reduce((s, b) => s + (b.is_non_monthly ? b.spent / (b.cycle_months || 1) : b.spent), 0)))}</div>
+                      <div className="col-span-2 text-right tabular-nums" data-money>${formatMXN(budgetedMonthlyTotal(bva))}</div>
                       <div className="col-span-2 text-right tabular-nums text-[hsl(var(--text-secondary))]" data-money>
                         ${formatMXN(bva.reduce((s, b) => s + (b.monthly_budget ?? b.budget), 0))}
                       </div>
@@ -536,7 +541,7 @@ export default function InsightsClient() {
                   {summary?.current_month && (
                     <div className="p-3 rounded-lg bg-[hsl(var(--bg-elevated))] flex items-center justify-between text-sm font-semibold">
                       <span>Total in budgeted categories</span>
-                      <span className="tabular-nums" data-money>${formatMXN(Math.round(bva.reduce((s, b) => s + (b.is_non_monthly ? b.spent / (b.cycle_months || 1) : b.spent), 0)))}</span>
+                      <span className="tabular-nums" data-money>${formatMXN(budgetedMonthlyTotal(bva))}</span>
                     </div>
                   )}
                 </div>

@@ -187,6 +187,12 @@ export default function BudgetsClient() {
     .reduce((s, t) => s + (t.transaction_date.startsWith(monthStr) ? t.amount_mxn : 0), 0)
   const outsideTotal = unbudgetedSpend.reduce((s, r) => s + r.spent, 0) + uncategorized
   const overall = describeBudget({ actual: budgetedSpent, budget: totalBudgeted })
+  // Non-monthly bills count at their monthly average here, but Home and
+  // Transactions count the cash paid this month: say so, so the totals reconcile.
+  const averagedBills = budgetCards
+    .filter(b => b.cycle !== 'monthly')
+    .map(b => ({ id: b.id, name: b.cat?.name || 'Bill', cycle: b.cycle, counted: b.spent, paid: allocatedMonthlySpend(asFull, b.category_id, monthStr) }))
+    .filter(b => Math.abs(b.paid - b.counted) >= 1)
 
   const openAdd = () => {
     setEditingId(null)
@@ -266,6 +272,14 @@ export default function BudgetsClient() {
                 marker={isCurrentMonth ? totalBudgeted * elapsed : null}
                 valueText={`${overall.pct}% of budget used`} />
               {isCurrentMonth && <p className="mt-2 text-xs text-fg-tertiary">Marker shows where spending would be at an even pace (day {todayKey.slice(8, 10).replace(/^0/, '')} of {dim}).</p>}
+              {averagedBills.length > 0 && (
+                <p className="mt-1 text-xs text-fg-tertiary" data-testid="averaged-bills">
+                  Counted at their monthly average:{' '}
+                  {averagedBills.map((b, i) => (
+                    <span key={b.id}>{i > 0 && ' · '}{b.name} ({(CYCLE_LABELS[b.cycle] ?? b.cycle).toLowerCase()}) <MoneyText value={b.counted} /> of <MoneyText value={b.paid} /> paid this month</span>
+                  ))}
+                </p>
+              )}
             </div>
             <div className="rounded-2xl border border-border bg-surface p-4 sm:p-5">
               <p className="text-xs font-medium text-fg-tertiary">Outside any budget</p>
