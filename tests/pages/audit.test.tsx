@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
-import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '@/lib/seed-finance'
+import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '../fixtures/seed-finance'
 
 // Mock recharts
 vi.mock('recharts', () => ({
@@ -131,7 +131,7 @@ function setupSupabaseMock(overrides: Record<string, any> = {}) {
 // ==========================================
 // EXPENSE AUDIT
 // ==========================================
-describe('Expense Audit', () => {
+describe('Spending Audit', () => {
   beforeEach(() => { vi.clearAllMocks(); setupSupabaseMock() })
   afterEach(() => { vi.useRealTimers() })
 
@@ -141,7 +141,7 @@ describe('Expense Audit', () => {
     const Comp = (await load()).default
     render(<Comp />)
     await waitFor(() => {
-      expect(screen.getByText('Expense Audit')).toBeInTheDocument()
+      expect(screen.getByText('Spending Audit')).toBeInTheDocument()
     })
   })
 

@@ -168,7 +168,7 @@ export function IncomeClient() {
   return (
     <Page>
       <PageHeader
-        title="Recurring Income"
+        title="Income"
         description="Auto-registered on the 1st of each month"
         actions={<Button onClick={openAdd} className="w-full sm:w-auto"><Plus className="h-4 w-4" aria-hidden="true" /> Add source</Button>}
       />

@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { supabase } from '@/lib/supabase'
-import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '@/lib/seed-finance'
+import { SEED_CATEGORIES, SEED_TRANSACTIONS, SEED_BUDGETS, SEED_RECURRING } from '../fixtures/seed-finance'
 
 // Mock recharts
 vi.mock('recharts', () => ({
@@ -166,7 +166,7 @@ describe('Savings Goals', () => {
     render(<Comp />)
     // Page was renamed from "Savings Goals" to "Goals" (now covers crypto targets too)
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Goals' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Goals & WEST' })).toBeInTheDocument()
       expect(screen.getByText('Track progress toward your financial & crypto targets')).toBeInTheDocument()
     })
   })

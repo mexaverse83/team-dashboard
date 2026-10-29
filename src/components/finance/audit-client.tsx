@@ -402,7 +402,7 @@ export default function AuditClient() {
   return (
     <PageTransition>
     <Page>
-      <PageHeader title="Expense Audit" description={`Forensic spending analysis for ${monthLabel}`} actions={monthNav} />
+      <PageHeader title="Spending Audit" description={`Forensic spending analysis for ${monthLabel}`} actions={monthNav} />
 
       {loadError && (
         <Card><ErrorState compact title="Couldn't load this month's transactions" body="Totals below may be incomplete." onRetry={() => { void fetchData() }} /></Card>

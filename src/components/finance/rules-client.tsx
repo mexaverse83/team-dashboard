@@ -216,7 +216,7 @@ export default function RulesClient() {
     <PageTransition>
       <Page>
         <PageHeader
-          title="Auto-categorization Rules"
+          title="Auto Rules"
           description="Automatically categorize transactions based on merchant patterns"
           actions={<>
             <Button variant="secondary" onClick={runLearn} disabled={learning}>
