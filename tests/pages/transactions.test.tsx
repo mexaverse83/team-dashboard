@@ -78,12 +78,18 @@ async function renderPage() {
   const Comp = (await import('@/components/finance/transactions-client')).default
   const utils = render(<Comp />)
   await waitFor(() => expect(screen.getByRole('button', { name: /Add transaction/ })).toBeInTheDocument())
+  // Flush passive effects so the quick-add host is subscribed before tests click.
+  await act(async () => {})
   return utils
 }
 
 async function openSheet() {
   await renderPage()
-  fireEvent.click(screen.getByRole('button', { name: /Add transaction/ }))
+  // The host subscribes in a passive effect that can land a tick after the button paints.
+  await waitFor(() => {
+    if (!screen.queryByTestId('modal')) fireEvent.click(screen.getByRole('button', { name: /Add transaction/ }))
+    expect(screen.getByTestId('modal')).toBeInTheDocument()
+  })
   return within(screen.getByTestId('modal'))
 }
 
@@ -210,7 +216,10 @@ describe('Quick-add sheet', () => {
 
   it('opens from the finance:quick-add event with a prefill', async () => {
     await renderPage()
-    act(() => { window.dispatchEvent(new CustomEvent('finance:quick-add', { detail: { merchant: 'Heb', amount: 1300 } })) })
+    await waitFor(() => {
+      if (!screen.queryByTestId('modal')) act(() => { window.dispatchEvent(new CustomEvent('finance:quick-add', { detail: { merchant: 'Heb', amount: 1300 } })) })
+      expect(screen.getByTestId('modal')).toBeInTheDocument()
+    })
     const sheet = within(screen.getByTestId('modal'))
     expect(sheet.getByLabelText('Amount')).toHaveValue('1300')
     expect(sheet.getByLabelText('Where did you spend?')).toHaveValue('Heb')
