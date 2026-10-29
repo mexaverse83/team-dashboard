@@ -45,8 +45,20 @@ export async function GET(req: NextRequest) {
       .limit(1)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const latest = data?.[0]
+    // Today's private-equity estimate, so pages can tell a snapshot that still
+    // holds PE at cost (written before the live valuation shipped) from a
+    // current one. Only compared at a 2× threshold, so the fallback FX is fine.
+    let peEstimate: number | null = null
+    const { data: pe, error: peError } = await supabase
+      .from('finance_stock_holdings')
+      .select('shares, current_price_usd, asset_type')
+      .eq('asset_type', 'private_equity')
+    if (!peError && Array.isArray(pe) && pe.length > 0) {
+      peEstimate = Math.round(pe.reduce((s: number, x) => s + stockValueMXN(x as StockHolding, USD_MXN_FALLBACK), 0))
+    }
     return withDegradedHeader(NextResponse.json({
       snapshot: latest ?? null,
+      private_equity_estimate: peEstimate,
       summary: { latest: latest ? { date: latest.snapshot_date, net_worth: latest.net_worth, total_assets: latest.total_assets, total_liabilities: latest.total_liabilities, stocks_amount: latest.stocks_amount } : null },
     }, { headers: { 'Cache-Control': 'private, no-store' } }))
   }
