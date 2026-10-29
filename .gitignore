@@ -14,3 +14,7 @@ next-env.d.ts
 # captures belong in a scratch folder, not in git.
 artifacts/*
 !artifacts/README.md
+
+# Local Claude Code worktrees and dev-server logs
+.claude/
+.next-dev-*.log

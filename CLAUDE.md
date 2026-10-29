@@ -39,8 +39,9 @@ All pages live under `/finance/*`. The root `/` redirects to `/finance`. `src/pr
 
 - **Billing cycles**: `CYCLE_MONTHS` map (monthly=1, quarterly=3, annual=12, etc.) used to pro-rate recurring expenses and compare against budgets.
 - **Coverage windows**: Transactions carry `coverage_start`/`coverage_end` for multi-month allocation.
-- **Recurring processor**: `POST /api/finance/process-recurring` (Vercel cron, 12:00 UTC daily) auto-creates transactions for due subscriptions, income, and installments. Entry point for all scheduled finance automation.
-- **Summary endpoint**: `GET /api/finance/summary` is the main aggregation — income, spending, budgets, subscriptions, debts, emergency fund, goals, crypto, cash flow projection.
+- **Recurring processor**: `/api/finance/process-recurring` auto-creates transactions for due subscriptions, income, and installments. It is the entry point for all scheduled finance automation.
+- **Schedules** (`vercel.json`, Vercel cron sends `GET` with `Authorization: Bearer $CRON_SECRET`): process-recurring 12:05 UTC, net-worth snapshot 12:15 UTC, daily push 14:00 UTC (08:00 CDMX), reminders 01:00 UTC. `supabase-2026-10-pg-cron.sql` is an alternative pg_cron + pg_net template (not applied). Runs are recorded in the automation ledger and surfaced by `GET /api/finance/health` and `<AutomationStatus/>` (sidebar footer and mobile masthead). Never `GET` the cron routes against live data while testing: with cron auth they write; with a session they only preview.
+- **Summary endpoint**: `GET /api/finance/summary` is the main aggregation: income, spending, budgets, subscriptions, debts, emergency fund (`essentials_basis`, `confirmed_at`), goals, crypto, and cash flow (`planned_spend` and `discretionary_available` are the one free-cash number). The v2 fields `variable` (signed controllable left, `through_label`/`through_date`), `owner_spend`, `recent_transactions`, `upcoming`, `west_plan` and `staleness` feed home and the widget, so clients don't query the ledger for them.
 - **Month keys**: use `monthKey(date)` from `finance-utils.ts` for `YYYY-MM` strings — never `toISOString().slice(0, 7)`, which shifts local midnights to the previous month in timezones behind UTC.
 - **Owner casing**: canonical owner values are capitalized display names (`'Bernardo'`, `'Laura'` — see `src/lib/owners.ts`), but legacy rows and the processor's source tables hold lowercase. Always compare with `ownersEqual()` and canonicalize inserts with `canonicalOwner()`. Exception: `finance_recurring_income` and `finance_monthly_savings` deliberately use lowercase owners.
 - **Big reads**: Supabase caps any single response at 1000 rows. For potentially-large tables (`finance_transactions`), fetch with `fetchAllRows()` from `src/lib/supabase-fetch-all.ts` — a bare `.select('*')` silently truncates. Offset paging needs a total order: always add a unique tiebreaker (`.order('transaction_date').order('id')`) and prefer the options form `fetchAllRows(page, { orderKey: 'id' })`, which is strict by default and throws (outside production) when the tiebreaker is missing.
@@ -52,6 +53,8 @@ Finance types live in `src/lib/finance-types.ts`; calculation utilities in `src/
 ### UI, theme and charts
 
 - The default theme is **dark** ("Wolff Midnight"); a Light theme and a System option exist via `ThemeToggle` (`src/lib/theme.ts`, stored under `mona:theme`). Style with the semantic tokens in `globals.css` (`bg-surface`, `text-fg-secondary`, `text-positive`, `*-owner-a`, `--cat-1..8`, …) so both themes work; no new raw hex/hsl literals in components and no `text-*-300/400` on light surfaces.
+- The legacy `.glass` styles, `body::before` washes and descendant colour remaps were removed in the v2 integration; `GlassCard` is a deprecated alias of the `Card` look. Use `Card` for new work.
+- Quick add is one global sheet: `<QuickAddHost/>` is mounted in `src/app/finance/layout.tsx` (not on login). Open it with `openQuickAdd(prefill)` / `requestQuickAdd()` or a `finance:quick-add` event, or link to any finance route with `?add=1&m=…&a=…&category=…`. `/finance/ask?prompt=…` pre-fills Mona.
 - Build pages from the primitives in `src/components/ui/` (`Page`/`PageHeader`, `Card`, `Stat`, `MoneyText`, `ProgressBar`, `StatusPill`, `OwnerAvatar`, `ErrorState`, `Button`, `Segmented`, `Tabs`, `Modal`). Money values carry `data-money` so the privacy toggle can blur them.
 - Charts use the token-driven kit in `src/lib/chart-theme.ts` / `src/components/ui/finance-chart.tsx` (`chartTooltipProps`, `<ChartGrid/>`, `<ChartLegend/>`, `<ChartFigure summary>`).
 - Investments (`/finance/investments`) is split per tab under `src/components/finance/investments/` (pure math in `portfolio.ts`, generic `HoldingFormModal`); tabs load with `next/dynamic`. `/finance/crypto` redirects to the Crypto tab.
@@ -65,9 +68,11 @@ Finance types live in `src/lib/finance-types.ts`; calculation utilities in `src/
 
 `authorizeFinanceRequest()` in `src/lib/finance-api-auth.ts` checks, in order:
 1. Dev bypass: `NODE_ENV=development` and `NEXT_PUBLIC_AUTH_BYPASS=1` (never true in a deployed build).
-2. `x-api-key` matching `FINANCE_API_KEY` (or, for now, `SUPABASE_SERVICE_ROLE_KEY`; slated for removal).
-3. Cron routes only (`allowCron`): `Authorization: Bearer {CRON_SECRET}` or `x-vercel-cron: 1`.
+2. Cron routes only (`allowCron`): `Authorization: Bearer {CRON_SECRET}`. The `x-vercel-cron` header is **not** trusted (any client can send it).
+3. `x-api-key` matching `FINANCE_API_KEY`. The service-role key is never accepted as an API key.
 4. A Supabase session cookie whose email is in the allow-list (`isAllowedEmail` in `src/lib/auth.ts`).
+
+The phone widget's GET routes also accept `x-widget-token` from `WIDGET_READ_TOKENS` (read-only; `src/lib/widget-auth.ts`).
 Otherwise 401. There is no same-origin/Referer path: browser calls authenticate with the session cookie, so never ship a key in `NEXT_PUBLIC_*` (lint-enforced).
 
 ### Environment Variables
@@ -82,12 +87,12 @@ CRON_SECRET=                   # custom cron auth
 OPENAI_API_KEY=                # /api/finance/insights (preferred provider; OPENAI_MODEL overrides gpt-4o default)
 ANTHROPIC_API_KEY=             # /api/finance/insights fallback when OPENAI_API_KEY is unset
 VAPID_PRIVATE_KEY=             # web push sender (scripts/send-push.mjs); the public key is in src/lib/push-config.ts
-WIDGET_READ_TOKENS=            # read-only tokens for the phone widget (optional; falls back to FINANCE_API_KEY)
+WIDGET_READ_TOKENS=            # comma list of read-only widget tokens, slot 0 = Bernardo, 1 = Laura (Family › Phone widget downloads the per-phone loader); unset falls back to FINANCE_API_KEY
 ```
 
 ### Testing
 
-Vitest with jsdom. Seed fixtures live in `tests/fixtures/seed-finance.ts` (the `@/lib/seed-finance` import is a temporary alias in `vitest.config.ts`/`tsconfig.json`; new tests import the fixture path). The Supabase client is mocked globally in `tests/setup.ts` with **generically chainable** query builders (any builder method returns the chain; awaiting resolves `{data: [], error: null, count: 0}`) plus a mocked `supabase.auth`. Framer Motion and `next/font/google` are also mocked globally. Page tests that re-mock `supabase.from` locally should use the same chainable pattern. Keep the suite green — update tests in the same change as the component.
+Vitest with jsdom. Seed fixtures live in `tests/fixtures/seed-finance.ts`; import them by relative path (`../fixtures/seed-finance`). `tests/design-lint.test.ts` ratchets pastel text shades, raw colours and UTC date keys in components: baselines only go down. The Supabase client is mocked globally in `tests/setup.ts` with **generically chainable** query builders (any builder method returns the chain; awaiting resolves `{data: [], error: null, count: 0}`) plus a mocked `supabase.auth`. Framer Motion and `next/font/google` are also mocked globally. Page tests that re-mock `supabase.from` locally should use the same chainable pattern. Keep the suite green — update tests in the same change as the component.
 
 ### Database Migrations
 
