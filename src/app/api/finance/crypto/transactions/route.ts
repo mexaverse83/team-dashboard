@@ -2,39 +2,64 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { configErrorResponse, getAdminClient } from '@/lib/supabase-admin'
 import { mexicoCityToday } from '@/lib/dates'
+import { replayHolding } from '@/lib/crypto-ledger'
 
 const getSupabase = () => getAdminClient()
 
-async function recalcHolding(holdingId: string) {
-  const sb = getSupabase()
-  const { data: txs, error } = await sb
+const QTY_EPSILON = 1e-9
+
+async function loadHoldingTxs(sb: ReturnType<typeof getSupabase>, holdingId: string) {
+  return sb
     .from('crypto_transactions')
     .select('*')
     .eq('holding_id', holdingId)
     .order('transaction_date', { ascending: true })
     .order('created_at', { ascending: true })
+}
 
+/**
+ * Holdings entered as a plain balance (or edited by hand) hold more coins than
+ * their transactions explain. Recalculating from transactions alone would wipe
+ * that balance, so record the difference as an opening-balance buy first, at
+ * the holding's own average cost.
+ */
+async function ensureOpeningBalance(holdingId: string): Promise<string | null> {
+  const sb = getSupabase()
+  const [{ data: holding, error: hErr }, { data: txs, error: tErr }] = await Promise.all([
+    sb.from('finance_crypto_holdings').select('quantity, avg_cost_basis_usd, created_at').eq('id', holdingId).maybeSingle(),
+    loadHoldingTxs(sb, holdingId),
+  ])
+  if (hErr || tErr) return (hErr || tErr)!.message
+  if (!holding) return 'Holding not found'
+
+  const held = Number(holding.quantity) || 0
+  const replay = replayHolding(txs || [])
+  const gap = held - replay.qty
+  if (gap <= QTY_EPSILON) return null
+
+  const avg = Number(holding.avg_cost_basis_usd) || 0 // stores MXN despite column name
+  const openingCost = Math.max(0, held * avg - replay.totalCost)
+  const created = mexicoCityToday(holding.created_at ? new Date(holding.created_at) : undefined)
+  const firstTx = txs?.[0]?.transaction_date as string | undefined
+  const { error } = await sb.from('crypto_transactions').insert({
+    holding_id: holdingId,
+    type: 'buy',
+    quantity: gap,
+    price_per_coin_mxn: openingCost / gap,
+    total_mxn: openingCost,
+    exchange: null,
+    notes: 'Opening balance (held before transactions were logged)',
+    transaction_date: firstTx && firstTx < created ? firstTx : created,
+  })
+  return error ? error.message : null
+}
+
+async function recalcHolding(holdingId: string) {
+  const sb = getSupabase()
+  const { data: txs, error } = await loadHoldingTxs(sb, holdingId)
   if (error || !txs) return
 
-  let qty = 0
-  let totalCost = 0
-
-  for (const tx of txs) {
-    if (tx.type === 'buy') {
-      // total_mxn is the exact amount paid; price_per_coin_mxn may be rounded
-      totalCost += Number(tx.total_mxn ?? tx.quantity * tx.price_per_coin_mxn)
-      qty += tx.quantity
-    } else {
-      // sell — proportionally reduce cost basis
-      if (qty > 0) {
-        const costPerUnit = totalCost / qty
-        totalCost -= costPerUnit * tx.quantity
-      }
-      qty -= tx.quantity
-      if (qty <= 0) { qty = 0; totalCost = 0 }
-    }
-  }
-
+  const { qty, totalCost } = replayHolding(txs)
   const avgCost = qty > 0 ? totalCost / qty : 0
 
   await sb
@@ -104,6 +129,9 @@ export async function POST(req: NextRequest) {
   let sb
   try { sb = getSupabase() } catch (e) { return configErrorResponse(e) }
 
+  const openingError = await ensureOpeningBalance(holding_id)
+  if (openingError) return NextResponse.json({ error: openingError }, { status: openingError === 'Holding not found' ? 404 : 500 })
+
   const { data, error } = await sb
     .from('crypto_transactions')
     .insert({
@@ -137,6 +165,8 @@ export async function DELETE(req: NextRequest) {
 
   let sb
   try { sb = getSupabase() } catch (e) { return configErrorResponse(e) }
+  const openingError = await ensureOpeningBalance(holding_id)
+  if (openingError) return NextResponse.json({ error: openingError }, { status: openingError === 'Holding not found' ? 404 : 500 })
   const { error } = await sb.from('crypto_transactions').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
