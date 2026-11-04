@@ -52,6 +52,42 @@ describe('crypto tab: household view per coin', () => {
     expect(screen.queryByText(/−100\.0%|-100\.0%/)).not.toBeInTheDocument()
     expect(screen.getByText(/BTC, SOL unpriced/)).toBeInTheDocument()
     expect(screen.getAllByText('no price').length).toBeGreaterThan(0)
+    // Value, owner cards and totals read "—", never a $0 that looks like a total loss.
+    expect(screen.queryByText(/^\$0(\.00)?$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/US\$0/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/0% of the household/)).not.toBeInTheDocument()
+  })
+
+  it('a partial outage names the coins the total leaves out', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const body = url.includes('/transactions') ? { transactions } : { holdings, prices: { BTC: prices.BTC } }
+      return { ok: true, json: async (): Promise<unknown> => body, text: async (): Promise<string> => JSON.stringify(body) }
+    })
+    render(<CryptoClient />)
+    await screen.findByRole('table', { name: 'Holdings by coin' })
+    expect(screen.getAllByText(/excl\. SOL/).length).toBeGreaterThan(0)
+  })
+
+  it('folds the per-holding cards away in the household view (the coin table already lists them)', async () => {
+    render(<CryptoClient />)
+    await screen.findByRole('table', { name: 'Holdings by coin' })
+    expect(screen.queryByRole('button', { name: 'Edit BTC position' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Details per person \(3\)/ }))
+    expect(screen.getByRole('button', { name: 'Edit BTC position' })).toBeInTheDocument()
+  })
+
+  it('an empty holding does not count as an owner when removing or logging', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const extra = [{ ...base, id: 'btc-l', symbol: 'BTC', name: 'Bitcoin', owner: 'Laura', quantity: 0, avg_cost_basis_usd: null }]
+      const body = url.includes('/transactions') ? { transactions } : { holdings: [...holdings, ...extra], prices }
+      return { ok: true, json: async (): Promise<unknown> => body, text: async (): Promise<string> => JSON.stringify(body) }
+    })
+    render(<CryptoClient />)
+    const table = await screen.findByRole('table', { name: 'Holdings by coin' })
+    fireEvent.click(within(table).getByRole('button', { name: 'Remove BTC' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByRole('radio', { name: /Only Laura’s/ })).not.toBeInTheDocument()
+    expect(within(dialog).getByText(/for Bernardo/)).toBeInTheDocument()
   })
 
   it('can show zero-balance coins', async () => {
@@ -156,5 +192,22 @@ describe('crypto tab: household view per coin', () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([, o]) => o?.method === 'DELETE')).toBe(true))
     const [, del] = fetchMock.mock.calls.find(([, o]) => o?.method === 'DELETE')!
     expect(JSON.parse(String(del.body))).toEqual({ ids: ['sol-l'] })
+  })
+
+  it('does not show the built-in coin’s price for a different coin sharing its ticker', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/finance/crypto/search')) {
+        const body = { coins: [{ id: 'litentry', symbol: 'LIT', name: 'Litentry', thumb: null, market_cap_rank: 900 }] }
+        return { ok: true, json: async (): Promise<unknown> => body, text: async (): Promise<string> => JSON.stringify(body) }
+      }
+      const body = url.includes('/transactions') ? { transactions } : { holdings, prices: { ...prices, LIT: { usd: 2, mxn: 36, change24h: 0 } } }
+      return { ok: true, json: async (): Promise<unknown> => body, text: async (): Promise<string> => JSON.stringify(body) }
+    })
+    render(<CryptoClient />)
+    fireEvent.click(await screen.findByRole('button', { name: /Add coin/ }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Search coins'), { target: { value: 'litentry' } })
+    fireEvent.click(await within(dialog).findByRole('button', { name: /Litentry/ }, { timeout: 2000 }))
+    expect(within(dialog).queryByText(/now/)).not.toBeInTheDocument()
   })
 })

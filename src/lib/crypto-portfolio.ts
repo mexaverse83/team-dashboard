@@ -1,6 +1,7 @@
 // Household view of the crypto portfolio: one row per coin, Bernardo's and
 // Laura's holdings of that coin added together. Pure, so the tab and its
 // tests share it.
+import { holdingCoinId } from '@/lib/crypto-coins'
 import { OWNERS, canonicalOwner, ownersEqual } from '@/lib/owners'
 
 export interface PortfolioHolding {
@@ -28,6 +29,8 @@ export interface OwnerShare {
 export interface CoinRow {
   symbol: string
   name: string
+  /** Which coin the ticker is (its CoinGecko id), when known. */
+  coingeckoId: string | null
   quantity: number
   /** Live MXN price, or null when the coin couldn't be priced. */
   priceMXN: number | null
@@ -123,6 +126,7 @@ export function aggregateCoins(
     all.push({
       symbol,
       name: rows.find(h => h.name)?.name || symbol,
+      coingeckoId: rows.map(h => holdingCoinId(h)).find(Boolean) ?? null,
       quantity,
       priceMXN: price?.mxn ?? null,
       change24h: price?.change24h ?? null,
@@ -163,6 +167,16 @@ export function aggregateCoins(
     },
     emptyCount: all.length - held.length,
   }
+}
+
+/**
+ * The owners who actually hold some of the coin. An old holding emptied by
+ * sells doesn't make its owner a holder; a coin at zero for everyone falls
+ * back to every owner so it can still be removed.
+ */
+export function holdersOf(coin: Pick<CoinRow, 'owners'>): OwnerShare[] {
+  const held = coin.owners.filter(o => o.quantity > 0)
+  return held.length > 0 ? held : coin.owners
 }
 
 /** "B 1.71 · L 0.36": each owner's initial and quantity, in owner order. */

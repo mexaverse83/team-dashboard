@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { OwnerAvatar } from '@/components/ui/owner-avatar'
-import type { CoinRow } from '@/lib/crypto-portfolio'
+import { Check } from 'lucide-react'
+import { holdersOf, type CoinRow } from '@/lib/crypto-portfolio'
 import { cn } from '@/lib/utils'
 import { formatQty } from './coin-logo'
 
@@ -36,12 +37,13 @@ function RemoveCoinBody({ target, txCount, onClose, onRemoved }: { target: Remov
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const whole = scope === 'all' || coin.owners.length === 1
-  const owner = coin.owners.find(o => o.holdingId === scope)
+  const holders = holdersOf(coin)
+  const whole = scope === 'all' || holders.length === 1
+  const owner = holders.find(o => o.holdingId === scope)
   const ids = whole ? coin.holdingIds : owner ? owner.holdingIds : []
   const count = txCount(ids)
   const what = whole
-    ? `${coin.name} (${coin.symbol}) for ${coin.owners.length > 1 ? 'both of you' : coin.owners[0]?.owner ?? 'everyone'}`
+    ? `${coin.name} (${coin.symbol}) for ${holders.length > 1 ? 'both of you' : holders[0]?.owner ?? 'everyone'}`
     : `${owner?.owner}’s ${coin.symbol}`
 
   const remove = async () => {
@@ -67,22 +69,31 @@ function RemoveCoinBody({ target, txCount, onClose, onRemoved }: { target: Remov
   }
 
   const options = [
-    ...(coin.owners.length > 1 ? coin.owners.map(o => ({ value: o.holdingId, owner: o.owner, label: `Only ${o.owner}’s`, detail: `${formatQty(o.quantity)} ${coin.symbol}` })) : []),
-    { value: 'all', owner: null as string | null, label: coin.owners.length > 1 ? 'Both — the whole coin' : `${coin.owners[0]?.owner ?? ''}’s ${coin.symbol}`, detail: `${formatQty(coin.quantity)} ${coin.symbol}` },
+    ...(holders.length > 1 ? holders.map(o => ({ value: o.holdingId, owner: o.owner, label: `Only ${o.owner}’s`, detail: `${formatQty(o.quantity)} ${coin.symbol}` })) : []),
+    { value: 'all', owner: null as string | null, label: holders.length > 1 ? 'Both — the whole coin' : `${holders[0]?.owner ?? ''}’s ${coin.symbol}`, detail: `${formatQty(coin.quantity)} ${coin.symbol}` },
   ]
 
   return (
     <div className="space-y-4">
       {options.length > 1 && (
         <div role="radiogroup" aria-label="What to remove" className="space-y-2">
-          {options.map(o => (
-            <button key={o.value} type="button" role="radio" aria-checked={scope === o.value} onClick={() => setScope(o.value)}
-              className={cn('flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm',
-                scope === o.value ? 'border-border-strong bg-surface-3 text-fg' : 'border-border bg-surface-2 text-fg-secondary hover:text-fg')}>
-              <span className="flex items-center gap-2">{o.owner && <OwnerAvatar owner={o.owner} size={18} aria-hidden />}{o.label}</span>
-              <span className="tabular-nums text-label text-fg-tertiary">{o.detail}</span>
-            </button>
-          ))}
+          {options.map(o => {
+            const on = scope === o.value
+            return (
+              <button key={o.value} type="button" role="radio" aria-checked={on} onClick={() => setScope(o.value)}
+                className={cn('flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm transition-colors',
+                  on ? 'border-primary bg-surface-3 font-medium text-fg ring-1 ring-primary' : 'border-border bg-surface-2 text-fg-secondary hover:text-fg')}>
+                <span className="flex items-center gap-2">
+                  <span aria-hidden className={cn('flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2',
+                    on ? 'border-primary bg-primary text-primary-fg' : 'border-border-strong')}>
+                    {on && <Check className="h-3 w-3" strokeWidth={3} />}
+                  </span>
+                  {o.owner && <OwnerAvatar owner={o.owner} size={18} aria-hidden />}{o.label}
+                </span>
+                <span className="tabular-nums text-label text-fg-tertiary">{o.detail}</span>
+              </button>
+            )
+          })}
         </div>
       )}
       <p className="text-sm text-fg">

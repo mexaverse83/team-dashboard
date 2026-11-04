@@ -51,25 +51,65 @@ async function fromCoinGecko(ids: Record<string, string>, bust: boolean): Promis
   return prices
 }
 
+type PaprikaQuote = readonly [string, CoinPrice]
+
+async function paprikaTicker(id: string, symbol: string, checkTicker: boolean, bust: boolean): Promise<PaprikaQuote | null> {
+  try {
+    const res = await fetch(`https://api.coinpaprika.com/v1/tickers/${encodeURIComponent(id)}?quotes=USD,MXN`, cacheOptions(bust))
+    if (!res.ok) return null
+    const data = await res.json()
+    // A guessed id must answer with the same ticker, or it's another coin.
+    if (checkTicker && String(data?.symbol ?? '').toUpperCase() !== symbol) return null
+    const usd = data?.quotes?.USD
+    const mxn = data?.quotes?.MXN
+    if (!(usd?.price > 0) || !(mxn?.price > 0)) return null
+    return [symbol, { usd: usd.price, mxn: mxn.price, change24h: usd.percent_change_24h ?? 0 }] as const
+  } catch {
+    return null
+  }
+}
+
+/** Coinpaprika ids found by search, per CoinGecko id (they don't change). */
+const searchedIds = new Map<string, string | null>()
+
+/**
+ * Find a coin's Coinpaprika id by ticker when the guessed id misses. Only an
+ * unambiguous answer counts: exactly one active coin with that ticker, or one
+ * whose id ends in the CoinGecko slug. Two coins sharing a ticker → no price
+ * rather than the wrong one.
+ */
+async function searchPaprikaId(symbol: string, coingeckoId: string, bust: boolean): Promise<string | null> {
+  if (searchedIds.has(coingeckoId)) return searchedIds.get(coingeckoId) ?? null
+  try {
+    const res = await fetch(`https://api.coinpaprika.com/v1/search?q=${encodeURIComponent(symbol.toLowerCase())}&c=currencies&limit=20`, cacheOptions(bust))
+    if (!res.ok) return null
+    const data = await res.json()
+    const list: Array<{ id?: unknown; symbol?: unknown; is_active?: unknown }> = Array.isArray(data?.currencies) ? data.currencies : []
+    const same = list.filter(c => typeof c.id === 'string' && String(c.symbol ?? '').toUpperCase() === symbol && c.is_active !== false)
+    const bySlug = same.find(c => String(c.id).endsWith(`-${coingeckoId}`))
+    const id = bySlug ? String(bySlug.id) : same.length === 1 ? String(same[0].id) : null
+    searchedIds.set(coingeckoId, id)
+    return id
+  } catch {
+    return null
+  }
+}
+
 async function fromCoinpaprika(ids: Record<string, string>, bust: boolean): Promise<CryptoPrices> {
   const entries = await Promise.all(Object.entries(ids).map(async ([symbol, coingeckoId]) => {
     const id = coinpaprikaIdFor(symbol, coingeckoId)
-    const guessed = builtinCoin(symbol)?.coinpaprikaId !== id
-    try {
-      const res = await fetch(`https://api.coinpaprika.com/v1/tickers/${encodeURIComponent(id)}?quotes=USD,MXN`, cacheOptions(bust))
-      if (!res.ok) return null
-      const data = await res.json()
-      // A guessed id must answer with the same ticker, or it's another coin.
-      if (guessed && String(data?.symbol ?? '').toUpperCase() !== symbol) return null
-      const usd = data?.quotes?.USD
-      const mxn = data?.quotes?.MXN
-      if (!(usd?.price > 0) || !(mxn?.price > 0)) return null
-      return [symbol, { usd: usd.price, mxn: mxn.price, change24h: usd.percent_change_24h ?? 0 }] as const
-    } catch {
-      return null
-    }
+    const builtin = builtinCoin(symbol)?.coinpaprikaId === id
+    const quote = await paprikaTicker(id, symbol, !builtin, bust)
+    if (quote || builtin) return quote
+    const found = await searchPaprikaId(symbol, coingeckoId, bust)
+    return found && found !== id ? paprikaTicker(found, symbol, true, bust) : null
   }))
-  return Object.fromEntries(entries.filter((e): e is NonNullable<typeof e> => e !== null))
+  return Object.fromEntries(entries.filter((e): e is PaprikaQuote => e !== null))
+}
+
+/** Test hook: forget Coinpaprika ids found by search. */
+export function clearPaprikaSearchCache() {
+  searchedIds.clear()
 }
 
 /**

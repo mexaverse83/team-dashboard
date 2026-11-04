@@ -21,6 +21,8 @@ const COINS = {
     { id: 'pepe', name: 'Pepe', api_symbol: 'pepe', symbol: 'PEPE', market_cap_rank: 45, thumb: 'https://coin-images.coingecko.com/pepe.jpg', large: 'y' },
     { id: 'ape-and-pepe', name: 'Ape and Pepe', symbol: 'APEPE', market_cap_rank: 145, thumb: 'http://insecure.example/x.png' },
     { name: 'broken' },
+    { id: 'long-ticker', name: 'Long', symbol: 'THISTICKERISWAYTOOLONG', market_cap_rank: 9 },
+    { id: 'odd-ticker', name: 'Odd', symbol: 'A$B', market_cap_rank: 10 },
   ],
   exchanges: [{ id: 'binance' }],
 }

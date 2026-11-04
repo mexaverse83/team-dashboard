@@ -9,6 +9,7 @@ const db = vi.hoisted(() => ({
   seq: 0,
   /** Simulate a database that hasn't run supabase-2026-11-crypto-any-coin.sql. */
   migrated: true,
+  failHoldingDelete: false,
   log: [] as Array<{ table: string; op: string; filters: Array<[string, string, unknown]> }>,
 }))
 
@@ -36,8 +37,12 @@ vi.mock('@/lib/supabase-admin', () => {
       }
       if (op === 'update') { table(name).filter(match).forEach(r => Object.assign(r, payload)); return { data: table(name).find(match) ?? null, error: null } }
       if (op === 'delete') {
+        if (db.failHoldingDelete && name === 'finance_crypto_holdings') return { data: null, error: { message: 'boom' } }
+        const gone = new Set(table(name).filter(match).map(r => r.id))
         const keep = table(name).filter(r => !match(r))
         table(name).splice(0, table(name).length, ...keep)
+        // crypto_transactions.holding_id is ON DELETE CASCADE.
+        if (name === 'finance_crypto_holdings') db.txs.splice(0, db.txs.length, ...db.txs.filter(t => !gone.has(t.holding_id)))
         return { data: null, error: null }
       }
       const out = table(name).filter(match)
@@ -72,7 +77,7 @@ import { fetchCryptoPrices } from '@/lib/crypto-prices'
 const req = (method: string, body?: unknown) => new NextRequest('http://localhost/api/finance/crypto', { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) })
 
 beforeEach(() => {
-  db.holdings = []; db.txs = []; db.seq = 0; db.migrated = true; db.log = []
+  db.holdings = []; db.txs = []; db.seq = 0; db.migrated = true; db.failHoldingDelete = false; db.log = []
   vi.mocked(fetchCryptoPrices).mockClear()
 })
 
@@ -187,8 +192,16 @@ describe('DELETE /api/finance/crypto', () => {
     expect(await res.json()).toEqual({ ok: true, deleted: 1 })
     expect(db.holdings.map(h => h.id)).toEqual(['sol-b', 'btc-b'])
     expect(db.txs.map(t => t.id)).toEqual(['t1', 't3'])
-    // Transactions go first, then the holding.
-    expect(db.log.map(l => l.table)).toEqual(['crypto_transactions', 'finance_crypto_holdings'])
+    // One statement: the FK cascade takes the history with the holding.
+    expect(db.log.map(l => l.table)).toEqual(['finance_crypto_holdings'])
+  })
+
+  it('keeps the history when the holding delete fails (nothing half-removed)', async () => {
+    db.failHoldingDelete = true
+    const res = await DELETE(req('DELETE', { id: 'sol-l' }))
+    expect(res.status).toBe(500)
+    expect(db.holdings).toHaveLength(3)
+    expect(db.txs).toHaveLength(3)
   })
 
   it('removes a whole coin for both owners by ids', async () => {

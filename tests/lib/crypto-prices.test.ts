@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { fetchCryptoPrices } from '@/lib/crypto-prices'
+import { clearPaprikaSearchCache, fetchCryptoPrices } from '@/lib/crypto-prices'
 
 const json = (body: unknown, ok = true) => ({ ok, json: async () => body }) as Response
 const paprika = (usd: number, mxn: number) => json({ quotes: { USD: { price: usd, percent_change_24h: 2 }, MXN: { price: mxn } } })
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals(); clearPaprikaSearchCache() })
 
 describe('fetchCryptoPrices', () => {
   it('quotes HYPE from CoinGecko and falls back to its Hyperliquid ticker', async () => {
@@ -78,6 +78,31 @@ describe('fetchCryptoPrices', () => {
     const prices = await fetchCryptoPrices([{ symbol: 'DOGE', coingecko_id: 'dogecoin' }, { symbol: 'WIF', coingecko_id: 'dogwifcoin' }])
     expect(prices).toEqual({ DOGE: { usd: 0.2, mxn: 3.6, change24h: 1 } })
     expect(fetchMock.mock.calls.map(c => c[0]).some(u => String(u).includes('/tickers/wif-dogwifcoin?'))).toBe(true)
+  })
+
+  it('knows the Coinpaprika id of major coins whose slug differs (XRP is xrp-xrp, not xrp-ripple)', async () => {
+    const fetchMock = vi.fn(async (url: string) => url.includes('coingecko')
+      ? json('blocked', false)
+      : json({ symbol: 'XRP', quotes: { USD: { price: 2, percent_change_24h: 1 }, MXN: { price: 36 } } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const prices = await fetchCryptoPrices([{ symbol: 'XRP', coingecko_id: 'ripple' }])
+    expect(prices?.XRP.mxn).toBe(36)
+    expect(fetchMock.mock.calls[1][0]).toContain('/tickers/xrp-xrp?')
+  })
+
+  it('finds an unguessable Coinpaprika id by search, only when the ticker is unambiguous', async () => {
+    const quote = json({ symbol: 'FOO', quotes: { USD: { price: 1, percent_change_24h: 0 }, MXN: { price: 18 } } })
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('coingecko')) return json('blocked', false)
+      if (url.includes('/search?q=foo')) return json({ currencies: [{ id: 'foo-foo-network', symbol: 'FOO', is_active: true }, { id: 'bar-bar', symbol: 'BAR' }] })
+      if (url.includes('/search?q=dup')) return json({ currencies: [{ id: 'dup-one', symbol: 'DUP' }, { id: 'dup-two', symbol: 'DUP' }] })
+      if (url.includes('/tickers/foo-foo-network?')) return quote
+      return json({}, false)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const prices = await fetchCryptoPrices([{ symbol: 'FOO', coingecko_id: 'foo-chain' }, { symbol: 'DUP', coingecko_id: 'dup-coin' }])
+    expect(prices).toEqual({ FOO: { usd: 1, mxn: 18, change24h: 0 } })
+    expect(fetchMock.mock.calls.some(c => /\/tickers\/dup-(one|two)/.test(String(c[0])))).toBe(false)
   })
 
   it('returns null when no source has prices', async () => {

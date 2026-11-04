@@ -191,9 +191,10 @@ export async function DELETE(req: NextRequest) {
     if (ids.length === 0) return NextResponse.json({ error: 'Nothing to remove' }, { status: 404 })
   }
 
-  // Transactions first (the FK cascades too, but don't rely on it), then holdings.
-  const txDelete = await sb.from('crypto_transactions').delete().in('holding_id', ids)
-  if (txDelete.error) return NextResponse.json({ error: txDelete.error.message }, { status: 500 })
+  // One statement: crypto_transactions.holding_id is ON DELETE CASCADE
+  // (supabase-crypto-transactions.sql), so the history goes with the holding
+  // atomically. Deleting the transactions separately first could leave a
+  // holding without its history when the second delete failed.
   const { error } = await sb.from('finance_crypto_holdings').delete().in('id', ids)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true, deleted: ids.length })

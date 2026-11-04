@@ -40,7 +40,10 @@ function must<T>(res: Res<T>): T {
 }
 
 /** Live crypto value; `known` is false when prices or holdings couldn't be read (never a silent $0). */
-type CryptoRow = { symbol: string; quantity: number; coingecko_id?: string | null }
+type CryptoRow = {
+  symbol: string; quantity: number; coingecko_id?: string | null
+  avg_cost_basis_usd?: number | null; cost_currency?: string | null
+}
 
 async function cryptoTotal(holdingsP: PromiseLike<Res<CryptoRow[]>>): Promise<{ value: number; known: boolean }> {
   try {
@@ -50,7 +53,21 @@ async function cryptoTotal(holdingsP: PromiseLike<Res<CryptoRow[]>>): Promise<{ 
     if (holdings.length === 0) return { value: 0, known: true }
     const prices = await fetchCryptoPrices(holdings)
     if (!prices) return { value: 0, known: false }
-    return { value: holdings.reduce((s, h) => s + Number(h.quantity) * (prices[h.symbol]?.mxn || 0), 0), known: true }
+    // A coin missing from an otherwise good price answer is valued at cost
+    // (as the net-worth snapshot does); with no cost either the total is partial.
+    const ref = Object.values(prices).find(x => x.usd > 0 && x.mxn > 0)
+    const usdToMxn = ref ? ref.mxn / ref.usd : 17
+    let value = 0
+    let known = true
+    for (const h of holdings) {
+      const qty = Number(h.quantity)
+      const mxn = prices[h.symbol]?.mxn || 0
+      if (mxn > 0) { value += qty * mxn; continue }
+      const avg = Number(h.avg_cost_basis_usd) || 0
+      if (avg > 0) value += qty * ((h.cost_currency || 'MXN') === 'USD' ? avg * usdToMxn : avg)
+      else known = false
+    }
+    return { value, known }
   } catch {
     return { value: 0, known: false }
   }

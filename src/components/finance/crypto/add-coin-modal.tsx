@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/segmented'
 import { OwnerAvatar } from '@/components/ui/owner-avatar'
-import { BUILTIN_COINS, holdingCoinId } from '@/lib/crypto-coins'
+import { BUILTIN_COINS, builtinCoin, holdingCoinId } from '@/lib/crypto-coins'
 import type { CoinSearchResult } from '@/lib/crypto-search'
 import { localDateKey } from '@/lib/dates'
 import { formatCoinPrice, formatMoney } from '@/lib/format'
@@ -106,7 +106,10 @@ function AddCoinBody({ onClose, holdings, prices, usdToMxn, defaultOwner, onDone
   const clash = picked ? sameTicker.find(h => (holdingCoinId(h) ?? picked.id) !== picked.id) : undefined
   const existing = picked ? sameTicker.find(h => ownersEqual(h.owner, owner) && !clash) : undefined
   const effectiveMode: Mode = existing ? 'buy' : mode
-  const now = picked ? prices?.[picked.symbol] : undefined
+  // Prices are keyed by ticker: a held coin's own id, else the built-in one.
+  // Only show "now" when that is the coin picked (not Lighter for Litentry).
+  const pricedId = picked ? (sameTicker.map(h => holdingCoinId(h)).find(Boolean) ?? builtinCoin(picked.symbol)?.coingeckoId) : undefined
+  const now = picked && pricedId === picked.id ? prices?.[picked.symbol] : undefined
 
   const qtyNum = parseFloat(qty)
   const priceNum = parseFloat(price)
@@ -172,7 +175,7 @@ function AddCoinBody({ onClose, holdings, prices, usdToMxn, defaultOwner, onDone
         <label htmlFor="coin-search" className="sr-only">Search coins</label>
         <div className="relative">
           <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-tertiary" />
-          <input id="coin-search" type="search" autoFocus autoComplete="off" placeholder="Search by name or ticker (e.g. Dogecoin, PEPE)"
+          <input id="coin-search" type="search" autoFocus autoComplete="off" placeholder="Search any coin (e.g. Dogecoin)"
             value={query} onChange={e => setQuery(e.target.value)} className={cn(inputClass, 'pl-9')} />
         </div>
         {!query.trim() && <p className="text-label text-fg-tertiary">Your coins and the usual ones — or search any coin on CoinGecko.</p>}
@@ -185,7 +188,7 @@ function AddCoinBody({ onClose, holdings, prices, usdToMxn, defaultOwner, onDone
               <li key={c.id}>
                 <button type="button" onClick={() => { setPicked(c); setError(null) }}
                   className="flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-surface-2">
-                  <CoinLogo symbol={c.symbol} src={c.thumb} size={28} />
+                  <CoinLogo symbol={c.symbol} coinId={c.id} src={c.thumb} size={28} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-fg">{c.name}</span>
                     <span className="block text-label text-fg-tertiary">{c.symbol}</span>
@@ -203,7 +206,7 @@ function AddCoinBody({ onClose, holdings, prices, usdToMxn, defaultOwner, onDone
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 rounded-xl bg-surface-2 p-3">
-        <CoinLogo symbol={picked.symbol} src={picked.thumb} size={32} />
+        <CoinLogo symbol={picked.symbol} coinId={picked.id} src={picked.thumb} size={32} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{picked.name}</p>
           <p className="text-label text-fg-tertiary">{picked.symbol}{now ? ` · now ${formatCoinPrice(now.mxn, { currency: 'MXN', suffix: true })}` : ''}</p>

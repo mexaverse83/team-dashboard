@@ -2,6 +2,7 @@
 // keyless /search. No secrets leave the server (the optional demo key is sent
 // as a header only), answers are trimmed to what the picker shows, and a
 // short in-memory cache keeps typing from hammering the API.
+import { COINGECKO_ID_PATTERN, SYMBOL_PATTERN } from '@/lib/crypto-coins'
 
 export interface CoinSearchResult {
   id: string
@@ -33,7 +34,10 @@ function toResult(raw: unknown): CoinSearchResult | null {
   if (typeof c.id !== 'string' || typeof c.symbol !== 'string' || typeof c.name !== 'string') return null
   const thumb = typeof c.thumb === 'string' && c.thumb.startsWith('https://') ? c.thumb : null
   const rank = typeof c.market_cap_rank === 'number' && c.market_cap_rank > 0 ? c.market_cap_rank : null
-  return { id: c.id, symbol: c.symbol.toUpperCase(), name: c.name, thumb, market_cap_rank: rank }
+  const symbol = c.symbol.trim().toUpperCase()
+  // Coins the holdings API would refuse (odd tickers or ids) aren't offered.
+  if (!SYMBOL_PATTERN.test(symbol) || !COINGECKO_ID_PATTERN.test(c.id)) return null
+  return { id: c.id, symbol, name: c.name, thumb, market_cap_rank: rank }
 }
 
 /** Ranked coins first (by market cap), then unranked in CoinGecko's order. */

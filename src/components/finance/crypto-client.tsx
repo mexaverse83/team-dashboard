@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Bitcoin, Plus, Pencil, Trash2, RefreshCw } from 'lucide-react'
+import { Bitcoin, ChevronDown, Plus, Pencil, Trash2, RefreshCw } from 'lucide-react'
 import { Card, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Stat } from '@/components/ui/stat'
@@ -18,8 +18,8 @@ import { CoinLogo, coinColor, formatQty as qty } from '@/components/finance/cryp
 import { CoinBreakdown } from '@/components/finance/crypto/coin-breakdown'
 import { AddCoinModal } from '@/components/finance/crypto/add-coin-modal'
 import { RemoveCoinModal, type RemoveTarget } from '@/components/finance/crypto/remove-coin-modal'
-import { aggregateCoins, type CoinRow } from '@/lib/crypto-portfolio'
-import { BUILTIN_SYMBOLS } from '@/lib/crypto-coins'
+import { aggregateCoins, holdersOf, type CoinRow } from '@/lib/crypto-portfolio'
+import { BUILTIN_SYMBOLS, holdingCoinId } from '@/lib/crypto-coins'
 import { OWNERS, ownersEqual } from '@/lib/owners'
 import { localDateKey } from '@/lib/dates'
 import { formatCoinPrice, formatDateShort, formatDelta, formatMoney, formatPct } from '@/lib/format'
@@ -121,6 +121,8 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
   const [localOwner, setLocalOwner] = useState<string>('All')
   const [addOpen, setAddOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<RemoveTarget | null>(null)
+  // Household view: the per-holding cards repeat the coin table, so they fold away.
+  const [showPositions, setShowPositions] = useState(false)
   // Zero-balance coins are hidden unless asked for (remembered per browser).
   const [showEmpty, setShowEmptyState] = useState(false)
   const ownerFilter = controlledOwner ?? localOwner
@@ -207,7 +209,11 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
     const calc = (owner: string) => {
       const owned = holdings.filter(h => ownersEqual(h.owner, owner))
       const { rows, totals } = aggregateCoins(owned, prices, usdToMxn)
-      return { mxn: totals.valueMXN, cost: totals.costMXN, pl: totals.pl, plPct: totals.plPct, noBasis: totals.noBasis, count: rows.length }
+      return {
+        mxn: totals.valueMXN, cost: totals.costMXN, pl: totals.pl, plPct: totals.plPct, noBasis: totals.noBasis, count: rows.length,
+        // No coin of this owner has a live price: their value is unknown, not $0.
+        noPrices: rows.length > 0 && totals.unpriced.length >= rows.length,
+      }
     }
     return Object.fromEntries(OWNERS.map(o => [o, calc(o)]))
   }, [holdings, prices, usdToMxn])
@@ -219,6 +225,12 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
     noBasis.length > 0 ? `excl. ${noBasis.join(', ')}, no cost basis` : '',
     unpriced.length > 0 ? `${unpriced.join(', ')} unpriced` : '',
   ].filter(Boolean).join(' · ')
+  // During a price outage the value is unknown, never "$0": all coins
+  // unpriced → "—"; some unpriced → the total says which coins it leaves out.
+  const heldCount = breakdown.rows.filter(r => r.quantity > 0).length
+  const noPrices = heldCount > 0 && unpriced.length >= heldCount
+  const valueHint = !noPrices && unpriced.length > 0 ? `excl. ${unpriced.join(', ')} (no price)` : noPrices ? 'no live prices right now' : undefined
+  const anyOwnerUnpriced = OWNERS.some(o => ownerTotals[o].noPrices) || unpriced.length > 0
   const visiblePositions = useMemo(() => showEmpty ? filtered : filtered.filter(h => h.quantity > 0), [filtered, showEmpty])
 
   // Coins to log against: the ones you hold first, then the built-in list.
@@ -229,7 +241,8 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
 
   const heldRows = breakdown.rows.filter(r => r.quantity > 0)
   const logCoin = (coin: CoinRow) => {
-    const owner = ownerFilter !== 'All' ? ownerFilter : coin.owners.length === 1 ? coin.owners[0].owner : OWNERS[0]
+    const holders = holdersOf(coin)
+    const owner = ownerFilter !== 'All' ? ownerFilter : holders.length === 1 ? holders[0].owner : OWNERS[0]
     openTxForm(coin.symbol, owner)
   }
 
@@ -237,8 +250,9 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
 
   const openRemove = (coin: CoinRow, holdingId?: string) => {
     setActionError(null)
-    const owner = holdingId ? coin.owners.find(o => o.holdingIds.includes(holdingId)) : undefined
-    setRemoveTarget({ coin, initial: owner && coin.owners.length > 1 ? owner.holdingId : 'all' })
+    const holders = holdersOf(coin)
+    const owner = holdingId ? holders.find(o => o.holdingIds.includes(holdingId)) : undefined
+    setRemoveTarget({ coin, initial: owner && holders.length > 1 ? owner.holdingId : 'all' })
   }
   const removeHolding = (h: Holding) => {
     // A position card: its coin as one owner's row (aggregated without the empty filter).
@@ -376,8 +390,8 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
         <>
           <Card>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              <Stat money label="Value (MXN)" value={formatMoney(totalMXN)} />
-              <Stat money label="Value (USD)" value={usd(totalUSD)} />
+              <Stat money label="Value (MXN)" value={noPrices ? '—' : formatMoney(totalMXN)} hint={valueHint} tone={valueHint ? 'warning' : 'neutral'} />
+              <Stat money label="Value (USD)" value={noPrices ? '—' : usd(totalUSD)} />
               <Stat money label="Cost basis" value={totalCostMXN > 0 ? formatMoney(totalCostMXN) : '—'} />
               <Stat money label="P&L" value={totalPL !== null ? formatMoney(totalPL, { sign: 'always' }) : '—'}
                 delta={totalPLPct !== null ? formatDelta(totalPLPct, { unit: 'pct', decimals: 1 }) : undefined}
@@ -387,7 +401,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
             {heldRows.length > 0 && totalMXN > 0 && (
               <div className="mt-4 flex h-2 w-full overflow-hidden rounded-full bg-surface-3" role="img"
                 aria-label={`Allocation: ${heldRows.map(c => `${c.symbol} ${formatPct(c.sharePct)}`).join(', ')}`}>
-                {heldRows.map(c => c.sharePct < 0.5 ? null : <div key={c.symbol} className="h-full" style={{ width: `${c.sharePct}%`, background: coinColor(c.symbol) }} />)}
+                {heldRows.map(c => c.sharePct < 0.5 ? null : <div key={c.symbol} className="h-full" style={{ width: `${c.sharePct}%`, background: coinColor(c.symbol, c.coingeckoId) }} />)}
               </div>
             )}
 
@@ -422,14 +436,17 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
                       <OwnerAvatar owner={name} size={20} showName />
                       {o.plPct !== null && <StatusPill tone={o.pl! >= 0 ? 'positive' : 'negative'}>{formatDelta(o.plPct, { unit: 'pct', decimals: 1 })}</StatusPill>}
                     </div>
-                    <p className="tabular-nums mt-2 text-2xl font-semibold" data-money="">{formatMoney(o.mxn)}</p>
+                    <p className="tabular-nums mt-2 text-2xl font-semibold" data-money="">{o.noPrices ? '—' : formatMoney(o.mxn)}</p>
                     <p className="text-label text-fg-secondary">
                       Cost {o.cost > 0 ? formatMoney(o.cost) : '—'}
                       {o.pl !== null && <> · P&amp;L <span className={o.pl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(o.pl, { sign: 'always' })}</span></>}
                       {o.pl !== null && o.noBasis.length > 0 && <span className="text-fg-tertiary"> (excl. {o.noBasis.join(', ')}, no cost basis)</span>}
                     </p>
                     <p className="mt-1 text-label text-fg-tertiary">
-                      {o.count} {o.count === 1 ? 'coin' : 'coins'} · {formatPct(totalMXN > 0 ? (o.mxn / totalMXN) * 100 : 0)} of the household’s crypto
+                      {o.count} {o.count === 1 ? 'coin' : 'coins'}
+                      {anyOwnerUnpriced || totalMXN <= 0
+                        ? ' · share unknown until prices load'
+                        : ` · ${formatPct((o.mxn / totalMXN) * 100)} of the household’s crypto`}
                     </p>
                   </Card>
                 )
@@ -444,8 +461,17 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
             </Card>
           ) : visiblePositions.length > 0 && (
             <div className="space-y-2">
-            <h3 className="text-label font-semibold text-fg-secondary">Positions by owner</h3>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {ownerFilter === 'All' ? (
+              <Button variant="ghost" size="sm" className="-ml-2" aria-expanded={showPositions} aria-controls="crypto-positions"
+                onClick={() => setShowPositions(v => !v)}>
+                <ChevronDown aria-hidden className={cn('h-4 w-4 transition-transform', showPositions && 'rotate-180')} />
+                Details per person ({visiblePositions.length}) · notes, wallet, edit
+              </Button>
+            ) : (
+              <h3 className="text-label font-semibold text-fg-secondary">Positions · {ownerFilter}</h3>
+            )}
+            {(ownerFilter !== 'All' || showPositions) && (
+            <div id="crypto-positions" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {visiblePositions.map(h => {
                 const price = prices?.[h.symbol]
                 const valueMXN = getValueMXN(h, prices)
@@ -457,7 +483,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
                 return (
                   <Card key={h.id}>
                     <div className="flex items-start gap-3">
-                      <CoinLogo symbol={h.symbol} size={36} />
+                      <CoinLogo symbol={h.symbol} coinId={holdingCoinId(h)} size={36} />
                       <div className="min-w-0 flex-1">
                         <p className="flex items-center gap-1.5 text-sm font-semibold"><span className="truncate">{h.name}</span> <OwnerAvatar owner={h.owner} size={16} /></p>
                         <p className="text-label text-fg-tertiary">{h.symbol}</p>
@@ -476,8 +502,8 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
                           <div className="flex justify-between gap-3"><dt className="text-fg-secondary">24h</dt><dd className={cn('tabular-nums', change > 0 ? 'text-positive' : change < 0 ? 'text-negative' : 'text-fg')}>{formatDelta(change, { unit: 'pct', decimals: 2 })}</dd></div>
                         </>
                       )}
-                      <div className="flex justify-between gap-3 border-t border-border pt-1.5"><dt className="text-fg-secondary">Value</dt><dd className="font-semibold"><MoneyText value={valueMXN} /></dd></div>
-                      <div className="flex justify-between gap-3"><dt className="text-fg-secondary">Value (USD)</dt><dd className="tabular-nums" data-money="">{usd(valueUSD)}</dd></div>
+                      <div className="flex justify-between gap-3 border-t border-border pt-1.5"><dt className="text-fg-secondary">Value</dt><dd className="font-semibold">{price ? <MoneyText value={valueMXN} /> : <span className="text-label font-normal text-warning">no price</span>}</dd></div>
+                      <div className="flex justify-between gap-3"><dt className="text-fg-secondary">Value (USD)</dt><dd className="tabular-nums" data-money="">{price ? usd(valueUSD) : '—'}</dd></div>
                       {pl === null && h.quantity > 0 && !hasCostBasis(h) && (
                         <div className="flex justify-between gap-3">
                           <dt className="text-fg-secondary">P&amp;L</dt>
@@ -498,6 +524,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
                 )
               })}
             </div>
+            )}
             </div>
           )}
 
@@ -584,7 +611,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
         {holdingForm && (
           <div className="space-y-4">
             <div className="flex items-center gap-3 rounded-xl bg-surface-2 p-3">
-              <CoinLogo symbol={holdingForm.symbol} size={28} />
+              <CoinLogo symbol={holdingForm.symbol} coinId={holdingCoinId(holdings.find(h => h.id === holdingForm.id) ?? holdingForm)} size={28} />
               <p className="min-w-0 truncate text-sm font-semibold">{holdingForm.name} <span className="font-normal text-fg-tertiary">{holdingForm.symbol}</span></p>
             </div>
             <div>

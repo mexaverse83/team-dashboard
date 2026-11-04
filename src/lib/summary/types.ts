@@ -254,6 +254,9 @@ export interface SummaryResponse {
     total_cost_mxn?: number
     pnl_mxn: number
     pnl_pct: number
+    prices_available?: boolean
+    /** Held coins with no live price (valued at 0, left out of cost and P/L). */
+    unpriced?: string[]
     holdings?: Array<Record<string, unknown>>
     by_owner?: Record<string, { value_mxn: number }>
     risks?: { concentration: { symbol: string; pct: number } | null; large_loss: { pnl_pct: number } | null }

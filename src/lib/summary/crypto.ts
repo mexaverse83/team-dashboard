@@ -29,12 +29,18 @@ export function buildCryptoSummary(rows: CryptoHoldingRow[], prices: CryptoPrice
   const usdToMxn = ref ? ref.mxn / ref.usd : 17
 
   let totalValueMXN = 0, totalValueUSD = 0, totalCostMXN = 0
+  const unpriced = new Set<string>()
   const summaries = holdings.map(h => {
     const qty = Number(h.quantity)
     const costBasis = h.avg_cost_basis_usd
-    const valueMXN = qty * (p[h.symbol]?.mxn ?? 0)
-    const valueUSD = qty * (p[h.symbol]?.usd ?? 0)
-    const costMXN = costBasis ? qty * ((h.cost_currency || 'MXN') === 'USD' ? costBasis * usdToMxn : costBasis) : 0
+    const price = p[h.symbol]
+    const priced = !!price && price.mxn > 0
+    if (!priced) unpriced.add(h.symbol)
+    const valueMXN = priced ? qty * price.mxn : 0
+    const valueUSD = priced ? qty * (price.usd ?? 0) : 0
+    // A coin with no live price is left out of cost and P/L too (as the Crypto
+    // tab does): counting its cost against a $0 value would read as a loss.
+    const costMXN = priced && costBasis ? qty * ((h.cost_currency || 'MXN') === 'USD' ? costBasis * usdToMxn : costBasis) : 0
     totalValueMXN += valueMXN
     totalValueUSD += valueUSD
     totalCostMXN += costMXN
@@ -62,7 +68,9 @@ export function buildCryptoSummary(rows: CryptoHoldingRow[], prices: CryptoPrice
     total_cost_mxn: Math.round(totalCostMXN),
     pnl_mxn: Math.round(pnlMXN),
     pnl_pct: pnlPct,
-    prices_available: prices != null,
+    prices_available: prices != null && unpriced.size < new Set(holdings.map(h => h.symbol)).size,
+    /** Held coins with no live price: valued at 0 and left out of cost and P/L. */
+    unpriced: [...unpriced].sort(),
     holdings: agg,
     by_owner: Object.fromEntries(OWNERS.map(owner => [owner, {
       value_mxn: summaries.filter(h => ownersEqual(h.owner, owner)).reduce((s, h) => s + h.value_mxn, 0),

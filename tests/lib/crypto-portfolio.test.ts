@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aggregateCoins, ownerSplitLabel, type PortfolioHolding } from '@/lib/crypto-portfolio'
+import { aggregateCoins, holdersOf, ownerSplitLabel, type PortfolioHolding } from '@/lib/crypto-portfolio'
 
 const prices = {
   BTC: { usd: 100_000, mxn: 2_000_000, change24h: 1 },
@@ -90,5 +90,16 @@ describe('aggregateCoins', () => {
     const fmt = (n: number) => n.toFixed(2)
     expect(ownerSplitLabel(rows.find(r => r.symbol === 'SOL')!.owners, fmt)).toBe('B 1.71 · L 0.36')
     expect(ownerSplitLabel(rows.find(r => r.symbol === 'BTC')!.owners, fmt)).toBe('L 0.20')
+  })
+
+  it('counts only owners who hold some of the coin as holders', () => {
+    const { rows } = aggregateCoins([
+      { id: 'x-b', symbol: 'X', owner: 'Bernardo', quantity: 0 },
+      { id: 'x-l', symbol: 'X', owner: 'Laura', quantity: 5 },
+      { id: 'y-b', symbol: 'Y', owner: 'Bernardo', quantity: 0 },
+    ], null, 18, { includeEmpty: true })
+    expect(holdersOf(rows.find(r => r.symbol === 'X')!).map(o => o.owner)).toEqual(['Laura'])
+    // A coin at zero for everyone still has someone to remove it from.
+    expect(holdersOf(rows.find(r => r.symbol === 'Y')!).map(o => o.owner)).toEqual(['Bernardo'])
   })
 })

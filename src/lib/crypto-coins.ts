@@ -70,15 +70,30 @@ export function holdingCoinId(h: { symbol: string; coingecko_id?: string | null 
 }
 
 /**
- * Coinpaprika id for the keyless fallback. Built-ins are known; for any other
- * coin Coinpaprika's ids are usually `<ticker>-<slug>` with the same slug as
- * CoinGecko (pepe-pepe, doge-dogecoin), so try that and let the caller check
- * the ticker it answers with.
+ * Major coins whose Coinpaprika id is not `<ticker>-<coingecko id>`. The
+ * search fallback in crypto-prices covers any coin missing here.
+ */
+export const COINPAPRIKA_OVERRIDES: Readonly<Record<string, string>> = {
+  ripple: 'xrp-xrp',
+  binancecoin: 'bnb-binance-coin',
+  'avalanche-2': 'avax-avalanche',
+  'the-open-network': 'ton-toncoin',
+  'matic-network': 'matic-polygon',
+  near: 'near-near-protocol',
+  'crypto-com-chain': 'cro-cryptocom-chain',
+  'staked-ether': 'steth-lido-staked-ether',
+}
+
+/**
+ * Coinpaprika id for the keyless fallback. Built-ins and the overrides are
+ * known; for any other coin Coinpaprika's ids are usually `<ticker>-<slug>`
+ * with the same slug as CoinGecko (pepe-pepe, doge-dogecoin), so try that and
+ * let the caller check the ticker it answers with.
  */
 export function coinpaprikaIdFor(symbol: string, coingeckoId: string): string {
   const builtin = builtinCoin(symbol)
   if (builtin && builtin.coingeckoId === coingeckoId) return builtin.coinpaprikaId
-  return `${symbol.toLowerCase()}-${coingeckoId}`
+  return COINPAPRIKA_OVERRIDES[coingeckoId] ?? `${symbol.toLowerCase()}-${coingeckoId}`
 }
 
 interface DbError { code?: string; message?: string; details?: string | null; hint?: string | null }
@@ -97,4 +112,4 @@ export function isPendingCoinMigrationError(error: DbError | null | undefined): 
 }
 
 export const PENDING_MIGRATION_MESSAGE =
-  'Database update pending: adding coins beyond BTC, ETH, SOL, KAS, LIT, AERO and HYPE needs supabase-2026-11-crypto-any-coin.sql to be applied first.'
+  'Database update pending: for now only Bitcoin, Ethereum, Solana, Kaspa, Lighter, Aerodrome and Hyperliquid can be added. Any other coin needs supabase-2026-11-crypto-any-coin.sql to be applied first.'
