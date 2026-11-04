@@ -11,6 +11,15 @@ const h = (id: string, symbol: string, owner: string, quantity: number, avg: num
   ({ id, symbol, name: symbol, owner, quantity, avg_cost_basis_usd: avg, cost_currency: 'MXN', ...extra })
 
 describe('aggregateCoins', () => {
+  it('keeps the biggest coin on top during a price outage: cost breaks the tie, not quantity', () => {
+    const { rows } = aggregateCoins([
+      h('k', 'KAS', 'Laura', 18_243, 0.7),
+      h('b', 'BTC', 'Bernardo', 0.29, 1_600_000),
+      h('s', 'SOL', 'Bernardo', 2, 3_000),
+    ], null, 20)
+    expect(rows.map(r => r.symbol)).toEqual(['BTC', 'KAS', 'SOL'])
+  })
+
   it('adds both owners into ONE row per coin, sorted by value, with a grand total', () => {
     const { rows, totals } = aggregateCoins([
       h('s-b', 'SOL', 'Bernardo', 1.71, 2_500),

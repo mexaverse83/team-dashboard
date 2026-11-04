@@ -5,7 +5,7 @@ import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { OwnerAvatar } from '@/components/ui/owner-avatar'
 import { Check } from 'lucide-react'
-import { holdersOf, type CoinRow } from '@/lib/crypto-portfolio'
+import { holdersOf, type CoinRow, type OwnerShare } from '@/lib/crypto-portfolio'
 import { cn } from '@/lib/utils'
 import { formatQty } from './coin-logo'
 
@@ -37,14 +37,21 @@ function RemoveCoinBody({ target, txCount, onClose, onRemoved }: { target: Remov
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Holders = owners with some of the coin; an emptied holding (sold to 0,
+  // history only) is listed only when its own card opened this window.
   const holders = holdersOf(coin)
-  const whole = scope === 'all' || holders.length === 1
-  const owner = holders.find(o => o.holdingId === scope)
-  const ids = whole ? coin.holdingIds : owner ? owner.holdingIds : []
+  const held = coin.owners.filter(o => o.quantity > 0)
+  const empties = held.length > 0 ? coin.owners.filter(o => o.quantity <= 0) : []
+  const listed = coin.owners.filter(o => holders.includes(o) || o.holdingId === target.initial)
+  const ownerChoices = coin.owners.length > 1 && (listed.length > 1 || target.initial !== 'all') ? listed : []
+  const owner = scope === 'all' ? undefined : coin.owners.find(o => o.holdingId === scope)
+  const ids = owner ? owner.holdingIds : coin.holdingIds
   const count = txCount(ids)
-  const what = whole
-    ? `${coin.name} (${coin.symbol}) for ${holders.length > 1 ? 'both of you' : holders[0]?.owner ?? 'everyone'}`
-    : `${owner?.owner}’s ${coin.symbol}`
+  const emptyNote = (o: OwnerShare) => `${o.owner}’s emptied ${coin.symbol} holding`
+  // Name exactly the holdings that go: the whole coin also takes an emptied holding's history.
+  const what = owner
+    ? owner.quantity > 0 ? `${owner.owner}’s ${coin.symbol}` : emptyNote(owner)
+    : `${coin.name} (${coin.symbol}) for ${holders.length > 1 ? 'both of you' : holders[0]?.owner ?? 'everyone'}${empties.length > 0 ? `, plus ${empties.map(emptyNote).join(' and ')}` : ''}`
 
   const remove = async () => {
     setBusy(true); setError(null)
@@ -69,8 +76,8 @@ function RemoveCoinBody({ target, txCount, onClose, onRemoved }: { target: Remov
   }
 
   const options = [
-    ...(holders.length > 1 ? holders.map(o => ({ value: o.holdingId, owner: o.owner, label: `Only ${o.owner}’s`, detail: `${formatQty(o.quantity)} ${coin.symbol}` })) : []),
-    { value: 'all', owner: null as string | null, label: holders.length > 1 ? 'Both — the whole coin' : `${holders[0]?.owner ?? ''}’s ${coin.symbol}`, detail: `${formatQty(coin.quantity)} ${coin.symbol}` },
+    ...ownerChoices.map(o => ({ value: o.holdingId, owner: o.owner, label: `Only ${o.owner}’s`, detail: o.quantity > 0 ? `${formatQty(o.quantity)} ${coin.symbol}` : 'empty · history only' })),
+    { value: 'all', owner: null as string | null, label: coin.owners.length > 1 ? 'Both — the whole coin' : `${holders[0]?.owner ?? ''}’s ${coin.symbol}`, detail: `${formatQty(coin.quantity)} ${coin.symbol}` },
   ]
 
   return (

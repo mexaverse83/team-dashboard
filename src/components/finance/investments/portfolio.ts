@@ -47,6 +47,16 @@ export function cryptoValueMXN(h: CryptoHoldingLite, prices: CryptoPrices | null
   return h.quantity * (prices?.[h.symbol]?.mxn ?? 0)
 }
 
+/** The coin has a live MXN quote. Without one its value is unknown, not $0. */
+export function hasLivePrice(h: Pick<CryptoHoldingLite, 'symbol'>, prices: CryptoPrices | null | undefined): boolean {
+  return (prices?.[h.symbol]?.mxn ?? 0) > 0
+}
+
+/** Held symbols (> 0) with no live price, for the "excl. KAS: no price" caption. */
+export function coinsWithoutPrice(rows: readonly CryptoHoldingLite[], prices: CryptoPrices | null | undefined): string[] {
+  return [...new Set(rows.filter(h => h.quantity > 0 && !hasLivePrice(h, prices)).map(h => h.symbol))].sort()
+}
+
 /** A coin with no recorded cost basis can't have a P&L: leave its value out of P&L math. */
 export function hasCostBasis(h: Pick<CryptoHoldingLite, 'avg_cost_basis_usd'>): boolean {
   return (h.avg_cost_basis_usd ?? 0) > 0
@@ -136,10 +146,15 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
   const fiTotal = fi.reduce((s, i) => s + accruedValue(i, now), 0)
   const reTotal = re.reduce((s, p) => s + propertyEquity(p, west), 0)
   const cryptoTotal = coins.reduce((s, h) => s + cryptoValueMXN(h, prices), 0)
-  const cryptoCost = coins.reduce((s, h) => s + cryptoCostMXN(h, fxRate), 0)
-  // Value of the coins that HAVE a cost basis — the only value P&L can compare to cost.
-  const cryptoValueOnCost = coins.filter(hasCostBasis).reduce((s, h) => s + cryptoValueMXN(h, prices), 0)
+  // P&L compares cost with the value of the SAME coins: only coins with both a
+  // cost basis and a live price. An unpriced coin's cost against a $0 value
+  // would read as a total loss during a price outage (as aggregateCoins and
+  // buildCryptoSummary do).
+  const pricedCoins = coins.filter(h => hasLivePrice(h, prices))
+  const cryptoCost = pricedCoins.reduce((s, h) => s + cryptoCostMXN(h, fxRate), 0)
+  const cryptoValueOnCost = pricedCoins.filter(hasCostBasis).reduce((s, h) => s + cryptoValueMXN(h, prices), 0)
   const cryptoNoBasis = coinsWithoutBasis(coins)
+  const cryptoUnpriced = coinsWithoutPrice(coins, prices)
   const retirementTotal = ret.reduce((s, r) => s + (r.current_balance || 0), 0)
   // Only AFORE is locked until 65; Infonavit is earmarked for WEST
   const retirementLocked = ret.filter(r => r.instrument_type !== 'infonavit').reduce((s, r) => s + (r.current_balance || 0), 0)
@@ -164,6 +179,8 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
     totals: { crypto: cryptoTotal, stocks: stocksTotal, publicStocks: publicTotal, privateEquity: peTotal, fixedIncome: fiTotal, fixedIncomeCost: fiCost, realEstate: reTotal, retirement: retirementTotal, retirementLocked, total },
     cryptoCost,
     cryptoNoBasis,
+    /** Held coins with no live price: valued at 0 and left out of cost and P&L. */
+    cryptoUnpriced,
     pl,
     plPct,
     positions: {

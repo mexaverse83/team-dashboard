@@ -90,6 +90,58 @@ describe('crypto tab: household view per coin', () => {
     expect(within(dialog).getByText(/for Bernardo/)).toBeInTheDocument()
   })
 
+  it("the trash on an emptied owner's card removes only that holding, never the other owner's coins", async () => {
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (options?.method === 'DELETE') return { ok: true, json: async () => ({ ok: true }) as unknown, text: async (): Promise<string> => '{"ok":true}' }
+      const extra = [{ ...base, id: 'btc-l', symbol: 'BTC', name: 'Bitcoin', owner: 'Laura', quantity: 0, avg_cost_basis_usd: null }]
+      const body = url.includes('/transactions') ? { transactions } : { holdings: [...holdings, ...extra], prices }
+      return { ok: true, json: async (): Promise<unknown> => body, text: async (): Promise<string> => JSON.stringify(body) }
+    })
+    render(<CryptoClient />)
+    await screen.findByRole('table', { name: 'Holdings by coin' })
+    const toggle = screen.getByRole('checkbox', { name: /Show empty coins/ })
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', { name: /Details per person/ }))
+    const trash = screen.getAllByRole('button', { name: 'Delete BTC position' })
+    // Bernardo's live BTC card comes first, Laura's emptied one second.
+    fireEvent.click(trash[trash.length - 1])
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('radio', { name: /Only Laura’s/ })).toHaveAttribute('aria-checked', 'true')
+    expect(within(dialog).getByText(/Laura’s emptied BTC holding/)).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove' }))
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, o]) => o?.method === 'DELETE')).toBe(true))
+    const [, del] = fetchMock.mock.calls.find(([, o]) => o?.method === 'DELETE')!
+    expect(JSON.parse(String(del.body))).toEqual({ ids: ['btc-l'] })
+  })
+
+  it('the whole-coin removal names an emptied holding it takes along', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const extra = [{ ...base, id: 'btc-l', symbol: 'BTC', name: 'Bitcoin', owner: 'Laura', quantity: 0, avg_cost_basis_usd: null }]
+      const body = url.includes('/transactions') ? { transactions } : { holdings: [...holdings, ...extra], prices }
+      return { ok: true, json: async (): Promise<unknown> => body, text: async (): Promise<string> => JSON.stringify(body) }
+    })
+    render(<CryptoClient />)
+    const table = await screen.findByRole('table', { name: 'Holdings by coin' })
+    fireEvent.click(within(table).getByRole('button', { name: 'Remove BTC' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/Bitcoin \(BTC\) for Bernardo, plus Laura’s emptied BTC holding/)).toBeInTheDocument()
+  })
+
+  it('keeps the coin order during a price outage (cost breaks the tie, not raw quantity)', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const extra = [{ ...base, id: 'kas-b', symbol: 'KAS', name: 'Kaspa', owner: 'Bernardo', quantity: 18_000, avg_cost_basis_usd: 1 }]
+      const body = url.includes('/transactions') ? { transactions } : { holdings: [...holdings, ...extra], prices: null }
+      return { ok: true, json: async (): Promise<unknown> => body, text: async (): Promise<string> => JSON.stringify(body) }
+    })
+    render(<CryptoClient />)
+    const table = await screen.findByRole('table', { name: 'Holdings by coin' })
+    const rows = within(table).getAllByRole('row')
+    expect(within(rows[1]).getByText('BTC')).toBeInTheDocument()
+    expect(within(rows[2]).getByText('KAS')).toBeInTheDocument()
+    expect(within(rows[3]).getByText('SOL')).toBeInTheDocument()
+    expect(screen.getByText(/values show once prices load/)).toBeInTheDocument()
+  })
+
   it('can show zero-balance coins', async () => {
     render(<CryptoClient />)
     const toggle = await screen.findByRole('checkbox', { name: /Show empty coins \(1\)/ })

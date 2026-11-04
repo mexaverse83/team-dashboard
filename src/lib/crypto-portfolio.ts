@@ -152,7 +152,9 @@ export function aggregateCoins(
 
   const rows: CoinRow[] = visible
     .map(r => ({ ...r, sharePct: valueMXN > 0 ? (r.valueMXN / valueMXN) * 100 : 0 }))
-    .sort((a, b) => b.valueMXN - a.valueMXN || b.quantity - a.quantity || a.symbol.localeCompare(b.symbol))
+    // Cost breaks ties before quantity: in a price outage every value is 0,
+    // and 18,000 KAS must not outrank 0.3 BTC.
+    .sort((a, b) => b.valueMXN - a.valueMXN || b.costMXN - a.costMXN || b.quantity - a.quantity || a.symbol.localeCompare(b.symbol))
 
   return {
     rows,

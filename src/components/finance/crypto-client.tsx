@@ -191,8 +191,9 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
 
   const filtered = useMemo(() => {
     const f = ownerFilter === 'All' ? holdings : holdings.filter(h => ownersEqual(h.owner, ownerFilter))
-    return [...f].sort((a, b) => getValueMXN(b, prices) - getValueMXN(a, prices))
-  }, [holdings, ownerFilter, prices])
+    // Cost breaks ties so a price outage (every value 0) keeps the same order.
+    return [...f].sort((a, b) => getValueMXN(b, prices) - getValueMXN(a, prices) || getCostMXN(b, usdToMxn) - getCostMXN(a, usdToMxn) || a.symbol.localeCompare(b.symbol))
+  }, [holdings, ownerFilter, prices, usdToMxn])
 
   const filteredTx = useMemo(() => {
     if (ownerFilter === 'All') return transactions
@@ -250,9 +251,12 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
 
   const openRemove = (coin: CoinRow, holdingId?: string) => {
     setActionError(null)
-    const holders = holdersOf(coin)
-    const owner = holdingId ? holders.find(o => o.holdingIds.includes(holdingId)) : undefined
-    setRemoveTarget({ coin, initial: owner && holders.length > 1 ? owner.holdingId : 'all' })
+    // From a position card the removal starts scoped to that card's holding,
+    // looked up among ALL the coin's holdings: an emptied one (sold to 0, still
+    // with history) must never fall through to the whole coin and take the
+    // other owner's live coins with it.
+    const owner = holdingId ? coin.owners.find(o => o.holdingIds.includes(holdingId)) : undefined
+    setRemoveTarget({ coin, initial: owner && coin.owners.length > 1 ? owner.holdingId : 'all' })
   }
   const removeHolding = (h: Holding) => {
     // A position card: its coin as one owner's row (aggregated without the empty filter).
@@ -358,7 +362,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
         <div className="min-w-0">
           <h2 id="crypto-heading" className="text-[0.9375rem] font-semibold text-fg">Crypto Portfolio</h2>
           <p className="text-label text-fg-secondary">
-            {prices ? 'Live prices (CoinGecko, Coinpaprika fallback)' : 'Prices unavailable — values may read low'}
+            {prices ? 'Live prices (CoinGecko, Coinpaprika fallback)' : 'Prices unavailable — values show once prices load'}
             {filteredTx.length > 0 && (
               <> · <a href="#crypto-transactions" className="font-medium text-fg underline-offset-2 hover:underline">View transaction history ({filteredTx.length})</a></>
             )}
