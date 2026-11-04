@@ -42,6 +42,18 @@ describe('crypto tab: household view per coin', () => {
     expect(within(table).queryByText('KAS')).not.toBeInTheDocument()
   })
 
+  it('a price outage never reads as a −100% loss', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const body = url.includes('/transactions') ? { transactions } : { holdings, prices: null }
+      return { ok: true, json: async (): Promise<unknown> => body, text: async (): Promise<string> => JSON.stringify(body) }
+    })
+    render(<CryptoClient />)
+    await screen.findByRole('table', { name: 'Holdings by coin' })
+    expect(screen.queryByText(/−100\.0%|-100\.0%/)).not.toBeInTheDocument()
+    expect(screen.getByText(/BTC, SOL unpriced/)).toBeInTheDocument()
+    expect(screen.getAllByText('no price').length).toBeGreaterThan(0)
+  })
+
   it('can show zero-balance coins', async () => {
     render(<CryptoClient />)
     const toggle = await screen.findByRole('checkbox', { name: /Show empty coins \(1\)/ })

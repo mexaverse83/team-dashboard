@@ -13,7 +13,7 @@ import { StatusPill } from '@/components/ui/status-pill'
 import { ErrorState } from '@/components/ui/error-state'
 import { OwnerFilterControl } from '@/components/finance/investments/shared'
 import { TabSkeleton } from '@/components/finance/investments/tab-skeleton'
-import { coinsWithoutBasis, cryptoCostMXN, cryptoValueMXN, hasCostBasis, usdMxnRate } from '@/components/finance/investments/portfolio'
+import { cryptoCostMXN, cryptoValueMXN, hasCostBasis, usdMxnRate } from '@/components/finance/investments/portfolio'
 import { CoinLogo, coinColor, formatQty as qty } from '@/components/finance/crypto/coin-logo'
 import { CoinBreakdown } from '@/components/finance/crypto/coin-breakdown'
 import { AddCoinModal } from '@/components/finance/crypto/add-coin-modal'
@@ -200,29 +200,25 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
   const totalMXN = filtered.reduce((s, h) => s + getValueMXN(h, prices), 0)
   const totalUSD = filtered.reduce((s, h) => s + h.quantity * (prices?.[h.symbol]?.usd ?? 0), 0)
   const totalCostMXN = filtered.reduce((s, h) => s + getCostMXN(h, usdToMxn), 0)
-  // P&L compares cost with the value of the SAME coins: a coin with no basis
-  // (e.g. ETH) would otherwise count its whole value as gain.
-  const valueOnCostMXN = filtered.filter(hasCostBasis).reduce((s, h) => s + getValueMXN(h, prices), 0)
-  const noBasis = coinsWithoutBasis(filtered)
-  const totalPL = totalCostMXN > 0 ? valueOnCostMXN - totalCostMXN : null
-  const totalPLPct = totalPL !== null && totalCostMXN > 0 ? (totalPL / totalCostMXN) * 100 : null
-
-  // Per-owner totals with per-coin breakdown (always from the full set)
+  // Per-owner totals (always from the full set). P&L compares cost with the
+  // value of the SAME priced coins (aggregateCoins): a coin with no basis or no
+  // live price would otherwise count as all gain or all loss.
   const ownerTotals = useMemo(() => {
     const calc = (owner: string) => {
       const owned = holdings.filter(h => ownersEqual(h.owner, owner))
-      const mxn = owned.reduce((s, h) => s + getValueMXN(h, prices), 0)
-      const cost = owned.reduce((s, h) => s + getCostMXN(h, usdToMxn), 0)
-      const valueOnCost = owned.filter(hasCostBasis).reduce((s, h) => s + getValueMXN(h, prices), 0)
-      const pl = cost > 0 ? valueOnCost - cost : null
-      const plPct = pl !== null && cost > 0 ? (pl / cost) * 100 : null
-      return { mxn, cost, pl, plPct, noBasis: coinsWithoutBasis(owned), count: new Set(owned.filter(h => h.quantity > 0).map(h => h.symbol)).size }
+      const { rows, totals } = aggregateCoins(owned, prices, usdToMxn)
+      return { mxn: totals.valueMXN, cost: totals.costMXN, pl: totals.pl, plPct: totals.plPct, noBasis: totals.noBasis, count: rows.length }
     }
     return Object.fromEntries(OWNERS.map(o => [o, calc(o)]))
   }, [holdings, prices, usdToMxn])
 
   // One row per coin, both owners added together (ONE row per coin, sorted by value).
   const breakdown = useMemo(() => aggregateCoins(filtered, prices, usdToMxn, { includeEmpty: showEmpty }), [filtered, prices, usdToMxn, showEmpty])
+  const { pl: totalPL, plPct: totalPLPct, noBasis, unpriced } = breakdown.totals
+  const plHint = [
+    noBasis.length > 0 ? `excl. ${noBasis.join(', ')}, no cost basis` : '',
+    unpriced.length > 0 ? `${unpriced.join(', ')} unpriced` : '',
+  ].filter(Boolean).join(' · ')
   const visiblePositions = useMemo(() => showEmpty ? filtered : filtered.filter(h => h.quantity > 0), [filtered, showEmpty])
 
   // Coins to log against: the ones you hold first, then the built-in list.
@@ -385,7 +381,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
               <Stat money label="Cost basis" value={totalCostMXN > 0 ? formatMoney(totalCostMXN) : '—'} />
               <Stat money label="P&L" value={totalPL !== null ? formatMoney(totalPL, { sign: 'always' }) : '—'}
                 delta={totalPLPct !== null ? formatDelta(totalPLPct, { unit: 'pct', decimals: 1 }) : undefined}
-                hint={totalPL !== null && noBasis.length > 0 ? `excl. ${noBasis.join(', ')}, no cost basis` : undefined}
+                hint={plHint || undefined}
                 tone={totalPL === null ? 'neutral' : totalPL >= 0 ? 'positive' : 'negative'} />
             </div>
             {heldRows.length > 0 && totalMXN > 0 && (
@@ -455,7 +451,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
                 const valueMXN = getValueMXN(h, prices)
                 const valueUSD = h.quantity * (price?.usd ?? 0)
                 const costMXN = getCostMXN(h, usdToMxn)
-                const pl = costMXN > 0 ? valueMXN - costMXN : null
+                const pl = costMXN > 0 && price ? valueMXN - costMXN : null
                 const plPct = costMXN > 0 && pl !== null ? (pl / costMXN) * 100 : null
                 const change = price?.change24h ?? 0
                 return (

@@ -120,7 +120,9 @@ export function CoinBreakdown({ breakdown, showOwners, onLog, onRemove }: CoinBr
       <ul className="-mx-1 sm:hidden" aria-label="Holdings by coin">
         {rows.map(r => {
           const expanded = open === r.symbol
-          const split = showOwners ? ownerSplitLabel(r.owners, formatQtyShort) : ''
+          const holders = r.owners.filter(o => o.quantity > 0)
+          // Two holders: "B 1.71 · L 0.36"; one: whose it is.
+          const split = !showOwners ? '' : holders.length > 1 ? ownerSplitLabel(r.owners, formatQtyShort) : holders[0]?.owner ?? ''
           return (
             <li key={r.symbol} className="border-b border-border last:border-0">
               <button type="button" aria-expanded={expanded} aria-controls={`coin-${r.symbol}`}
@@ -136,7 +138,7 @@ export function CoinBreakdown({ breakdown, showOwners, onLog, onRemove }: CoinBr
                   </span>
                   <span className="mt-0.5 flex items-baseline justify-between gap-2 text-label">
                     <span className="tabular-nums min-w-0 truncate text-fg-secondary">
-                      {formatQtyShort(r.quantity)}{split && r.owners.filter(o => o.quantity > 0).length > 1 ? <span className="text-fg-tertiary"> · {split}</span> : null}
+                      {formatQtyShort(r.quantity)}{split ? <span className="text-fg-tertiary"> · {split}</span> : null}
                     </span>
                     <span className="tabular-nums shrink-0">
                       {r.plPct !== null
