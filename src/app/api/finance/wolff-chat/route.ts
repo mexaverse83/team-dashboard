@@ -2,10 +2,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { configErrorResponse, getAdminClient } from '@/lib/supabase-admin'
+import { RESET_LABEL, RESET_STATUS } from '@/lib/mona-chat-session.mjs'
 
 // Ask-Wolff chat. Questions queue as status:'pending'; the home-machine
 // daemon (scripts/wolff-chat-daemon.mjs) answers them through Codex on the
 // ChatGPT subscription and inserts a 'wolff' row.
+// "New chat" inserts a marker row (role 'wolff', status 'reset'); nothing is
+// deleted. src/lib/mona-chat-session.mjs decides what the current
+// conversation is for both the page and the daemon.
 
 const COLUMNS = 'id, role, content, status, reply_to, asked_by, created_at'
 const DEFAULT_LIMIT = 50
@@ -77,14 +81,28 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ messages: [...(data || [])].reverse() }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
+// POST { content }            → queue a question as 'pending'
+// POST { action: 'reset' }     → start a new conversation (marker row)
 export async function POST(req: NextRequest) {
   const auth = await authorizeFinanceRequest(req)
   if (!auth.ok) return auth.response
-  let body: { content?: string; asked_by?: string }
+  let body: { content?: string; asked_by?: string; action?: string }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'invalid JSON' }, { status: 400 })
+  }
+  if (body.action !== undefined) {
+    if (body.action !== 'reset') return NextResponse.json({ error: 'unknown action' }, { status: 400 })
+    const supabase = admin()
+    if (supabase instanceof Response) return supabase
+    const { data, error } = await supabase
+      .from('finance_wolff_chat')
+      .insert({ role: 'wolff', content: RESET_LABEL, status: RESET_STATUS })
+      .select(COLUMNS)
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, message: data })
   }
   const content = (body.content || '').trim().slice(0, 1000)
   if (!content) return NextResponse.json({ error: 'content required' }, { status: 400 })

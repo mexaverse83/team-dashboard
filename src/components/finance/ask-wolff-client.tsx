@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Send } from 'lucide-react'
+import { ChevronUp, MessageSquarePlus, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { conversationStart, currentConversation, isResetMarker } from '@/lib/mona-chat-session.mjs'
 import { WolffAvatar } from '@/components/brand-logo'
 import { MiniMarkdown } from '@/lib/mini-markdown'
 import { MX_TIME_ZONE, diffDaysKey, mexicoCityToday } from '@/lib/dates'
@@ -10,6 +12,13 @@ import { MX_TIME_ZONE, diffDaysKey, mexicoCityToday } from '@/lib/dates'
 const noteTime = new Intl.DateTimeFormat('en-US', { timeZone: MX_TIME_ZONE, hour: 'numeric', minute: '2-digit' })
 const noteWeekday = new Intl.DateTimeFormat('en-US', { timeZone: MX_TIME_ZONE, weekday: 'short' })
 const noteDate = new Intl.DateTimeFormat('en-US', { timeZone: MX_TIME_ZONE, month: 'short', day: 'numeric' })
+const dividerDay = new Intl.DateTimeFormat('en-US', { timeZone: MX_TIME_ZONE, weekday: 'short', month: 'short', day: 'numeric' })
+
+/** "Tue Nov 4" on the Mexico City calendar, for conversation dividers. */
+export function dividerDate(at: string | number): string {
+  const d = new Date(at)
+  return Number.isNaN(d.getTime()) ? '' : dividerDay.format(d).replace(',', '')
+}
 
 /** "today 9:00 AM", "yesterday 3:02 PM", "Mon 9:00 AM" this week, else "Oct 21" — so stacked notes show their age. */
 export function noteStamp(iso: string, now: Date = new Date()): { label: string; today: boolean } {
@@ -51,6 +60,32 @@ export function detectLang(text: string): 'es' | undefined {
   return hits >= 2 && hits / words > 0.08 ? 'es' : undefined
 }
 
+type LogItem = { kind: 'divider'; key: string; label: string } | { kind: 'message'; message: ChatMessage }
+
+/**
+ * Older messages (everything outside the current conversation), with a
+ * divider at every earlier "new chat" marker and every Mexico City day change.
+ */
+export function earlierItems(earlier: ChatMessage[]): LogItem[] {
+  const items: LogItem[] = []
+  let day = ''
+  let pendingDivider = true
+  for (const m of earlier) {
+    const mDay = mexicoCityToday(new Date(m.created_at))
+    if (isResetMarker(m)) {
+      items.push({ kind: 'divider', key: `marker-${m.id}`, label: `New conversation · ${dividerDate(m.created_at)}` })
+      day = mDay
+      pendingDivider = false
+      continue
+    }
+    if (pendingDivider || mDay !== day) items.push({ kind: 'divider', key: `day-${m.id}`, label: dividerDate(m.created_at) })
+    day = mDay
+    pendingDivider = false
+    items.push({ kind: 'message', message: m })
+  }
+  return items
+}
+
 const isMonitorQuestion = (m: ChatMessage) => m.role === 'user' && Boolean(m.asked_by?.startsWith('wolff-monitor:'))
 
 /** Merge a (full or incremental) server page into the local list, dropping optimistic copies it confirms. */
@@ -67,6 +102,10 @@ export default function AskWolffClient() {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [showEarlier, setShowEarlier] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  // The daily reset moves at Mexico City midnight; re-read the clock on every load.
+  const [now, setNow] = useState(() => Date.now())
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const lastSeen = useRef<string | null>(null)
@@ -81,6 +120,7 @@ export default function AskWolffClient() {
       const incoming: ChatMessage[] = Array.isArray(data.messages) ? data.messages : []
       const newest = incoming.reduce<string | null>((max, m) => (!max || m.created_at > max ? m.created_at : max), lastSeen.current)
       lastSeen.current = newest
+      setNow(Date.now())
       setMessages(local => mergeMessages(full ? local.filter(m => m.id.startsWith('tmp-')) : local, incoming))
     } catch { /* offline */ }
     finally { setLoading(false) }
@@ -143,17 +183,67 @@ export default function AskWolffClient() {
     }
   }
 
+  // Start a new conversation: one marker row, nothing deleted. Earlier
+  // messages stay one tap away under "Show earlier".
+  const newChat = async () => {
+    if (resetting) return
+    setResetting(true)
+    try {
+      const res = await fetch('/api/finance/wolff-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset' }),
+      })
+      if (!res.ok) return
+      const data = await res.json().catch(() => ({}))
+      const marker: ChatMessage | undefined = data?.message
+      if (marker?.id) {
+        if (!lastSeen.current || marker.created_at > lastSeen.current) lastSeen.current = marker.created_at
+        setMessages(local => mergeMessages(local, [marker]))
+      }
+      setNow(Date.now())
+      setShowEarlier(false)
+      inputRef.current?.focus()
+    } catch { /* offline: nothing changed */ }
+    finally { setResetting(false) }
+  }
+
   const monitorIds = new Set(messages.filter(isMonitorQuestion).map(m => m.id))
-  const visibleMessages = messages.filter(m => !monitorIds.has(m.id))
+  const nowDate = new Date(now)
+  const start = conversationStart(messages, nowDate)
+  const current = currentConversation(messages, nowDate)
+  const currentIds = new Set(current.map(m => m.id))
+  const visibleMessages = current.filter(m => !monitorIds.has(m.id))
+  const earlier = messages.filter(m => !currentIds.has(m.id) && !monitorIds.has(m.id))
+  const hasEarlier = earlier.some(m => !isResetMarker(m))
+  const boundaryLabel = start.kind === 'marker'
+    ? `New conversation · ${dividerDate(start.at)}`
+    : `Today · ${dividerDate(start.at)}`
+  const items: LogItem[] = [
+    ...(showEarlier ? earlierItems(earlier) : []),
+    ...(hasEarlier ? [{ kind: 'divider' as const, key: 'current', label: boundaryLabel }] : []),
+    ...visibleMessages.map(message => ({ kind: 'message' as const, message })),
+  ]
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-11rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-96 w-full max-w-2xl flex-col md:h-[calc(100vh-4.5rem)] md:min-h-[560px]">
       <div className="mb-4 flex items-center gap-3">
         <WolffAvatar className="h-11 w-11" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-[1.75rem] font-semibold leading-[2.125rem] tracking-[-0.02em] text-fg">Ask Mona</h1>
           <p className="text-label text-fg-secondary">One verdict, the numbers behind it, and your next move.</p>
         </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={newChat}
+          disabled={resetting || loading || visibleMessages.length === 0}
+          title="Start fresh. Earlier messages stay under Show earlier."
+          className="shrink-0"
+        >
+          <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
+          New chat
+        </Button>
       </div>
 
       <div
@@ -165,14 +255,39 @@ export default function AskWolffClient() {
       >
         {loading ? (
           <p className="py-10 text-center text-sm text-fg-tertiary">Loading conversation…</p>
-        ) : visibleMessages.length === 0 ? (
+        ) : (
+          <>
+          {hasEarlier && (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShowEarlier(v => !v)}
+                aria-expanded={showEarlier}
+                className="inline-flex min-h-11 items-center gap-1 rounded-full px-3 text-label font-medium text-fg-tertiary hover:text-fg"
+              >
+                <ChevronUp className={cn('h-3.5 w-3.5 transition-transform', showEarlier && 'rotate-180')} aria-hidden="true" />
+                {showEarlier ? 'Hide earlier' : 'Show earlier'}
+              </button>
+            </div>
+          )}
+          {visibleMessages.length === 0 && !showEarlier ? (
           <div className="py-8 text-center">
             <WolffAvatar className="mx-auto h-12 w-12" />
             <p className="mt-3 text-sm font-semibold text-fg">Make the next decision simple.</p>
             <p className="mt-1 text-label text-fg-tertiary">Mona checks your live month, the WEST plan, the baby plan, goals and budgets.</p>
           </div>
         ) : (
-          visibleMessages.map(m => {
+          items.map(item => {
+            if (item.kind === 'divider') {
+              return (
+                <div key={item.key} role="separator" aria-label={item.label} className="flex items-center gap-3 py-1 text-label text-fg-tertiary">
+                  <span className="h-px flex-1 bg-border" aria-hidden="true" />
+                  <span className="shrink-0">{item.label}</span>
+                  <span className="h-px flex-1 bg-border" aria-hidden="true" />
+                </div>
+              )
+            }
+            const m = item.message
             const proactive = m.role === 'wolff' && Boolean(m.reply_to && monitorIds.has(m.reply_to))
             const mona = m.role === 'wolff'
             const stamp = proactive ? noteStamp(m.created_at) : null
@@ -199,6 +314,8 @@ export default function AskWolffClient() {
               </div>
             )
           })
+        )}
+          </>
         )}
         {waiting && (
           <div className="flex items-end gap-2">

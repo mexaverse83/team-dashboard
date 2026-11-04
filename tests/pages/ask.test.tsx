@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AskWolffClient, { detectLang, mergeMessages, noteStamp } from '@/components/finance/ask-wolff-client'
 
@@ -11,7 +11,13 @@ const messages = [
   { id: 'a2', role: 'wolff', content: 'Vi un gasto de $1,840 en Monita, ¿es para la semana?', status: 'answered', reply_to: 'm1', created_at: '2026-10-27T11:00:05Z' },
 ]
 
+// The chat shows the current conversation only (Mexico City day or the last
+// "new chat"), so pin the clock to the fixtures' day: Oct 27, 2:00 PM in CDMX.
+const TODAY = new Date('2026-10-27T20:00:00Z')
+
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  vi.setSystemTime(TODAY)
   Element.prototype.scrollIntoView = vi.fn()
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ messages }) })))
 })
@@ -68,7 +74,6 @@ describe('Ask Mona', () => {
   })
 
   it('polls only for new messages once nothing is pending', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
     render(<AskWolffClient />)
     await screen.findByText('$6,742')
     await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
@@ -78,7 +83,6 @@ describe('Ask Mona', () => {
   })
 
   it('stops waiting when a pending question flips to failed', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
     const question = { id: 'q9', role: 'user', content: 'Are we ok?', status: 'pending', created_at: '2026-10-28T10:00:00Z' }
     let status = 'pending'
     // The daemon PATCHes the row's status; created_at never moves, so only a full read sees it.
@@ -92,6 +96,67 @@ describe('Ask Mona', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
     expect(await screen.findByText(/Mona couldn.t answer this one/)).toBeInTheDocument()
     expect(screen.queryByText('Mona is checking the numbers…')).not.toBeInTheDocument()
+  })
+})
+
+describe('Ask Mona conversations', () => {
+  const yesterday = [
+    { id: 'y1', role: 'user', content: 'October advice please', status: 'answered', created_at: '2026-10-26T16:00:00Z' },
+    { id: 'y2', role: 'wolff', content: 'Old October verdict', status: 'done', reply_to: 'y1', created_at: '2026-10-26T16:00:05Z' },
+  ]
+  const reset = { id: 'r1', role: 'wolff', content: 'New conversation', status: 'reset', created_at: '2026-10-27T19:00:00Z' }
+  const fresh = [
+    { id: 'f1', role: 'user', content: 'Fresh question', status: 'answered', created_at: '2026-10-27T19:05:00Z' },
+    { id: 'f2', role: 'wolff', content: 'Fresh answer', status: 'done', reply_to: 'f1', created_at: '2026-10-27T19:05:05Z' },
+  ]
+  const serve = (rows: unknown[]) => vi.mocked(fetch).mockImplementation((async () => ({ ok: true, json: async () => ({ messages: rows }) })) as never)
+
+  it('shows only the current conversation until Show earlier is tapped', async () => {
+    serve([...yesterday, ...messages, reset, ...fresh])
+    render(<AskWolffClient />)
+    expect(await screen.findByText('Fresh answer')).toBeInTheDocument()
+    expect(screen.queryByText('Old October verdict')).not.toBeInTheDocument()
+    expect(screen.queryByText('Can we eat out?')).not.toBeInTheDocument()
+    expect(screen.getByRole('separator', { name: 'New conversation · Tue Oct 27' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show earlier' }))
+    expect(screen.getByText('Old October verdict')).toBeInTheDocument()
+    expect(screen.getByText('Can we eat out?')).toBeInTheDocument()
+    expect(screen.getByRole('separator', { name: 'Mon Oct 26' })).toBeInTheDocument()
+    expect(screen.getByRole('separator', { name: 'Tue Oct 27' })).toBeInTheDocument()
+    // The marker itself is a divider, never a Mona bubble.
+    expect(screen.queryByText('New conversation')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide earlier' }))
+    expect(screen.queryByText('Old October verdict')).not.toBeInTheDocument()
+  })
+
+  it('resets daily: yesterday is behind Show earlier with no marker', async () => {
+    serve([...yesterday, ...messages])
+    render(<AskWolffClient />)
+    expect(await screen.findByText('$6,742')).toBeInTheDocument()
+    expect(screen.queryByText('Old October verdict')).not.toBeInTheDocument()
+    expect(screen.getByRole('separator', { name: 'Today · Tue Oct 27' })).toBeInTheDocument()
+  })
+
+  it('New chat posts a reset and starts an empty conversation', async () => {
+    const marker = { id: 'r9', role: 'wolff', content: 'New conversation', status: 'reset', created_at: '2026-10-27T20:00:01Z' }
+    vi.mocked(fetch).mockImplementation((async (_url: string, init?: RequestInit) => ({
+      ok: true,
+      json: async () => (init?.method === 'POST' ? { ok: true, message: marker } : { messages }),
+    })) as never)
+    render(<AskWolffClient />)
+    await screen.findByText('$6,742')
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
+    await waitFor(() => expect(screen.queryByText('$6,742')).not.toBeInTheDocument())
+    const post = vi.mocked(fetch).mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toEqual({ action: 'reset' })
+    expect(screen.getByText('Make the next decision simple.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show earlier' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New chat' })).toBeDisabled()
+    // Polling continues from the marker.
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+    expect(String(vi.mocked(fetch).mock.calls.at(-1)?.[0])).toBe(`/api/finance/wolff-chat?since=${encodeURIComponent(marker.created_at)}`)
   })
 })
 

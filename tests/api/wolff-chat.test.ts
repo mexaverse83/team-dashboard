@@ -27,12 +27,19 @@ vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: (table: s
   }
   const chain: Record<string, unknown> = { then: (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve) }
   for (const m of ['select', 'eq', 'like', 'gt', 'gte', 'lt', 'lte', 'order', 'limit', 'ilike']) chain[m] = (...args: unknown[]) => { calls.push([m, ...args]); return chain }
-  chain.insert = (row: unknown) => { state.insert(table, row); return Promise.resolve({ error: null }) }
+  chain.insert = (row: Row) => {
+    state.insert(table, row)
+    const inserted = { id: `new-${state.insert.mock.calls.length}`, created_at: '2026-11-04T18:00:00Z', reply_to: null, asked_by: null, ...row }
+    return {
+      then: (resolve: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(resolve),
+      select: () => ({ single: async () => ({ data: inserted, error: null }) }),
+    }
+  }
   chain.upsert = () => Promise.resolve({ error: null })
   return chain
 } }) }))
 vi.mock('@/lib/finance-api-auth', () => ({ authorizeFinanceRequest: async () => ({ ok: true, method: 'user' }) }))
-import { GET } from '@/app/api/finance/wolff-chat/route'
+import { GET, POST } from '@/app/api/finance/wolff-chat/route'
 import { POST as eventPOST } from '@/app/api/finance/wolff-events/route'
 
 const msg = (id: string, minute: number, extra: Row = {}) => ({ id, role: 'user', content: id, status: 'answered', created_at: `2026-10-28T10:${String(minute).padStart(2, '0')}:00Z`, ...extra })
@@ -99,5 +106,27 @@ describe('wolff-events POST', () => {
     await post({ kind: 'imported', import_ids: ['a', 'b'], import_count: 2, import_total: 9_000 })
     expect((state.insert.mock.calls.find(([t]) => t === 'finance_wolff_chat')?.[1] as Row).asked_by).toBe(first)
     expect(String(first)).toMatch(/^wolff-monitor:import-[0-9a-f]{32}$/)
+  })
+})
+
+describe('wolff-chat POST', () => {
+  const post = (body: Row) => POST(new NextRequest('http://localhost/api/finance/wolff-chat', { method: 'POST', body: JSON.stringify(body) }))
+  it('starts a new conversation with a marker row and deletes nothing', async () => {
+    const res = await post({ action: 'reset' })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.message).toMatchObject({ role: 'wolff', status: 'reset', content: 'New conversation' })
+    expect(state.insert.mock.calls).toEqual([['finance_wolff_chat', { role: 'wolff', content: 'New conversation', status: 'reset' }]])
+    // The daemon's queue only reads role=user + status=pending, so a marker is never a question.
+    expect(body.message.role).not.toBe('user')
+    expect(body.message.status).not.toBe('pending')
+  })
+  it('rejects an unknown action without writing', async () => {
+    expect((await post({ action: 'wipe' })).status).toBe(400)
+    expect(state.insert).not.toHaveBeenCalled()
+  })
+  it('still queues a question as pending', async () => {
+    const body = await (await post({ content: '  Are we ok?  ' })).json()
+    expect(body.message).toMatchObject({ role: 'user', status: 'pending', content: 'Are we ok?' })
   })
 })
