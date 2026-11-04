@@ -214,11 +214,13 @@ export default function AskWolffClient() {
   const current = currentConversation(messages, nowDate)
   const currentIds = new Set(current.map(m => m.id))
   const visibleMessages = current.filter(m => !monitorIds.has(m.id))
-  const earlier = messages.filter(m => !currentIds.has(m.id) && !monitorIds.has(m.id))
+  // The marker that opened this conversation is drawn once, as the boundary
+  // divider below, so it never also shows up among the earlier items.
+  const earlier = messages.filter(m => !currentIds.has(m.id) && !monitorIds.has(m.id) && m.id !== start.marker?.id)
   const hasEarlier = earlier.some(m => !isResetMarker(m))
   const boundaryLabel = start.kind === 'marker'
     ? `New conversation · ${dividerDate(start.at)}`
-    : `Today · ${dividerDate(start.at)}`
+    : `New day · ${dividerDate(start.at)} · Mona starts fresh`
   const items: LogItem[] = [
     ...(showEarlier ? earlierItems(earlier) : []),
     ...(hasEarlier ? [{ kind: 'divider' as const, key: 'current', label: boundaryLabel }] : []),
@@ -274,7 +276,13 @@ export default function AskWolffClient() {
           <div className="py-8 text-center">
             <WolffAvatar className="mx-auto h-12 w-12" />
             <p className="mt-3 text-sm font-semibold text-fg">Make the next decision simple.</p>
-            <p className="mt-1 text-label text-fg-tertiary">Mona checks your live month, the WEST plan, the baby plan, goals and budgets.</p>
+            <p className="mt-1 text-label text-fg-tertiary">
+              {hasEarlier
+                ? start.kind === 'day'
+                  ? 'Fresh start for today: Mona no longer uses earlier chats. They stay under Show earlier.'
+                  : 'Fresh start: Mona no longer uses earlier chats. They stay under Show earlier.'
+                : 'Mona checks your live month, the WEST plan, the baby plan, goals and budgets.'}
+            </p>
           </div>
         ) : (
           items.map(item => {

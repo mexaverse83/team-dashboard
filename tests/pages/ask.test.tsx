@@ -124,6 +124,8 @@ describe('Ask Mona conversations', () => {
     expect(screen.getByText('Can we eat out?')).toBeInTheDocument()
     expect(screen.getByRole('separator', { name: 'Mon Oct 26' })).toBeInTheDocument()
     expect(screen.getByRole('separator', { name: 'Tue Oct 27' })).toBeInTheDocument()
+    // The opening marker is drawn once, not again among the earlier items.
+    expect(screen.getAllByRole('separator', { name: 'New conversation · Tue Oct 27' })).toHaveLength(1)
     // The marker itself is a divider, never a Mona bubble.
     expect(screen.queryByText('New conversation')).not.toBeInTheDocument()
 
@@ -136,7 +138,14 @@ describe('Ask Mona conversations', () => {
     render(<AskWolffClient />)
     expect(await screen.findByText('$6,742')).toBeInTheDocument()
     expect(screen.queryByText('Old October verdict')).not.toBeInTheDocument()
-    expect(screen.getByRole('separator', { name: 'Today · Tue Oct 27' })).toBeInTheDocument()
+    expect(screen.getByRole('separator', { name: 'New day · Tue Oct 27 · Mona starts fresh' })).toBeInTheDocument()
+  })
+
+  it('explains the daily fresh start when today is still empty', async () => {
+    serve(yesterday)
+    render(<AskWolffClient />)
+    expect(await screen.findByText(/Fresh start for today/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show earlier' })).toBeInTheDocument()
   })
 
   it('New chat posts a reset and starts an empty conversation', async () => {
@@ -152,8 +161,12 @@ describe('Ask Mona conversations', () => {
     const post = vi.mocked(fetch).mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
     expect(JSON.parse(String((post?.[1] as RequestInit).body))).toEqual({ action: 'reset' })
     expect(screen.getByText('Make the next decision simple.')).toBeInTheDocument()
+    expect(screen.getByText(/^Fresh start: Mona no longer uses earlier chats/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show earlier' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New chat' })).toBeDisabled()
+    // Show earlier right after a reset draws the new marker's divider once.
+    fireEvent.click(screen.getByRole('button', { name: 'Show earlier' }))
+    expect(screen.getAllByRole('separator', { name: /^New conversation/ })).toHaveLength(1)
     // Polling continues from the marker.
     await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
     expect(String(vi.mocked(fetch).mock.calls.at(-1)?.[0])).toBe(`/api/finance/wolff-chat?since=${encodeURIComponent(marker.created_at)}`)
