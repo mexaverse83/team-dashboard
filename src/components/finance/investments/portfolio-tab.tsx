@@ -32,11 +32,19 @@ interface Props {
 type AssetName = keyof typeof ASSET_COLOR
 
 export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, onOpenTab, onRetry }: Props) {
-  const { totals, positions, byOwner, pl, plPct, cryptoNoBasis } = portfolio
+  const { totals, positions, byOwner, pl, plPct, cryptoNoBasis, cryptoUnpriced } = portfolio
   const anyError = Object.keys(errors).length > 0
+  // A coin with no live price is left out of value, cost and P&L: say which.
+  // With none priced, crypto's value is unknown ("—"), never $0.
+  const cryptoNoPrices = positions.crypto > 0 && cryptoUnpriced.length >= positions.crypto
+  const cryptoNote = cryptoNoPrices ? 'no live prices right now' : cryptoUnpriced.length > 0 ? `excl. ${cryptoUnpriced.join(', ')} (no price)` : undefined
+  const excluded = [
+    cryptoNoBasis.length > 0 ? `${cryptoNoBasis.join(', ')}: no cost basis` : '',
+    cryptoNoPrices ? 'crypto: no live prices' : cryptoUnpriced.length > 0 ? `${cryptoUnpriced.join(', ')}: no live price` : '',
+  ].filter(Boolean).join('; ')
 
-  const classes: Array<{ name: AssetName; tab: InvestmentsTab; icon: typeof Bitcoin; value: number; source: InvestmentSource; count: number; noun: string; split?: { a: number; b: number }; locked?: boolean; note?: string }> = [
-    { name: 'Crypto', tab: 'Crypto', icon: Bitcoin, value: totals.crypto, source: 'crypto', count: positions.crypto, noun: 'coin', split: byOwner.crypto },
+  const classes: Array<{ name: AssetName; tab: InvestmentsTab; icon: typeof Bitcoin; value: number; source: InvestmentSource; count: number; noun: string; split?: { a: number; b: number }; locked?: boolean; note?: string; unknown?: boolean }> = [
+    { name: 'Crypto', tab: 'Crypto', icon: Bitcoin, value: totals.crypto, source: 'crypto', count: positions.crypto, noun: 'coin', split: byOwner.crypto, note: cryptoNote, unknown: cryptoNoPrices },
     { name: 'Stocks', tab: 'Stocks', icon: BarChart3, value: totals.stocks, source: 'stocks', count: positions.stocks, noun: 'position', split: byOwner.stocks, note: totals.privateEquity > 0 ? 'incl. private equity est.' : undefined },
     { name: 'Fixed Income', tab: 'Fixed Income', icon: Shield, value: totals.fixedIncome, source: 'fixedIncome', count: positions.fixedIncome, noun: 'fund', split: byOwner.fixedIncome },
     { name: 'Real Estate', tab: 'Real Estate', icon: Home, value: totals.realEstate, source: 'realEstate', count: positions.realEstate, noun: 'property', split: byOwner.realEstate },
@@ -61,7 +69,7 @@ export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, o
             label={ownerFilter === 'All' ? 'Invested assets' : `${ownerFilter}'s invested assets`}
             value={anyError ? <span title="Some holdings didn't load">{formatMoney(totals.total)}<span className="text-fg-tertiary">*</span></span> : formatMoney(totals.total)}
             delta={pl !== null ? `${formatDelta(pl)} (${formatPct(plPct ?? 0, { decimals: 1, sign: 'always' })})` : undefined}
-            hint={pl !== null ? `on crypto, stocks & fixed income cost${cryptoNoBasis.length > 0 ? ` (excl. ${cryptoNoBasis.join(', ')}: no cost basis)` : ''}` : undefined}
+            hint={pl !== null ? `on crypto, stocks & fixed income cost${excluded ? ` (excl. ${excluded})` : ''}` : excluded ? `excl. ${excluded}` : undefined}
             tone={pl === null ? 'neutral' : pl >= 0 ? 'positive' : 'negative'}
           />
           {latest && ownerFilter === 'All' && (
@@ -142,7 +150,7 @@ export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, o
                 type="button"
                 onClick={() => (failed && onRetry ? onRetry() : onOpenTab(c.tab))}
                 className={cn('min-w-0 text-left', i === classes.length - 1 && classes.length % 2 === 1 && 'col-span-2 sm:col-span-1')}
-                aria-label={failed && onRetry ? `${c.name} didn't load. Retry` : `${c.name}: ${failed ? 'not loaded' : formatMoney(c.value)}. Open ${c.name}`}
+                aria-label={failed && onRetry ? `${c.name} didn't load. Retry` : `${c.name}: ${failed ? 'not loaded' : c.unknown ? 'no live price' : formatMoney(c.value)}. Open ${c.name}`}
               >
                 <Card interactive className="h-full">
                   <div className="flex items-center gap-2">
@@ -152,14 +160,14 @@ export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, o
                     <span className="text-label font-medium text-fg-secondary">{c.name}</span>
                   </div>
                   <p className="mt-2 text-lg font-semibold sm:text-xl">
-                    {failed ? <span className="text-fg-tertiary">{EMPTY_VALUE}</span> : <MoneyText value={c.value} />}
+                    {failed || c.unknown ? <span className="text-fg-tertiary">{EMPTY_VALUE}</span> : <MoneyText value={c.value} />}
                   </p>
                   <p className="mt-0.5 text-label text-fg-tertiary">
                     {failed ? <span className="text-warning">{onRetry ? 'Didn’t load · tap to retry' : 'Didn’t load · open to retry'}</span>
                       : c.locked ? <span className="inline-flex items-center gap-1"><Landmark aria-hidden className="h-3 w-3 shrink-0" />{westEarmarked > 0 ? `AFORE locked to 65 · ${formatCompact(westEarmarked)} Infonavit for WEST` : 'Locked until 65'}</span>
                       : `${c.count} ${c.count === 1 ? c.noun : c.noun === 'property' ? 'properties' : `${c.noun}s`}${c.note ? ` · ${c.note}` : ''}`}
                   </p>
-                  {!failed && !c.locked && ownerFilter === 'All' && c.split && (c.split.a > 0 || c.split.b > 0) && (
+                  {!failed && !c.unknown && !c.locked && ownerFilter === 'All' && c.split && (c.split.a > 0 || c.split.b > 0) && (
                     <OwnerBar bernardo={c.split.a} laura={c.split.b} className="mt-2" />
                   )}
                 </Card>

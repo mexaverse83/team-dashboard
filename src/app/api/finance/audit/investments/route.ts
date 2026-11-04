@@ -8,6 +8,7 @@ import { ConfigError, configErrorResponse, getAdminClientInfo, withDegradedHeade
 import { propertyEquity, type PropertyLike, type WestPaidToDate } from '@/lib/property-equity'
 import { getWestProjection } from '@/lib/server/west'
 import { buildSummary } from '@/lib/server/summary'
+import { summarizeAuditCrypto, type AuditCryptoRow } from '@/lib/server/audit-crypto'
 import { formatMonthShort } from '@/lib/format'
 
 // Used only when the live WEST projection can't be computed (no active target
@@ -47,9 +48,12 @@ function runCryptoFlags(crypto: Record<string, unknown> | null, netWorth: number
   const totalMXN = Number(crypto.total_value_mxn || 0)
   const totalCost = Number(crypto.total_cost_mxn || 0)
   const pnlPct = Number(crypto.pnl_pct || 0)
+  // Coins with no live price are out of value and cost; shares over the rest would mislead.
+  const unpriced = (crypto.unpriced as string[] | undefined) ?? []
+  const excl = unpriced.length > 0 ? ` (excl. ${unpriced.join(', ')}: no live price)` : ''
 
   // Concentration risk
-  for (const h of holdings) {
+  for (const h of unpriced.length > 0 ? [] : holdings) {
     const pct = Number(h.allocation_pct || 0)
     if (pct > 70) {
       findings.push({
@@ -71,7 +75,7 @@ function runCryptoFlags(crypto: Record<string, unknown> | null, netWorth: number
       severity: 'red',
       category: 'crypto',
       title: `Crypto portfolio down ${Math.abs(pnlPct).toFixed(1)}% from cost basis`,
-      detail: `Unrealized loss of $${Math.abs(Number(crypto.pnl_mxn || 0)).toLocaleString()} MXN. Current value: $${totalMXN.toLocaleString()} MXN vs cost basis $${totalCost.toLocaleString()} MXN.`,
+      detail: `Unrealized loss of $${Math.abs(Number(crypto.pnl_mxn || 0)).toLocaleString()} MXN. Current value: $${totalMXN.toLocaleString()} MXN vs cost basis $${totalCost.toLocaleString()} MXN${excl}.`,
       suggestion: 'Review whether current allocation fits your risk tolerance. Consider DCA or holding strategy.',
       action_url: '/finance/investments?tab=Crypto',
     })
@@ -433,32 +437,11 @@ export async function GET(req: NextRequest) {
     let usdMxn = FALLBACK_USD_MXN
     if (cryptoRes.data && cryptoRes.data.length > 0) {
       const holdings = cryptoRes.data
-      const prices = await fetchCryptoPrices(holdings.map(h => h.symbol as string)) ?? {}
+      const prices = await fetchCryptoPrices(holdings.map(h => ({ symbol: h.symbol as string, coingecko_id: (h.coingecko_id as string | null | undefined) ?? null }))) ?? {}
       usdMxn = impliedUsdMxn(prices) ?? FALLBACK_USD_MXN
 
-      let totalMXN = 0; let totalCost = 0
-      const holdingsSummary = holdings.map(h => {
-        const price = prices[h.symbol as string]?.mxn || 0
-        const value = (h.quantity as number) * price
-        const cost = (h.avg_cost_basis_usd as number || 0) * (h.quantity as number)
-        totalMXN += value; totalCost += cost
-        return { symbol: h.symbol, qty: h.quantity, value, cost, allocation_pct: 0 }
-      })
-      holdingsSummary.forEach(h => { h.allocation_pct = totalMXN > 0 ? (h.value / totalMXN) * 100 : 0 })
-      const pnlPct = totalCost > 0 ? ((totalMXN - totalCost) / totalCost) * 100 : 0
-      const maxCoin = holdingsSummary.reduce((a, b) => a.allocation_pct > b.allocation_pct ? a : b, holdingsSummary[0])
-
-      cryptoSummary = {
-        total_value_mxn: totalMXN,
-        total_cost_mxn: totalCost,
-        pnl_mxn: totalMXN - totalCost,
-        pnl_pct: pnlPct.toFixed(1),
-        holdings: holdingsSummary,
-        risks: {
-          concentration: maxCoin && maxCoin.allocation_pct > 70 ? { symbol: maxCoin.symbol, pct: maxCoin.allocation_pct.toFixed(1) } : null,
-          large_loss: pnlPct < -25 ? { pnl_pct: pnlPct.toFixed(1) } : null,
-        },
-      }
+      // Unpriced coins stay out of value, cost and P&L (no false loss in an outage).
+      cryptoSummary = summarizeAuditCrypto(holdings as unknown as AuditCryptoRow[], prices, usdMxn)
     }
 
     // Net worth

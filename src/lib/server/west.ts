@@ -40,15 +40,34 @@ function must<T>(res: Res<T>): T {
 }
 
 /** Live crypto value; `known` is false when prices or holdings couldn't be read (never a silent $0). */
-async function cryptoTotal(holdingsP: PromiseLike<Res<Array<{ symbol: string; quantity: number }>>>): Promise<{ value: number; known: boolean }> {
+type CryptoRow = {
+  symbol: string; quantity: number; coingecko_id?: string | null
+  avg_cost_basis_usd?: number | null; cost_currency?: string | null
+}
+
+async function cryptoTotal(holdingsP: PromiseLike<Res<CryptoRow[]>>): Promise<{ value: number; known: boolean }> {
   try {
     const res = await holdingsP
     if (res.error) return { value: 0, known: false }
     const holdings = (res.data || []).filter(h => Number(h.quantity) > 0)
     if (holdings.length === 0) return { value: 0, known: true }
-    const prices = await fetchCryptoPrices(holdings.map(h => h.symbol))
+    const prices = await fetchCryptoPrices(holdings)
     if (!prices) return { value: 0, known: false }
-    return { value: holdings.reduce((s, h) => s + Number(h.quantity) * (prices[h.symbol]?.mxn || 0), 0), known: true }
+    // A coin missing from an otherwise good price answer is valued at cost
+    // (as the net-worth snapshot does); with no cost either the total is partial.
+    const ref = Object.values(prices).find(x => x.usd > 0 && x.mxn > 0)
+    const usdToMxn = ref ? ref.mxn / ref.usd : 17
+    let value = 0
+    let known = true
+    for (const h of holdings) {
+      const qty = Number(h.quantity)
+      const mxn = prices[h.symbol]?.mxn || 0
+      if (mxn > 0) { value += qty * mxn; continue }
+      const avg = Number(h.avg_cost_basis_usd) || 0
+      if (avg > 0) value += qty * ((h.cost_currency || 'MXN') === 'USD' ? avg * usdToMxn : avg)
+      else known = false
+    }
+    return { value, known }
   } catch {
     return { value: 0, known: false }
   }
@@ -66,8 +85,10 @@ export async function getWestProjection(
   const jan1 = `${currentMonth.slice(0, 4)}-01-01`
   const historyStart = jan1 < sixBack ? jan1 : sixBack
 
-  const holdingsP = supabase.from('finance_crypto_holdings').select('symbol, quantity')
-  const cryptoP = cryptoTotal(holdingsP as unknown as PromiseLike<Res<Array<{ symbol: string; quantity: number }>>>)
+  // '*' rather than naming coingecko_id: the column only exists once the
+  // any-coin migration has run, and a named missing column fails the read.
+  const holdingsP = supabase.from('finance_crypto_holdings').select('*')
+  const cryptoP = cryptoTotal(holdingsP as unknown as PromiseLike<Res<CryptoRow[]>>)
   const [targetsRes, debtsRes, gbmRes, installmentsRes, yearlyRes, westRows, historyRows, crypto] = await Promise.all([
     supabase.from('finance_real_estate_targets').select('*').eq('is_active', true).limit(1),
     supabase.from('finance_debts').select('id, balance'),

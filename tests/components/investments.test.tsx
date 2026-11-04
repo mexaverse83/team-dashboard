@@ -87,6 +87,21 @@ describe('investments portfolio math (F12)', () => {
     expect(p.byOwner.crypto.aCount).toBe(2)
   })
 
+  it('leaves an unpriced coin out of crypto cost and P&L instead of reading it as a total loss', () => {
+    const prices = { BTC: { usd: 100, mxn: 2000 } }
+    const crypto = [
+      { owner: 'Bernardo', symbol: 'BTC', quantity: 1, avg_cost_basis_usd: 1500, cost_currency: 'MXN' },
+      { owner: 'Laura', symbol: 'KAS', quantity: 18000, avg_cost_basis_usd: 1, cost_currency: 'MXN' },
+    ]
+    const p = computePortfolio({ stocks: [], fixedIncome: [], realEstate: [], retirement: [], crypto, prices, ownerFilter: 'All' })
+    expect(p.pl).toBeCloseTo(500, 6)
+    expect(p.cryptoCost).toBe(1500)
+    expect(p.cryptoUnpriced).toEqual(['KAS'])
+    const none = computePortfolio({ stocks: [], fixedIncome: [], realEstate: [], retirement: [], crypto, prices: null, ownerFilter: 'All' })
+    expect(none.pl).toBeNull()
+    expect(none.cryptoUnpriced).toEqual(['BTC', 'KAS'])
+  })
+
   it('counts only AFORE as locked retirement; Infonavit is earmarked for WEST', () => {
     const p = computePortfolio({ ...base, retirement: [
       { owner: 'bernardo', current_balance: 1000000, instrument_type: 'afore' },

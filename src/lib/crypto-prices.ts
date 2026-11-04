@@ -1,9 +1,15 @@
-// Live crypto prices for the supported holdings, keyed by symbol.
+// Live crypto prices, keyed by ticker.
 //
 // CoinGecko's keyless API started rejecting simple/price requests (403 from
 // its CDN) in Sep 2026, which zeroed every crypto figure. We still try it
 // first (with COINGECKO_API_KEY as a demo key when set), then fill anything
 // missing from Coinpaprika, which is keyless and quotes MXN directly.
+//
+// Any coin can be priced: callers pass holding rows, and a row's coingecko_id
+// (else the built-in map) says which coin its ticker is. Results stay keyed by
+// ticker for every existing consumer.
+
+import { BUILTIN_COINS, BUILTIN_SYMBOLS, builtinCoin, coinpaprikaIdFor, resolveCoinIds, type CoinRef } from '@/lib/crypto-coins'
 
 export interface CoinPrice {
   usd: number
@@ -13,25 +19,8 @@ export interface CoinPrice {
 
 export type CryptoPrices = Record<string, CoinPrice>
 
-export const COINGECKO_IDS: Record<string, string> = {
-  BTC: 'bitcoin',
-  ETH: 'ethereum',
-  SOL: 'solana',
-  KAS: 'kaspa',
-  LIT: 'lighter',
-  AERO: 'aerodrome-finance',
-  HYPE: 'hyperliquid',
-}
-
-const COINPAPRIKA_IDS: Record<string, string> = {
-  BTC: 'btc-bitcoin',
-  ETH: 'eth-ethereum',
-  SOL: 'sol-solana',
-  KAS: 'kas-kaspa',
-  LIT: 'lit-lighter',
-  AERO: 'aero-aerodrome-finance',
-  HYPE: 'hype-hyperliquid',
-}
+/** Built-in ticker → CoinGecko id (holdings may carry their own coingecko_id). */
+export const COINGECKO_IDS: Record<string, string> = Object.fromEntries(BUILTIN_COINS.map(c => [c.symbol, c.coingeckoId]))
 
 const TIMEOUT_MS = 5000
 
@@ -41,20 +30,20 @@ function cacheOptions(bust: boolean): RequestInit {
     : { next: { revalidate: 300 }, signal: AbortSignal.timeout(TIMEOUT_MS) } as RequestInit
 }
 
-async function fromCoinGecko(symbols: string[], bust: boolean): Promise<CryptoPrices> {
-  const ids = symbols.map(s => COINGECKO_IDS[s]).filter(Boolean)
-  if (ids.length === 0) return {}
+async function fromCoinGecko(ids: Record<string, string>, bust: boolean): Promise<CryptoPrices> {
+  const unique = [...new Set(Object.values(ids))]
+  if (unique.length === 0) return {}
   const headers: Record<string, string> = { accept: 'application/json' }
   if (process.env.COINGECKO_API_KEY) headers['x-cg-demo-api-key'] = process.env.COINGECKO_API_KEY
   const res = await fetch(
-    `https://api.coingecko.com/api/v3/simple/price?ids=${ids.join(',')}&vs_currencies=usd,mxn&include_24hr_change=true`,
+    `https://api.coingecko.com/api/v3/simple/price?ids=${unique.map(encodeURIComponent).join(',')}&vs_currencies=usd,mxn&include_24hr_change=true`,
     { ...cacheOptions(bust), headers },
   )
   if (!res.ok) return {}
   const data = await res.json()
   const prices: CryptoPrices = {}
-  for (const symbol of symbols) {
-    const coin = data[COINGECKO_IDS[symbol]]
+  for (const [symbol, id] of Object.entries(ids)) {
+    const coin = data?.[id]
     if (coin?.usd > 0 && coin?.mxn > 0) {
       prices[symbol] = { usd: coin.usd, mxn: coin.mxn, change24h: coin.usd_24h_change ?? 0 }
     }
@@ -62,43 +51,86 @@ async function fromCoinGecko(symbols: string[], bust: boolean): Promise<CryptoPr
   return prices
 }
 
-async function fromCoinpaprika(symbols: string[], bust: boolean): Promise<CryptoPrices> {
-  const entries = await Promise.all(symbols.map(async symbol => {
-    const id = COINPAPRIKA_IDS[symbol]
-    if (!id) return null
-    try {
-      const res = await fetch(`https://api.coinpaprika.com/v1/tickers/${id}?quotes=USD,MXN`, cacheOptions(bust))
-      if (!res.ok) return null
-      const data = await res.json()
-      const usd = data?.quotes?.USD
-      const mxn = data?.quotes?.MXN
-      if (!(usd?.price > 0) || !(mxn?.price > 0)) return null
-      return [symbol, { usd: usd.price, mxn: mxn.price, change24h: usd.percent_change_24h ?? 0 }] as const
-    } catch {
-      return null
-    }
+type PaprikaQuote = readonly [string, CoinPrice]
+
+async function paprikaTicker(id: string, symbol: string, checkTicker: boolean, bust: boolean): Promise<PaprikaQuote | null> {
+  try {
+    const res = await fetch(`https://api.coinpaprika.com/v1/tickers/${encodeURIComponent(id)}?quotes=USD,MXN`, cacheOptions(bust))
+    if (!res.ok) return null
+    const data = await res.json()
+    // A guessed id must answer with the same ticker, or it's another coin.
+    if (checkTicker && String(data?.symbol ?? '').toUpperCase() !== symbol) return null
+    const usd = data?.quotes?.USD
+    const mxn = data?.quotes?.MXN
+    if (!(usd?.price > 0) || !(mxn?.price > 0)) return null
+    return [symbol, { usd: usd.price, mxn: mxn.price, change24h: usd.percent_change_24h ?? 0 }] as const
+  } catch {
+    return null
+  }
+}
+
+/** Coinpaprika ids found by search, per CoinGecko id (they don't change). */
+const searchedIds = new Map<string, string | null>()
+
+/**
+ * Find a coin's Coinpaprika id by ticker when the guessed id misses. Only an
+ * unambiguous answer counts: exactly one active coin with that ticker, or one
+ * whose id ends in the CoinGecko slug. Two coins sharing a ticker → no price
+ * rather than the wrong one.
+ */
+async function searchPaprikaId(symbol: string, coingeckoId: string, bust: boolean): Promise<string | null> {
+  if (searchedIds.has(coingeckoId)) return searchedIds.get(coingeckoId) ?? null
+  try {
+    const res = await fetch(`https://api.coinpaprika.com/v1/search?q=${encodeURIComponent(symbol.toLowerCase())}&c=currencies&limit=20`, cacheOptions(bust))
+    if (!res.ok) return null
+    const data = await res.json()
+    const list: Array<{ id?: unknown; symbol?: unknown; is_active?: unknown }> = Array.isArray(data?.currencies) ? data.currencies : []
+    const same = list.filter(c => typeof c.id === 'string' && String(c.symbol ?? '').toUpperCase() === symbol && c.is_active !== false)
+    const bySlug = same.find(c => String(c.id).endsWith(`-${coingeckoId}`))
+    const id = bySlug ? String(bySlug.id) : same.length === 1 ? String(same[0].id) : null
+    searchedIds.set(coingeckoId, id)
+    return id
+  } catch {
+    return null
+  }
+}
+
+async function fromCoinpaprika(ids: Record<string, string>, bust: boolean): Promise<CryptoPrices> {
+  const entries = await Promise.all(Object.entries(ids).map(async ([symbol, coingeckoId]) => {
+    const id = coinpaprikaIdFor(symbol, coingeckoId)
+    const builtin = builtinCoin(symbol)?.coinpaprikaId === id
+    const quote = await paprikaTicker(id, symbol, !builtin, bust)
+    if (quote || builtin) return quote
+    const found = await searchPaprikaId(symbol, coingeckoId, bust)
+    return found && found !== id ? paprikaTicker(found, symbol, true, bust) : null
   }))
-  return Object.fromEntries(entries.filter((e): e is NonNullable<typeof e> => e !== null))
+  return Object.fromEntries(entries.filter((e): e is PaprikaQuote => e !== null))
+}
+
+/** Test hook: forget Coinpaprika ids found by search. */
+export function clearPaprikaSearchCache() {
+  searchedIds.clear()
 }
 
 /**
- * Prices for `symbols` (defaults to every supported coin). Returns null only
- * when no source produced any price, so callers can tell "unavailable" apart
- * from "some coins missing".
+ * Prices keyed by ticker for `coins`: bare tickers (built-in coins) or holding
+ * rows carrying `coingecko_id`. Defaults to every built-in coin. Returns null
+ * only when no source produced any price, so callers can tell "unavailable"
+ * apart from "some coins missing".
  */
 export async function fetchCryptoPrices(
-  symbols: string[] = Object.keys(COINGECKO_IDS),
+  coins: readonly CoinRef[] = BUILTIN_SYMBOLS,
   { bust = false }: { bust?: boolean } = {},
 ): Promise<CryptoPrices | null> {
-  const wanted = [...new Set(symbols)].filter(s => COINGECKO_IDS[s])
+  const ids = resolveCoinIds(coins)
   let prices: CryptoPrices = {}
   try {
-    prices = await fromCoinGecko(wanted, bust)
+    prices = await fromCoinGecko(ids, bust)
   } catch (e) {
     console.error('CoinGecko fetch error:', e)
   }
-  const missing = wanted.filter(s => !prices[s])
-  if (missing.length > 0) {
+  const missing = Object.fromEntries(Object.entries(ids).filter(([s]) => !prices[s]))
+  if (Object.keys(missing).length > 0) {
     prices = { ...prices, ...await fromCoinpaprika(missing, bust) }
   }
   return Object.keys(prices).length > 0 ? prices : null

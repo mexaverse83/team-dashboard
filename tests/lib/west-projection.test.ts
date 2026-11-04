@@ -170,6 +170,20 @@ describe('getWestProjection', () => {
     expect(data.behavioral.ytd_months).toBe(6)
   })
 
+  it('values the unpriced coin at cost, and marks the total unknown when it has no cost', async () => {
+    const t = tables()
+    t.finance_crypto_holdings = [
+      { symbol: 'BTC', quantity: 0.25 },
+      { symbol: 'KAS', quantity: 1000, avg_cost_basis_usd: 2, cost_currency: 'MXN' },
+    ] as never
+    const data = await getWestProjection(fakeSupabase(t), { now: new Date('2026-10-28T18:00:00Z') })
+    expect(data.current_status).toMatchObject({ crypto_value: 450_000 + 2000, crypto_value_known: true })
+
+    t.finance_crypto_holdings = [{ symbol: 'BTC', quantity: 0.25 }, { symbol: 'KAS', quantity: 1000 }] as never
+    const partial = await getWestProjection(fakeSupabase(t), { now: new Date('2026-10-28T18:00:00Z') })
+    expect(partial.current_status).toMatchObject({ crypto_value: 450_000, crypto_value_known: false })
+  })
+
   it('reports the live position (paid + GBM + crypto + Infonavit) and staleness', async () => {
     const data = await getWestProjection(fakeSupabase(tables()), { now: new Date('2026-10-28T18:00:00Z') })
     expect(data.current_status).toMatchObject({ amount_paid: 2_610_000, investment_value: 5_950_000, crypto_value: 450_000, crypto_value_known: true })
