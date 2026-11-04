@@ -87,6 +87,7 @@ CRON_SECRET=                   # custom cron auth
 OPENAI_API_KEY=                # /api/finance/insights (preferred provider; OPENAI_MODEL overrides gpt-4o default)
 ANTHROPIC_API_KEY=             # /api/finance/insights fallback when OPENAI_API_KEY is unset
 VAPID_PRIVATE_KEY=             # web push sender (scripts/send-push.mjs); the public key is in src/lib/push-config.ts
+COINGECKO_API_KEY=             # optional CoinGecko demo key (prices + coin search); keyless CoinGecko 403s from Vercel, so both fall back to Coinpaprika
 WIDGET_READ_TOKENS=            # comma list of read-only widget tokens, slot 0 = Bernardo, 1 = Laura (Family › Phone widget downloads the per-phone loader); unset falls back to FINANCE_API_KEY
 ```
 

@@ -262,4 +262,50 @@ describe('crypto tab: household view per coin', () => {
     fireEvent.click(await within(dialog).findByRole('button', { name: /Litentry/ }, { timeout: 2000 }))
     expect(within(dialog).queryByText(/now/)).not.toBeInTheDocument()
   })
+
+  it('a buy on a balance entered without a cost asks what that balance cost first (no zero-cost lot)', async () => {
+    const unbased = holdings.map(h => h.id === 'kas-l' ? { ...h, quantity: 1000 } : h)
+    const posts: Array<{ url: string; body: Record<string, unknown> }> = []
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (options?.method === 'POST') {
+        posts.push({ url, body: JSON.parse(String(options.body)) })
+        return { ok: true, status: 201, json: async () => ({ id: 'tx' }), text: async () => '{"id":"tx"}' }
+      }
+      const body = url.includes('/transactions') ? { transactions } : { holdings: unbased, prices }
+      return { ok: true, json: async (): Promise<unknown> => body, text: async (): Promise<string> => JSON.stringify(body) }
+    })
+    render(<CryptoClient />)
+    fireEvent.click(await screen.findByRole('button', { name: /Add coin/ }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(await within(dialog).findByRole('button', { name: /Kaspa/ }))
+    fireEvent.click(within(dialog).getByRole('radio', { name: /Laura/ }))
+    fireEvent.change(within(dialog).getByLabelText('Quantity *'), { target: { value: '500' } })
+    fireEvent.change(within(dialog).getByLabelText('Price per coin *'), { target: { value: '2' } })
+    const save = within(dialog).getByRole('button', { name: 'Add & log buy' })
+    expect(save).toBeDisabled()
+    fireEvent.change(within(dialog).getByLabelText(/already held cost per coin/), { target: { value: '1.5' } })
+    expect(save).not.toBeDisabled()
+    fireEvent.click(save)
+    await waitFor(() => expect(posts).toHaveLength(1))
+    expect(posts[0].url).toBe('/api/finance/crypto/transactions')
+    expect(posts[0].body).toMatchObject({ holding_id: 'kas-l', type: 'buy', quantity: 500, price_per_coin_mxn: 2, opening_cost_per_coin_mxn: 1.5 })
+  })
+
+  it('shows the server’s reason when a logged transaction is refused', async () => {
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (options?.method === 'POST') {
+        const body = { error: 'Enter what the 1000 KAS already held cost per coin before logging a buy', code: 'opening_cost_required' }
+        return { ok: false, status: 409, json: async () => body, text: async () => JSON.stringify(body) }
+      }
+      const body = url.includes('/transactions') ? { transactions } : { holdings, prices }
+      return { ok: true, json: async (): Promise<unknown> => body, text: async (): Promise<string> => JSON.stringify(body) }
+    })
+    render(<CryptoClient />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Log transaction' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Quantity *'), { target: { value: '0.01' } })
+    fireEvent.change(within(dialog).getByLabelText('Price per coin *'), { target: { value: '2000000' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Log buy' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('already held cost per coin')
+  })
 })

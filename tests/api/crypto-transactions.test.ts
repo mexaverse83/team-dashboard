@@ -110,3 +110,64 @@ describe('crypto transactions keep balances entered before any transaction', () 
     expect(r.totalCost).toBe(400)
   })
 })
+
+describe('a balance entered without a cost never becomes a zero-cost lot', () => {
+  beforeEach(() => {
+    db.seq = 0
+    db.txs.splice(0)
+    db.holdings.splice(0, db.holdings.length, { id: 'kas', symbol: 'KAS', quantity: 1000, avg_cost_basis_usd: null, created_at: '2026-11-01T18:00:00Z' })
+  })
+
+  it('refuses a buy until the held balance has a cost, and changes nothing', async () => {
+    const res = await POST(req('POST', { holding_id: 'kas', type: 'buy', quantity: 500, price_per_coin_mxn: 2 }))
+    expect(res.status).toBe(409)
+    const body = await res.json()
+    expect(body).toMatchObject({ code: 'opening_cost_required', quantity: 1000 })
+    expect(body.error).toMatch(/1000 KAS/)
+    expect(db.txs).toHaveLength(0)
+    expect(holding()).toMatchObject({ quantity: 1000, avg_cost_basis_usd: null })
+  })
+
+  it('prices the held balance with the cost given, so P/L has no phantom gain', async () => {
+    const res = await POST(req('POST', { holding_id: 'kas', type: 'buy', quantity: 500, price_per_coin_mxn: 2, opening_cost_per_coin_mxn: 1.5 }))
+    expect(res.status).toBe(201)
+    expect(holding().quantity).toBe(1500)
+    // 1000 × 1.5 + 500 × 2 = 2,500 over 1,500 coins, not 1,000 / 1,500 = 0.667
+    expect(holding().avg_cost_basis_usd).toBeCloseTo(2500 / 1500, 9)
+    expect(db.txs.find(t => String(t.notes).startsWith('Opening balance'))).toMatchObject({ quantity: 1000, total_mxn: 1500 })
+  })
+
+  it('rejects a non-positive opening cost', async () => {
+    const res = await POST(req('POST', { holding_id: 'kas', type: 'buy', quantity: 500, price_per_coin_mxn: 2, opening_cost_per_coin_mxn: 0 }))
+    expect(res.status).toBe(400)
+    expect(db.txs).toHaveLength(0)
+  })
+
+  it('lets a sell go through and keeps the coin without a cost basis', async () => {
+    const res = await POST(req('POST', { holding_id: 'kas', type: 'sell', quantity: 200, price_per_coin_mxn: 2 }))
+    expect(res.status).toBe(201)
+    expect(holding().quantity).toBe(800)
+    expect(holding().avg_cost_basis_usd).toBe(0)
+  })
+
+  it('a later buy still asks for the cost, then prices the zero-cost opening lot a sell recorded', async () => {
+    await POST(req('POST', { holding_id: 'kas', type: 'sell', quantity: 200, price_per_coin_mxn: 2 }))
+    const refused = await POST(req('POST', { holding_id: 'kas', type: 'buy', quantity: 500, price_per_coin_mxn: 2 }))
+    expect(refused.status).toBe(409)
+    expect(holding().quantity).toBe(800)
+
+    const res = await POST(req('POST', { holding_id: 'kas', type: 'buy', quantity: 500, price_per_coin_mxn: 2, opening_cost_per_coin_mxn: 1 }))
+    expect(res.status).toBe(201)
+    expect(db.txs.filter(t => String(t.notes).startsWith('Opening balance'))).toHaveLength(1)
+    // 1000 @ 1, sell 200 → 800 @ 1 = 800; + 500 @ 2 = 1,000 → 1,800 over 1,300
+    expect(holding().quantity).toBe(1300)
+    expect(holding().avg_cost_basis_usd).toBeCloseTo(1800 / 1300, 9)
+  })
+
+  it('ignores an opening cost on a holding that already has a basis', async () => {
+    db.holdings[0].avg_cost_basis_usd = 3
+    const res = await POST(req('POST', { holding_id: 'kas', type: 'buy', quantity: 500, price_per_coin_mxn: 2, opening_cost_per_coin_mxn: 99 }))
+    expect(res.status).toBe(201)
+    expect(holding().avg_cost_basis_usd).toBeCloseTo((3000 + 1000) / 1500, 9)
+  })
+})

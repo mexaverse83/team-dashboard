@@ -10,7 +10,8 @@ vi.mock('@/lib/finance-api-auth', () => ({
 }))
 
 import { GET } from '@/app/api/finance/crypto/search/route'
-import { clearCoinSearchCache, searchCoins } from '@/lib/crypto-search'
+import { clearCoinSearchCache, paprikaToCoingeckoId, searchCoins } from '@/lib/crypto-search'
+import { coinpaprikaIdFor } from '@/lib/crypto-coins'
 
 const json = (body: unknown, ok = true, status = 200) => ({ ok, status, json: async () => body }) as Response
 const get = (q?: string) => new NextRequest(`http://localhost/api/finance/crypto/search${q === undefined ? '' : `?q=${encodeURIComponent(q)}`}`)
@@ -31,6 +32,7 @@ beforeEach(() => {
   auth.ok = true
   clearCoinSearchCache()
   vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.spyOn(console, 'warn').mockImplementation(() => {})
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks() })
 
@@ -100,5 +102,44 @@ describe('GET /api/finance/crypto/search', () => {
     vi.stubGlobal('fetch', fetchMock)
     expect((await GET(get('btc'))).status).toBe(401)
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('falls back to Coinpaprika when keyless CoinGecko is blocked (403), with ids that price back to the same coin', async () => {
+    const PAPRIKA = {
+      currencies: [
+        { id: 'doge-dogecoin', name: 'Dogecoin', symbol: 'DOGE', rank: 8, is_active: true, type: 'coin' },
+        { id: 'xrp-xrp', name: 'XRP', symbol: 'XRP', rank: 4, is_active: true, type: 'coin' },
+        { id: 'kas-kaspa', name: 'Kaspa', symbol: 'KAS', rank: 40, is_active: true, type: 'coin' },
+        { id: 'old-oldcoin', name: 'Old', symbol: 'OLD', rank: 0, is_active: false, type: 'coin' },
+        { id: 'weird', name: 'Weird id', symbol: 'WRD', rank: 0, is_active: true },
+      ],
+    }
+    const fetchMock = vi.fn(async (url: string) => url.startsWith('https://api.coingecko.com') ? json({ status: { error_code: 403 } }, false, 403) : json(PAPRIKA))
+    vi.stubGlobal('fetch', fetchMock)
+    const res = await GET(get('doge'))
+    expect(res.status).toBe(200)
+    const { coins } = await res.json()
+    expect(coins).toEqual([
+      { id: 'ripple', symbol: 'XRP', name: 'XRP', thumb: null, market_cap_rank: 4 },
+      { id: 'dogecoin', symbol: 'DOGE', name: 'Dogecoin', thumb: null, market_cap_rank: 8 },
+      { id: 'kaspa', symbol: 'KAS', name: 'Kaspa', thumb: null, market_cap_rank: 40 },
+    ])
+    expect(fetchMock.mock.calls[1][0]).toBe('https://api.coinpaprika.com/v1/search?q=doge&c=currencies&limit=25')
+    // The stored id maps back to the Coinpaprika coin the price fallback reads.
+    for (const c of coins) expect(coinpaprikaIdFor(c.symbol, c.id)).toBe(PAPRIKA.currencies.find(p => p.symbol === c.symbol)!.id)
+  })
+
+  it('reports the CoinGecko error when the Coinpaprika fallback fails too', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => url.startsWith('https://api.coingecko.com') ? json({}, false, 403) : json({}, false, 402)))
+    const res = await GET(get('doge'))
+    expect(res.status).toBe(502)
+    expect((await res.json()).error).toMatch(/403/)
+  })
+
+  it('maps Coinpaprika ids to CoinGecko-style ids', () => {
+    expect(paprikaToCoingeckoId('aero-aerodrome-finance', 'AERO')).toBe('aerodrome-finance')
+    expect(paprikaToCoingeckoId('bnb-binance-coin', 'BNB')).toBe('binancecoin')
+    expect(paprikaToCoingeckoId('pepe-pepe', 'PEPE')).toBe('pepe')
+    expect(paprikaToCoingeckoId('usdt-tether', 'USDC')).toBeNull()
   })
 })

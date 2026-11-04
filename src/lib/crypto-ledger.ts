@@ -21,3 +21,16 @@ export function replayHolding(txs: HoldingTx[]) {
   }
   return { qty, totalCost }
 }
+
+/**
+ * A holding whose coins have no recorded cost (a balance entered without one,
+ * or an opening lot recorded at 0). Logging a buy against it would blend those
+ * coins in at 0 MXN and show a gain that doesn't exist, so the buy needs the
+ * cost of the coins already held first.
+ */
+export function needsOpeningCost(h: { quantity: number | string | null; avg_cost_basis_usd?: number | string | null } | null | undefined): boolean {
+  if (!h) return false
+  return (Number(h.quantity) || 0) > 1e-9 && !((Number(h.avg_cost_basis_usd) || 0) > 0)
+}
+
+export const OPENING_COST_REQUIRED = 'opening_cost_required'

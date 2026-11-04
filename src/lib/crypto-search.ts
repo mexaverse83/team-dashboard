@@ -2,7 +2,13 @@
 // keyless /search. No secrets leave the server (the optional demo key is sent
 // as a header only), answers are trimmed to what the picker shows, and a
 // short in-memory cache keeps typing from hammering the API.
-import { COINGECKO_ID_PATTERN, SYMBOL_PATTERN } from '@/lib/crypto-coins'
+//
+// Keyless CoinGecko has answered 403 from production before (see
+// crypto-prices.ts), so when it fails the search falls back to Coinpaprika.
+// Its ids are `<ticker>-<slug>`; the slug becomes the stored coingecko_id, so
+// coinpaprikaIdFor() maps it straight back to the same Coinpaprika coin for
+// pricing.
+import { BUILTIN_COINS, COINGECKO_ID_PATTERN, COINPAPRIKA_OVERRIDES, SYMBOL_PATTERN } from '@/lib/crypto-coins'
 
 export interface CoinSearchResult {
   id: string
@@ -48,12 +54,35 @@ function rank(results: CoinSearchResult[]): CoinSearchResult[] {
     .map(x => x.r)
 }
 
-export async function searchCoins(rawQuery: string, { now = Date.now() }: { now?: number } = {}): Promise<CoinSearchResult[]> {
-  const q = normalizeQuery(rawQuery)
-  if (!q) return []
-  const hit = cache.get(q)
-  if (hit && now - hit.at < TTL_MS) return hit.results
+/** Coinpaprika id → the CoinGecko-style id that coinpaprikaIdFor() turns back into it. */
+const PAPRIKA_TO_GECKO = new Map<string, string>([
+  ...BUILTIN_COINS.map(c => [c.coinpaprikaId, c.coingeckoId] as [string, string]),
+  ...Object.entries(COINPAPRIKA_OVERRIDES).map(([gecko, paprika]) => [paprika, gecko] as [string, string]),
+])
 
+export function paprikaToCoingeckoId(paprikaId: string, symbol: string): string | null {
+  const known = PAPRIKA_TO_GECKO.get(paprikaId)
+  if (known) return known
+  const prefix = `${symbol.toLowerCase()}-`
+  if (!paprikaId.startsWith(prefix)) return null
+  const slug = paprikaId.slice(prefix.length)
+  return COINGECKO_ID_PATTERN.test(slug) ? slug : null
+}
+
+function fromPaprika(raw: unknown): CoinSearchResult | null {
+  if (!raw || typeof raw !== 'object') return null
+  const c = raw as Record<string, unknown>
+  if (typeof c.id !== 'string' || typeof c.symbol !== 'string' || typeof c.name !== 'string') return null
+  if (c.is_active === false) return null
+  const symbol = c.symbol.trim().toUpperCase()
+  if (!SYMBOL_PATTERN.test(symbol)) return null
+  const id = paprikaToCoingeckoId(c.id, symbol)
+  if (!id) return null
+  const rank = typeof c.rank === 'number' && c.rank > 0 ? c.rank : null
+  return { id, symbol, name: c.name, thumb: null, market_cap_rank: rank }
+}
+
+async function searchCoinGecko(q: string): Promise<CoinSearchResult[]> {
   const headers: Record<string, string> = { accept: 'application/json' }
   if (process.env.COINGECKO_API_KEY) headers['x-cg-demo-api-key'] = process.env.COINGECKO_API_KEY
   let res: Response
@@ -66,8 +95,43 @@ export async function searchCoins(rawQuery: string, { now = Date.now() }: { now?
   }
   if (!res.ok) throw new CoinSearchError(`Coin search failed (${res.status})`)
   const data = await res.json().catch(() => null)
-  const coins = Array.isArray(data?.coins) ? data.coins : []
-  const results = rank(coins.map(toResult).filter((r: CoinSearchResult | null): r is CoinSearchResult => r !== null)).slice(0, MAX_RESULTS)
+  if (!Array.isArray(data?.coins)) throw new CoinSearchError('Coin search failed (bad response)')
+  return data.coins.map(toResult).filter((r: CoinSearchResult | null): r is CoinSearchResult => r !== null)
+}
+
+async function searchCoinpaprika(q: string): Promise<CoinSearchResult[]> {
+  let res: Response
+  try {
+    res = await fetch(`https://api.coinpaprika.com/v1/search?q=${encodeURIComponent(q)}&c=currencies&limit=25`, {
+      headers: { accept: 'application/json' }, cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+  } catch {
+    throw new CoinSearchError('Coin search timed out')
+  }
+  if (!res.ok) throw new CoinSearchError(`Coin search failed (${res.status})`)
+  const data = await res.json().catch(() => null)
+  const list = Array.isArray(data?.currencies) ? data.currencies : []
+  return list.map(fromPaprika).filter((r: CoinSearchResult | null): r is CoinSearchResult => r !== null)
+}
+
+export async function searchCoins(rawQuery: string, { now = Date.now() }: { now?: number } = {}): Promise<CoinSearchResult[]> {
+  const q = normalizeQuery(rawQuery)
+  if (!q) return []
+  const hit = cache.get(q)
+  if (hit && now - hit.at < TTL_MS) return hit.results
+
+  let found: CoinSearchResult[]
+  try {
+    found = await searchCoinGecko(q)
+  } catch (geckoError) {
+    console.warn('CoinGecko search failed, trying Coinpaprika:', geckoError instanceof Error ? geckoError.message : geckoError)
+    try {
+      found = await searchCoinpaprika(q)
+    } catch {
+      throw geckoError
+    }
+  }
+  const results = rank(found).slice(0, MAX_RESULTS)
 
   if (cache.size >= MAX_CACHE) cache.delete(cache.keys().next().value as string)
   cache.set(q, { at: now, results })

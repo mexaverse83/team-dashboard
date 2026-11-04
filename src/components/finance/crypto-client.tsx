@@ -20,6 +20,7 @@ import { AddCoinModal } from '@/components/finance/crypto/add-coin-modal'
 import { RemoveCoinModal, type RemoveTarget } from '@/components/finance/crypto/remove-coin-modal'
 import { aggregateCoins, holdersOf, type CoinRow } from '@/lib/crypto-portfolio'
 import { BUILTIN_SYMBOLS, holdingCoinId } from '@/lib/crypto-coins'
+import { needsOpeningCost } from '@/lib/crypto-ledger'
 import { OWNERS, ownersEqual } from '@/lib/owners'
 import { localDateKey } from '@/lib/dates'
 import { formatCoinPrice, formatDateShort, formatDelta, formatMoney, formatPct } from '@/lib/format'
@@ -77,6 +78,8 @@ interface TxFormData {
   exchange: string
   notes: string
   transaction_date: string
+  /** MXN per coin for a balance that has no cost yet (buys only). */
+  opening_cost: string
 }
 
 const SHOW_EMPTY_KEY = 'mona:crypto-show-empty'
@@ -86,7 +89,7 @@ const SHOW_EMPTY_KEY = 'mona:crypto-show-empty'
 function emptyTxForm(): TxFormData {
   return {
     holding_id: '', type: 'buy', symbol: 'BTC', owner: OWNERS[0],
-    quantity: '', price_per_coin_mxn: '', price_currency: 'MXN', exchange: '', notes: '', transaction_date: localDateKey(),
+    quantity: '', price_per_coin_mxn: '', price_currency: 'MXN', exchange: '', notes: '', transaction_date: localDateKey(), opening_cost: '',
   }
 }
 
@@ -287,6 +290,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
 
   const handleSaveTx = async () => {
     if (!txForm || !txForm.quantity || !txForm.price_per_coin_mxn) return
+    if (txNeedsOpeningCost && !(parseFloat(txForm.opening_cost) > 0)) return
     setSaving(true); setActionError(null)
     try {
       let holdingId = txForm.holding_id
@@ -324,9 +328,13 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
           exchange: txForm.exchange || null,
           notes: txForm.notes || null,
           transaction_date: txForm.transaction_date || localDateKey(),
+          ...(txNeedsOpeningCost ? { opening_cost_per_coin_mxn: parseFloat(txForm.opening_cost) } : {}),
         }),
       })
-      if (!res.ok) throw new Error('Save failed')
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error || 'Save failed')
+      }
       setTxForm(null)
       await fetchData()
     } catch (e) {
@@ -349,6 +357,12 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
     setActionError(null)
     setTxForm({ ...emptyTxForm(), symbol: symbol || 'BTC', owner: owner || OWNERS[0], holding_id: holdingId || '' })
   }
+
+  // The holding this transaction lands on; a balance with no cost needs one before a buy.
+  const txHolding = txForm
+    ? (txForm.holding_id ? holdings.find(h => h.id === txForm.holding_id) : holdings.find(h => h.symbol === txForm.symbol && ownersEqual(h.owner, txForm.owner)))
+    : undefined
+  const txNeedsOpeningCost = txForm?.type === 'buy' && needsOpeningCost(txHolding)
 
   const txPriceRaw = txForm?.price_per_coin_mxn ? parseFloat(txForm.price_per_coin_mxn) : 0
   const txPriceMXN = txForm?.price_currency === 'USD' ? txPriceRaw * usdToMxn : txPriceRaw
@@ -638,7 +652,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
       <Modal open={txForm !== null} onClose={() => setTxForm(null)} title="Log transaction"
         footer={(
           <Button className="w-full" variant={txForm?.type === 'sell' ? 'danger' : 'primary'} onClick={handleSaveTx}
-            disabled={saving || !txForm?.quantity || !txForm?.price_per_coin_mxn}>
+            disabled={saving || !txForm?.quantity || !txForm?.price_per_coin_mxn || (txNeedsOpeningCost && !(parseFloat(txForm?.opening_cost ?? '') > 0))}>
             {saving ? 'Saving…' : txForm?.type === 'sell' ? 'Log sell' : 'Log buy'}
           </Button>
         )}>
@@ -676,6 +690,16 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
                 </p>
               )}
             </div>
+            {txNeedsOpeningCost && txHolding && (
+              <div>
+                <label htmlFor="crypto-opening-cost" className="mb-1 block text-label font-medium text-fg-secondary">
+                  What did the {qty(txHolding.quantity)} {txHolding.symbol} already held cost per coin (MXN)? *
+                </label>
+                <input id="crypto-opening-cost" type="number" inputMode="decimal" step="any" min="0" value={txForm.opening_cost}
+                  onChange={e => setTxForm({ ...txForm, opening_cost: e.target.value })} className={cn(inputClass, 'tabular-nums font-mono')} />
+                <p className="mt-1 text-label text-fg-tertiary">That balance has no cost yet; without it the P/L would count those coins as free.</p>
+              </div>
+            )}
             <div className="rounded-xl bg-surface-2 p-3">
               <p className="text-label text-fg-secondary">Total (MXN)</p>
               <p className="tabular-nums text-lg font-semibold" data-money="">{txTotal ? formatMoney(txTotal) : '—'}</p>

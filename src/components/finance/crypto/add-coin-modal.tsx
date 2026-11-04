@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/segmented'
 import { OwnerAvatar } from '@/components/ui/owner-avatar'
 import { BUILTIN_COINS, builtinCoin, holdingCoinId } from '@/lib/crypto-coins'
+import { needsOpeningCost } from '@/lib/crypto-ledger'
 import type { CoinSearchResult } from '@/lib/crypto-search'
 import { localDateKey } from '@/lib/dates'
 import { formatCoinPrice, formatMoney } from '@/lib/format'
@@ -20,6 +21,8 @@ export interface AddCoinHolding {
   name: string
   owner: string
   quantity: number
+  /** Average cost per coin (MXN); none means the balance has no cost basis. */
+  avg_cost_basis_usd?: number | null
   coingecko_id?: string | null
 }
 
@@ -58,6 +61,7 @@ function AddCoinBody({ onClose, holdings, prices, usdToMxn, defaultOwner, onDone
   const [currency, setCurrency] = useState<'MXN' | 'USD'>('MXN')
   const [date, setDate] = useState(() => localDateKey())
   const [avgCost, setAvgCost] = useState('')
+  const [openingCost, setOpeningCost] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -106,6 +110,8 @@ function AddCoinBody({ onClose, holdings, prices, usdToMxn, defaultOwner, onDone
   const clash = picked ? sameTicker.find(h => (holdingCoinId(h) ?? picked.id) !== picked.id) : undefined
   const existing = picked ? sameTicker.find(h => ownersEqual(h.owner, owner) && !clash) : undefined
   const effectiveMode: Mode = existing ? 'buy' : mode
+  // A balance entered without a cost: a priced buy would blend it in at 0.
+  const existingUnbased = needsOpeningCost(existing)
   // Prices are keyed by ticker: a held coin's own id, else the built-in one.
   // Only show "now" when that is the coin picked (not Lighter for Litentry).
   const pricedId = picked ? (sameTicker.map(h => holdingCoinId(h)).find(Boolean) ?? builtinCoin(picked.symbol)?.coingeckoId) : undefined
@@ -114,7 +120,9 @@ function AddCoinBody({ onClose, holdings, prices, usdToMxn, defaultOwner, onDone
   const qtyNum = parseFloat(qty)
   const priceNum = parseFloat(price)
   const priceMXN = currency === 'USD' ? priceNum * usdToMxn : priceNum
+  const openingCostNum = parseFloat(openingCost)
   const canSave = !!picked && !clash && qtyNum > 0 && (effectiveMode === 'balance' || priceNum > 0)
+    && (!existingUnbased || openingCostNum > 0)
 
   const save = async () => {
     if (!picked || !canSave) return
@@ -151,6 +159,7 @@ function AddCoinBody({ onClose, holdings, prices, usdToMxn, defaultOwner, onDone
           body: JSON.stringify({
             holding_id: holdingId, type: 'buy', quantity: qtyNum, price_per_coin_mxn: priceMXN,
             transaction_date: date || localDateKey(),
+            ...(existingUnbased ? { opening_cost_per_coin_mxn: openingCostNum } : {}),
           }),
         })
         if (!res.ok) {
@@ -227,7 +236,19 @@ function AddCoinBody({ onClose, holdings, prices, usdToMxn, defaultOwner, onDone
           </div>
 
           {existing ? (
-            <p className="text-label text-fg-secondary">{owner} already holds {formatQty(existing.quantity)} {picked.symbol}; this logs another buy.</p>
+            <>
+              <p className="text-label text-fg-secondary">{owner} already holds {formatQty(existing.quantity)} {picked.symbol}; this logs another buy.</p>
+              {existingUnbased && (
+                <div>
+                  <label htmlFor="add-coin-opening-cost" className="mb-1 block text-label font-medium text-fg-secondary">
+                    What did the {formatQty(existing.quantity)} {picked.symbol} already held cost per coin (MXN)? *
+                  </label>
+                  <input id="add-coin-opening-cost" type="number" inputMode="decimal" step="any" min="0" value={openingCost}
+                    onChange={e => setOpeningCost(e.target.value)} className={cn(inputClass, 'tabular-nums font-mono')} />
+                  <p className="mt-1 text-label text-fg-tertiary">That balance has no cost yet; without it the P/L would count those coins as free.</p>
+                </div>
+              )}
+            </>
           ) : (
             <Segmented ariaLabel="How to add it" fullWidth value={mode} onChange={setMode}
               options={[{ value: 'buy', label: 'Log a first buy' }, { value: 'balance', label: 'Enter a balance' }]} />

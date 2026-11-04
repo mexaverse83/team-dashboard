@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { configErrorResponse, getAdminClient } from '@/lib/supabase-admin'
 import { mexicoCityToday } from '@/lib/dates'
-import { replayHolding } from '@/lib/crypto-ledger'
+import { OPENING_COST_REQUIRED, replayHolding } from '@/lib/crypto-ledger'
 
 const getSupabase = () => getAdminClient()
 
@@ -17,28 +17,65 @@ async function loadHoldingTxs(sb: ReturnType<typeof getSupabase>, holdingId: str
     .order('created_at', { ascending: true })
 }
 
+type OpeningResult = { error: string; status: number; quantity?: number } | null
+
 /**
  * Holdings entered as a plain balance (or edited by hand) hold more coins than
  * their transactions explain. Recalculating from transactions alone would wipe
  * that balance, so record the difference as an opening-balance buy first, at
  * the holding's own average cost.
+ *
+ * A holding with no cost basis is different: its opening coins cost an unknown
+ * amount. Recording them at 0 and then blending in a priced buy would invent a
+ * gain (1,000 KAS at 0 + 500 at 2 MXN → avg 0.67, +200% at 2 MXN). So a buy
+ * on such a holding needs `openingCostPerCoin` (MXN): it prices the untracked
+ * balance and any opening lot already recorded at 0. Sells and deletes don't
+ * create a basis, so they go ahead and the coin stays "no cost basis".
  */
-async function ensureOpeningBalance(holdingId: string): Promise<string | null> {
+async function ensureOpeningBalance(
+  holdingId: string,
+  { forBuy = false, openingCostPerCoin = null }: { forBuy?: boolean; openingCostPerCoin?: number | null } = {},
+): Promise<OpeningResult> {
   const sb = getSupabase()
   const [{ data: holding, error: hErr }, { data: txs, error: tErr }] = await Promise.all([
-    sb.from('finance_crypto_holdings').select('quantity, avg_cost_basis_usd, created_at').eq('id', holdingId).maybeSingle(),
+    sb.from('finance_crypto_holdings').select('quantity, avg_cost_basis_usd, created_at, symbol').eq('id', holdingId).maybeSingle(),
     loadHoldingTxs(sb, holdingId),
   ])
-  if (hErr || tErr) return (hErr || tErr)!.message
-  if (!holding) return 'Holding not found'
+  if (hErr || tErr) return { error: (hErr || tErr)!.message, status: 500 }
+  if (!holding) return { error: 'Holding not found', status: 404 }
 
   const held = Number(holding.quantity) || 0
   const replay = replayHolding(txs || [])
   const gap = held - replay.qty
+  const avg = Number(holding.avg_cost_basis_usd) || 0 // stores MXN despite column name
+  const unbased = !(avg > 0) && (gap > QTY_EPSILON || (replay.qty > QTY_EPSILON && replay.totalCost <= 0))
+
+  if (unbased && forBuy) {
+    if (!(openingCostPerCoin && openingCostPerCoin > 0)) {
+      return {
+        error: `Enter what the ${formatQty(Math.max(held, replay.qty))} ${holding.symbol || 'coins'} already held cost per coin before logging a buy, or P/L would count them as free.`,
+        status: 409,
+        quantity: Math.max(held, replay.qty),
+      }
+    }
+    // Price opening lots recorded earlier at 0 (by a sell or delete).
+    for (const tx of txs || []) {
+      if (tx.type !== 'buy') continue
+      const q = Number(tx.quantity) || 0
+      const cost = Number(tx.total_mxn ?? q * Number(tx.price_per_coin_mxn))
+      if (q > 0 && !(cost > 0)) {
+        const { error } = await sb.from('crypto_transactions')
+          .update({ price_per_coin_mxn: openingCostPerCoin, total_mxn: q * openingCostPerCoin })
+          .eq('id', tx.id)
+        if (error) return { error: error.message, status: 500 }
+      }
+    }
+  }
   if (gap <= QTY_EPSILON) return null
 
-  const avg = Number(holding.avg_cost_basis_usd) || 0 // stores MXN despite column name
-  const openingCost = Math.max(0, held * avg - replay.totalCost)
+  const openingCost = avg > 0
+    ? Math.max(0, held * avg - replay.totalCost)
+    : unbased && forBuy && openingCostPerCoin ? gap * openingCostPerCoin : 0
   const created = mexicoCityToday(holding.created_at ? new Date(holding.created_at) : undefined)
   const firstTx = txs?.[0]?.transaction_date as string | undefined
   const { error } = await sb.from('crypto_transactions').insert({
@@ -51,7 +88,18 @@ async function ensureOpeningBalance(holdingId: string): Promise<string | null> {
     notes: 'Opening balance (held before transactions were logged)',
     transaction_date: firstTx && firstTx < created ? firstTx : created,
   })
-  return error ? error.message : null
+  return error ? { error: error.message, status: 500 } : null
+}
+
+function formatQty(n: number): string {
+  return String(Number(n.toPrecision(12)))
+}
+
+function openingErrorResponse(r: NonNullable<OpeningResult>) {
+  return NextResponse.json(
+    r.status === 409 ? { error: r.error, code: OPENING_COST_REQUIRED, quantity: r.quantity } : { error: r.error },
+    { status: r.status },
+  )
 }
 
 async function recalcHolding(holdingId: string) {
@@ -115,7 +163,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.response
 
   const body = await req.json()
-  const { holding_id, type, quantity, price_per_coin_mxn, exchange, notes, transaction_date } = body
+  const { holding_id, type, quantity, price_per_coin_mxn, exchange, notes, transaction_date, opening_cost_per_coin_mxn } = body
 
   if (!holding_id || !type || !quantity || !price_per_coin_mxn) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -129,8 +177,13 @@ export async function POST(req: NextRequest) {
   let sb
   try { sb = getSupabase() } catch (e) { return configErrorResponse(e) }
 
-  const openingError = await ensureOpeningBalance(holding_id)
-  if (openingError) return NextResponse.json({ error: openingError }, { status: openingError === 'Holding not found' ? 404 : 500 })
+  if (opening_cost_per_coin_mxn !== undefined && opening_cost_per_coin_mxn !== null
+    && !(typeof opening_cost_per_coin_mxn === 'number' && Number.isFinite(opening_cost_per_coin_mxn) && opening_cost_per_coin_mxn > 0)) {
+    return NextResponse.json({ error: 'opening_cost_per_coin_mxn must be a positive number' }, { status: 400 })
+  }
+
+  const opening = await ensureOpeningBalance(holding_id, { forBuy: type === 'buy', openingCostPerCoin: opening_cost_per_coin_mxn ?? null })
+  if (opening) return openingErrorResponse(opening)
 
   const { data, error } = await sb
     .from('crypto_transactions')
@@ -165,8 +218,8 @@ export async function DELETE(req: NextRequest) {
 
   let sb
   try { sb = getSupabase() } catch (e) { return configErrorResponse(e) }
-  const openingError = await ensureOpeningBalance(holding_id)
-  if (openingError) return NextResponse.json({ error: openingError }, { status: openingError === 'Holding not found' ? 404 : 500 })
+  const opening = await ensureOpeningBalance(holding_id)
+  if (opening) return openingErrorResponse(opening)
   const { error } = await sb.from('crypto_transactions').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
