@@ -135,7 +135,12 @@ describe('widget content: the daily plan', () => {
   it('celebrates momentum: the streak, yesterday and the week', async () => {
     const good = await render({ fixture: goodDay, family: 'medium', now: NOW_GOOD_DAY })
     expect(good.allText).toContain('10-day streak')
-    expect(good.allText).toMatch(/✓ Yesterday \$[\d.,k]+ under/)
+    // Medium's slot under the goal holds the month's spend; yesterday lives on large's week row.
+    expect(good.allText).toContain('Spent in Oct')
+    const goodLarge = await render({ fixture: goodDay, family: 'large', now: NOW_GOOD_DAY })
+    expect(goodLarge.allText).toMatch(/✓ Yesterday \$[\d.,k]+ under/)
+    const oldMedium = await render({ fixture: { ...goodDay, month_spent: undefined }, family: 'medium', now: NOW_GOOD_DAY })
+    expect(oldMedium.allText).toMatch(/✓ Yesterday \$[\d.,k]+ under/)
     const small = await render({ fixture: goodDay, family: 'small', now: NOW_GOOD_DAY })
     expect(small.allText).toContain('10-day streak')
     const large = await render(T({ fixture: goalSafe, family: 'large' }))
@@ -147,7 +152,7 @@ describe('widget content: the daily plan', () => {
     // Unambiguous Spanish initials: X for miércoles.
     expect(es.allText).toMatch(/^V\nS\nD\nL\nM\nX\nJ$/m)
     expect(es.allText).toContain('Ayer, $133 de más')
-    const esGood = await render({ fixture: goodDay, family: 'medium', now: NOW_GOOD_DAY, param: 'lang=es' })
+    const esGood = await render({ fixture: goodDay, family: 'large', now: NOW_GOOD_DAY, param: 'lang=es' })
     expect(esGood.allText).toMatch(/✓ Ayer, \$[\d.,k]+ por debajo/)
   })
 
@@ -621,5 +626,52 @@ describe('Finance.js loader', () => {
     const env = createScriptableEnv({ family: 'small', respond: () => ({ status: 401, body: '{"error":"Unauthorized"}' }) })
     const { widget } = await env.run(src)
     expect(inspectWidget(widget).allText).toContain('Re-install the widget')
+  })
+})
+
+describe('widget content: the month\'s total spend', () => {
+  it('shows this month\'s spend on small, medium and large (the summary\'s total_spent)', async () => {
+    const small = await render(T({ fixture: goalSafe, family: 'small' }))
+    expect(small.allText).toMatch(/Spent in Oct\n\$117k/)
+    const medium = await render(T({ fixture: goalSafe, family: 'medium' }))
+    expect(medium.allText).toMatch(/Spent in Oct\n\$117k/)
+    const large = await render(T({ fixture: goalSafe, family: 'large' }))
+    // Large has room for the exact figure and the month-end forecast.
+    expect(large.allText).toContain('$116,549')
+    expect(large.allText).toContain('on pace for $120k')
+    const small2 = await render(T({ fixture: dayOneToday, now: NOW_DAY_ONE_TODAY, family: 'medium' }))
+    expect(small2.allText).toMatch(/Spent in Nov\n\$49,120/)
+  })
+
+  it('speaks Spanish', async () => {
+    const medium = await render(T({ fixture: goalSafe, family: 'medium', param: 'lang=es' }))
+    expect(medium.allText).toMatch(/Gastado en oct\n\$117k/)
+    const large = await render(T({ fixture: goalSafe, family: 'large', param: 'lang=es' }))
+    expect(large.allText).toContain('rumbo a $120k')
+  })
+
+  it('a cache from last month names last month, without a forecast', async () => {
+    for (const family of ['small', 'medium', 'large']) {
+      const r = await render({ fail: true, cache: goalSafe, now: '2026-11-01T08:00:00-06:00', family })
+      expect(r.allText, family).toContain('Spent in Oct')
+      expect(r.allText, family).not.toContain('Spent in Nov')
+      expect(r.allText, family).not.toContain('on pace for')
+    }
+  })
+
+  it('hides the line on payloads without month_spent (older servers and caches)', async () => {
+    for (const family of ['small', 'medium', 'large']) {
+      for (const fixture of [overBudget, legacyV1, { ...goalSafe, month_spent: null }, { ...goalSafe, month_spent: { month: '2026-10' } }]) {
+        const r = await render({ fixture, family })
+        expect(r.allText, family).not.toMatch(/Spent in/)
+      }
+    }
+  })
+
+  it('stays off the lock screens', async () => {
+    for (const family of ['accessoryRectangular', 'accessoryCircular', 'accessoryInline']) {
+      const r = await render(T({ fixture: goalSafe, family }))
+      expect(r.allText, family).not.toContain('Spent in')
+    }
   })
 })

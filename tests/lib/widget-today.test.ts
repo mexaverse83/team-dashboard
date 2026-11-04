@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildToday, committedLeft, fixedLeft, RESERVE_SHARE, scheduledLeft, type TodayInput, type TodayTransaction } from '@/lib/widget/today'
 import { unbudgetedRoutine } from '@/lib/summary/projection'
 import type { TxRow } from '@/lib/summary/history'
-import { buildWidgetPayload } from '@/lib/widget/payload'
+import { buildWidgetPayload, monthSpent } from '@/lib/widget/payload'
 import type { BudgetVsActualRow } from '@/lib/summary/types'
 
 const row = (category: string, spent: number, budget: number, extra: Partial<BudgetVsActualRow> = {}): BudgetVsActualRow => ({
@@ -339,6 +339,21 @@ describe('buildWidgetPayload · today', () => {
     expect(p.west_month).toMatchObject({ target: 84869, pct: 105 })
     // The phone's daily line and today's spend read the same everyday categories.
     expect(p.daily_spend.slice(22, 29)).toEqual(p.today!.week.map(d => d.spent))
+  })
+
+  it('carries the month\'s total spend: the summary\'s total_spent (home\'s "Spent") and the month-end forecast', () => {
+    const summary = { ...octSummary(), west_plan: { capacity_target: 84869, month_target: 115790 } } as unknown as TodayInput['summary']
+    const p = buildWidgetPayload({ summary, west: null, insights: null, transactions: octTxs(), categoryNames: NAMES, now: new Date('2026-10-29T15:44:00Z') })
+    expect(p.month_spent).toEqual({ month: '2026-10', spent: 116549, projected: 119673 })
+    // Same number home shows (month_projection.spent_so_far).
+    expect(p.month_spent!.spent).toBe(summary.month_projection!.spent_so_far)
+  })
+
+  it('month_spent: null without a total, no forecast when it is missing or below what is spent', () => {
+    const base = octSummary()
+    expect(monthSpent({ ...base, current_month: { ...base.current_month, total_spent: undefined } } as unknown as TodayInput['summary'])).toBeNull()
+    expect(monthSpent({ ...base, month_projection: undefined } as unknown as TodayInput['summary'])).toEqual({ month: '2026-10', spent: 116549, projected: null })
+    expect(monthSpent({ ...base, month_projection: { ...base.month_projection, projected_spend: 1000 } } as unknown as TodayInput['summary'])!.projected).toBeNull()
   })
 })
 

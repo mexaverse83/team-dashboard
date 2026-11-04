@@ -173,6 +173,8 @@ export const goalSafe = (() => {
     { date: '2026-11-10', label: 'Seguro sportage', amount: 758, count: 1, kind: 'msi' },
   ]
   d.milestones = { baby_months: 6, west_funded_pct: 92.9, west_months_to_delivery: 14 }
+  // The month's total spend (summary.current_month.total_spent, home's "Spent") and its month-end forecast.
+  d.month_spent = { month: '2026-10', spent: 116549, projected: 119673 }
   d.today = {
     date: '2026-10-29',
     basis: 'goal',
@@ -300,6 +302,7 @@ export const spentToday = (() => {
   const d = clone(goalSafe)
   d.daily_spend[28] = 640
   d.variable = { ...d.variable, spent: 44709, left: -6209 }
+  d.month_spent = { ...d.month_spent, spent: 117189 }
   d.west_month = { ...d.west_month, projected_savings: 88487, surplus_so_far: 88487, pct: 104 }
   d.today = {
     date: '2026-10-29',
@@ -428,6 +431,7 @@ export const overToday = (() => {
   const d = clone(goalSafe)
   d.daily_spend[28] = 2600
   d.variable = { ...d.variable, spent: 46669, left: -8169 }
+  d.month_spent = { ...d.month_spent, spent: 119149, projected: 121600 }
   d.west_month = { ...d.west_month, projected_savings: 86527, surplus_so_far: 86527, pct: 102 }
   d.today = {
     date: '2026-10-29',
@@ -686,6 +690,7 @@ export const goodDay = (() => {
   d.updated_at = '2026-10-22T15:10:00.000Z'
   d.day = 22
   d.variable = { budget: 38500, spent: 21700, left: 16800, days_left: 10, through_label: 'Sat Oct 31', through_date: '2026-10-31', status: 'ok' }
+  d.month_spent = { month: '2026-10', spent: 96420, projected: 119900 }
   d.status = 'ok'
   d.top_over = null
   d.budget_pace = [
@@ -826,6 +831,7 @@ export const lastDay = (() => {
   d.day = 31
   d.daily_spend = [...LIVE_DAILY, 600, 0]
   d.variable = { ...d.variable, spent: 44669, left: -6169, days_left: 1 }
+  d.month_spent = { month: '2026-10', spent: 117149, projected: 119200 }
   d.west_month = { ...d.west_month, projected_savings: 88827, surplus_so_far: 88827, pct: 105 }
   d.today = {
     date: '2026-10-31',
@@ -957,6 +963,8 @@ export const NOW_DAY_ONE_TODAY = '2026-11-01T08:10:00-06:00'
 export const dayOneToday = (() => {
   const d = clone(dayOne)
   d.west_month = { label: 'Nov', month: '2026-11', target: 84869, projected_savings: 94140, surplus_so_far: 94140, gap: 0, pct: 111, tone: 'good', stretch_target: 115790 }
+  // Day 1: rent and the month's bills already posted.
+  d.month_spent = { month: '2026-11', spent: 49120, projected: 121400 }
   d.upcoming = [
     { date: '2026-11-03', label: 'Regalo Rochie', amount: 989, count: 1, kind: 'msi' },
     { date: '2026-11-10', label: 'Seguro sportage', amount: 758, count: 1, kind: 'msi' },

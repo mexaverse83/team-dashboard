@@ -43,6 +43,7 @@
  * @property {Array<{date:string, label:string, amount:number, count:number}>} [upcoming]
  * @property {{baby_months:number|null, west_funded_pct:number|null, west_months_to_delivery:number|null}} milestones
  * @property {TodayPlan|null} [today]
+ * @property {{month:string, spent:number, projected:number|null}|null} [month_spent]  the month's total spend (home's "Spent")
  * @property {boolean} [__stale]
  */
 
@@ -81,6 +82,8 @@ const STR = {
     west: 'WEST', westHome: 'WEST home', yearGoals: y => y + ' goals', emergency: 'Emergency fund',
     moToKeys: n => n + ' mo to keys', moCovered: n => n + ' mo covered', onTrackDec: 'on track for Dec', funded: 'funded',
     shortByDec: v => v + ' short by Dec',
+    // The month's total spend, named with its own month (a cached Sep says Sep).
+    spentIn: m => 'Spent in ' + m, onPace: v => 'on pace for ' + v,
     baby: n => n + ' mo to baby',
     cat: c => c,
     nudge: {
@@ -123,6 +126,7 @@ const STR = {
     west: 'WEST', westHome: 'Depa WEST', yearGoals: y => 'Metas ' + y, emergency: 'Fondo de emergencia',
     moToKeys: n => 'entrega en ' + n + ' meses', moCovered: n => n + ' meses cubiertos', onTrackDec: 'en camino a dic', funded: 'cubierto',
     shortByDec: v => 'faltan ' + v + ' a dic',
+    spentIn: m => 'Gastado en ' + m, onPace: v => 'rumbo a ' + v,
     baby: n => n + ' meses para el bebé',
     // Budget names are stored in English; the everyday ones read natively.
     cat: c => ({ Other: 'Otros', 'Dining Out': 'Comer fuera', Groceries: 'Súper', Transport: 'Transporte', Entertainment: 'Entretenimiento', Shopping: 'Compras', Travel: 'Viajes', Gifts: 'Regalos' })[c] || c,
@@ -612,6 +616,34 @@ function chipOf(p, d) {
   return { text: STR.onTrack, tone: TONE.good }
 }
 
+/**
+ * The month's total spend so far (payload.month_spent: the same figure as
+ * home's "Spent"), labelled with the payload's own month so last month's
+ * cache says last month. Older payloads don't carry it: no line.
+ */
+function monthSpentOf(d) {
+  const s = d.month_spent
+  if (!s || typeof s !== 'object' || !Number.isFinite(s.spent)) return null
+  const month = monthLabel(s.month || d.month)
+  if (!month) return null
+  // The month-end forecast only while it is this month's (a cached month's is history).
+  const projected = !fromLastMonth(d) && Number.isFinite(s.projected) && s.projected > s.spent ? s.projected : null
+  return { label: STR.spentIn(month), spent: Math.max(0, s.spent), projected }
+}
+/** "Spent in Oct ……… $45,210": label left, the amount right, linking to the month's transactions. */
+function spentRow(stack, s, width, o) {
+  const opts = o || {}
+  const r = stack.addStack()
+  r.centerAlignContent()
+  r.url = URLS.transactions
+  if (width) r.size = new Size(width, 0)
+  txt(r, s.label, opts.labelSize || 11, C.sub, 'semibold', { msf: 0.9 })
+  if (opts.pace && s.projected != null) txt(r, ' · ' + STR.onPace(moneyShort(s.projected)), 11, C.faint, 'medium', { msf: 0.9 })
+  r.addSpacer()
+  txt(r, (opts.short ? moneyShort : opts.full ? money : moneyFit)(s.spent), opts.size || 12, C.text, 'num')
+  return r
+}
+
 function yesterdayLine(p, d) {
   const y = p.yesterday
   if (!y || !isCurrent(d)) return null
@@ -738,6 +770,11 @@ function small(w, d, m) {
   h.url = URLS.transactions
   heroBlock(h, d, p, m.small >= 155 ? 32 : 28, cw)
   w.addSpacer()
+  const ms = monthSpentOf(d)
+  if (ms) {
+    spentRow(w, ms, cw, { short: true })
+    w.addSpacer(4)
+  }
   const g = p.goal
   if (fromLastMonth(d)) return homeFoot(w, d, cw)
   if (!g) return
@@ -810,8 +847,13 @@ function medium(w, d, m) {
   right.url = URLS.west
   right.size = new Size(gw, 0)
   goalBlock(right, d, p, gw, { pctSize: 14 })
-  const y = yesterdayLine(p, d)
-  if (y) {
+  // The month's spend under the goal; yesterday's line takes the slot only on older payloads.
+  const ms = monthSpentOf(d)
+  const y = ms ? null : yesterdayLine(p, d)
+  if (ms) {
+    right.addSpacer(5)
+    spentRow(right, ms, gw)
+  } else if (y) {
     right.addSpacer(5)
     txt(right, y.text, 11, y.color, 'semibold', { msf: 0.9 })
   }
@@ -854,13 +896,18 @@ function large(w, d, m) {
   w.addSpacer(gapS + 2)
   w.addSpacer()
 
+  const ms = monthSpentOf(d)
+  if (ms) {
+    spentRow(w, ms, cw, { labelSize: 12, size: 14, pace: true, full: true })
+    w.addSpacer(gapS)
+  }
   if (goalGrid(w, d, p, cw, compact)) w.addSpacer(gapS + 2)
   if (hasWeek) {
     weekStrip(w, d, p)
     w.addSpacer(gapS)
-  } else if (milestones(w, d, p)) w.addSpacer(gapS)
-  // Without a week to show, the bills get the room.
-  coming(w, d, p, compact ? (hasWeek ? 1 : 2) : hasWeek ? 2 : 3)
+  } else if (!(ms && n) && milestones(w, d, p)) w.addSpacer(gapS)
+  // Without a week to show, the bills get the room (less of it under a full-width nudge and the month's spend).
+  coming(w, d, p, compact ? (hasWeek || (ms && n) ? 1 : 2) : hasWeek || (ms && n) ? 2 : 3)
   w.addSpacer()
 }
 

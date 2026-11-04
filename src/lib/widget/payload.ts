@@ -49,6 +49,18 @@ export interface WidgetPayloadInput {
   now?: Date
 }
 
+/**
+ * The month's total spend so far: the same figure as home's "Spent" and the
+ * summary (current_month.total_spent: every expense this Mexico City month,
+ * savings moves out). `month` labels it, so a cached copy names its own month.
+ */
+export interface WidgetMonthSpent {
+  month: string
+  spent: number
+  /** Month-end forecast (month_projection.projected_spend); null when unknown. */
+  projected: number | null
+}
+
 export type WidgetStatus = 'ok' | 'tight' | 'over'
 export type WestTone = 'good' | 'warn'
 
@@ -77,6 +89,8 @@ export interface WidgetPayloadV2 {
   brief: { fresh: boolean; generated_at: string | null; title: string | null; detail: string | null }
   /** v3 daily plan (see src/lib/widget/today.ts); null when there is no month goal to measure against. */
   today: WidgetToday | null
+  /** This month's total spend (home's "Spent"); null when the summary lacks it. */
+  month_spent: WidgetMonthSpent | null
   [legacy: string]: unknown
 }
 
@@ -271,6 +285,19 @@ function legacyDailyPlan(summary: WidgetPayloadInput['summary'], westTarget: num
   }
 }
 
+/** payload.month_spent from the summary; null when it carries no month total. */
+export function monthSpent(summary: WidgetPayloadInput['summary']): WidgetMonthSpent | null {
+  const cm = summary.current_month
+  const spent = Number(cm?.total_spent)
+  if (!cm?.month || !Number.isFinite(spent)) return null
+  const projected = Number(summary.month_projection?.projected_spend)
+  return {
+    month: cm.month,
+    spent: round(spent),
+    projected: Number.isFinite(projected) && projected >= spent ? round(projected) : null,
+  }
+}
+
 export function buildWidgetPayload(input: WidgetPayloadInput): WidgetPayloadV2 {
   const now = input.now || new Date()
   const { summary, west } = input
@@ -364,6 +391,7 @@ export function buildWidgetPayload(input: WidgetPayloadInput): WidgetPayloadV2 {
     coach_es: { title: coachEsTitle, url: coachEs.coach.url, question: coachEs.coach.title },
     brief: { fresh: brief.fresh, generated_at: brief.generated_at, title: brief.title, detail: brief.detail },
     today: todayPlan,
+    month_spent: monthSpent(summary),
 
     week_envelope_basis: 'remaining planned category spending from today through Sunday',
     net_this_month: round((summary.income?.current_month_actual ?? 0) - (cm.total_spent ?? 0)),
