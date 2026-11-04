@@ -135,8 +135,9 @@ describe('widget content: the daily plan', () => {
   it('celebrates momentum: the streak, yesterday and the week', async () => {
     const good = await render({ fixture: goodDay, family: 'medium', now: NOW_GOOD_DAY })
     expect(good.allText).toContain('10-day streak')
-    // Medium's slot under the goal holds the month's spend; yesterday lives on large's week row.
+    // Medium's slot under the goal holds the month's spend on a good day; yesterday lives on large's week row.
     expect(good.allText).toContain('Spent in Oct')
+    expect(good.allText).not.toMatch(/Yesterday/)
     const goodLarge = await render({ fixture: goodDay, family: 'large', now: NOW_GOOD_DAY })
     expect(goodLarge.allText).toMatch(/✓ Yesterday \$[\d.,k]+ under/)
     const oldMedium = await render({ fixture: { ...goodDay, month_spent: undefined }, family: 'medium', now: NOW_GOOD_DAY })
@@ -633,19 +634,28 @@ describe('widget content: the month\'s total spend', () => {
   it('shows this month\'s spend on small, medium and large (the summary\'s total_spent)', async () => {
     const small = await render(T({ fixture: goalSafe, family: 'small' }))
     expect(small.allText).toMatch(/Spent in Oct\n\$117k/)
-    const medium = await render(T({ fixture: goalSafe, family: 'medium' }))
-    expect(medium.allText).toMatch(/Spent in Oct\n\$117k/)
+    // Medium is compact like small whatever the amount, so the format never flips mid-month.
+    const medium = await render({ fixture: goodDay, family: 'medium', now: NOW_GOOD_DAY })
+    expect(medium.allText).toMatch(/Spent in Oct\n\$96k/)
     const large = await render(T({ fixture: goalSafe, family: 'large' }))
     // Large has room for the exact figure and the month-end forecast.
     expect(large.allText).toContain('$116,549')
     expect(large.allText).toContain('on pace for $120k')
-    const small2 = await render(T({ fixture: dayOneToday, now: NOW_DAY_ONE_TODAY, family: 'medium' }))
-    expect(small2.allText).toMatch(/Spent in Nov\n\$49,120/)
+    const dayOneMedium = await render(T({ fixture: dayOneToday, now: NOW_DAY_ONE_TODAY, family: 'medium' }))
+    expect(dayOneMedium.allText).toMatch(/Spent in Nov\n\$49k/)
+  })
+
+  it('medium keeps yesterday\'s overspend warning under the spend where there is room', async () => {
+    const medium = await render(T({ fixture: goalSafe, family: 'medium' }))
+    expect(medium.allText).toMatch(/Spent in Oct\n\$117k\nYesterday \$133 over/)
+    // An under-plan yesterday stays off medium (the streak pill has it).
+    const good = await render({ fixture: goodDay, family: 'medium', now: NOW_GOOD_DAY })
+    expect(good.allText).not.toMatch(/Yesterday/)
   })
 
   it('speaks Spanish', async () => {
-    const medium = await render(T({ fixture: goalSafe, family: 'medium', param: 'lang=es' }))
-    expect(medium.allText).toMatch(/Gastado en oct\n\$117k/)
+    const medium = await render({ fixture: goodDay, family: 'medium', now: NOW_GOOD_DAY, param: 'lang=es' })
+    expect(medium.allText).toMatch(/Gastado en oct\n\$96k/)
     const large = await render(T({ fixture: goalSafe, family: 'large', param: 'lang=es' }))
     expect(large.allText).toContain('rumbo a $120k')
   })

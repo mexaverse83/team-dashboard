@@ -139,6 +139,8 @@ export function MonthProjectionCard({ projection, westPlan, monthLabel, monthEnd
   const received = p.income_received ?? p.expected_income
   const scheduled = p.income_still_scheduled ?? 0
   const stillExpected = Math.max(0, p.projected_spend - p.spent_so_far)
+  // The month-end spend forecast, only while it is still ahead of what's spent.
+  const onPace = p.projected_spend > p.spent_so_far ? p.projected_spend : null
   const daysLeft = dayOfMonth && daysInMonth ? daysInMonth - dayOfMonth + 1 : null
 
   return (
@@ -156,6 +158,25 @@ export function MonthProjectionCard({ projection, westPlan, monthLabel, monthEnd
           <p className="mt-1 text-label text-fg-tertiary">
             projected savings{monthEndLabel ? ` by ${monthEndLabel}` : ' at month end'}{daysLeft != null ? ` · ${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : ''}
           </p>
+
+          {/* The month's spend so far, exact and labelled with the month, so it reads at a glance. */}
+          <div className="mt-4 border-t border-border pt-3 sm:mt-5 sm:pt-4" data-testid="month-spent">
+            <Link href="/finance/transactions" className="inline-flex min-h-6 items-center gap-1 text-label font-semibold text-fg-secondary hover:text-fg">
+              {monthLabel ? `Spent in ${monthLabel}` : 'Spent this month'}
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
+            <div className="mt-0.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <div className="min-w-0">
+                <p className="num-metric text-[1.75rem] font-semibold leading-8 tracking-[-0.02em] text-fg" data-money>{money(p.spent_so_far)}</p>
+                {onPace != null && (
+                  <p className="mt-0.5 text-label text-fg-tertiary">
+                    on pace for <span className="num" data-money>{compact(onPace)}</span>{monthEndLabel ? ` by ${monthEndLabel}` : ' by month end'}
+                  </p>
+                )}
+              </div>
+              {ownerSpend && <OwnerSplit ownerSpend={ownerSpend} highlightOwner={highlightOwner} />}
+            </div>
+          </div>
         </div>
 
         <div className="min-w-0 lg:pt-1">
@@ -177,22 +198,17 @@ export function MonthProjectionCard({ projection, westPlan, monthLabel, monthEnd
       </div>
 
       <div className="flex flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
-        <dl className="grid grid-cols-3 divide-x divide-border">
+        <dl className="grid grid-cols-2 divide-x divide-border sm:w-80">
           <div className="pr-4">
             <dt className="text-label text-fg-tertiary">Income</dt>
             <dd className="mt-0.5 text-left text-[0.9375rem] font-semibold tabular-nums text-fg" data-money>{compact(received)}</dd>
             {scheduled > 0 && <dd className="text-micro text-fg-tertiary" data-money>+{compact(scheduled)} due</dd>}
-          </div>
-          <div className="px-4">
-            <dt className="text-label text-fg-tertiary">Spent</dt>
-            <dd className="mt-0.5 text-left text-[0.9375rem] font-semibold tabular-nums text-fg" data-money>{compact(p.spent_so_far)}</dd>
           </div>
           <div className="pl-4">
             <dt className="text-label text-fg-tertiary">Still expected</dt>
             <dd className="mt-0.5 text-left text-[0.9375rem] font-semibold tabular-nums text-fg" data-money>{compact(stillExpected)}</dd>
           </div>
         </dl>
-        {ownerSpend && <OwnerSplit ownerSpend={ownerSpend} highlightOwner={highlightOwner} />}
       </div>
     </Card>
   )

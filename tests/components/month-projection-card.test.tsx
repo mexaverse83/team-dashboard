@@ -72,6 +72,24 @@ describe('MonthProjectionCard (This month hero)', () => {
     expect(screen.getByText('Still expected').nextElementSibling).toHaveClass('text-left')
   })
 
+  it("shows the month's spend as its own labelled figure, exact, with the pace", () => {
+    render(<MonthProjectionCard projection={projection} westPlan={plan} monthLabel="October" monthEndLabel="Oct 31" ownerSpend={{ Bernardo: 73500, laura: 43000 }} />)
+    const block = screen.getByTestId('month-spent')
+    expect(within(block).getByRole('link', { name: 'Spent in October' })).toHaveAttribute('href', '/finance/transactions')
+    expect(within(block).getByText('$116,466')).toHaveAttribute('data-money')
+    expect(block).toHaveTextContent('on pace for $125.3k by Oct 31')
+    // The owner split sits with the spend it splits; the footer no longer repeats "Spent".
+    expect(within(block).getByLabelText('Spent this month by owner')).toBeInTheDocument()
+    expect(screen.queryByText('Spent', { exact: true })).not.toBeInTheDocument()
+  })
+
+  it('drops the pace once the forecast is not ahead of the spend', () => {
+    render(<MonthProjectionCard projection={{ ...projection, projected_spend: 116466 }} westPlan={plan} />)
+    const block = screen.getByTestId('month-spent')
+    expect(within(block).getByRole('link', { name: 'Spent this month' })).toBeInTheDocument()
+    expect(block).not.toHaveTextContent('on pace')
+  })
+
   it('renders nothing without a projection', () => {
     const { container } = render(<MonthProjectionCard projection={null} westPlan={plan} />)
     expect(container).toBeEmptyDOMElement()

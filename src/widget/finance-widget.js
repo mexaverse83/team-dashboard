@@ -630,7 +630,7 @@ function monthSpentOf(d) {
   const projected = !fromLastMonth(d) && Number.isFinite(s.projected) && s.projected > s.spent ? s.projected : null
   return { label: STR.spentIn(month), spent: Math.max(0, s.spent), projected }
 }
-/** "Spent in Oct ……… $45,210": label left, the amount right, linking to the month's transactions. */
+/** "Spent in Oct ……… $45k" ($45,210 on large): label left, the amount right, linking to the month's transactions. */
 function spentRow(stack, s, width, o) {
   const opts = o || {}
   const r = stack.addStack()
@@ -640,7 +640,8 @@ function spentRow(stack, s, width, o) {
   txt(r, s.label, opts.labelSize || 11, C.sub, 'semibold', { msf: 0.9 })
   if (opts.pace && s.projected != null) txt(r, ' · ' + STR.onPace(moneyShort(s.projected)), 11, C.faint, 'medium', { msf: 0.9 })
   r.addSpacer()
-  txt(r, (opts.short ? moneyShort : opts.full ? money : moneyFit)(s.spent), opts.size || 12, C.text, 'num')
+  // Compact on small and medium, exact only on large (with room for it): one rule per size.
+  txt(r, (opts.full ? money : moneyShort)(s.spent), opts.size || 12, C.text, 'num')
   return r
 }
 
@@ -648,7 +649,7 @@ function yesterdayLine(p, d) {
   const y = p.yesterday
   if (!y || !isCurrent(d)) return null
   if (y.diff >= 0) return { text: STR.yesterdayUnder(moneyShort(y.diff)), color: C.good }
-  return { text: STR.yesterdayOver(moneyShort(-y.diff)), color: C.faint }
+  return { text: STR.yesterdayOver(moneyShort(-y.diff)), color: C.faint, over: true }
 }
 
 async function loadData() {
@@ -772,7 +773,7 @@ function small(w, d, m) {
   w.addSpacer()
   const ms = monthSpentOf(d)
   if (ms) {
-    spentRow(w, ms, cw, { short: true })
+    spentRow(w, ms, cw)
     w.addSpacer(4)
   }
   const g = p.goal
@@ -847,14 +848,17 @@ function medium(w, d, m) {
   right.url = URLS.west
   right.size = new Size(gw, 0)
   goalBlock(right, d, p, gw, { pctSize: 14 })
-  // The month's spend under the goal; yesterday's line takes the slot only on older payloads.
+  // The month's spend under the goal. Yesterday's line joins it only as a warning
+  // (over the room) where there is height for both; older payloads show it alone.
   const ms = monthSpentOf(d)
-  const y = ms ? null : yesterdayLine(p, d)
+  const yl = yesterdayLine(p, d)
+  const y = yl && (!ms || (yl.over && !compact)) ? yl : null
   if (ms) {
     right.addSpacer(5)
     spentRow(right, ms, gw)
-  } else if (y) {
-    right.addSpacer(5)
+  }
+  if (y) {
+    right.addSpacer(ms ? 2 : 5)
     txt(right, y.text, 11, y.color, 'semibold', { msf: 0.9 })
   }
   w.addSpacer()
