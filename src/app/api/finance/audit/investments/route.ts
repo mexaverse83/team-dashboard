@@ -433,7 +433,7 @@ export async function GET(req: NextRequest) {
     let usdMxn = FALLBACK_USD_MXN
     if (cryptoRes.data && cryptoRes.data.length > 0) {
       const holdings = cryptoRes.data
-      const prices = await fetchCryptoPrices(holdings.map(h => h.symbol as string)) ?? {}
+      const prices = await fetchCryptoPrices(holdings.map(h => ({ symbol: h.symbol as string, coingecko_id: (h.coingecko_id as string | null | undefined) ?? null }))) ?? {}
       usdMxn = impliedUsdMxn(prices) ?? FALLBACK_USD_MXN
 
       let totalMXN = 0; let totalCost = 0

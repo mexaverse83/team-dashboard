@@ -135,7 +135,7 @@ async function writeSnapshot(req: NextRequest, auth: AuthOk) {
   try {
     const holdings = cryptoHoldings.filter((h: { quantity?: number }) => (h.quantity ?? 0) > 0)
     if (holdings.length > 0) {
-      prices = await fetchCryptoPrices(holdings.map((h: { symbol: string }) => h.symbol)) ?? {}
+      prices = await fetchCryptoPrices(holdings as Array<{ symbol: string; coingecko_id?: string | null }>) ?? {}
       for (const h of holdings) {
         const priceMXN = prices[h.symbol]?.mxn ?? 0
         if (priceMXN > 0) {

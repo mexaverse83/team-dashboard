@@ -46,6 +46,40 @@ describe('fetchCryptoPrices', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('prices any held coin by its coingecko_id, still keyed by ticker', async () => {
+    const fetchMock = vi.fn(async (_url: string) => json({
+      bitcoin: { usd: 84000, mxn: 1500000, usd_24h_change: 1 },
+      pepe: { usd: 0.00001, mxn: 0.0002, usd_24h_change: 5 },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const prices = await fetchCryptoPrices([{ symbol: 'BTC' }, { symbol: 'PEPE', coingecko_id: 'pepe' }, { symbol: 'NOID' }])
+    expect(prices).toEqual({
+      BTC: { usd: 84000, mxn: 1500000, change24h: 1 },
+      PEPE: { usd: 0.00001, mxn: 0.0002, change24h: 5 },
+    })
+    expect(fetchMock.mock.calls[0][0]).toContain('ids=bitcoin,pepe&')
+  })
+
+  it("prices a built-in ticker as the holding's own coin when it says so", async () => {
+    const fetchMock = vi.fn(async (_url: string) => json({ litentry: { usd: 1, mxn: 18 }, lighter: { usd: 99, mxn: 1800 } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const prices = await fetchCryptoPrices(['LIT', { symbol: 'LIT', coingecko_id: 'litentry' }])
+    expect(prices?.LIT.mxn).toBe(18)
+    expect(fetchMock.mock.calls[0][0]).toContain('ids=litentry&')
+  })
+
+  it('falls back to a guessed Coinpaprika id for a new coin only when the ticker matches', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('coingecko')) return json('blocked', false)
+      if (url.includes('doge-dogecoin')) return json({ symbol: 'DOGE', quotes: { USD: { price: 0.2, percent_change_24h: 1 }, MXN: { price: 3.6 } } })
+      return json({ symbol: 'OTHER', quotes: { USD: { price: 1 }, MXN: { price: 18 } } })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const prices = await fetchCryptoPrices([{ symbol: 'DOGE', coingecko_id: 'dogecoin' }, { symbol: 'WIF', coingecko_id: 'dogwifcoin' }])
+    expect(prices).toEqual({ DOGE: { usd: 0.2, mxn: 3.6, change24h: 1 } })
+    expect(fetchMock.mock.calls.map(c => c[0]).some(u => String(u).includes('/tickers/wif-dogwifcoin?'))).toBe(true)
+  })
+
   it('returns null when no source has prices', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
     expect(await fetchCryptoPrices(['BTC'])).toBeNull()

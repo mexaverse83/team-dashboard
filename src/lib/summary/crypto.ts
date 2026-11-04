@@ -7,6 +7,7 @@ export interface CryptoHoldingRow {
   owner?: string | null
   avg_cost_basis_usd?: number | null
   cost_currency?: string | null
+  coingecko_id?: string | null
 }
 
 /** Coin quantity per symbol across both owners (drives crypto goal progress). */

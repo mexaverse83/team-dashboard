@@ -73,8 +73,8 @@ export async function buildSummary(
   // Prices start as soon as holdings resolve, alongside the main batch.
   const pricesP = holdingsP
     .then(res => {
-      const symbols = (res.data || []).filter(h => Number(h.quantity) > 0).map(h => h.symbol)
-      return symbols.length > 0 ? fetchCryptoPrices(symbols) : null
+      const held = (res.data || []).filter(h => Number(h.quantity) > 0)
+      return held.length > 0 ? fetchCryptoPrices(held) : null
     })
     .catch(() => null)
   const westP: Promise<WestProjection | null> = westOverride !== undefined
