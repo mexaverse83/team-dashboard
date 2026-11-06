@@ -34,6 +34,8 @@ export interface CoinRow {
   quantity: number
   /** Live MXN price, or null when the coin couldn't be priced. */
   priceMXN: number | null
+  /** Live USD price, or null when the coin couldn't be priced. */
+  priceUSD: number | null
   change24h: number | null
   valueMXN: number
   valueUSD: number
@@ -129,6 +131,7 @@ export function aggregateCoins(
       coingeckoId: rows.map(h => holdingCoinId(h)).find(Boolean) ?? null,
       quantity,
       priceMXN: price?.mxn ?? null,
+      priceUSD: price?.usd ?? null,
       change24h: price?.change24h ?? null,
       valueMXN,
       valueUSD,

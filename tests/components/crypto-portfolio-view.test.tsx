@@ -308,4 +308,18 @@ describe('crypto tab: household view per coin', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Log buy' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('already held cost per coin')
   })
+  it('switches every amount to USD and remembers the choice', async () => {
+    render(<CryptoClient />)
+    const table = await screen.findByRole('table', { name: 'Holdings by coin' })
+    const btc = () => within(table).getAllByRole('row')[1]
+    expect(within(btc()).getByText('$200,000')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'USD' }))
+    // 1 USD = 20 MXN in these quotes: BTC's $200,000 MXN reads US$10,000; its price is the USD quote.
+    await waitFor(() => expect(within(btc()).getByText('US$10,000')).toBeInTheDocument())
+    expect(within(btc()).getByText('$100,000.00')).toBeInTheDocument()
+    expect(screen.getByText('Value (USD)')).toBeInTheDocument()
+    expect(screen.getByText('Value (MXN)')).toBeInTheDocument()
+    expect(window.localStorage.getItem('mona:crypto-currency')).toBe('USD')
+  })
 })

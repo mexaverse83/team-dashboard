@@ -23,7 +23,8 @@ import { BUILTIN_SYMBOLS, holdingCoinId } from '@/lib/crypto-coins'
 import { needsOpeningCost } from '@/lib/crypto-ledger'
 import { OWNERS, ownersEqual } from '@/lib/owners'
 import { localDateKey } from '@/lib/dates'
-import { formatCoinPrice, formatDateShort, formatDelta, formatMoney, formatPct } from '@/lib/format'
+import { formatCoinPrice, formatDateShort, formatDelta, formatMoney, formatPct, type Currency } from '@/lib/format'
+import { cryptoDisplay, readCryptoCurrency, saveCryptoCurrency } from '@/lib/crypto-display'
 import { cn } from '@/lib/utils'
 
 interface Holding {
@@ -128,12 +129,15 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
   const [showPositions, setShowPositions] = useState(false)
   // Zero-balance coins are hidden unless asked for (remembered per browser).
   const [showEmpty, setShowEmptyState] = useState(false)
+  // MXN or USD view (remembered per browser).
+  const [currency, setCurrencyState] = useState<Currency>('MXN')
   const ownerFilter = controlledOwner ?? localOwner
 
   useEffect(() => {
-    const id = window.setTimeout(() => setShowEmptyState(readShowEmpty()), 0)
+    const id = window.setTimeout(() => { setShowEmptyState(readShowEmpty()); setCurrencyState(readCryptoCurrency()) }, 0)
     return () => window.clearTimeout(id)
   }, [])
+  const setCurrency = (next: Currency) => { setCurrencyState(next); saveCryptoCurrency(next) }
   const setShowEmpty = (next: boolean) => {
     setShowEmptyState(next)
     try { window.localStorage.setItem(SHOW_EMPTY_KEY, next ? '1' : '0') } catch { /* private mode */ }
@@ -191,6 +195,8 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
   }
 
   const usdToMxn = useMemo(() => usdMxnRate(prices), [prices])
+  const display = useMemo(() => cryptoDisplay(currency, usdToMxn), [currency, usdToMxn])
+  const other = currency === 'USD' ? 'MXN' : 'USD'
 
   const filtered = useMemo(() => {
     const f = ownerFilter === 'All' ? holdings : holdings.filter(h => ownersEqual(h.owner, ownerFilter))
@@ -382,7 +388,12 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
             )}
           </p>
         </div>
-        <div className="flex w-full gap-2 sm:w-auto">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
+          {/* Phones: the currency switch gets its own row under the actions. */}
+          <div className="order-last w-full sm:order-none sm:w-auto">
+            <Segmented ariaLabel="Show amounts in" size="sm" value={currency} onChange={setCurrency}
+              options={[{ value: 'MXN', label: 'MXN' }, { value: 'USD', label: 'USD' }]} />
+          </div>
           {/* Phones: Refresh is icon-only so the two labelled actions keep their icons and padding. */}
           <Button variant="secondary" size="sm" className="shrink-0" onClick={handleRefresh} disabled={refreshing} aria-label={refreshing ? 'Refreshing prices' : 'Refresh prices'}>
             <RefreshCw aria-hidden className={cn('h-4 w-4 shrink-0', refreshing && 'animate-spin')} /><span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
@@ -408,10 +419,10 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
         <>
           <Card>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              <Stat money label="Value (MXN)" value={noPrices ? '—' : formatMoney(totalMXN)} hint={valueHint} tone={valueHint ? 'warning' : 'neutral'} />
-              <Stat money label="Value (USD)" value={noPrices ? '—' : usd(totalUSD)} />
-              <Stat money label="Cost basis" value={totalCostMXN > 0 ? formatMoney(totalCostMXN) : '—'} />
-              <Stat money label="P&L" value={totalPL !== null ? formatMoney(totalPL, { sign: 'always' }) : '—'}
+              <Stat money label={`Value (${currency})`} value={noPrices ? '—' : display.money(totalMXN)} hint={valueHint} tone={valueHint ? 'warning' : 'neutral'} />
+              <Stat money label={`Value (${other})`} value={noPrices ? '—' : currency === 'USD' ? formatMoney(totalMXN, { currency: 'MXN', showCurrency: true }) : usd(totalUSD)} />
+              <Stat money label="Cost basis" value={totalCostMXN > 0 ? display.money(totalCostMXN) : '—'} />
+              <Stat money label="P&L" value={totalPL !== null ? display.money(totalPL, { sign: 'always' }) : '—'}
                 delta={totalPLPct !== null ? formatDelta(totalPLPct, { unit: 'pct', decimals: 1 }) : undefined}
                 hint={plHint || undefined}
                 tone={totalPL === null ? 'neutral' : totalPL >= 0 ? 'positive' : 'negative'} />
@@ -437,7 +448,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
                   )}
                 </div>
                 {breakdown.rows.length > 0
-                  ? <CoinBreakdown breakdown={breakdown} showOwners={ownerFilter === 'All'} onLog={logCoin} onRemove={coin => openRemove(coin)} />
+                  ? <CoinBreakdown breakdown={breakdown} showOwners={ownerFilter === 'All'} display={display} onLog={logCoin} onRemove={coin => openRemove(coin)} />
                   : <p className="text-label text-fg-secondary">Every coin is at zero. Tick “Show empty coins” to see them.</p>}
               </div>
             )}
@@ -454,10 +465,10 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
                       <OwnerAvatar owner={name} size={20} showName />
                       {o.plPct !== null && <StatusPill tone={o.pl! >= 0 ? 'positive' : 'negative'}>{formatDelta(o.plPct, { unit: 'pct', decimals: 1 })}</StatusPill>}
                     </div>
-                    <p className="tabular-nums mt-2 text-2xl font-semibold" data-money="">{o.noPrices ? '—' : formatMoney(o.mxn)}</p>
+                    <p className="tabular-nums mt-2 text-2xl font-semibold" data-money="">{o.noPrices ? '—' : display.money(o.mxn)}</p>
                     <p className="text-label text-fg-secondary">
-                      Cost {o.cost > 0 ? formatMoney(o.cost) : '—'}
-                      {o.pl !== null && <> · P&amp;L <span className={o.pl >= 0 ? 'text-positive' : 'text-negative'}>{formatMoney(o.pl, { sign: 'always' })}</span></>}
+                      Cost {o.cost > 0 ? display.money(o.cost) : '—'}
+                      {o.pl !== null && <> · P&amp;L <span className={o.pl >= 0 ? 'text-positive' : 'text-negative'}>{display.money(o.pl, { sign: 'always' })}</span></>}
                       {o.pl !== null && o.noBasis.length > 0 && <span className="text-fg-tertiary"> (excl. {o.noBasis.join(', ')}, no cost basis)</span>}
                     </p>
                     <p className="mt-1 text-label text-fg-tertiary">
@@ -516,12 +527,12 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
                       <div className="flex justify-between gap-3"><dt className="text-fg-secondary">Holdings</dt><dd className="tabular-nums font-mono">{qty(h.quantity)} {h.symbol}</dd></div>
                       {price && (
                         <>
-                          <div className="flex justify-between gap-3"><dt className="text-fg-secondary">Price</dt><dd className="tabular-nums">{formatCoinPrice(price.usd, { currency: 'USD', suffix: true })}</dd></div>
+                          <div className="flex justify-between gap-3"><dt className="text-fg-secondary">Price</dt><dd className="tabular-nums">{display.price(price, { suffix: true })}</dd></div>
                           <div className="flex justify-between gap-3"><dt className="text-fg-secondary">24h</dt><dd className={cn('tabular-nums', change > 0 ? 'text-positive' : change < 0 ? 'text-negative' : 'text-fg')}>{formatDelta(change, { unit: 'pct', decimals: 2 })}</dd></div>
                         </>
                       )}
-                      <div className="flex justify-between gap-3 border-t border-border pt-1.5"><dt className="text-fg-secondary">Value</dt><dd className="font-semibold">{price ? <MoneyText value={valueMXN} /> : <span className="text-label font-normal text-warning">no price</span>}</dd></div>
-                      <div className="flex justify-between gap-3"><dt className="text-fg-secondary">Value (USD)</dt><dd className="tabular-nums" data-money="">{price ? usd(valueUSD) : '—'}</dd></div>
+                      <div className="flex justify-between gap-3 border-t border-border pt-1.5"><dt className="text-fg-secondary">Value</dt><dd className="font-semibold">{price ? <MoneyText value={display.amount(valueMXN)} {...display.textProps} /> : <span className="text-label font-normal text-warning">no price</span>}</dd></div>
+                      <div className="flex justify-between gap-3"><dt className="text-fg-secondary">Value ({other})</dt><dd className="tabular-nums" data-money="">{!price ? '—' : currency === 'USD' ? formatMoney(valueMXN, { currency: 'MXN', showCurrency: true }) : usd(valueUSD)}</dd></div>
                       {pl === null && h.quantity > 0 && !hasCostBasis(h) && (
                         <div className="flex justify-between gap-3">
                           <dt className="text-fg-secondary">P&amp;L</dt>
@@ -532,7 +543,7 @@ export function CryptoClient({ ownerFilter: controlledOwner }: CryptoClientProps
                         <div className="flex justify-between gap-3">
                           <dt className="text-fg-secondary">P&amp;L</dt>
                           <dd className={cn('tabular-nums font-semibold', pl >= 0 ? 'text-positive' : 'text-negative')} data-money="">
-                            {formatMoney(pl, { sign: 'always' })}{plPct !== null && <span className="ml-1 text-label font-normal">({formatDelta(plPct, { unit: 'pct', decimals: 1 })})</span>}
+                            {display.money(pl, { sign: 'always' })}{plPct !== null && <span className="ml-1 text-label font-normal">({formatDelta(plPct, { unit: 'pct', decimals: 1 })})</span>}
                           </dd>
                         </div>
                       )}
