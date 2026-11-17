@@ -1,7 +1,18 @@
 'use client'
 
-// A stock's mark: its ticker's initials on a stable palette colour (both
-// themes). No remote logos: there's no keyless logo source worth trusting.
+import { useState } from 'react'
+
+// A stock's mark: the company logo (Financial Modeling Prep's keyless logo
+// CDN) on a white tile so transparent and solid logos look alike in both
+// themes, or the ticker's initials on a stable palette colour when there is
+// no logo (unknown ticker, offline, blocked).
+
+const LOGO_BASE = 'https://financialmodelingprep.com/image-stock/'
+
+export function stockLogoUrl(ticker: string): string | null {
+  const t = ticker.trim().toUpperCase()
+  return /^[A-Z0-9][A-Z0-9.-]{0,14}$/.test(t) ? `${LOGO_BASE}${encodeURIComponent(t)}.png` : null
+}
 
 export function tickerColor(ticker: string): string {
   let hash = 0
@@ -10,6 +21,19 @@ export function tickerColor(ticker: string): string {
 }
 
 export function TickerBadge({ ticker, size = 32 }: { ticker: string; size?: number }) {
+  const url = stockLogoUrl(ticker)
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  if (url && failedUrl !== url) {
+    return (
+      <span aria-hidden className="inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white ring-1 ring-border"
+        style={{ width: size, height: size, padding: Math.max(2, Math.round(size * 0.12)) }}>
+        {/* Small remote logos; next/image would need a remote-host allowlist for no gain. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt="" width={size} height={size} loading="lazy" referrerPolicy="no-referrer"
+          className="h-full w-full object-contain" onError={() => setFailedUrl(url)} />
+      </span>
+    )
+  }
   const color = tickerColor(ticker)
   const label = ticker.replace(/\.MX$/, '').replace(/[^A-Z0-9]/gi, '').slice(0, size >= 28 ? 3 : 2)
   return (
