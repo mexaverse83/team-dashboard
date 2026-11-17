@@ -32,7 +32,7 @@ interface Props {
 type AssetName = keyof typeof ASSET_COLOR
 
 export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, onOpenTab, onRetry }: Props) {
-  const { totals, positions, byOwner, pl, plPct, cryptoNoBasis, cryptoUnpriced } = portfolio
+  const { totals, positions, byOwner, pl, plPct, cryptoNoBasis, cryptoUnpriced, stocksUnpriced } = portfolio
   const anyError = Object.keys(errors).length > 0
   // A coin with no live price is left out of value, cost and P&L: say which.
   // With none priced, crypto's value is unknown ("—"), never $0.
@@ -41,11 +41,17 @@ export function PortfolioTab({ portfolio, ownerFilter, errors, netWorth, baby, o
   const excluded = [
     cryptoNoBasis.length > 0 ? `${cryptoNoBasis.join(', ')}: no cost basis` : '',
     cryptoNoPrices ? 'crypto: no live prices' : cryptoUnpriced.length > 0 ? `${cryptoUnpriced.join(', ')}: no live price` : '',
+    stocksUnpriced.length > 0 ? `${stocksUnpriced.join(', ')}: at cost, no live price` : '',
   ].filter(Boolean).join('; ')
+  // Public stocks without a live price count at cost: say which.
+  const stocksNote = [
+    stocksUnpriced.length > 0 ? `${stocksUnpriced.join(', ')} at cost (no price)` : '',
+    totals.privateEquity > 0 ? 'incl. private equity est.' : '',
+  ].filter(Boolean).join(' · ') || undefined
 
   const classes: Array<{ name: AssetName; tab: InvestmentsTab; icon: typeof Bitcoin; value: number; source: InvestmentSource; count: number; noun: string; split?: { a: number; b: number }; locked?: boolean; note?: string; unknown?: boolean }> = [
     { name: 'Crypto', tab: 'Crypto', icon: Bitcoin, value: totals.crypto, source: 'crypto', count: positions.crypto, noun: 'coin', split: byOwner.crypto, note: cryptoNote, unknown: cryptoNoPrices },
-    { name: 'Stocks', tab: 'Stocks', icon: BarChart3, value: totals.stocks, source: 'stocks', count: positions.stocks, noun: 'position', split: byOwner.stocks, note: totals.privateEquity > 0 ? 'incl. private equity est.' : undefined },
+    { name: 'Stocks', tab: 'Stocks', icon: BarChart3, value: totals.stocks, source: 'stocks', count: positions.stocks, noun: 'position', split: byOwner.stocks, note: stocksNote },
     { name: 'Fixed Income', tab: 'Fixed Income', icon: Shield, value: totals.fixedIncome, source: 'fixedIncome', count: positions.fixedIncome, noun: 'fund', split: byOwner.fixedIncome },
     { name: 'Real Estate', tab: 'Real Estate', icon: Home, value: totals.realEstate, source: 'realEstate', count: positions.realEstate, noun: 'property', split: byOwner.realEstate },
     { name: 'Retirement', tab: 'Retirement', icon: Lock, value: totals.retirement, source: 'retirement', count: positions.retirement, noun: 'account', locked: true },

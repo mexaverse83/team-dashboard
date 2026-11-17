@@ -4,16 +4,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({ tables: {} as Record<string, unknown[]>, fail: '', writes: [] as Array<{ table: string; op: string; payload: unknown }> }))
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: (table: string) => {
-  const result = () => Promise.resolve({ data: state.tables[table] ?? [], error: state.fail === table ? { message: 'offline' } : null })
+  let one = false
+  const rows = () => state.tables[table] ?? []
+  const result = () => Promise.resolve({ data: one ? rows()[0] ?? null : rows(), error: state.fail === table ? { message: 'offline' } : null })
   const chain: Record<string, unknown> = { then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) => result().then(resolve, reject) }
-  for (const method of ['select', 'eq', 'ilike', 'order', 'limit', 'gte', 'lte', 'gt', 'single']) chain[method] = () => chain
+  for (const method of ['select', 'eq', 'in', 'ilike', 'order', 'limit', 'gte', 'lte', 'gt']) chain[method] = () => chain
+  chain.single = chain.maybeSingle = () => { one = true; return chain }
   chain.insert = (payload: unknown) => { state.writes.push({ table, op: 'insert', payload }); return chain }
   chain.update = (payload: unknown) => { state.writes.push({ table, op: 'update', payload }); return chain }
   chain.delete = () => { state.writes.push({ table, op: 'delete', payload: null }); return chain }
   return chain
 } }) }))
 vi.mock('@/lib/finance-api-auth', () => ({ authorizeFinanceRequest: async () => ({ ok: true }) }))
-vi.mock('@/lib/crypto-prices', () => ({ fetchCryptoPrices: async () => ({ BTC: { usd: 100000, mxn: 1800000, change24h: 0 } }) }))
+vi.mock('@/lib/crypto-prices', () => ({ fetchCryptoPrices: async () => ({ BTC: { usd: 100000, mxn: 1800000, change24h: 0 } }), impliedUsdMxn: () => 18 }))
+vi.mock('@/lib/stock-prices', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/stock-prices')>()),
+  fetchStockQuotes: async () => ({ quotes: { NVDA: { symbol: 'NVDA', price: 150, currency: 'USD', previousClose: 148, change: 2, changePct: 1.35, usd: 150, mxn: 2775, source: 'yahoo' } }, usdMxn: 18.5, usdMxnSource: 'yahoo' }),
+}))
 
 import * as stocks from '@/app/api/finance/investments/stocks/route'
 import * as fixedIncome from '@/app/api/finance/investments/fixed-income/route'
@@ -94,8 +101,29 @@ describe('investments API failures are loud (F18, VIS-17)', () => {
   })
 
   it('canonicalizes owner casing on holding inserts', async () => {
-    const res = await stocks.POST(post('/api/finance/investments/stocks', { ticker: 'VOO', owner: 'laura' }))
-    expect(res.status).toBe(200)
-    expect(state.writes).toEqual([{ table: 'finance_stock_holdings', op: 'insert', payload: { ticker: 'VOO', owner: 'Laura' } }])
+    const res = await stocks.POST(post('/api/finance/investments/stocks', { ticker: 'voo', owner: 'laura' }))
+    expect(res.status).toBe(201)
+    expect(state.writes).toEqual([{ table: 'finance_stock_holdings', op: 'insert', payload: expect.objectContaining({ ticker: 'VOO', owner: 'Laura', currency: 'USD', shares: 0, asset_type: 'stock' }) }])
+  })
+
+  it('stocks GET carries live quotes for public tickers', async () => {
+    state.tables.finance_stock_holdings = [
+      { id: 'n', ticker: 'NVDA', shares: 0.34692423, asset_type: 'stock', currency: 'USD' },
+      { id: 'pe', ticker: 'NXM', shares: 10000, asset_type: 'private_equity', currency: 'USD' },
+    ]
+    const body = await (await stocks.GET(get('/api/finance/investments/stocks'))).json()
+    expect(body.quotes.NVDA.mxn).toBe(2775)
+    expect(body.quotes.NXM).toBeUndefined()
+    expect(body.usd_mxn).toBe(18.5)
+    expect(body.transactions_ready).toBe(true)
+  })
+
+  it('stocks: refuses an invalid ticker and never edits or removes private equity', async () => {
+    expect((await stocks.POST(post('/api/finance/investments/stocks', { ticker: 'https://evil', owner: 'laura' }))).status).toBe(400)
+    state.tables.finance_stock_holdings = [{ id: 'pe', ticker: 'NXM', asset_type: 'private_equity' }]
+    expect((await stocks.POST(post('/api/finance/investments/stocks', { id: 'pe', shares: 1 }))).status).toBe(409)
+    const del = await stocks.DELETE(new NextRequest('http://localhost/api/finance/investments/stocks', { method: 'DELETE', body: JSON.stringify({ ids: ['pe'] }) }))
+    expect(del.status).toBe(409)
+    expect(state.writes).toEqual([])
   })
 })

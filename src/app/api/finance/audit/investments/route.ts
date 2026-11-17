@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { loadStockInputs } from '@/lib/server/stocks'
+import { valuePublicStocks, type StockHoldingLike } from '@/lib/stock-portfolio'
 import { authorizeFinanceRequest } from '@/lib/finance-api-auth'
 import { canonicalOwner } from '@/lib/owners'
 import { fetchCryptoPrices, impliedUsdMxn } from '@/lib/crypto-prices'
@@ -498,7 +500,10 @@ export async function GET(req: NextRequest) {
     const peData = (stocksData || []) as Record<string, unknown>[]
     const peCurrentValue = peData.filter(s => s.asset_type === 'private_equity')
       .reduce((sum, s) => sum + (Number(s.shares || 0) * Number(s.current_price_usd || 0) * usdMxn), 0)
-    const finalNetWorth = totalNetWorth + peCurrentValue
+    // Public stocks at the live price × shares (cost when unpriced), as the Stocks tab shows them.
+    const stockInputs = await loadStockInputs(supabase, peData as Array<Record<string, unknown> & { id: string }>)
+    const publicStocks = valuePublicStocks(stockInputs.rows as unknown as StockHoldingLike[], stockInputs.quotes, stockInputs.usdMxn ?? usdMxn)
+    const finalNetWorth = totalNetWorth + peCurrentValue + publicStocks.valueMXN
 
     // Run all flag rules
     const findings: Finding[] = []

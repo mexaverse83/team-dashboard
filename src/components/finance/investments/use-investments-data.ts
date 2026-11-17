@@ -3,11 +3,16 @@
 import { useFinanceData } from '@/hooks/use-finance-data'
 import type {
   CryptoHoldingLite, CryptoPrices, FixedIncomeInstrument, InvestmentSource, NetWorthPoint,
-  RealEstateProperty, RetirementRecordLite, StockHolding,
+  RealEstateProperty, RetirementRecordLite, StockHolding, StockQuotes,
 } from './types'
 
 export interface InvestmentsData {
   stocks: StockHolding[]
+  /** Live quotes for the public tickers and the USD/MXN rate they used. */
+  stockQuotes: StockQuotes
+  stockFx: number | null
+  /** False until the stock-transactions migration is applied. */
+  stockLedgerReady: boolean
   fixedIncome: FixedIncomeInstrument[]
   realEstate: RealEstateProperty[]
   crypto: CryptoHoldingLite[]
@@ -30,7 +35,7 @@ async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
 export async function fetchInvestments(signal: AbortSignal): Promise<InvestmentsData> {
   const [crypto, stocks, fi, re, retirement] = await Promise.allSettled([
     getJson<{ holdings?: CryptoHoldingLite[]; prices?: CryptoPrices | null }>('/api/finance/crypto', signal),
-    getJson<{ stocks?: StockHolding[] }>('/api/finance/investments/stocks', signal),
+    getJson<{ stocks?: StockHolding[]; quotes?: StockQuotes; usd_mxn?: number | null; transactions_ready?: boolean }>('/api/finance/investments/stocks', signal),
     getJson<{ instruments?: FixedIncomeInstrument[] }>('/api/finance/investments/fixed-income', signal),
     getJson<{ properties?: RealEstateProperty[] }>('/api/finance/investments/real-estate', signal),
     getJson<{ records?: RetirementRecordLite[] }>('/api/finance/retirement', signal),
@@ -43,10 +48,14 @@ export async function fetchInvestments(signal: AbortSignal): Promise<Investments
     return null
   }
   const c = pick(crypto, 'crypto')
+  const s = pick(stocks, 'stocks')
   return {
     crypto: c?.holdings ?? [],
     prices: c?.prices ?? null,
-    stocks: pick(stocks, 'stocks')?.stocks ?? [],
+    stocks: s?.stocks ?? [],
+    stockQuotes: s?.quotes ?? {},
+    stockFx: s?.usd_mxn ?? null,
+    stockLedgerReady: s?.transactions_ready ?? true,
     fixedIncome: pick(fi, 'fixedIncome')?.instruments ?? [],
     realEstate: pick(re, 'realEstate')?.properties ?? [],
     retirement: pick(retirement, 'retirement')?.records ?? [],

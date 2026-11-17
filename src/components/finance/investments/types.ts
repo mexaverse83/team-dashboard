@@ -2,6 +2,9 @@ export interface StockHolding {
   id: string; ticker: string; name: string; exchange: string; asset_type: string
   shares: number; avg_cost_basis: number; currency: string; broker: string | null
   owner: string; notes: string | null
+  created_at?: string | null
+  /** MXN cost at the rates actually paid (from the ledger, stocks GET); null = derive from avg cost. */
+  cost_mxn?: number | null
   // Private equity fields
   current_price_usd?: number; target_price_usd?: number
   expected_exit_start?: string; expected_exit_end?: string
@@ -29,6 +32,8 @@ export interface RealEstateProperty {
 export interface CryptoHoldingLite {
   quantity: number; symbol: string; avg_cost_basis_usd: number | null; cost_currency: string; owner: string
 }
+
+export type { StockQuote, StockQuotes } from '@/lib/stock-prices'
 
 export type CryptoPrices = Record<string, { usd: number; mxn: number; change24h?: number }>
 

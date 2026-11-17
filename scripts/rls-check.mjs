@@ -31,7 +31,7 @@ export const CHECKED_TABLES = [
   'finance_goals', 'finance_income_sources', 'finance_debts', 'finance_debt_payments',
   'finance_installments', 'finance_recurring_income', 'finance_rules',
   'finance_net_worth_snapshots', 'finance_portfolio_snapshots', 'finance_crypto_holdings',
-  'crypto_transactions', 'finance_stock_holdings', 'finance_fixed_income',
+  'crypto_transactions', 'finance_stock_holdings', 'finance_stock_transactions', 'finance_fixed_income',
   'finance_real_estate', 'finance_real_estate_targets', 'finance_retirement',
   'finance_emergency_fund', 'finance_insights_cache', 'finance_wolff_chat',
   'finance_audit_reports', 'finance_checklist_status', 'finance_monthly_savings',

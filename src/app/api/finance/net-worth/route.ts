@@ -9,6 +9,8 @@ import { getWestProjection } from '@/lib/server/west'
 import { isWestProperty, propertyEquity, type PropertyLike, type WestPaidToDate } from '@/lib/property-equity'
 import { stockValueMXN } from '@/components/finance/investments/portfolio'
 import type { StockHolding } from '@/components/finance/investments/types'
+import { loadStockInputs } from '@/lib/server/stocks'
+import { isPrivateEquity, quoteFor, stockCostMXN } from '@/lib/stock-portfolio'
 import { recordRun, triggerFromAuth } from '@/lib/automation/runs'
 
 // Used only when no live rate is available (no priced coin today).
@@ -158,15 +160,23 @@ async function writeSnapshot(req: NextRequest, auth: AuthOk) {
   if (!liveRate && needsUsd) warnings.push(`no live USD/MXN rate — used fallback ${USD_MXN_FALLBACK}`)
 
   // Private equity is an estimate at current_price_usd × the live USD/MXN rate —
-  // the same stockValueMXN the Investments page uses. Other holdings: a stored
-  // price if the row has one, else cost basis.
-  const stocksTotal = stocks.reduce((s: number, x: { asset_type?: string; shares?: number; current_price_usd?: number; current_price_mxn?: number; current_price?: number; avg_cost_basis?: number; currency?: string }) => {
-    if (x.asset_type === 'private_equity') return s + stockValueMXN(x as StockHolding, usdMxn)
-    const shares = x.shares || 0
-    const fxRate = x.currency === 'USD' ? usdMxn : 1
-    const price = x.current_price_mxn ?? (x.current_price ? x.current_price * fxRate : 0)
-    const value = price > 0 ? shares * price : (x.avg_cost_basis ? shares * x.avg_cost_basis * fxRate : 0)
-    return s + value
+  // the same stockValueMXN the Investments page uses. Public stocks: shares ×
+  // the live quote (src/lib/stock-prices.ts); without one, a stored price if
+  // the row has one, else cost — flagged as a warning.
+  const stockInputs = await loadStockInputs(supabase, stocks as Array<Record<string, unknown> & { id: string }>)
+  const stockRate = stockInputs.usdMxn ?? usdMxn
+  type StockRow = { id: string; ticker?: string; asset_type?: string; shares?: number; current_price_usd?: number; current_price_mxn?: number; current_price?: number; avg_cost_basis?: number; currency?: string; cost_mxn?: number | null }
+  const stocksTotal = (stockInputs.rows as StockRow[]).reduce((s: number, x) => {
+    if (isPrivateEquity(x)) return s + stockValueMXN(x as unknown as StockHolding, usdMxn)
+    const shares = Number(x.shares) || 0
+    if (!(shares > 0)) return s
+    const quote = quoteFor({ ticker: x.ticker ?? '', asset_type: x.asset_type }, stockInputs.quotes)
+    if (quote) return s + shares * quote.mxn
+    const fxRate = x.currency === 'USD' ? stockRate : 1
+    const stored = x.current_price_mxn ?? (x.current_price ? x.current_price * fxRate : 0)
+    if (stored > 0) return s + shares * stored
+    if (x.ticker) warnings.push(`no live price for ${x.ticker} — valued at cost`)
+    return s + stockCostMXN({ ...x, id: x.id, ticker: x.ticker ?? '', shares }, stockRate)
   }, 0)
 
   // Fixed income: principal accrued at the net rate since last confirmed.

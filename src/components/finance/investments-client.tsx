@@ -59,6 +59,8 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
     realEstate: data?.realEstate ?? [],
     crypto: data?.crypto ?? [],
     prices: data?.prices ?? null,
+    stockQuotes: data?.stockQuotes ?? null,
+    stockFx: data?.stockFx ?? null,
     retirement: data?.retirement ?? [],
     ownerFilter,
     west,
@@ -113,7 +115,7 @@ export function InvestmentsClient({ initialTab }: { initialTab?: string }) {
           <CryptoClient ownerFilter={ownerFilter} />
         </TabsContent>
         <TabsContent value="Stocks">
-          {loading ? <TabSkeleton /> : <StocksTab portfolio={portfolio} ownerFilter={ownerFilter} failed={!!errors.stocks || !data} onRetry={retry} onChanged={onChanged} />}
+          {loading ? <TabSkeleton /> : <StocksTab portfolio={portfolio} allStocks={data?.stocks ?? []} ledgerReady={data?.stockLedgerReady ?? true} ownerFilter={ownerFilter} failed={!!errors.stocks || !data} onRetry={retry} onChanged={onChanged} />}
         </TabsContent>
         <TabsContent value="Fixed Income">
           {loading ? <TabSkeleton /> : <FixedIncomeTab portfolio={portfolio} ownerFilter={ownerFilter} failed={!!errors.fixedIncome || !data} onRetry={retry} onChanged={onChanged} />}

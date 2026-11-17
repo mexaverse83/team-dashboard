@@ -12,13 +12,20 @@ const state = vi.hoisted(() => ({
 }))
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: (table: string) => {
   const chain: Record<string, unknown> = { then: (resolve: (v: unknown) => unknown) => Promise.resolve({ data: state.tables[table] ?? [], error: null }).then(resolve) }
-  for (const method of ['select', 'eq', 'gte', 'order', 'limit']) chain[method] = () => chain
+  for (const method of ['select', 'eq', 'in', 'gte', 'order', 'limit']) chain[method] = () => chain
   chain.upsert = (row: unknown) => { state.upsert(table, row); return Promise.resolve({ error: null }) }
   chain.insert = (row: unknown) => { state.insert(table, row); return Promise.resolve({ error: null }) }
   return chain
 } }) }))
 vi.mock('@/lib/finance-api-auth', () => ({ authorizeFinanceRequest: async () => state.auth }))
 vi.mock('@/lib/crypto-prices', async importOriginal => ({ ...(await importOriginal<typeof import('@/lib/crypto-prices')>()), fetchCryptoPrices: async () => ({ BTC: { usd: 100_000, mxn: 1_900_000, change24h: 0 } }) }))
+vi.mock('@/lib/stock-prices', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/stock-prices')>()),
+  fetchStockQuotes: async (symbols: string[]) => ({
+    quotes: symbols.includes('NVDA') ? { NVDA: { symbol: 'NVDA', price: 150, currency: 'USD', previousClose: 150, change: 0, changePct: 0, usd: 150, mxn: 2_850, source: 'yahoo' } } : {},
+    usdMxn: 19, usdMxnSource: 'yahoo',
+  }),
+}))
 vi.mock('@/lib/server/west', () => ({
   getWestProjection: async () => { if (!state.west) throw new Error('no target'); return state.west },
 }))
@@ -74,6 +81,19 @@ describe('net-worth snapshots', () => {
     expect(body.usd_mxn).toBe(19)
     expect(body.usd_mxn_source).toBe('live')
     expect(body.breakdown.stocks).toBe(19_000)
+  })
+  it('values public stocks at the live price and an unpriced one at cost, flagged; private equity unchanged', async () => {
+    state.tables.finance_stock_holdings = [
+      { id: 'n', ticker: 'NVDA', asset_type: 'stock', shares: 2, avg_cost_basis: 100, currency: 'USD' },
+      { id: 'w', ticker: 'WALMEX.MX', asset_type: 'stock', shares: 10, avg_cost_basis: 50, currency: 'MXN' },
+      { id: 'pe', ticker: 'NXM', asset_type: 'private_equity', shares: 100, current_price_usd: 2, currency: 'USD' },
+    ]
+    const body = await (await POST(new NextRequest('http://localhost/api/finance/net-worth', { method: 'POST' }))).json()
+    // NVDA live 2 × 2,850 + WALMEX at cost 10 × 50 + PE 100 × 2 × 19 (crypto-implied rate)
+    expect(body.breakdown.stocks).toBe(5_700 + 500 + 3_800)
+    const run = state.insert.mock.calls.find(([t]) => t === 'finance_automation_runs')?.[1] as Row
+    expect(run.status).toBe('warning')
+    expect(JSON.stringify(run.details)).toContain('no live price for WALMEX.MX')
   })
   it('falls back to the stored mortgage balance when the WEST tracker is unavailable', async () => {
     state.west = null

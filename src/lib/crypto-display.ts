@@ -33,10 +33,23 @@ export function cryptoDisplay(currency: Currency, usdToMxn: number): CryptoDispl
   }
 }
 
+/** The same MXN | USD switch for any tab (the Stocks tab uses it with its own key). */
+export const moneyDisplay = cryptoDisplay
+export type MoneyDisplay = CryptoDisplay
+export const STOCKS_CURRENCY_KEY = 'mona:stocks-currency'
+
+export function readDisplayCurrency(key: string): Currency {
+  try { return window.localStorage.getItem(key) === 'USD' ? 'USD' : 'MXN' } catch { return 'MXN' }
+}
+
+export function saveDisplayCurrency(key: string, currency: Currency) {
+  try { window.localStorage.setItem(key, currency) } catch { /* private mode */ }
+}
+
 export function readCryptoCurrency(): Currency {
-  try { return window.localStorage.getItem(CRYPTO_CURRENCY_KEY) === 'USD' ? 'USD' : 'MXN' } catch { return 'MXN' }
+  return readDisplayCurrency(CRYPTO_CURRENCY_KEY)
 }
 
 export function saveCryptoCurrency(currency: Currency) {
-  try { window.localStorage.setItem(CRYPTO_CURRENCY_KEY, currency) } catch { /* private mode */ }
+  saveDisplayCurrency(CRYPTO_CURRENCY_KEY, currency)
 }

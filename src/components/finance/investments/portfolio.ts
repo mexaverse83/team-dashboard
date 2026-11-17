@@ -4,6 +4,7 @@
 import { accruedValue } from '@/lib/fixed-income'
 import { propertyEquity as sharedPropertyEquity, type WestPaidToDate } from '@/lib/property-equity'
 import { OWNERS, ownersEqual } from '@/lib/owners'
+import { publicStockValueMXN, stockCostMXN, valuePublicStocks, type QuoteMap } from '@/lib/stock-portfolio'
 import type {
   CryptoHoldingLite, CryptoPrices, FIGroup, FixedIncomeInstrument, OwnerFilter,
   RealEstateProperty, RetirementRecordLite, StockHolding,
@@ -27,10 +28,17 @@ export function usdMxnRate(prices: CryptoPrices | null | undefined): number {
   return FALLBACK_USD_MXN
 }
 
-export function stockValueMXN(s: StockHolding, fxRate: number): number {
+/**
+ * A holding's MXN value. Private equity: shares × current_price_usd at the
+ * live rate (unchanged). Public stocks: shares × the live quote when there is
+ * one, else their cost (see valuePublicStocks for the "at cost" label).
+ */
+export function stockValueMXN(s: StockHolding, fxRate: number, quotes?: QuoteMap | null): number {
   if (s.asset_type === 'private_equity') return s.shares * (s.current_price_usd || 0) * fxRate
-  return s.shares * s.avg_cost_basis
+  return publicStockValueMXN(s, quotes, fxRate).valueMXN
 }
+
+export { stockCostMXN }
 
 /** Private equity "net at target": shares × (target − cost) at the live rate — the Stocks tab's figure. */
 export function privateEquityNetAtTargetMXN(s: Pick<StockHolding, 'shares' | 'avg_cost_basis' | 'target_price_usd'>, fxRate: number): number {
@@ -121,6 +129,9 @@ export interface PortfolioInput {
   realEstate: readonly RealEstateProperty[]
   crypto: readonly CryptoHoldingLite[]
   prices: CryptoPrices | null
+  /** Live stock quotes (stocks GET) and the USD/MXN rate they were converted at. */
+  stockQuotes?: QuoteMap | null
+  stockFx?: number | null
   retirement: readonly RetirementRecordLite[]
   ownerFilter: OwnerFilter
   now?: Date
@@ -128,8 +139,10 @@ export interface PortfolioInput {
   west?: WestPaidToDate | null
 }
 
-export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, prices, retirement, ownerFilter, now, west = null }: PortfolioInput) {
+export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, prices, stockQuotes = null, stockFx = null, retirement, ownerFilter, now, west = null }: PortfolioInput) {
   const fxRate = usdMxnRate(prices)
+  // Public stocks convert at the rate their quotes used (Yahoo's USD/MXN), else the crypto-implied one.
+  const stockRate = stockFx && stockFx > 0 ? stockFx : fxRate
   const ownedStocks = filterByOwner(stocks, ownerFilter)
   const privateEquity = ownedStocks.filter(s => s.asset_type === 'private_equity')
   const publicStocks = ownedStocks.filter(s => s.asset_type !== 'private_equity')
@@ -139,7 +152,9 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
   const ret = filterByOwner(retirement, ownerFilter)
 
   const peTotal = privateEquity.reduce((s, h) => s + stockValueMXN(h, fxRate), 0)
-  const publicTotal = publicStocks.reduce((s, h) => s + stockValueMXN(h, fxRate), 0)
+  // Live price × shares; a stock without a price counts at cost (listed in stocksUnpriced).
+  const publicValuation = valuePublicStocks(publicStocks, stockQuotes, stockRate)
+  const publicTotal = publicValuation.valueMXN
   const stocksTotal = publicTotal + peTotal
   // fiCost = confirmed principal; fiTotal = estimate accrued since confirmation
   const fiCost = fi.reduce((s, i) => s + i.principal, 0)
@@ -160,9 +175,9 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
   const retirementLocked = ret.filter(r => r.instrument_type !== 'infonavit').reduce((s, r) => s + (r.current_balance || 0), 0)
 
   const total = cryptoTotal + stocksTotal + fiTotal + reTotal + retirementTotal
-  // P&L only over classes with a real cost basis (crypto, public stocks, FI)
-  const costBase = cryptoCost + publicTotal + fiCost
-  const valueOnCost = cryptoValueOnCost + publicTotal + fiTotal
+  // P&L only over classes with a real cost basis (crypto, priced public stocks, FI)
+  const costBase = cryptoCost + publicValuation.pricedCostMXN + fiCost
+  const valueOnCost = cryptoValueOnCost + publicValuation.pricedValueMXN + fiTotal
   const pl = costBase > 0 ? valueOnCost - costBase : null
   const plPct = pl !== null && costBase > 0 ? (pl / costBase) * 100 : null
 
@@ -170,6 +185,8 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
 
   return {
     fxRate,
+    stockRate,
+    stockQuotes,
     west,
     privateEquity,
     publicStocks,
@@ -181,18 +198,21 @@ export function computePortfolio({ stocks, fixedIncome, realEstate, crypto, pric
     cryptoNoBasis,
     /** Held coins with no live price: valued at 0 and left out of cost and P&L. */
     cryptoUnpriced,
+    /** Public stocks with no live price: valued at cost and left out of P&L. */
+    stocksUnpriced: publicValuation.unpriced,
+    publicStocksCost: publicValuation.costMXN,
     pl,
     plPct,
     positions: {
       crypto: distinctCoins(coins),
-      stocks: ownedStocks.length,
+      stocks: ownedStocks.filter(s => s.asset_type === 'private_equity' || s.shares > 0).length,
       fixedIncome: fiGroups.length,
       realEstate: re.length,
       retirement: ret.length,
     },
     byOwner: {
       crypto: split([...crypto], h => cryptoValueMXN(h, prices), distinctCoins),
-      stocks: split([...stocks], h => stockValueMXN(h, fxRate)),
+      stocks: split([...stocks], h => stockValueMXN(h, h.asset_type === 'private_equity' ? fxRate : stockRate, stockQuotes)),
       fixedIncome: split([...fixedIncome], i => accruedValue(i, now), rows => new Set(rows.map(fiKey)).size),
       realEstate: split([...realEstate], p => propertyEquity(p, west)),
       retirement: split([...retirement], r => r.current_balance || 0),
